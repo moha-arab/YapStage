@@ -28,6 +28,8 @@ import {
 import { abort, acceptChunk, resendState, startDebate, type Io } from './debate.js';
 import { runJudge } from './judge.js';
 
+// Deployed on Railway via Dockerfile (see railway.json). Fastify serves the
+// built client from client/dist and hosts the Socket.IO signaling server.
 const here = path.dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: path.resolve(here, '../../.env') });
 
