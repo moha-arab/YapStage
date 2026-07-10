@@ -8,6 +8,9 @@ interface Props {
   localStream: MediaStream | null;
   remoteStream: MediaStream | null;
   peerLostUntil: number | null;
+  rtcState: RTCPeerConnectionState | null;
+  speechHeard: boolean;
+  speechSupported: boolean;
 }
 
 const PHASES: { key: string; label: string }[] = [
@@ -16,7 +19,16 @@ const PHASES: { key: string; label: string }[] = [
   { key: 'closing', label: 'Closings' },
 ];
 
-export default function Debate({ start, phase, localStream, remoteStream, peerLostUntil }: Props) {
+export default function Debate({
+  start,
+  phase,
+  localStream,
+  remoteStream,
+  peerLostUntil,
+  rtcState,
+  speechHeard,
+  speechSupported,
+}: Props) {
   const mySide = start.yourSide;
   const peerSide: Side = mySide === 'FOR' ? 'AGAINST' : 'FOR';
   const revealMs = useCountdown(start.startsAt, start.serverNow);
@@ -95,7 +107,13 @@ export default function Debate({ start, phase, localStream, remoteStream, peerLo
         </div>
         <div className={`shot-clock ${danger ? 'clock-danger' : ''}`}>{formatClock(msLeft)}</div>
         <div className={`mic-chip ${myTurn ? 'mic-live' : 'mic-off'}`}>
-          {myTurn ? 'Your mic is LIVE' : 'Your mic is muted'}
+          {myTurn
+            ? speechSupported
+              ? speechHeard
+                ? 'Mic LIVE · transcribing ✓'
+                : 'Mic LIVE · listening…'
+              : 'Your mic is LIVE'
+            : 'Your mic is muted'}
         </div>
       </div>
 
@@ -110,6 +128,10 @@ export default function Debate({ start, phase, localStream, remoteStream, peerLo
         <div className="banner banner-warn">
           Opponent reconnecting… {Math.max(0, Math.ceil(graceMs / 1000))}s
         </div>
+      ) : null}
+
+      {!peerLostUntil && (rtcState === 'disconnected' || rtcState === 'failed') ? (
+        <div className="banner banner-warn">Video link lost — trying to recover…</div>
       ) : null}
     </div>
   );

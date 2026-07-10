@@ -35,7 +35,11 @@ export function ensureLocalStream(): Promise<MediaStream> {
   return localStreamPromise;
 }
 
-export function setupPeer(iceServers: IceServer[], onRemoteStream: (s: MediaStream) => void): void {
+export function setupPeer(
+  iceServers: IceServer[],
+  onRemoteStream: (s: MediaStream) => void,
+  onConnectionState?: (s: RTCPeerConnectionState) => void,
+): void {
   teardownPeer();
   if (!localStream) throw new Error('local stream not ready');
   onRemote = onRemoteStream;
@@ -47,6 +51,12 @@ export function setupPeer(iceServers: IceServer[], onRemoteStream: (s: MediaStre
   pc.ontrack = (e) => {
     if (e.streams[0]) onRemote?.(e.streams[0]);
   };
+  // ontrack fires when the OFFER is processed — long before media actually
+  // flows. connectionState 'connected' is the real "you can see each other".
+  pc.onconnectionstatechange = () => {
+    if (pc) onConnectionState?.(pc.connectionState);
+  };
+  onConnectionState?.('connecting');
   // Tells the server this side's tracks + handlers exist. When both sides
   // have said it, the server sends rtc:go to the host, which offers.
   socket.emit('rtc:ready');
@@ -103,6 +113,7 @@ export function teardownPeer(): void {
   if (pc) {
     pc.onicecandidate = null;
     pc.ontrack = null;
+    pc.onconnectionstatechange = null;
     pc.close();
     pc = null;
   }

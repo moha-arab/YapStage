@@ -16,7 +16,7 @@ import {
   setupPeer,
   teardownPeer,
 } from './webrtc';
-import { speechSupported, startTurn, stopTurn } from './speech';
+import { setOnChunk, speechSupported, startTurn, stopTurn } from './speech';
 import Home from './screens/Home';
 import GreenRoom from './screens/GreenRoom';
 import Debate from './screens/Debate';
@@ -41,6 +41,8 @@ export default function App() {
   const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null);
   const [mediaError, setMediaError] = useState<string | null>(null);
   const [mediaRetry, setMediaRetry] = useState(0);
+  const [rtcState, setRtcState] = useState<RTCPeerConnectionState | null>(null);
+  const [speechHeard, setSpeechHeard] = useState(false);
 
   const lobbyRef = useRef<LobbyUpdate | null>(null);
   lobbyRef.current = lobby;
@@ -125,12 +127,19 @@ export default function App() {
     };
   }, [resetToHome]);
 
+  // "We heard you" indicator: lights up when a transcript chunk lands.
+  useEffect(() => {
+    setOnChunk(() => setSpeechHeard(true));
+    return () => setOnChunk(null);
+  }, []);
+
   // The Jubilee rule: your mic exists only on your turn. Driven by server
   // phase events, never by the countdown display.
   useEffect(() => {
     if (!start || !phase || ended || abortReason) return;
     const myTurn = phase.activeSpeaker === start.yourSide;
     setMicEnabled(myTurn);
+    setSpeechHeard(false); // fresh turn, fresh proof-of-life
     if (myTurn) startTurn(phase.stepIndex);
     else stopTurn();
   }, [phase, start, ended, abortReason]);
@@ -146,7 +155,11 @@ export default function App() {
           if (cancelled) return;
           setLocalStream(stream);
           setMediaError(null);
-          setupPeer(lobby.iceServers, (s) => setRemoteStream(s));
+          setupPeer(
+            lobby.iceServers,
+            (s) => setRemoteStream(s),
+            (state) => setRtcState(state),
+          );
         } catch {
           if (!cancelled) {
             setMediaError('Camera and microphone access is required. Allow access in the address bar, then retry.');
@@ -159,6 +172,7 @@ export default function App() {
     } else {
       teardownPeer();
       setRemoteStream(null);
+      setRtcState(null);
     }
   }, [lobby?.code, lobby?.participantCount, mediaRetry]);
 
@@ -200,6 +214,9 @@ export default function App() {
         localStream={localStream}
         remoteStream={remoteStream}
         peerLostUntil={peerLostUntil}
+        rtcState={rtcState}
+        speechHeard={speechHeard}
+        speechSupported={speechSupported}
       />
     );
   }
@@ -212,6 +229,7 @@ export default function App() {
         remoteStream={remoteStream}
         mediaError={mediaError}
         speechSupported={speechSupported}
+        rtcState={rtcState}
         onRetryMedia={() => setMediaRetry((n) => n + 1)}
       />
     );

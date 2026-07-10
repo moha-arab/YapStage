@@ -16,6 +16,12 @@ let shouldListen = false;
 let currentStep = -1;
 let consecutiveErrors = 0;
 let warned = false;
+let onChunk: (() => void) | null = null;
+
+/** UI hook: fires whenever a final transcript chunk is actually captured. */
+export function setOnChunk(cb: (() => void) | null): void {
+  onChunk = cb;
+}
 
 function ensure(): void {
   if (rec || !speechSupported) return;
@@ -58,6 +64,7 @@ function ensure(): void {
         const text = String(result[0]?.transcript ?? '').trim();
         if (text && currentStep >= 0) {
           socket.emit('speech:chunk', { stepIndex: currentStep, text });
+          onChunk?.();
         }
       }
     }

@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { LobbyUpdate } from '../../../server/src/protocol';
 import { socket } from '../socket';
 import { initAudio } from '../sound';
+import { useAudioLevel } from '../useAudioLevel';
 import VideoTile from '../VideoTile';
 
 interface Props {
@@ -10,7 +11,19 @@ interface Props {
   remoteStream: MediaStream | null;
   mediaError: string | null;
   speechSupported: boolean;
+  rtcState: RTCPeerConnectionState | null;
   onRetryMedia: () => void;
+}
+
+function MicMeter({ level, label, warn }: { level: number; label: string; warn: boolean }) {
+  return (
+    <div className={`meter-row ${warn ? 'meter-warn' : ''}`}>
+      <span className="meter-label">{label}</span>
+      <div className="meter">
+        <div className="meter-fill" style={{ width: `${Math.round(level * 100)}%` }} />
+      </div>
+    </div>
+  );
 }
 
 export default function GreenRoom({
@@ -19,12 +32,28 @@ export default function GreenRoom({
   remoteStream,
   mediaError,
   speechSupported,
+  rtcState,
   onRetryMedia,
 }: Props) {
   const [consent, setConsent] = useState(false);
   const [copied, setCopied] = useState(false);
   const waiting = lobby.participantCount === 1;
   const link = `${window.location.origin}/?code=${lobby.code}`;
+  const connected = rtcState === 'connected';
+
+  const localLevel = useAudioLevel(localStream);
+  const remoteLevel = useAudioLevel(remoteStream);
+
+  // Mic proof-of-life: if we've had a mic for a while and it has NEVER made
+  // the meter move, say so loudly — a debate with a dead mic is unjudgeable.
+  const maxLocal = useRef(0);
+  if (localLevel > maxLocal.current) maxLocal.current = localLevel;
+  const [micSilent, setMicSilent] = useState(false);
+  useEffect(() => {
+    if (!localStream) return;
+    const id = setInterval(() => setMicSilent(maxLocal.current < 0.04), 2500);
+    return () => clearInterval(id);
+  }, [localStream]);
 
   function copyLink() {
     void navigator.clipboard.writeText(link).then(() => {
@@ -60,21 +89,41 @@ export default function GreenRoom({
       ) : null}
 
       <div className="tiles">
-        <VideoTile
-          stream={localStream}
-          muted
-          mirror
-          label={lobby.yourName}
-          sub="you"
-          placeholder={mediaError ? 'Camera blocked' : 'Starting camera…'}
-        />
-        <VideoTile
-          stream={remoteStream}
-          muted={false}
-          label={lobby.peerName ?? 'Opponent'}
-          sub={lobby.peerName ? (lobby.peerReady ? 'ready' : 'not ready') : undefined}
-          placeholder={waiting ? 'Waiting for your opponent…' : 'Connecting…'}
-        />
+        <div className="tile-stack">
+          <VideoTile
+            stream={localStream}
+            muted
+            mirror
+            label={lobby.yourName}
+            sub="you"
+            placeholder={mediaError ? 'Camera blocked' : 'Starting camera…'}
+          />
+          {localStream ? (
+            <MicMeter level={localLevel} label="Your mic" warn={micSilent} />
+          ) : null}
+          {localStream && micSilent ? (
+            <p className="meter-hint">
+              Say something — this bar should bounce. If it stays flat, your mic is dead and the
+              judge won't hear a word you say.
+            </p>
+          ) : null}
+        </div>
+        <div className="tile-stack">
+          <VideoTile
+            stream={remoteStream}
+            muted={false}
+            label={lobby.peerName ?? 'Opponent'}
+            sub={lobby.peerName ? (lobby.peerReady ? 'ready' : 'not ready') : undefined}
+            placeholder={waiting ? 'Waiting for your opponent…' : 'Connecting…'}
+          />
+          {remoteStream && connected ? (
+            <MicMeter
+              level={remoteLevel}
+              label={`${lobby.peerName ?? 'Their'} mic`}
+              warn={false}
+            />
+          ) : null}
+        </div>
       </div>
 
       {mediaError ? (
@@ -83,6 +132,14 @@ export default function GreenRoom({
           <button className="btn btn-small" onClick={onRetryMedia}>
             Retry
           </button>
+        </div>
+      ) : null}
+
+      {!waiting && rtcState === 'failed' ? (
+        <div className="banner banner-error">
+          Your two networks are blocking a direct video link (common on campus or office Wi-Fi).
+          This needs the relay server turned on — ping the site owner. Retrying may help on a
+          different network or hotspot.
         </div>
       ) : null}
 
@@ -108,19 +165,21 @@ export default function GreenRoom({
           </label>
           <button
             className="btn btn-primary btn-wide"
-            disabled={!consent || !localStream || !remoteStream || lobby.youReady}
+            disabled={!consent || !localStream || !connected || lobby.youReady}
             onClick={ready}
           >
             {lobby.youReady
               ? 'Waiting for your opponent…'
-              : !remoteStream
-                ? 'Connecting video…'
+              : !connected
+                ? rtcState === 'failed'
+                  ? 'Video link failed'
+                  : 'Connecting video…'
                 : "I'm ready — take the stage"}
           </button>
-          {!remoteStream && !lobby.youReady ? (
+          {!connected && !lobby.youReady && rtcState !== 'failed' ? (
             <p className="footnote">
-              Ready unlocks once you can see {lobby.peerName ?? 'your opponent'} — no point debating
-              a black screen.
+              Ready unlocks once live video is flowing both ways — no point debating a black
+              screen.
             </p>
           ) : null}
           {lobby.peerReady && !lobby.youReady ? (

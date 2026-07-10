@@ -24,7 +24,17 @@ export default function VideoTile(props: Props) {
     el.muted = props.muted;
     if (el.srcObject !== props.stream) {
       el.srcObject = props.stream;
-      if (props.stream) void el.play().catch(() => {});
+      if (props.stream) {
+        void el.play().catch(() => {
+          // Autoplay refused (unmuted media without enough engagement):
+          // retry on the user's next click/tap anywhere instead of staying black.
+          const retry = () => {
+            void el.play().catch(() => {});
+            document.removeEventListener('pointerdown', retry);
+          };
+          document.addEventListener('pointerdown', retry, { once: true });
+        });
+      }
     }
   }, [props.stream, props.muted]);
 
