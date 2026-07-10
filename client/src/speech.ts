@@ -14,6 +14,8 @@ let rec: any = null;
 let running = false;
 let shouldListen = false;
 let currentStep = -1;
+let consecutiveErrors = 0;
+let warned = false;
 
 function ensure(): void {
   if (rec || !speechSupported) return;
@@ -26,13 +28,30 @@ function ensure(): void {
   };
   rec.onend = () => {
     running = false;
-    if (shouldListen) setTimeout(tryStart, 250);
+    if (!shouldListen) return;
+    // Some Chromium forks (Brave etc.) expose the API but their backend fails
+    // every attempt with 'network'. Back off exponentially and give up for the
+    // turn instead of hot-looping a restart every 250ms.
+    if (consecutiveErrors >= 5) {
+      shouldListen = false;
+      if (!warned) {
+        warned = true;
+        console.warn('[speech] recognition backend keeps failing — this side will not be transcribed. Use desktop Chrome.');
+      }
+      return;
+    }
+    setTimeout(tryStart, Math.min(2000, 250 * 2 ** consecutiveErrors));
   };
   rec.onerror = (e: any) => {
-    if (e?.error === 'not-allowed') shouldListen = false;
-    // no-speech / aborted / network: the onend restart path handles it
+    if (e?.error === 'not-allowed') {
+      shouldListen = false;
+      return;
+    }
+    if (e?.error !== 'no-speech' && e?.error !== 'aborted') consecutiveErrors++;
+    // the onend restart path handles recovery
   };
   rec.onresult = (e: any) => {
+    consecutiveErrors = 0; // real results = backend healthy
     for (let i = e.resultIndex; i < e.results.length; i++) {
       const result = e.results[i];
       if (result.isFinal) {
@@ -59,6 +78,7 @@ export function startTurn(stepIndex: number): void {
   ensure();
   currentStep = stepIndex;
   shouldListen = true;
+  consecutiveErrors = 0; // fresh turn, fresh chances
   tryStart();
 }
 

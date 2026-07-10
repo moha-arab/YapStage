@@ -44,8 +44,10 @@ export default function App() {
 
   const lobbyRef = useRef<LobbyUpdate | null>(null);
   lobbyRef.current = lobby;
-  const resumableRef = useRef(false);
-  resumableRef.current = Boolean(start) && !abortReason && !verdictInfo;
+  const startedRef = useRef(false);
+  startedRef.current = Boolean(start);
+  const settledRef = useRef(false); // verdict shown or aborted — nothing to resume
+  settledRef.current = Boolean(verdictInfo) || Boolean(abortReason);
 
   const resetToHome = useCallback((message: string | null) => {
     releaseMedia();
@@ -78,25 +80,33 @@ export default function App() {
     });
     socket.on('debate:aborted', ({ reason }) => {
       stopTurn();
+      releaseMedia(); // camera light off on the cancelled screen
+      setLocalStream(null);
+      setRemoteStream(null);
       setAbortReason(reason);
     });
     socket.on('peer:connection', (p) =>
       setPeerLostUntil(p.state === 'lost' ? (p.graceDeadline ?? Date.now() + 15000) : null),
     );
-    socket.on('verdict:status', (p) => setJudgeStatus(p));
+    socket.on('verdict:status', (p) => {
+      stopTurn(); // never leave the recognizer running past the debate
+      setJudgeStatus(p);
+    });
     socket.on('verdict:result', (p) => {
+      stopTurn();
       setVerdictInfo(p);
       setJudgeStatus(null);
     });
     socket.on('connect', () => {
-      // Transient reconnect mid-debate: try to reclaim our seat. A refreshed
+      // Transient reconnect at ANY stage: try to reclaim our seat. A refreshed
       // page has a new sessionId so this only fires for true network blips.
       const code = lobbyRef.current?.code;
-      if (code && resumableRef.current) {
-        socket.emit('lobby:resume', { code, sessionId }, (res) => {
-          if (!res.ok) setAbortReason('Connection to the debate was lost.');
-        });
-      }
+      if (!code || settledRef.current) return;
+      socket.emit('lobby:resume', { code, sessionId }, (res) => {
+        if (res.ok) return;
+        if (startedRef.current) setAbortReason('Connection to the debate was lost.');
+        else resetToHome('Connection hiccup — that lobby closed. Create or join a fresh one.');
+      });
     });
 
     return () => {
@@ -176,6 +186,7 @@ export default function App() {
         status={judgeStatus}
         mySide={start?.yourSide}
         topic={start?.topic ?? ''}
+        remoteStream={remoteStream}
         onRetry={() => socket.emit('verdict:retry')}
       />
     );

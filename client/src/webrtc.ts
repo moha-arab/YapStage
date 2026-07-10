@@ -5,18 +5,34 @@ import type { IceServer, SignalPayload } from '../../server/src/protocol';
 // deliberately no renegotiation path — tracks are added before the offer.
 let pc: RTCPeerConnection | null = null;
 let localStream: MediaStream | null = null;
+let localStreamPromise: Promise<MediaStream> | null = null;
 let pending: RTCIceCandidateInit[] = [];
 let onRemote: ((s: MediaStream) => void) | null = null;
 
-export async function ensureLocalStream(): Promise<MediaStream> {
-  if (localStream) return localStream;
-  localStream = await navigator.mediaDevices.getUserMedia({
-    video: { width: { ideal: 1280 }, height: { ideal: 720 } },
-    // echoCancellation matters twice over: call quality AND keeping the
-    // opponent's voice out of this side's speech transcript.
-    audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
-  });
-  return localStream;
+export function ensureLocalStream(): Promise<MediaStream> {
+  if (localStream) return Promise.resolve(localStream);
+  // In-flight dedup: overlapping calls (effect re-runs while the permission
+  // prompt is up) must share ONE getUserMedia — a duplicate capture orphans
+  // a stream whose tracks are never stopped (camera light stuck on) and can
+  // desync setMicEnabled from the track the peer connection actually sends.
+  if (!localStreamPromise) {
+    localStreamPromise = navigator.mediaDevices
+      .getUserMedia({
+        video: { width: { ideal: 1280 }, height: { ideal: 720 } },
+        // echoCancellation matters twice over: call quality AND keeping the
+        // opponent's voice out of this side's speech transcript.
+        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+      })
+      .then((s) => {
+        localStream = s;
+        return s;
+      })
+      .catch((err) => {
+        localStreamPromise = null; // allow retry after a denial
+        throw err;
+      });
+  }
+  return localStreamPromise;
 }
 
 export function setupPeer(iceServers: IceServer[], onRemoteStream: (s: MediaStream) => void): void {
@@ -96,4 +112,5 @@ export function releaseMedia(): void {
   teardownPeer();
   localStream?.getTracks().forEach((t) => t.stop());
   localStream = null;
+  localStreamPromise = null;
 }

@@ -108,11 +108,21 @@ export default function GreenRoom({
           </label>
           <button
             className="btn btn-primary btn-wide"
-            disabled={!consent || !localStream || lobby.youReady}
+            disabled={!consent || !localStream || !remoteStream || lobby.youReady}
             onClick={ready}
           >
-            {lobby.youReady ? 'Waiting for your opponent…' : "I'm ready — take the stage"}
+            {lobby.youReady
+              ? 'Waiting for your opponent…'
+              : !remoteStream
+                ? 'Connecting video…'
+                : "I'm ready — take the stage"}
           </button>
+          {!remoteStream && !lobby.youReady ? (
+            <p className="footnote">
+              Ready unlocks once you can see {lobby.peerName ?? 'your opponent'} — no point debating
+              a black screen.
+            </p>
+          ) : null}
           {lobby.peerReady && !lobby.youReady ? (
             <p className="footnote">{lobby.peerName} is ready and waiting for you.</p>
           ) : null}

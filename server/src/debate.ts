@@ -9,7 +9,7 @@ import type {
 } from './protocol.js';
 import { type Lobby, type Participant, destroyLobby, sideOf, touch } from './lobby.js';
 import { TOPICS } from './topics.js';
-import { runJudge } from './judge.js';
+import { namesOf, runJudge } from './judge.js';
 
 export type Io = Server<ClientToServer, ServerToClient, Record<string, never>, SocketData>;
 
@@ -137,11 +137,29 @@ export function abort(io: Io, lobby: Lobby, reason: string): void {
   setTimeout(() => destroyLobby(lobby.code), 60_000).unref();
 }
 
-/** Resend current debate state to one socket (used after a transient resume). */
-export function resendState(io: Io, lobby: Lobby, socketId: string): void {
+/**
+ * Resend missed state to one participant's socket after a resume. Covers every
+ * stage: a client may have missed debate:start, debate:ended, the verdict, or
+ * the abort entirely while its socket was down (room emits don't queue).
+ */
+export function resendState(io: Io, lobby: Lobby, participant: Participant): void {
+  const socketId = participant.socketId;
+  const now = Date.now();
+
   if (lobby.status === 'in_debate' && lobby.stepIndex >= 0) {
+    // The client may have missed debate:start itself (blip at the transition):
+    // without it, it can't render the debate screen at all. Idempotent resend.
+    const side = sideOf(lobby, participant);
+    if (lobby.topic && side) {
+      io.to(socketId).emit('debate:start', {
+        topic: lobby.topic,
+        yourSide: side,
+        names: namesOf(lobby),
+        startsAt: lobby.stepStartedAt, // already in the past — no reveal replay
+        serverNow: now,
+      });
+    }
     const step = SCRIPT[lobby.stepIndex];
-    const now = Date.now();
     io.to(socketId).emit('debate:phase', {
       stepIndex: lobby.stepIndex,
       phase: step.phase,
@@ -149,6 +167,30 @@ export function resendState(io: Io, lobby: Lobby, socketId: string): void {
       seconds: step.seconds,
       deadline: lobby.stepStartedAt + step.seconds * 1000,
       serverNow: now,
+    });
+    return;
+  }
+
+  if (lobby.status === 'judging') {
+    io.to(socketId).emit('debate:ended');
+    io.to(socketId).emit(
+      'verdict:status',
+      lobby.judgeState === 'failed'
+        ? { state: 'failed', message: 'The judge hit a technical difficulty. Your debate is safe — retry the verdict.' }
+        : { state: 'pending' },
+    );
+    return;
+  }
+
+  if (lobby.status === 'verdict' && lobby.verdict) {
+    io.to(socketId).emit('debate:ended');
+    io.to(socketId).emit('verdict:result', { verdict: lobby.verdict, names: namesOf(lobby) });
+    return;
+  }
+
+  if (lobby.status === 'aborted') {
+    io.to(socketId).emit('debate:aborted', {
+      reason: 'The debate was cancelled while you were disconnected.',
     });
   }
 }

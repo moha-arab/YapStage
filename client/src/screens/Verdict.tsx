@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { CategoryScores, Side, Verdict as VerdictData } from '../../../server/src/protocol';
 import { isSoundMuted, playCrash, playDrumRoll, setSoundMuted, speak } from '../sound';
 
@@ -7,7 +7,26 @@ interface Props {
   status: { state: 'pending' | 'failed'; message?: string } | null;
   mySide: Side | undefined;
   topic: string;
+  remoteStream: MediaStream | null;
   onRetry: () => void;
+}
+
+/**
+ * The debate screen's <video> unmounts when the verdict shows, but both mics
+ * are open for free chat while the judge deliberates — without an element
+ * playing the remote stream, everyone talks into dead air.
+ */
+function RemoteAudio({ stream }: { stream: MediaStream | null }) {
+  const ref = useRef<HTMLAudioElement>(null);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    if (el.srcObject !== stream) {
+      el.srcObject = stream;
+      if (stream) void el.play().catch(() => {});
+    }
+  }, [stream]);
+  return <audio ref={ref} autoPlay />;
 }
 
 const CATEGORIES: { key: keyof CategoryScores; label: string; max: number }[] = [
@@ -23,7 +42,7 @@ function total(s: CategoryScores): number {
 
 type Stage = 'waiting' | 'drumroll' | 'reveal' | 'details';
 
-export default function VerdictScreen({ info, status, mySide, topic, onRetry }: Props) {
+export default function VerdictScreen({ info, status, mySide, topic, remoteStream, onRetry }: Props) {
   const [stage, setStage] = useState<Stage>('waiting');
   const [muted, setMuted] = useState(isSoundMuted());
 
@@ -57,6 +76,7 @@ export default function VerdictScreen({ info, status, mySide, topic, onRetry }: 
   if (!info) {
     return (
       <div className="stage center-col verdict-wait">
+        <RemoteAudio stream={remoteStream} />
         <p className="kicker">{topic}</p>
         {status?.state === 'failed' ? (
           <>
@@ -85,6 +105,7 @@ export default function VerdictScreen({ info, status, mySide, topic, onRetry }: 
   if (stage === 'drumroll') {
     return (
       <div className="stage center-col verdict-drum">
+        <RemoteAudio stream={remoteStream} />
         <h1 className="display huge">THE YAPMASTER IS…</h1>
       </div>
     );
@@ -92,6 +113,7 @@ export default function VerdictScreen({ info, status, mySide, topic, onRetry }: 
 
   return (
     <div className="stage center-col verdict">
+      <RemoteAudio stream={remoteStream} />
       <p className="kicker">{topic}</p>
       <div className={`stamp ${winner === 'FOR' ? 'for' : 'against'}`}>
         <span className="stamp-label">YAPMASTER</span>

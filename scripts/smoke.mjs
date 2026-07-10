@@ -89,7 +89,7 @@ a.on('debate:phase', (p) => {
   silent.emit('speech:chunk', { stepIndex: p.stepIndex, text: 'INTRUDER_LINE_MUST_DROP' });
 });
 
-await once(a, 'debate:ended', 60000);
+await once(a, 'debate:ended', 400000); // real-speed debates run ~4.5 min
 check('all 6 phases fired in order', phases.length === 6 && phases.every((p, i) => p.stepIndex === i));
 check('phase payload sane', phases.every((p) => p.deadline > p.serverNow && p.seconds > 0));
 
@@ -132,7 +132,7 @@ const start2 = once(a2, 'debate:start');
 a2.emit('greenroom:ready');
 b2.emit('greenroom:ready');
 await start2;
-await once(a2, 'debate:phase', 15000); // debate underway
+await once(a2, 'debate:phase', 20000); // debate underway (reveal is 8s at real speed)
 
 const lost1 = once(a2, 'peer:connection', 10000);
 b2.disconnect();
@@ -161,7 +161,62 @@ b2r.disconnect();
 const abortEvt = await aborted;
 check('debate aborts after grace expires', typeof abortEvt.reason === 'string' && abortEvt.reason.length > 0);
 
+// resuming into the aborted lobby must re-send the abort (no frozen screen)
+const b2back = connect();
+const abortResend = once(b2back, 'debate:aborted', 10000).then(() => true).catch(() => false);
+const backRes = await emitP(b2back, 'lobby:resume', { code: code2, sessionId: 'sess-b2' });
+check('resume into aborted lobby accepted', backRes.ok === true);
+check('debate:aborted re-sent to resumed client', await abortResend);
+b2back.disconnect();
 a2.disconnect();
+
+// ---------- Scenario 3: resume races and late verdict delivery ----------
+console.log('\n=== Scenario 3: hot-swap resume + judging-stage resume ===');
+const a3 = connect();
+const b3 = connect();
+const created3 = await emitP(a3, 'lobby:create', { sessionId: 'sess-a3', name: 'racer' });
+const code3 = created3.update.code;
+await emitP(b3, 'lobby:join', { code: code3, sessionId: 'sess-b3', name: 'blinker' });
+
+const start3 = once(a3, 'debate:start');
+a3.emit('greenroom:ready');
+b3.emit('greenroom:ready');
+await start3;
+await once(a3, 'debate:phase', 20000);
+
+// (a) hot-swap: new socket resumes while the OLD socket is still connected
+// (the half-open TCP race — server hasn't noticed the old socket died)
+let aborted3 = false;
+a3.on('debate:aborted', () => {
+  aborted3 = true;
+});
+const b3new = connect();
+const startResent = once(b3new, 'debate:start', 10000).then(() => true).catch(() => false);
+const swapRes = await emitP(b3new, 'lobby:resume', { code: code3, sessionId: 'sess-b3' });
+check('hot-swap resume accepted before old disconnect detected', swapRes.ok === true);
+check('debate:start re-sent to swapped socket', await startResent);
+const phaseOnNew = await once(b3new, 'debate:phase', 70000).then(() => true).catch(() => false);
+check('swapped socket receives ongoing phases', phaseOnNew);
+
+await once(a3, 'debate:ended', 400000);
+check('debate survives hot-swap to completion (no abort)', !aborted3);
+
+// (b) a client that missed debate:ended resumes during judging/verdict and
+// must get the missed state back
+b3new.disconnect();
+const b3re = connect();
+const endedResent = once(b3re, 'debate:ended', 10000).then(() => true).catch(() => false);
+const verdictReaches = Promise.race([
+  once(b3re, 'verdict:status', 20000).then(() => 'status'),
+  once(b3re, 'verdict:result', 20000).then(() => 'result'),
+]).catch(() => null);
+const reRes = await emitP(b3re, 'lobby:resume', { code: code3, sessionId: 'sess-b3' });
+check('resume during judging/verdict accepted', reRes.ok === true);
+check('debate:ended re-sent on resume', await endedResent);
+check('verdict status/result delivered to resumed client', (await verdictReaches) !== null);
+
+a3.disconnect();
+b3re.disconnect();
 
 console.log(`\n${failures === 0 ? 'ALL CHECKS PASSED' : failures + ' CHECK(S) FAILED'}`);
 process.exit(failures === 0 ? 0 : 1);

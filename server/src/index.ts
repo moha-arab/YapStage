@@ -136,27 +136,40 @@ io.on('connection', (socket) => {
   socket.on('lobby:resume', (p, cb) => {
     if (typeof cb !== 'function') return;
     const lobby = getLobby(String(p?.code ?? ''));
-    if (!lobby) return cb({ ok: false });
-    const sessionId = String(p.sessionId ?? '');
+    const sessionId = String(p?.sessionId ?? '');
+    if (!lobby || !sessionId) return cb({ ok: false });
+    // Match by sessionId ONLY — not disconnectedAt. In a half-open TCP drop
+    // (wifi switch, laptop sleep) the client reconnects long before the
+    // server's ping timeout notices the old socket died; the new connection
+    // is authoritative for this sessionId.
     const slot =
-      lobby.host?.sessionId === sessionId && lobby.host.disconnectedAt
+      lobby.host?.sessionId === sessionId
         ? lobby.host
-        : lobby.guest?.sessionId === sessionId && lobby.guest.disconnectedAt
+        : lobby.guest?.sessionId === sessionId
           ? lobby.guest
           : undefined;
-    if (!slot || !sessionId) return cb({ ok: false });
+    if (!slot) return cb({ ok: false });
 
+    const oldSocketId = slot.socketId;
     if (slot.graceTimer) clearTimeout(slot.graceTimer);
     slot.graceTimer = undefined;
     slot.disconnectedAt = undefined;
-    slot.socketId = socket.id;
-    socket.data.code = lobby.code;
+    slot.socketId = socket.id; // swap FIRST: the old socket's late disconnect
+    socket.data.code = lobby.code; // event no longer matches any participant
     socket.data.role = slot === lobby.host ? 'host' : 'guest';
     void socket.join(lobby.code);
     touch(lobby);
     cb({ ok: true });
 
-    resendState(io, lobby, socket.id);
+    // Evict the superseded socket so it can't linger in the room.
+    if (oldSocketId !== socket.id) {
+      io.sockets.sockets.get(oldSocketId)?.disconnect(true);
+    }
+
+    resendState(io, lobby, slot);
+    if (lobby.status === 'waiting' || lobby.status === 'greenroom') {
+      socket.emit('lobby:update', updateFor(lobby, slot));
+    }
     const peer = peerOf(lobby, socket.id);
     if (peer && !peer.disconnectedAt) {
       io.to(peer.socketId).emit('peer:connection', { state: 'restored' });
@@ -206,7 +219,7 @@ io.on('connection', (socket) => {
     if (!participantOf(lobby, socket.id)) return;
     if (!lobby.debateCompleted) return;
     if (lobby.judgeState !== 'failed' && lobby.judgeState !== 'done') return;
-    void runJudge(io, lobby);
+    void runJudge(io, lobby, socket.id);
   });
 
   socket.on('disconnect', () => {
@@ -268,7 +281,12 @@ io.on('connection', (socket) => {
   });
 });
 
-startSweep((code) => console.log(`[sweep] destroyed stale lobby ${code}`));
+startSweep((code) => {
+  // Tell any still-connected clients their lobby expired (room emits work
+  // even after the lobby record is gone — the sockets are still joined).
+  io.to(code).emit('lobby:closed', { reason: 'This lobby expired after 30 minutes of inactivity.' });
+  console.log(`[sweep] destroyed stale lobby ${code}`);
+});
 
 await app.listen({ port: PORT, host: '0.0.0.0' });
 console.log(`[server] YapStage listening on :${PORT}`);

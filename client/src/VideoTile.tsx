@@ -18,13 +18,17 @@ export default function VideoTile(props: Props) {
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
+    // Set muted BEFORE attaching the stream: the <video> mounts only once the
+    // stream exists, so an effect keyed on props.muted alone would never run
+    // for it — and an unmuted local tile echoes your own mic into your ears.
+    el.muted = props.muted;
     if (el.srcObject !== props.stream) {
       el.srcObject = props.stream;
       if (props.stream) void el.play().catch(() => {});
     }
-  }, [props.stream]);
+  }, [props.stream, props.muted]);
 
-  // React is unreliable about updating the muted attribute — set it directly.
+  // Belt and suspenders for later prop flips (turn changes on the remote tile).
   useEffect(() => {
     if (ref.current) ref.current.muted = props.muted;
   }, [props.muted]);

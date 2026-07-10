@@ -132,7 +132,7 @@ function clampScores(scores: CategoryScores): CategoryScores {
   };
 }
 
-function namesOf(lobby: Lobby): Record<Side, string> {
+export function namesOf(lobby: Lobby): Record<Side, string> {
   const sides = lobby.sides!;
   return {
     FOR: sides.host === 'FOR' ? lobby.host?.name ?? 'FOR' : lobby.guest?.name ?? 'FOR',
@@ -157,10 +157,20 @@ async function callJudge(lobby: Lobby): Promise<Verdict> {
   if (!block || block.type !== 'text') throw new Error('Judge returned no text block');
   const raw = JSON.parse(block.text) as Verdict;
 
+  // Observability: clamping can theoretically flip which side has the higher
+  // total vs. the declared winner. Log it if it ever happens.
+  const t = (s: CategoryScores) => s.argument + s.evidence + s.clash + s.delivery;
+  const cf = clampScores(raw.scores.FOR);
+  const ca = clampScores(raw.scores.AGAINST);
+  const byTotal = t(cf) === t(ca) ? raw.winner : t(cf) > t(ca) ? 'FOR' : 'AGAINST';
+  if (byTotal !== raw.winner) {
+    console.warn(`[judge] winner/total mismatch: declared ${raw.winner}, totals favor ${byTotal}`);
+  }
+
   return {
     winner: raw.winner === 'AGAINST' ? 'AGAINST' : 'FOR',
     summary: String(raw.summary ?? '').slice(0, 400),
-    scores: { FOR: clampScores(raw.scores.FOR), AGAINST: clampScores(raw.scores.AGAINST) },
+    scores: { FOR: cf, AGAINST: ca },
     bestQuote: {
       FOR: String(raw.bestQuote.FOR ?? '').slice(0, 300),
       AGAINST: String(raw.bestQuote.AGAINST ?? '').slice(0, 300),
@@ -173,11 +183,16 @@ async function callJudge(lobby: Lobby): Promise<Verdict> {
   };
 }
 
-export async function runJudge(io: Io, lobby: Lobby): Promise<void> {
+export async function runJudge(io: Io, lobby: Lobby, requesterSocketId?: string): Promise<void> {
   if (!lobby.debateCompleted) return;
   if (lobby.judgeState === 'pending') return;
   if (lobby.judgeState === 'done' && lobby.verdict) {
-    io.to(lobby.code).emit('verdict:result', { verdict: lobby.verdict, names: namesOf(lobby) });
+    // Re-fetch, not re-announce: send only to the requester so the opponent's
+    // finished verdict screen isn't yanked back through the reveal.
+    io.to(requesterSocketId ?? lobby.code).emit('verdict:result', {
+      verdict: lobby.verdict,
+      names: namesOf(lobby),
+    });
     return;
   }
 
