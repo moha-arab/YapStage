@@ -8,11 +8,11 @@ import { Server } from 'socket.io';
 import {
   NAME_RE,
   type ClientToServer,
-  type IceServer,
   type LobbyUpdate,
   type ServerToClient,
   type SocketData,
 } from './protocol.js';
+import { REFRESH_MS, getIceServers, refreshIceServers, turnMode } from './turn.js';
 import {
   createLobby,
   destroyLobby,
@@ -36,23 +36,8 @@ dotenv.config({ path: path.resolve(here, '../../.env') });
 const PORT = Number(process.env.PORT) || 3000;
 const GRACE_MS = 15_000;
 
-function buildIceServers(): IceServer[] {
-  const servers: IceServer[] = [{ urls: 'stun:stun.l.google.com:19302' }];
-  const urls = (process.env.TURN_URLS ?? '')
-    .split(',')
-    .map((s) => s.trim())
-    .filter(Boolean);
-  if (urls.length > 0 && process.env.TURN_USERNAME && process.env.TURN_CREDENTIAL) {
-    servers.push({
-      urls,
-      username: process.env.TURN_USERNAME,
-      credential: process.env.TURN_CREDENTIAL,
-    });
-  }
-  return servers;
-}
-
-const ICE_SERVERS = buildIceServers();
+await refreshIceServers();
+setInterval(() => void refreshIceServers(), REFRESH_MS).unref();
 
 const app = Fastify({ logger: false });
 
@@ -63,7 +48,7 @@ if (fs.existsSync(clientDist)) {
   console.warn(`[server] client build not found at ${clientDist} — API/socket only`);
 }
 
-app.get('/healthz', async () => ({ ok: true, lobbies: lobbyCount() }));
+app.get('/healthz', async () => ({ ok: true, lobbies: lobbyCount(), turn: turnMode() }));
 
 await app.ready();
 
@@ -84,7 +69,7 @@ function updateFor(lobby: Lobby, receiver: Participant): LobbyUpdate {
     locked: Boolean(lobby.host && lobby.guest),
     youReady: receiver.ready,
     peerReady: peer?.ready ?? false,
-    iceServers: ICE_SERVERS,
+    iceServers: getIceServers(),
   };
 }
 
