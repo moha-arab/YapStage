@@ -1260,6 +1260,35 @@ body::after {
   justify-content: center;
 }
 
+/* post-debate live strip: the open call must be visible, always */
+.live-strip {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  margin-top: 18px;
+  padding-top: 14px;
+  border-top: 3px solid var(--line);
+  width: min(520px, 92vw);
+}
+
+.live-strip-tiles {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  width: 100%;
+}
+
+.live-strip-tiles .tile {
+  aspect-ratio: 16 / 10;
+}
+
+.live-note {
+  font-size: 13px;
+  color: var(--gold);
+  margin: 0;
+}
+
 @media (max-width: 720px) {
   .tiles,
   .feedback-cols {

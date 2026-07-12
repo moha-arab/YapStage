@@ -240,7 +240,17 @@ export default function App() {
         status={judgeStatus}
         mySide={start?.yourSide}
         topic={start?.topic ?? ''}
+        localStream={localStream}
         remoteStream={remoteStream}
+        rtcConnected={rtcState === 'connected'}
+        peerName={start ? start.names[start.yourSide === 'FOR' ? 'AGAINST' : 'FOR'] : 'them'}
+        myName={start ? start.names[start.yourSide] : 'you'}
+        onLeaveCall={() => {
+          releaseMedia();
+          setLocalStream(null);
+          setRemoteStream(null);
+          setRtcState(null);
+        }}
         onRetry={() => socket.emit('verdict:retry')}
       />
     );

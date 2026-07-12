@@ -1,32 +1,58 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { CategoryScores, Side, Verdict as VerdictData } from '../../../server/src/protocol';
 import { isSoundMuted, playCrash, playDrumRoll, playHit, setSoundMuted, speak } from '../sound';
+import VideoTile from '../VideoTile';
 
 interface Props {
   info: { verdict: VerdictData; names: Record<Side, string> } | null;
   status: { state: 'pending' | 'failed'; message?: string } | null;
   mySide: Side | undefined;
   topic: string;
+  localStream: MediaStream | null;
   remoteStream: MediaStream | null;
+  rtcConnected: boolean;
+  peerName: string;
+  myName: string;
+  onLeaveCall: () => void;
   onRetry: () => void;
 }
 
 /**
- * The debate screen's <video> unmounts when the verdict shows, but both mics
- * are open for free chat while the judge deliberates — without an element
- * playing the remote stream, everyone talks into dead air.
+ * The call stays open after the debate so you can react to the results
+ * together. That must be VISIBLE: an open mic is never allowed to be a
+ * hidden audio element. Cameras on screen, plain words, a leave button.
  */
-function RemoteAudio({ stream }: { stream: MediaStream | null }) {
-  const ref = useRef<HTMLAudioElement>(null);
-  useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    if (el.srcObject !== stream) {
-      el.srcObject = stream;
-      if (stream) void el.play().catch(() => {});
-    }
-  }, [stream]);
-  return <audio ref={ref} autoPlay />;
+function LiveStrip({
+  localStream,
+  remoteStream,
+  rtcConnected,
+  peerName,
+  myName,
+  onLeaveCall,
+}: Pick<Props, 'localStream' | 'remoteStream' | 'rtcConnected' | 'peerName' | 'myName' | 'onLeaveCall'>) {
+  if (!localStream) {
+    return <p className="live-note">you left the call. they can't see or hear you.</p>;
+  }
+  return (
+    <div className="live-strip">
+      <div className="live-strip-tiles">
+        <VideoTile stream={localStream} muted mirror label={myName} sub="live" />
+        <VideoTile
+          stream={rtcConnected ? remoteStream : null}
+          muted={false}
+          label={peerName}
+          sub={rtcConnected && remoteStream ? 'live' : undefined}
+          placeholder="left the call"
+        />
+      </div>
+      <p className="live-note">
+        you're both still live. cameras and mics stay on until you leave.
+      </p>
+      <button className="btn btn-small" onClick={onLeaveCall}>
+        leave the call
+      </button>
+    </div>
+  );
 }
 
 interface Category {
@@ -72,7 +98,29 @@ type Stage = 'waiting' | 'scores' | 'drumroll' | 'reveal' | 'details';
 const FIRST_CARD_MS = 1200;
 const PER_CARD_MS = 2600;
 
-export default function VerdictScreen({ info, status, mySide, topic, remoteStream, onRetry }: Props) {
+export default function VerdictScreen({
+  info,
+  status,
+  mySide,
+  topic,
+  localStream,
+  remoteStream,
+  rtcConnected,
+  peerName,
+  myName,
+  onLeaveCall,
+  onRetry,
+}: Props) {
+  const strip = (
+    <LiveStrip
+      localStream={localStream}
+      remoteStream={remoteStream}
+      rtcConnected={rtcConnected}
+      peerName={peerName}
+      myName={myName}
+      onLeaveCall={onLeaveCall}
+    />
+  );
   const [stage, setStage] = useState<Stage>('waiting');
   const [revealed, setRevealed] = useState(0);
   const [muted, setMuted] = useState(isSoundMuted());
@@ -131,7 +179,6 @@ export default function VerdictScreen({ info, status, mySide, topic, remoteStrea
   if (!info) {
     return (
       <div className="stage center-col verdict-wait">
-        <RemoteAudio stream={remoteStream} />
         <p className="kicker">{topic}</p>
         {status?.state === 'failed' ? (
           <>
@@ -148,6 +195,7 @@ export default function VerdictScreen({ info, status, mySide, topic, remoteStrea
             <p className="subtitle">yes, it heard what you said. yes, it's counting that.</p>
           </>
         )}
+        {strip}
       </div>
     );
   }
@@ -160,7 +208,6 @@ export default function VerdictScreen({ info, status, mySide, topic, remoteStrea
   if (stage === 'scores') {
     return (
       <div className="stage center-col verdict-scores">
-        <RemoteAudio stream={remoteStream} />
         <p className="kicker">{topic}</p>
         <h1 className="display">the scores are in</h1>
         <div className="score-reveals">
@@ -194,6 +241,7 @@ export default function VerdictScreen({ info, status, mySide, topic, remoteStrea
         {revealed >= REVEAL_ORDER.length ? (
           <p className="subtitle">totals hidden. the judge has the envelope.</p>
         ) : null}
+        {strip}
       </div>
     );
   }
@@ -201,15 +249,14 @@ export default function VerdictScreen({ info, status, mySide, topic, remoteStrea
   if (stage === 'drumroll') {
     return (
       <div className="stage center-col verdict-drum">
-        <RemoteAudio stream={remoteStream} />
         <h1 className="display huge">THE YAPMASTER IS…</h1>
+        {strip}
       </div>
     );
   }
 
   return (
     <div className="stage center-col verdict">
-      <RemoteAudio stream={remoteStream} />
       <p className="kicker">{topic}</p>
       <div className={`stamp ${winner === 'FOR' ? 'for' : 'against'}`}>
         <span className="stamp-label">YAPMASTER</span>
@@ -219,9 +266,10 @@ export default function VerdictScreen({ info, status, mySide, topic, remoteStrea
       <p className="summary">{verdict.summary}</p>
       {mySide !== undefined ? (
         <p className={`you-result ${youWon ? 'won' : 'lost'}`}>
-          {youWon ? "that's you. screenshot it. send it to them at 3am." : 'good yap though. run it back.'}
+          {youWon ? "that's you. well argued." : 'good yap though. run it back.'}
         </p>
       ) : null}
+      {strip}
 
       {stage === 'details' ? (
         <div className="verdict-details">

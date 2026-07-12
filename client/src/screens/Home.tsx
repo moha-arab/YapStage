@@ -6,7 +6,7 @@ import { loadReceipts } from '../history';
 const NAME_RE = /^[a-zA-Z0-9_]{3,16}$/;
 
 const ERRORS: Record<JoinError, string> = {
-  not_found: "that code doesn't exist. your friend typed it wrong. classic.",
+  not_found: "that code doesn't exist. double-check it with your friend.",
   full: 'lobby is full. debates are strictly 1v1, no cornermen.',
   in_progress: 'that debate already started without you. get a new code.',
   bad_name: 'yap names are 3 to 16 characters. letters, numbers, underscores.',

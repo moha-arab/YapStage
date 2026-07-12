@@ -32,7 +32,7 @@ import { ALL_TOPICS, TOPIC_CATEGORIES } from './topics.js';
 // Deployed on Railway via Dockerfile (see railway.json). Fastify serves the
 // built client from client/dist and hosts the Socket.IO signaling server.
 // NB: Railway's watch path is /server/** — client-only changes need a server
-// file touched (like this comment) to trigger a deploy. touch: mic-meters+history+sound
+// file touched (like this comment) to trigger a deploy. touch: live-strip+copy
 const here = path.dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: path.resolve(here, '../../.env') });
 
