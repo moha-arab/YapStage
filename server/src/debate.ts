@@ -176,7 +176,7 @@ export function resendState(io: Io, lobby: Lobby, participant: Participant): voi
     io.to(socketId).emit(
       'verdict:status',
       lobby.judgeState === 'failed'
-        ? { state: 'failed', message: 'The judge hit a technical difficulty. Your debate is safe — retry the verdict.' }
+        ? { state: 'failed', message: 'technical difficulty. your debate is safe. call the judge back.' }
         : { state: 'pending' },
     );
     return;
@@ -190,7 +190,7 @@ export function resendState(io: Io, lobby: Lobby, participant: Participant): voi
 
   if (lobby.status === 'aborted') {
     io.to(socketId).emit('debate:aborted', {
-      reason: 'The debate was cancelled while you were disconnected.',
+      reason: 'the debate got cancelled while you were gone.',
     });
   }
 }

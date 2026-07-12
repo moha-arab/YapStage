@@ -223,7 +223,7 @@ io.on('connection', (socket) => {
 
     if (lobby.status === 'greenroom') {
       if (isHost) {
-        io.to(lobby.code).emit('lobby:closed', { reason: 'The host left the lobby.' });
+        io.to(lobby.code).emit('lobby:closed', { reason: 'the host left. rude. make your own lobby.' });
         destroyLobby(lobby.code);
       } else {
         lobby.guest = undefined;
@@ -250,7 +250,7 @@ io.on('connection', (socket) => {
       me.graceTimer = setTimeout(() => {
         // Still disconnected after the grace window → the debate can't continue.
         if (me.disconnectedAt && lobby.status === 'in_debate') {
-          abort(io, lobby, `${me.name}'s connection was lost — debate cancelled.`);
+          abort(io, lobby, `${me.name}'s wifi tapped out. debate cancelled.`);
         }
       }, GRACE_MS);
       return;
@@ -271,7 +271,7 @@ io.on('connection', (socket) => {
 startSweep((code) => {
   // Tell any still-connected clients their lobby expired (room emits work
   // even after the lobby record is gone — the sockets are still joined).
-  io.to(code).emit('lobby:closed', { reason: 'This lobby expired after 30 minutes of inactivity.' });
+  io.to(code).emit('lobby:closed', { reason: 'this lobby expired. thirty minutes of silence will do that.' });
   console.log(`[sweep] destroyed stale lobby ${code}`);
 });
 

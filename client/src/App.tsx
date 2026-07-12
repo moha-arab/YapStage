@@ -106,8 +106,8 @@ export default function App() {
       if (!code || settledRef.current) return;
       socket.emit('lobby:resume', { code, sessionId }, (res) => {
         if (res.ok) return;
-        if (startedRef.current) setAbortReason('Connection to the debate was lost.');
-        else resetToHome('Connection hiccup — that lobby closed. Create or join a fresh one.');
+        if (startedRef.current) setAbortReason('the connection died. the debate died with it.');
+        else resetToHome('lost that lobby. make a new one.');
       });
     });
 
@@ -144,26 +144,46 @@ export default function App() {
     else stopTurn();
   }, [phase, start, ended, abortReason]);
 
-  // WebRTC lifecycle: both present -> capture + peer up; opponent left -> tear down.
+  // Camera starts the moment you're in a lobby: the solo green room is a
+  // mirror check, not a dead black rectangle. Also surfaces permission
+  // problems before your opponent is watching you fumble.
+  useEffect(() => {
+    if (!lobby) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const stream = await ensureLocalStream();
+        if (!cancelled) {
+          setLocalStream(stream);
+          setMediaError(null);
+        }
+      } catch {
+        if (!cancelled) {
+          setMediaError('the judge needs your camera and mic. allow them in the address bar, then retry.');
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [lobby?.code, mediaRetry]);
+
+  // Peer link only when both corners are occupied.
   useEffect(() => {
     if (!lobby) return;
     if (lobby.participantCount === 2) {
       let cancelled = false;
       void (async () => {
         try {
-          const stream = await ensureLocalStream();
+          await ensureLocalStream();
           if (cancelled) return;
-          setLocalStream(stream);
-          setMediaError(null);
           setupPeer(
             lobby.iceServers,
             (s) => setRemoteStream(s),
             (state) => setRtcState(state),
           );
         } catch {
-          if (!cancelled) {
-            setMediaError('Camera and microphone access is required. Allow access in the address bar, then retry.');
-          }
+          // camera effect above already surfaced the error
         }
       })();
       return () => {
@@ -184,10 +204,10 @@ export default function App() {
   if (abortReason) {
     return (
       <div className="stage center-col">
-        <p className="kicker">Debate cancelled</p>
+        <p className="kicker">debate cancelled</p>
         <h1 className="display">{abortReason}</h1>
         <button className="btn btn-primary" onClick={() => window.location.assign('/')}>
-          Back to the stage door
+          back to the stage door
         </button>
       </div>
     );

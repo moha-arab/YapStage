@@ -47,10 +47,11 @@ export default function Debate({
           <span className="fighter against">{start.names.AGAINST}</span>
         </div>
         <div className={`side-badge ${mySide === 'FOR' ? 'for' : 'against'}`}>
-          You argue {mySide}
+          you argue {mySide}
         </div>
         <p className="subtitle">
-          Openings first — {start.names.FOR} leads. Starting in {Math.max(1, Math.ceil(revealMs / 1000))}…
+          yes, that side. no, you can't switch. {start.names.FOR} opens in{' '}
+          {Math.max(1, Math.ceil(revealMs / 1000))}...
         </p>
       </div>
     );
@@ -77,7 +78,7 @@ export default function Debate({
             {p.label}
           </span>
         ))}
-        <span className="round-step">Turn {phase.stepIndex + 1} of 6</span>
+        <span className="round-step">turn {phase.stepIndex + 1} of 6</span>
       </div>
 
       <div className="tiles">
@@ -97,23 +98,23 @@ export default function Debate({
           sub={peerSide}
           side={peerSide}
           active={!myTurn}
-          placeholder="Reconnecting…"
+          placeholder="they froze. hold on."
         />
       </div>
 
       <div className="clock-row">
         <div className={`speaker-chip ${phase.activeSpeaker === 'FOR' ? 'for' : 'against'}`}>
-          {start.names[phase.activeSpeaker]} {myTurn ? "— you're on!" : 'has the mic'}
+          {start.names[phase.activeSpeaker]}{myTurn ? '. go.' : ' has the mic'}
         </div>
         <div className={`shot-clock ${danger ? 'clock-danger' : ''}`}>{formatClock(msLeft)}</div>
         <div className={`mic-chip ${myTurn ? 'mic-live' : 'mic-off'}`}>
           {myTurn
             ? speechSupported
               ? speechHeard
-                ? 'Mic LIVE · transcribing ✓'
-                : 'Mic LIVE · listening…'
-              : 'Your mic is LIVE'
-            : 'Your mic is muted'}
+                ? 'mic live · the judge hears you'
+                : 'mic live · say it louder'
+              : 'mic live'
+            : 'mic off. be wrong quietly.'}
         </div>
       </div>
 
@@ -126,12 +127,12 @@ export default function Debate({
 
       {peerLostUntil ? (
         <div className="banner banner-warn">
-          Opponent reconnecting… {Math.max(0, Math.ceil(graceMs / 1000))}s
+          opponent reconnecting... {Math.max(0, Math.ceil(graceMs / 1000))}s. the clock does not care.
         </div>
       ) : null}
 
       {!peerLostUntil && (rtcState === 'disconnected' || rtcState === 'failed') ? (
-        <div className="banner banner-warn">Video link lost — trying to recover…</div>
+        <div className="banner banner-warn">video link dropped. trying to get it back.</div>
       ) : null}
     </div>
   );

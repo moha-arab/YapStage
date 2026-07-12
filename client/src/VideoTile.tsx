@@ -49,7 +49,7 @@ export default function VideoTile(props: Props) {
       {props.stream ? (
         <video ref={ref} autoPlay playsInline className={props.mirror ? 'mirror' : ''} />
       ) : (
-        <div className="tile-empty">{props.placeholder ?? 'Waiting…'}</div>
+        <div className="tile-empty">{props.placeholder ?? 'empty corner'}</div>
       )}
       <div className="tag">
         <span className="tag-name">{props.label}</span>

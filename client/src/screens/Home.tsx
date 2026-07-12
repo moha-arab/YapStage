@@ -5,10 +5,10 @@ import { sessionId, socket } from '../socket';
 const NAME_RE = /^[a-zA-Z0-9_]{3,16}$/;
 
 const ERRORS: Record<JoinError, string> = {
-  not_found: "That code doesn't match any lobby. Double-check it with your friend.",
-  full: 'That lobby is already full — debates are strictly 1v1.',
-  in_progress: 'That debate already started. Ask your friend for a fresh code.',
-  bad_name: 'Yap names are 3-16 characters: letters, numbers, underscores.',
+  not_found: "that code doesn't exist. your friend typed it wrong. classic.",
+  full: 'lobby is full. debates are strictly 1v1, no cornermen.',
+  in_progress: 'that debate already started without you. get a new code.',
+  bad_name: 'yap names are 3 to 16 characters. letters, numbers, underscores.',
 };
 
 interface Props {
@@ -38,7 +38,7 @@ export default function Home({ notice, onEntered }: Props) {
 
   function join() {
     if (!validName) return setError(ERRORS.bad_name);
-    if (code.trim().length !== 6) return setError('Lobby codes are 6 characters.');
+    if (code.trim().length !== 6) return setError('codes are 6 characters. count again.');
     setBusy(true);
     socket.emit('lobby:join', { code: code.trim().toUpperCase(), sessionId, name }, (res) => {
       setBusy(false);
@@ -50,18 +50,18 @@ export default function Home({ notice, onEntered }: Props) {
   return (
     <div className="stage center-col home">
       {notice ? <div className="banner">{notice}</div> : null}
-      <p className="kicker">1v1 video debates · AI judge · no accounts</p>
+      <p className="kicker">1v1 video debates · ai judge · no accounts</p>
       <h1 className="display logo">
         YAP<span className="logo-accent">STAGE</span>
       </h1>
       <p className="subtitle">
-        Invite a friend. Get dealt a topic and a side. Argue it out in timed turns —
-        the judge crowns the <strong>YapMaster</strong>.
+        one friend. one topic you don't get to pick. the judge hears everything and crowns a
+        YapMaster.
       </p>
 
       <div className="card">
         <label className="field-label" htmlFor="yapname">
-          Your yap name
+          your yap name
         </label>
         <input
           id="yapname"
@@ -78,7 +78,7 @@ export default function Home({ notice, onEntered }: Props) {
 
         <div className="home-actions">
           <button className="btn btn-primary" disabled={busy || !validName} onClick={create}>
-            Create a debate
+            start a debate
           </button>
           <div className="join-row">
             <input
@@ -95,7 +95,7 @@ export default function Home({ notice, onEntered }: Props) {
               }}
             />
             <button className="btn" disabled={busy || !validName || code.length !== 6} onClick={join}>
-              Join
+              join one
             </button>
           </div>
         </div>
@@ -103,9 +103,17 @@ export default function Home({ notice, onEntered }: Props) {
         {error ? <p className="error">{error}</p> : null}
       </div>
 
-      <p className="footnote">
-        Desktop Chrome recommended — it powers the live transcription the judge reads.
+      <p className="footnote">works best in chrome on a laptop. the judge needs ears.</p>
+      <p className="small-print">
+        sanctioned by the yapstage athletic commission · the judge cannot be bribed (we tried)
       </p>
+
+      <div className="marquee" aria-hidden="true">
+        <span className="marquee-track">
+          {'tonight · yapstage · settle it on camera · loser buys shawarma · '.repeat(4)}
+          {'tonight · yapstage · settle it on camera · loser buys shawarma · '.repeat(4)}
+        </span>
+      </div>
     </div>
   );
 }

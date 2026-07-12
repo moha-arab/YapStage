@@ -128,17 +128,17 @@ export default function VerdictScreen({ info, status, mySide, topic, remoteStrea
         <p className="kicker">{topic}</p>
         {status?.state === 'failed' ? (
           <>
-            <h1 className="display">The judge hit a snag</h1>
-            <p className="subtitle">{status.message ?? 'A technical difficulty — your debate is safe.'}</p>
+            <h1 className="display">the judge dropped the gavel</h1>
+            <p className="subtitle">{status.message ?? 'technical difficulty. your debate is safe.'}</p>
             <button className="btn btn-primary" onClick={onRetry}>
-              Call the judge back
+              call the judge back
             </button>
           </>
         ) : (
           <>
-            <h1 className="display deliberating">The judge is deliberating…</h1>
+            <h1 className="display deliberating">the judge is deliberating</h1>
             <div className="gavel-spinner" aria-hidden="true" />
-            <p className="subtitle">Reading the transcript. No pressure.</p>
+            <p className="subtitle">yes, it heard what you said. yes, it's counting that.</p>
           </>
         )}
       </div>
@@ -155,7 +155,7 @@ export default function VerdictScreen({ info, status, mySide, topic, remoteStrea
       <div className="stage center-col verdict-scores">
         <RemoteAudio stream={remoteStream} />
         <p className="kicker">{topic}</p>
-        <h1 className="display">The scores are in…</h1>
+        <h1 className="display">the scores are in</h1>
         <div className="score-reveals">
           {REVEAL_ORDER.slice(0, revealed).map((c) => (
             <div className="score-reveal card" key={c.key}>
@@ -184,7 +184,7 @@ export default function VerdictScreen({ info, status, mySide, topic, remoteStrea
           ))}
         </div>
         {revealed >= REVEAL_ORDER.length ? (
-          <p className="subtitle">Totals hidden. Judge's decision incoming…</p>
+          <p className="subtitle">totals hidden. the judge has the envelope.</p>
         ) : null}
       </div>
     );
@@ -211,7 +211,7 @@ export default function VerdictScreen({ info, status, mySide, topic, remoteStrea
       <p className="summary">{verdict.summary}</p>
       {mySide !== undefined ? (
         <p className={`you-result ${youWon ? 'won' : 'lost'}`}>
-          {youWon ? "That's you. Wear the crown." : "Run it back when you're ready."}
+          {youWon ? "that's you. screenshot it. send it to them at 3am." : 'good yap though. run it back.'}
         </p>
       ) : null}
 
@@ -219,7 +219,7 @@ export default function VerdictScreen({ info, status, mySide, topic, remoteStrea
         <div className="verdict-details">
           {verdict.injectionDetected ? (
             <div className="banner banner-warn">
-              The judge detected an attempt to manipulate the scoring. It did not go well for them.
+              someone tried to sweet-talk the judge. it did not go well for them.
             </div>
           ) : null}
 
@@ -284,14 +284,14 @@ export default function VerdictScreen({ info, status, mySide, topic, remoteStrea
 
           <div className="verdict-actions">
             <button className="btn btn-primary" onClick={() => window.location.assign('/')}>
-              Run it back
+              run it back
             </button>
             <button className="btn" onClick={toggleMute}>
-              {muted ? 'Unmute stage sound' : 'Mute stage sound'}
+              {muted ? 'unmute stage sound' : 'mute stage sound'}
             </button>
           </div>
           <p className="footnote">
-            Condolences to {names[loser]} — the transcript has already been deleted.
+            condolences to {names[loser]}. the transcript has already been deleted.
           </p>
         </div>
       ) : null}

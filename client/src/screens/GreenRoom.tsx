@@ -44,8 +44,8 @@ export default function GreenRoom({
   const localLevel = useAudioLevel(localStream);
   const remoteLevel = useAudioLevel(remoteStream);
 
-  // Mic proof-of-life: if we've had a mic for a while and it has NEVER made
-  // the meter move, say so loudly — a debate with a dead mic is unjudgeable.
+  // Mic proof-of-life: if the mic has never moved the meter, say so before
+  // the debate, not after the verdict comes back with one side missing.
   const maxLocal = useRef(0);
   if (localLevel > maxLocal.current) maxLocal.current = localLevel;
   const [micSilent, setMicSilent] = useState(false);
@@ -73,80 +73,92 @@ export default function GreenRoom({
         <span className="brand">
           YAP<span className="logo-accent">STAGE</span>
         </span>
-        <span className="pill">Green room</span>
+        <span className="pill">green room</span>
         <span className="pill pill-code">{lobby.code}</span>
       </header>
 
       {waiting ? (
         <div className="invite-block">
-          <p className="kicker">Your stage is booked</p>
-          <h2 className="display code-display">{lobby.code}</h2>
-          <p className="subtitle">Send this code — or the link — to exactly one friend.</p>
+          <div className="ticket">
+            <div className="ticket-main">
+              <p className="ticket-label">yapstage · admit two</p>
+              <p className="ticket-code">{lobby.code}</p>
+              <p className="ticket-fine">section yap · row 1 · no refunds</p>
+            </div>
+            <div className="ticket-stub" aria-hidden="true" />
+          </div>
           <button className="btn" onClick={copyLink}>
-            {copied ? 'Copied' : 'Copy invite link'}
+            {copied ? 'copied.' : 'copy invite link'}
           </button>
+          <p className="subtitle">send it to exactly one friend. the confident one.</p>
         </div>
       ) : null}
 
-      <div className="tiles">
-        <div className="tile-stack">
+      {waiting ? (
+        <div className="tile-stack tile-solo">
+          <span className="tape">mic check</span>
           <VideoTile
             stream={localStream}
             muted
             mirror
             label={lobby.yourName}
             sub="you"
-            placeholder={mediaError ? 'Camera blocked' : 'Starting camera…'}
+            placeholder={mediaError ? 'camera blocked' : 'camera warming up'}
           />
-          {localStream ? (
-            <MicMeter level={localLevel} label="Your mic" warn={micSilent} />
-          ) : null}
+          {localStream ? <MicMeter level={localLevel} label="your mic" warn={micSilent} /> : null}
           {localStream && micSilent ? (
-            <p className="meter-hint">
-              Say something — this bar should bounce. If it stays flat, your mic is dead and the
-              judge won't hear a word you say.
-            </p>
+            <p className="meter-hint">say something. flat bar = the judge hears nothing.</p>
           ) : null}
         </div>
-        <div className="tile-stack">
-          <VideoTile
-            stream={remoteStream}
-            muted={false}
-            label={lobby.peerName ?? 'Opponent'}
-            sub={lobby.peerName ? (lobby.peerReady ? 'ready' : 'not ready') : undefined}
-            placeholder={waiting ? 'Waiting for your opponent…' : 'Connecting…'}
-          />
-          {remoteStream && connected ? (
-            <MicMeter
-              level={remoteLevel}
-              label={`${lobby.peerName ?? 'Their'} mic`}
-              warn={false}
+      ) : (
+        <div className="tiles">
+          <div className="tile-stack">
+            <VideoTile
+              stream={localStream}
+              muted
+              mirror
+              label={lobby.yourName}
+              sub="you"
+              placeholder={mediaError ? 'camera blocked' : 'camera warming up'}
             />
-          ) : null}
+            {localStream ? <MicMeter level={localLevel} label="your mic" warn={micSilent} /> : null}
+            {localStream && micSilent ? (
+              <p className="meter-hint">say something. flat bar = the judge hears nothing.</p>
+            ) : null}
+          </div>
+          <div className="tile-stack">
+            <VideoTile
+              stream={remoteStream}
+              muted={false}
+              label={lobby.peerName ?? 'opponent'}
+              sub={lobby.peerName ? (lobby.peerReady ? 'ready' : 'not ready') : undefined}
+              placeholder="connecting their camera"
+            />
+            {remoteStream && connected ? (
+              <MicMeter level={remoteLevel} label={`${lobby.peerName ?? 'their'} mic`} warn={false} />
+            ) : null}
+          </div>
         </div>
-      </div>
+      )}
 
       {mediaError ? (
         <div className="banner banner-error">
           {mediaError}{' '}
           <button className="btn btn-small" onClick={onRetryMedia}>
-            Retry
+            retry
           </button>
         </div>
       ) : null}
 
       {!waiting && rtcState === 'failed' ? (
         <div className="banner banner-error">
-          Your two networks are blocking a direct video link (common on campus or office Wi-Fi).
-          This needs the relay server turned on — ping the site owner. Retrying may help on a
-          different network or hotspot.
+          your networks refuse to shake hands. hotspot one phone and rematch.
         </div>
       ) : null}
 
       {!speechSupported ? (
         <div className="banner banner-warn">
-          Live transcription isn't supported in this browser — your side of the debate can't be
-          judged. Use desktop Chrome for the full show.
+          this browser can't transcribe you, so the judge can't score you. use chrome on a laptop.
         </div>
       ) : null}
 
@@ -159,8 +171,8 @@ export default function GreenRoom({
               onChange={(e) => setConsent(e.target.checked)}
             />
             <span>
-              I understand this debate will be transcribed and judged by an AI. Nothing is
-              recorded or stored — transcripts vanish after the verdict.
+              the ai judge reads a transcript of this debate. nothing is recorded, nothing is
+              stored. it all burns after the verdict.
             </span>
           </label>
           <button
@@ -169,21 +181,15 @@ export default function GreenRoom({
             onClick={ready}
           >
             {lobby.youReady
-              ? 'Waiting for your opponent…'
+              ? 'waiting on your opponent. rehearsing, probably.'
               : !connected
                 ? rtcState === 'failed'
-                  ? 'Video link failed'
-                  : 'Connecting video…'
-                : "I'm ready — take the stage"}
+                  ? 'video link failed'
+                  : 'connecting video...'
+                : 'take the stage'}
           </button>
-          {!connected && !lobby.youReady && rtcState !== 'failed' ? (
-            <p className="footnote">
-              Ready unlocks once live video is flowing both ways — no point debating a black
-              screen.
-            </p>
-          ) : null}
           {lobby.peerReady && !lobby.youReady ? (
-            <p className="footnote">{lobby.peerName} is ready and waiting for you.</p>
+            <p className="footnote">{lobby.peerName} is ready and staring at you.</p>
           ) : null}
         </div>
       ) : null}
