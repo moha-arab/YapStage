@@ -17,6 +17,13 @@ let currentStep = -1;
 let consecutiveErrors = 0;
 let warned = false;
 let onChunk: (() => void) | null = null;
+let speechLang = 'en-US';
+
+/** Match recognition to the UI language. Applies from the next turn. */
+export function setSpeechLang(lang: 'en' | 'ar'): void {
+  speechLang = lang === 'ar' ? 'ar-SA' : 'en-US';
+  if (rec) rec.lang = speechLang;
+}
 
 /** UI hook: fires whenever a final transcript chunk is actually captured. */
 export function setOnChunk(cb: (() => void) | null): void {
@@ -28,7 +35,7 @@ function ensure(): void {
   rec = new SRCls();
   rec.continuous = true;
   rec.interimResults = true;
-  rec.lang = 'en-US';
+  rec.lang = speechLang;
   rec.onstart = () => {
     running = true;
   };

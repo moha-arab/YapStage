@@ -16,8 +16,9 @@ import {
   setupPeer,
   teardownPeer,
 } from './webrtc';
-import { setOnChunk, speechSupported, startTurn, stopTurn } from './speech';
+import { setOnChunk, setSpeechLang, speechSupported, startTurn, stopTurn } from './speech';
 import { saveReceipt } from './history';
+import { LangToggle, useI18n } from './i18n';
 import Home from './screens/Home';
 import GreenRoom from './screens/GreenRoom';
 import Debate from './screens/Debate';
@@ -29,6 +30,7 @@ interface VerdictInfo {
 }
 
 export default function App() {
+  const { lang, t } = useI18n();
   const [lobby, setLobby] = useState<LobbyUpdate | null>(null);
   const [start, setStart] = useState<DebateStart | null>(null);
   const [phase, setPhase] = useState<PhaseUpdate | null>(null);
@@ -110,7 +112,7 @@ export default function App() {
           x.argument + x.evidence + x.clash + x.delivery;
         saveReceipt({
           at: Date.now(),
-          topic: s.topic,
+          topic: s.topic[langRef.current],
           me: s.names[mySide],
           them: s.names[theirSide],
           won: p.verdict.winner === mySide,
@@ -126,8 +128,9 @@ export default function App() {
       if (!code || settledRef.current) return;
       socket.emit('lobby:resume', { code, sessionId }, (res) => {
         if (res.ok) return;
-        if (startedRef.current) setAbortReason('the connection died. the debate died with it.');
-        else resetToHome('lost that lobby. make a new one.');
+        // stored as i18n keys; t() renders them (unknown strings pass through)
+        if (startedRef.current) setAbortReason('connDied');
+        else resetToHome('lostLobby');
       });
     });
 
@@ -152,6 +155,14 @@ export default function App() {
     setOnChunk(() => setSpeechHeard(true));
     return () => setOnChunk(null);
   }, []);
+
+  // Recognition listens in the UI language (English or Arabic).
+  useEffect(() => {
+    setSpeechLang(lang);
+  }, [lang]);
+
+  const langRef = useRef(lang);
+  langRef.current = lang;
 
   // The Jubilee rule: your mic exists only on your turn. Driven by server
   // phase events, never by the countdown display.
@@ -178,9 +189,7 @@ export default function App() {
           setMediaError(null);
         }
       } catch {
-        if (!cancelled) {
-          setMediaError('the judge needs your camera and mic. allow them in the address bar, then retry.');
-        }
+        if (!cancelled) setMediaError('mediaError'); // i18n key, rendered via t()
       }
     })();
     return () => {
@@ -221,25 +230,24 @@ export default function App() {
     setLobby(u);
   }, []);
 
+  let content;
   if (abortReason) {
-    return (
+    content = (
       <div className="stage center-col">
-        <p className="kicker">debate cancelled</p>
-        <h1 className="display">{abortReason}</h1>
+        <p className="kicker">{t('cancelled')}</p>
+        <h1 className="display">{t(abortReason)}</h1>
         <button className="btn btn-primary" onClick={() => window.location.assign('/')}>
-          back to the stage door
+          {t('backHome')}
         </button>
       </div>
     );
-  }
-
-  if (ended || verdictInfo) {
-    return (
+  } else if (ended || verdictInfo) {
+    content = (
       <VerdictScreen
         info={verdictInfo}
         status={judgeStatus}
         mySide={start?.yourSide}
-        topic={start?.topic ?? ''}
+        topic={start?.topic ?? null}
         localStream={localStream}
         remoteStream={remoteStream}
         rtcConnected={rtcState === 'connected'}
@@ -254,10 +262,8 @@ export default function App() {
         onRetry={() => socket.emit('verdict:retry')}
       />
     );
-  }
-
-  if (start) {
-    return (
+  } else if (start) {
+    content = (
       <Debate
         start={start}
         phase={phase}
@@ -269,10 +275,8 @@ export default function App() {
         speechSupported={speechSupported}
       />
     );
-  }
-
-  if (lobby) {
-    return (
+  } else if (lobby) {
+    content = (
       <GreenRoom
         lobby={lobby}
         localStream={localStream}
@@ -283,7 +287,14 @@ export default function App() {
         onRetryMedia={() => setMediaRetry((n) => n + 1)}
       />
     );
+  } else {
+    content = <Home notice={notice} onEntered={handleEntered} />;
   }
 
-  return <Home notice={notice} onEntered={handleEntered} />;
+  return (
+    <>
+      <LangToggle />
+      {content}
+    </>
+  );
 }

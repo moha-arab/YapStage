@@ -163,14 +163,14 @@ export function playCrash(): void {
  * Pick the least-robotic voice available. Chrome desktop ships Google voices
  * that are far better than the OS defaults it would otherwise use.
  */
-function pickVoice(): SpeechSynthesisVoice | null {
+function pickVoice(langPrefix: string): SpeechSynthesisVoice | null {
   const voices = window.speechSynthesis.getVoices();
-  const en = voices.filter((v) => v.lang.toLowerCase().startsWith('en'));
+  const match = voices.filter((v) => v.lang.toLowerCase().startsWith(langPrefix));
   return (
-    en.find((v) => /google/i.test(v.name) && /us/i.test(v.name)) ??
-    en.find((v) => /google/i.test(v.name)) ??
-    en.find((v) => /natural|neural|online/i.test(v.name)) ??
-    en[0] ??
+    match.find((v) => /google/i.test(v.name) && /us/i.test(v.name)) ??
+    match.find((v) => /google/i.test(v.name)) ??
+    match.find((v) => /natural|neural|online/i.test(v.name)) ??
+    match[0] ??
     null
   );
 }
@@ -181,8 +181,11 @@ export function speak(text: string): void {
   if (!('speechSynthesis' in window)) return;
   try {
     const u = new SpeechSynthesisUtterance(text);
-    const voice = pickVoice();
+    // The judge answers in the debate's language; match the voice to it.
+    const isArabic = /[؀-ۿ]/.test(text);
+    const voice = pickVoice(isArabic ? 'ar' : 'en');
     if (voice) u.voice = voice;
+    if (isArabic) u.lang = 'ar-SA';
     u.rate = 1.0;
     u.pitch = 1.0;
     window.speechSynthesis.speak(u);

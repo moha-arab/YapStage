@@ -1,4 +1,4 @@
-/* YapStage — fight-poster brutalism.
+/* YapStage: fight-poster brutalism.
    Rules of the house: hard shadows (no glow), square corners, thick borders,
    nothing perfectly straight, grain over everything, lowercase trash talk. */
 
@@ -52,6 +52,63 @@ body::after {
   letter-spacing: 0.01em;
   line-height: 1.02;
   margin: 0;
+}
+
+/* Arabic mode: our poster fonts have no Arabic glyphs, so swap the whole
+   type system for Arabic equivalents with the same energy. */
+html[dir='rtl'] body {
+  font-family: 'Tajawal', system-ui, sans-serif;
+}
+
+html[dir='rtl'] .display,
+html[dir='rtl'] .brand,
+html[dir='rtl'] .side-name,
+html[dir='rtl'] .score-reveal-label,
+html[dir='rtl'] .score-reveal-num,
+html[dir='rtl'] .score-head,
+html[dir='rtl'] .feedback h3,
+html[dir='rtl'] .marquee-track,
+html[dir='rtl'] .vs {
+  font-family: 'Lalezar', 'Ultra', serif;
+  letter-spacing: 0;
+}
+
+html[dir='rtl'] .tape,
+html[dir='rtl'] .grade-chip,
+html[dir='rtl'] .you-result,
+html[dir='rtl'] .meter-hint {
+  font-family: 'Rakkas', serif;
+}
+
+/* digits and codes always read left-to-right */
+.shot-clock,
+.ticket-code,
+.pill-code,
+.input-code {
+  direction: ltr;
+}
+
+.lang-toggle {
+  position: fixed;
+  top: 14px;
+  inset-inline-end: 16px;
+  z-index: 50;
+  width: 46px;
+  height: 46px;
+  font-family: 'Lalezar', 'Ultra', serif;
+  font-size: 20px;
+  color: var(--gold);
+  background: var(--bg);
+  border: 3px solid var(--gold);
+  border-radius: 2px;
+  cursor: pointer;
+  transform: rotate(2deg);
+  box-shadow: 3px 3px 0 rgba(0, 0, 0, 0.5);
+}
+
+.lang-toggle:active {
+  transform: rotate(2deg) translate(3px, 3px);
+  box-shadow: none;
 }
 
 .stage {
@@ -233,7 +290,7 @@ body::after {
 
 .home .card {
   width: min(440px, 92vw);
-  text-align: left;
+  text-align: start;
   transform: rotate(-0.5deg);
   box-shadow: 6px 6px 0 rgba(0, 0, 0, 0.5);
 }
@@ -308,7 +365,7 @@ body::after {
 .topic-btn {
   font: inherit;
   font-size: 14px;
-  text-align: left;
+  text-align: start;
   color: var(--ink);
   background: var(--panel-2);
   border: 2px solid var(--line);
@@ -399,7 +456,7 @@ body::after {
   color: var(--muted);
   border-bottom: 2px solid var(--line);
   padding-bottom: 6px;
-  text-align: left;
+  text-align: start;
 }
 
 .bout-mark {
@@ -499,8 +556,8 @@ body::after {
 .motion-banner {
   font-weight: 600;
   font-size: 15px;
-  margin-left: auto;
-  text-align: right;
+  margin-inline-start: auto;
+  text-align: end;
 }
 
 /* Green room: ticket stub invite */
@@ -520,12 +577,12 @@ body::after {
   align-items: stretch;
   transform: rotate(-1.2deg);
   box-shadow: 6px 6px 0 rgba(0, 0, 0, 0.55);
-  text-align: left;
+  text-align: start;
 }
 
 .ticket-main {
   padding: 18px 26px;
-  border-right: 3px dashed #241d10;
+  border-inline-end: 3px dashed #241d10;
 }
 
 .ticket-label {
@@ -655,7 +712,7 @@ body::after {
 
 .tag {
   position: absolute;
-  left: 10px;
+  inset-inline-start: 10px;
   bottom: 10px;
   background: rgba(11, 10, 8, 0.85);
   border: 2px solid var(--line);
@@ -678,7 +735,7 @@ body::after {
 .live-pill {
   position: absolute;
   top: 10px;
-  left: 10px;
+  inset-inline-start: 10px;
   background: var(--gold);
   color: #1c1508;
   padding: 3px 10px;
@@ -831,7 +888,7 @@ body::after {
 .round-step {
   font-size: 12px;
   color: var(--muted);
-  margin-left: 8px;
+  margin-inline-start: 8px;
 }
 
 .clock-row {
@@ -1131,7 +1188,7 @@ body::after {
 }
 
 .scoreboard {
-  text-align: left;
+  text-align: start;
   box-shadow: 6px 6px 0 rgba(0, 0, 0, 0.5);
 }
 
@@ -1206,7 +1263,7 @@ body::after {
   padding: 14px 18px;
   border: 3px solid currentColor;
   background: var(--panel);
-  text-align: left;
+  text-align: start;
   font-size: 15px;
   box-shadow: 4px 4px 0 rgba(0, 0, 0, 0.45);
 }
@@ -1234,7 +1291,7 @@ body::after {
 }
 
 .feedback {
-  text-align: left;
+  text-align: start;
 }
 
 .feedback h3 {

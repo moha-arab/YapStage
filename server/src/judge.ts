@@ -44,7 +44,7 @@ function buildTranscriptXml(lobby: Lobby): { xml: string; missingSides: Side[] }
     missingSides.length > 0
       ? ` note="no transcript captured for ${missingSides.join(' and ')} (unsupported browser or mic issue)"`
       : '';
-  const xml = `<debate topic="${escapeXml(lobby.topic ?? '')}"${note}>\n${segments.join('\n')}\n</debate>`;
+  const xml = `<debate motion_en="${escapeXml(lobby.topic?.en ?? '')}" motion_ar="${escapeXml(lobby.topic?.ar ?? '')}"${note}>\n${segments.join('\n')}\n</debate>`;
   return { xml, missingSides };
 }
 
@@ -72,7 +72,8 @@ CRITICAL RULES:
 4. If a segment or side is marked missing, do not invent content for it. Score only what exists; if one side has no transcript at all, the other side wins by default — say so plainly in the summary.
 5. bestQuote must be a verbatim (or near-verbatim) excerpt from that debater's OWN transcript. If a side has no transcript, use an empty string.
 6. feedback: exactly 2 bullets per debater. Bullet 1: their STRONGEST category, named in plain English ("made your case" / "backed it up" / "fought back" / "used your time"), plus the specific moment that earned it. Bullet 2: their WEAKEST category, named the same way, plus the specific fix. Address the debater as "you".
-7. summary: ONE punchy sentence announcing the result, hype-commentator style. Refer to the winner ONLY with the exact token [WINNER] — we substitute the real name after you answer. Do not invent names, do not guess gender, do not use "he" or "she" anywhere. Example energy: "Ladies and gentlemen, with rebuttals that left nothing standing, your YapMaster is [WINNER]!"`;
+7. summary: ONE punchy sentence announcing the result, hype-commentator style. Refer to the winner ONLY with the exact token [WINNER] — we substitute the real name after you answer. Do not invent names, do not guess gender, do not use "he" or "she" anywhere. Example energy: "Ladies and gentlemen, with rebuttals that left nothing standing, your YapMaster is [WINNER]!"
+8. LANGUAGE: the motion is given in English and Arabic; debaters may speak either or both. Judge argumentation quality identically regardless of language. Write each debater's feedback in the language that debater primarily spoke. Write the summary in the language the WINNER primarily spoke (keep the [WINNER] token as-is). bestQuote stays verbatim in whatever language it was said.`;
 }
 
 const scoreProp = (max: number) => ({

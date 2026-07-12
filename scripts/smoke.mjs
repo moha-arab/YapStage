@@ -58,8 +58,8 @@ a.emit('rtc:signal', { description: { type: 'offer', sdp: 'fake-sdp' } });
 const sig = await relayed;
 check('rtc:signal relayed verbatim', sig?.description?.sdp === 'fake-sdp');
 
-// picks: both must choose the SAME topic and OPPOSITE sides, then both confirm
-const PICKED = 'Kurdistan should be an independent country';
+// picks: both must choose the SAME topic (by id) and OPPOSITE sides, then confirm
+const PICKED = 'kurdistan';
 a.emit('pick:topic', PICKED);
 a.emit('pick:side', 'FOR');
 b.emit('pick:side', 'FOR'); // same side: agreement impossible yet
@@ -79,7 +79,7 @@ await new Promise((r) => setTimeout(r, 300));
 a.emit('pick:confirm');
 b.emit('pick:confirm');
 const [sa, sb] = await Promise.all([startA, startB]);
-check('debate starts with the agreed topic', sa.topic === PICKED && sb.topic === PICKED);
+check('debate starts with the agreed topic (bilingual)', sa.topic.id === PICKED && sa.topic.en.includes('Kurdistan') && sa.topic.ar.length > 0 && sb.topic.id === PICKED);
 check('sides match the picks', sa.yourSide === 'FOR' && sb.yourSide === 'AGAINST');
 check('names carried on both sides', sa.names.FOR === 'pizzamaster' && sa.names.AGAINST === 'yapqueen');
 
@@ -145,8 +145,8 @@ const code2 = created2.update.code;
 await emitP(b2, 'lobby:join', { code: code2, sessionId: 'sess-b2', name: 'guestgal' });
 
 const start2 = once(a2, 'debate:start');
-a2.emit('pick:topic', 'The UN is useless');
-b2.emit('pick:topic', 'The UN is useless');
+a2.emit('pick:topic', 'un-useless');
+b2.emit('pick:topic', 'un-useless');
 a2.emit('pick:side', 'FOR');
 b2.emit('pick:side', 'AGAINST');
 await new Promise((r) => setTimeout(r, 300));
@@ -200,8 +200,8 @@ const code3 = created3.update.code;
 await emitP(b3, 'lobby:join', { code: code3, sessionId: 'sess-b3', name: 'blinker' });
 
 const start3 = once(a3, 'debate:start');
-a3.emit('pick:topic', 'Crypto is a scam with extra steps');
-b3.emit('pick:topic', 'Crypto is a scam with extra steps');
+a3.emit('pick:topic', 'crypto-scam');
+b3.emit('pick:topic', 'crypto-scam');
 a3.emit('pick:side', 'FOR');
 b3.emit('pick:side', 'AGAINST');
 await new Promise((r) => setTimeout(r, 300));

@@ -27,7 +27,7 @@ import {
 } from './lobby.js';
 import { abort, acceptChunk, resendState, startDebate, type Io } from './debate.js';
 import { runJudge } from './judge.js';
-import { ALL_TOPICS, TOPIC_CATEGORIES } from './topics.js';
+import { TOPIC_BY_ID, TOPIC_CATEGORIES } from './topics.js';
 
 // Deployed on Railway via Dockerfile (see railway.json). Fastify serves the
 // built client from client/dist and hosts the Socket.IO signaling server.
@@ -73,8 +73,8 @@ function updateFor(lobby: Lobby, receiver: Participant): LobbyUpdate {
     locked: Boolean(lobby.host && lobby.guest),
     deck: TOPIC_CATEGORIES,
     pick: {
-      yourTopic: isHost ? pick.hostTopic : pick.guestTopic,
-      peerTopic: isHost ? pick.guestTopic : pick.hostTopic,
+      yourTopicId: isHost ? pick.hostTopicId : pick.guestTopicId,
+      peerTopicId: isHost ? pick.guestTopicId : pick.hostTopicId,
       yourSide: isHost ? pick.hostSide : pick.guestSide,
       peerSide: isHost ? pick.guestSide : pick.hostSide,
       youConfirmed: isHost ? pick.hostConfirmed : pick.guestConfirmed,
@@ -171,15 +171,15 @@ io.on('connection', (socket) => {
     }
   });
 
-  socket.on('pick:topic', (topic) => {
+  socket.on('pick:topic', (topicId) => {
     const lobby = socket.data.code ? getLobby(socket.data.code) : undefined;
     if (!lobby || lobby.status !== 'greenroom') return;
     const me = participantOf(lobby, socket.id);
     if (!me) return;
-    const t = String(topic ?? '');
-    if (!ALL_TOPICS.has(t)) return;
-    if (me === lobby.host) lobby.pick.hostTopic = t;
-    else lobby.pick.guestTopic = t;
+    const id = String(topicId ?? '');
+    if (!TOPIC_BY_ID.has(id)) return;
+    if (me === lobby.host) lobby.pick.hostTopicId = id;
+    else lobby.pick.guestTopicId = id;
     // any change requires both players to re-confirm
     lobby.pick.hostConfirmed = false;
     lobby.pick.guestConfirmed = false;
@@ -208,8 +208,8 @@ io.on('connection', (socket) => {
     if (!me) return;
     const { pick } = lobby;
     const agreed =
-      pick.hostTopic !== null &&
-      pick.hostTopic === pick.guestTopic &&
+      pick.hostTopicId !== null &&
+      pick.hostTopicId === pick.guestTopicId &&
       pick.hostSide !== null &&
       pick.guestSide !== null &&
       pick.hostSide !== pick.guestSide;
@@ -276,7 +276,7 @@ io.on('connection', (socket) => {
         lobby.guest = undefined;
         lobby.status = 'waiting';
         // clear the departed guest's picks and all confirmations
-        lobby.pick.guestTopic = null;
+        lobby.pick.guestTopicId = null;
         lobby.pick.guestSide = null;
         lobby.pick.hostConfirmed = false;
         lobby.pick.guestConfirmed = false;

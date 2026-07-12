@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import type { Side } from '../../server/src/protocol';
+import { useI18n } from './i18n';
 
 interface Props {
   stream: MediaStream | null;
@@ -13,6 +14,7 @@ interface Props {
 }
 
 export default function VideoTile(props: Props) {
+  const { t } = useI18n();
   const ref = useRef<HTMLVideoElement>(null);
 
   useEffect(() => {
@@ -49,13 +51,13 @@ export default function VideoTile(props: Props) {
       {props.stream ? (
         <video ref={ref} autoPlay playsInline className={props.mirror ? 'mirror' : ''} />
       ) : (
-        <div className="tile-empty">{props.placeholder ?? 'empty corner'}</div>
+        <div className="tile-empty">{props.placeholder ?? t('emptyCorner')}</div>
       )}
       <div className="tag">
         <span className="tag-name">{props.label}</span>
         {props.sub ? <span className="tag-sub">{props.sub}</span> : null}
       </div>
-      {props.active ? <div className="live-pill">ON THE MIC</div> : null}
+      {props.active ? <div className="live-pill">{t('onTheMic')}</div> : null}
     </div>
   );
 }

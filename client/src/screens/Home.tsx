@@ -2,14 +2,15 @@ import { useState } from 'react';
 import type { JoinError, LobbyUpdate } from '../../../server/src/protocol';
 import { sessionId, socket } from '../socket';
 import { loadReceipts } from '../history';
+import { useI18n } from '../i18n';
 
 const NAME_RE = /^[a-zA-Z0-9_]{3,16}$/;
 
-const ERRORS: Record<JoinError, string> = {
-  not_found: "that code doesn't exist. double-check it with your friend.",
-  full: 'lobby is full. debates are strictly 1v1, no cornermen.',
-  in_progress: 'that debate already started without you. get a new code.',
-  bad_name: 'yap names are 3 to 16 characters. letters, numbers, underscores.',
+const ERROR_KEYS: Record<JoinError, string> = {
+  not_found: 'errNotFound',
+  full: 'errFull',
+  in_progress: 'errInProgress',
+  bad_name: 'errBadName',
 };
 
 interface Props {
@@ -18,6 +19,7 @@ interface Props {
 }
 
 export default function Home({ notice, onEntered }: Props) {
+  const { t } = useI18n();
   const [name, setName] = useState('');
   const [code, setCode] = useState(
     () => new URLSearchParams(window.location.search).get('code')?.toUpperCase() ?? '',
@@ -30,46 +32,43 @@ export default function Home({ notice, onEntered }: Props) {
   const wins = receipts.filter((r) => r.won).length;
 
   function create() {
-    if (!validName) return setError(ERRORS.bad_name);
+    if (!validName) return setError('errBadName');
     setBusy(true);
     socket.emit('lobby:create', { sessionId, name }, (res) => {
       setBusy(false);
       if (res.ok) onEntered(res.update);
-      else setError(ERRORS[res.error]);
+      else setError(ERROR_KEYS[res.error]);
     });
   }
 
   function join() {
-    if (!validName) return setError(ERRORS.bad_name);
-    if (code.trim().length !== 6) return setError('codes are 6 characters. count again.');
+    if (!validName) return setError('errBadName');
+    if (code.trim().length !== 6) return setError('errCodeLen');
     setBusy(true);
     socket.emit('lobby:join', { code: code.trim().toUpperCase(), sessionId, name }, (res) => {
       setBusy(false);
       if (res.ok) onEntered(res.update);
-      else setError(ERRORS[res.error]);
+      else setError(ERROR_KEYS[res.error]);
     });
   }
 
   return (
     <div className="stage center-col home">
-      {notice ? <div className="banner">{notice}</div> : null}
-      <p className="kicker">1v1 video debates · ai judge · no accounts</p>
+      {notice ? <div className="banner">{t(notice)}</div> : null}
+      <p className="kicker">{t('kicker')}</p>
       <h1 className="display logo">
         YAP<span className="logo-accent">STAGE</span>
       </h1>
-      <p className="subtitle">
-        one friend. one topic you don't get to pick. the judge hears everything and crowns a
-        YapMaster.
-      </p>
+      <p className="subtitle">{t('homeSubtitle')}</p>
 
       <div className="card">
         <label className="field-label" htmlFor="yapname">
-          your yap name
+          {t('yourYapName')}
         </label>
         <input
           id="yapname"
           className="input"
-          placeholder="pizzamaster"
+          placeholder={t('namePlaceholder')}
           maxLength={16}
           value={name}
           onChange={(e) => {
@@ -81,12 +80,12 @@ export default function Home({ notice, onEntered }: Props) {
 
         <div className="home-actions">
           <button className="btn btn-primary" disabled={busy || !validName} onClick={create}>
-            start a debate
+            {t('startDebate')}
           </button>
           <div className="join-row">
             <input
               className="input input-code"
-              placeholder="CODE"
+              placeholder={t('codePlaceholder')}
               maxLength={6}
               value={code}
               onChange={(e) => {
@@ -98,18 +97,18 @@ export default function Home({ notice, onEntered }: Props) {
               }}
             />
             <button className="btn" disabled={busy || !validName || code.length !== 6} onClick={join}>
-              join one
+              {t('joinOne')}
             </button>
           </div>
         </div>
 
-        {error ? <p className="error">{error}</p> : null}
+        {error ? <p className="error">{t(error)}</p> : null}
       </div>
 
       {receipts.length > 0 ? (
         <div className="bouts">
           <span className="tape">
-            receipts: {wins}-{receipts.length - wins}
+            {t('receipts')}: {wins}-{receipts.length - wins}
           </span>
           {receipts.slice(0, 5).map((r) => (
             <div className="bout-row" key={r.at}>
@@ -120,19 +119,17 @@ export default function Home({ notice, onEntered }: Props) {
               <span className="bout-topic">"{r.topic}"</span>
             </div>
           ))}
-          <p className="small-print">saved on this device only. we keep nothing.</p>
+          <p className="small-print">{t('receiptsNote')}</p>
         </div>
       ) : null}
 
-      <p className="footnote">works best in chrome on a laptop. the judge needs ears.</p>
-      <p className="small-print">
-        sanctioned by the yapstage athletic commission · the judge cannot be bribed (we tried)
-      </p>
+      <p className="footnote">{t('footChrome')}</p>
+      <p className="small-print">{t('smallPrint')}</p>
 
       <div className="marquee" aria-hidden="true">
         <span className="marquee-track">
-          {'tonight · yapstage · settle it on camera · loser buys shawarma · '.repeat(4)}
-          {'tonight · yapstage · settle it on camera · loser buys shawarma · '.repeat(4)}
+          {t('marquee').repeat(4)}
+          {t('marquee').repeat(4)}
         </span>
       </div>
     </div>

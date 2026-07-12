@@ -1,4 +1,4 @@
-import type { Side, Verdict } from './protocol.js';
+import type { Side, TopicText, Verdict } from './protocol.js';
 
 export interface Participant {
   socketId: string;
@@ -9,10 +9,10 @@ export interface Participant {
   graceTimer?: NodeJS.Timeout;
 }
 
-/** Green-room picks, per player. Any change resets both confirmations. */
+/** Green-room picks (topic ids), per player. Any change resets both confirmations. */
 export interface Pick {
-  hostTopic: string | null;
-  guestTopic: string | null;
+  hostTopicId: string | null;
+  guestTopicId: string | null;
   hostSide: Side | null;
   guestSide: Side | null;
   hostConfirmed: boolean;
@@ -40,7 +40,7 @@ export interface Lobby {
   guest?: Participant;
   status: LobbyStatus;
   pick: Pick;
-  topic?: string;
+  topic?: TopicText;
   sides?: { host: Side; guest: Side };
   stepIndex: number; // -1 before step 0
   stepStartedAt: number; // epoch ms of the last phase transition
@@ -78,8 +78,8 @@ export function createLobby(socketId: string, sessionId: string, name: string): 
     host: { socketId, sessionId, name, rtcReady: false },
     status: 'waiting',
     pick: {
-      hostTopic: null,
-      guestTopic: null,
+      hostTopicId: null,
+      guestTopicId: null,
       hostSide: null,
       guestSide: null,
       hostConfirmed: false,

@@ -3,6 +3,7 @@ import type { LobbyUpdate, Side } from '../../../server/src/protocol';
 import { socket } from '../socket';
 import { initAudio } from '../sound';
 import { useAudioLevel } from '../useAudioLevel';
+import { useI18n } from '../i18n';
 import MicMeter from '../MicMeter';
 import VideoTile from '../VideoTile';
 
@@ -25,6 +26,7 @@ export default function GreenRoom({
   rtcState,
   onRetryMedia,
 }: Props) {
+  const { lang, t } = useI18n();
   const [consent, setConsent] = useState(false);
   const [copied, setCopied] = useState(false);
   const [cat, setCat] = useState(0);
@@ -32,7 +34,7 @@ export default function GreenRoom({
   const link = `${window.location.origin}/?code=${lobby.code}`;
   const connected = rtcState === 'connected';
   const { pick, deck } = lobby;
-  const peer = lobby.peerName ?? 'your opponent';
+  const peer = lobby.peerName ?? '...';
 
   const localLevel = useAudioLevel(localStream);
   const remoteLevel = useAudioLevel(remoteStream);
@@ -60,29 +62,45 @@ export default function GreenRoom({
     socket.emit('pick:confirm');
   }
 
-  const topicsMatch = pick.yourTopic !== null && pick.yourTopic === pick.peerTopic;
+  const topicsMatch = pick.yourTopicId !== null && pick.yourTopicId === pick.peerTopicId;
   const sidesOk =
     pick.yourSide !== null && pick.peerSide !== null && pick.yourSide !== pick.peerSide;
   const agreed = topicsMatch && sidesOk;
   const canConfirm = consent && !!localStream && connected && agreed && !pick.youConfirmed;
 
   const confirmLabel = pick.youConfirmed
-    ? `confirmed. waiting for ${peer}.`
+    ? t('confirmedWaiting', { x: peer })
     : !connected
       ? rtcState === 'failed'
-        ? 'video link failed'
-        : 'connecting video...'
-      : !pick.yourTopic
-        ? 'pick a topic'
+        ? t('videoFailed')
+        : t('connectingVideo')
+      : !pick.yourTopicId
+        ? t('pickTopic')
         : !topicsMatch
-          ? `waiting for ${peer} to pick the same topic`
+          ? t('waitSameTopic', { x: peer })
           : !pick.yourSide
-            ? 'pick your side'
+            ? t('pickSide')
             : !pick.peerSide
-              ? `waiting for ${peer} to pick a side`
+              ? t('waitSide', { x: peer })
               : !sidesOk
-                ? `you both picked ${pick.yourSide}. one of you has to switch.`
-                : 'confirm';
+                ? t('sameSide', { x: t(pick.yourSide!) })
+                : t('confirm');
+
+  const selfTile = (
+    <div className={`tile-stack ${waiting ? 'tile-solo' : ''}`}>
+      {waiting ? <span className="tape">{t('micCheck')}</span> : null}
+      <VideoTile
+        stream={localStream}
+        muted
+        mirror
+        label={lobby.yourName}
+        sub={t('you')}
+        placeholder={mediaError ? t('cameraBlocked') : t('cameraWarming')}
+      />
+      {localStream ? <MicMeter level={localLevel} label={t('yourMic')} warn={micSilent} /> : null}
+      {localStream && micSilent ? <p className="meter-hint">{t('micHint')}</p> : null}
+    </div>
+  );
 
   return (
     <div className="stage green-room">
@@ -90,7 +108,7 @@ export default function GreenRoom({
         <span className="brand">
           YAP<span className="logo-accent">STAGE</span>
         </span>
-        <span className="pill">green room</span>
+        <span className="pill">{t('greenRoom')}</span>
         <span className="pill pill-code">{lobby.code}</span>
       </header>
 
@@ -99,62 +117,33 @@ export default function GreenRoom({
           <div className="invite-block">
             <div className="ticket">
               <div className="ticket-main">
-                <p className="ticket-label">yapstage · admit two</p>
+                <p className="ticket-label">{t('ticketLabel')}</p>
                 <p className="ticket-code">{lobby.code}</p>
-                <p className="ticket-fine">section yap · row 1 · no refunds</p>
+                <p className="ticket-fine">{t('ticketFine')}</p>
               </div>
               <div className="ticket-stub" aria-hidden="true" />
             </div>
             <button className="btn" onClick={copyLink}>
-              {copied ? 'copied.' : 'copy invite link'}
+              {copied ? t('copied') : t('copyInvite')}
             </button>
-            <p className="subtitle">send it to exactly one friend. the confident one.</p>
+            <p className="subtitle">{t('sendToOne')}</p>
           </div>
-          <div className="tile-stack tile-solo">
-            <span className="tape">mic check</span>
-            <VideoTile
-              stream={localStream}
-              muted
-              mirror
-              label={lobby.yourName}
-              sub="you"
-              placeholder={mediaError ? 'camera blocked' : 'camera warming up'}
-            />
-            {localStream ? <MicMeter level={localLevel} label="your mic" warn={micSilent} /> : null}
-            {localStream && micSilent ? (
-              <p className="meter-hint">say something. flat bar = the judge hears nothing.</p>
-            ) : null}
-          </div>
+          {selfTile}
         </>
       ) : (
         <>
           <div className="tiles">
-            <div className="tile-stack">
-              <VideoTile
-                stream={localStream}
-                muted
-                mirror
-                label={lobby.yourName}
-                sub="you"
-                placeholder={mediaError ? 'camera blocked' : 'camera warming up'}
-              />
-              {localStream ? (
-                <MicMeter level={localLevel} label="your mic" warn={micSilent} />
-              ) : null}
-              {localStream && micSilent ? (
-                <p className="meter-hint">say something. flat bar = the judge hears nothing.</p>
-              ) : null}
-            </div>
+            {selfTile}
             <div className="tile-stack">
               <VideoTile
                 stream={remoteStream}
                 muted={false}
-                label={lobby.peerName ?? 'opponent'}
-                sub={pick.peerConfirmed ? 'confirmed' : undefined}
-                placeholder="connecting their camera"
+                label={lobby.peerName ?? '...'}
+                sub={pick.peerConfirmed ? t('confirmed') : undefined}
+                placeholder={t('connectingTheirCamera')}
               />
               {remoteStream && connected ? (
-                <MicMeter level={remoteLevel} label={`${peer} mic`} warn={false} />
+                <MicMeter level={remoteLevel} label={t('peerMic', { x: peer })} warn={false} />
               ) : null}
             </div>
           </div>
@@ -167,24 +156,24 @@ export default function GreenRoom({
                   className={`cat-tab ${i === cat ? 'cat-active' : ''}`}
                   onClick={() => setCat(i)}
                 >
-                  {c.label}
+                  {c.label[lang]}
                 </button>
               ))}
             </div>
 
             <div className="topic-list">
-              {deck[cat]?.topics.map((t) => {
-                const mine = pick.yourTopic === t;
-                const theirs = pick.peerTopic === t;
+              {deck[cat]?.topics.map((topic) => {
+                const mine = pick.yourTopicId === topic.id;
+                const theirs = pick.peerTopicId === topic.id;
                 return (
                   <button
-                    key={t}
+                    key={topic.id}
                     className={`topic-btn ${mine && theirs ? 'topic-on-table' : ''}`}
-                    onClick={() => socket.emit('pick:topic', t)}
+                    onClick={() => socket.emit('pick:topic', topic.id)}
                   >
-                    {t}
+                    {topic[lang]}
                     <span className="topic-marks">
-                      {mine && theirs ? 'both ✓' : mine ? 'you' : theirs ? peer : ''}
+                      {mine && theirs ? t('bothMark') : mine ? t('you') : theirs ? peer : ''}
                     </span>
                   </button>
                 );
@@ -200,9 +189,9 @@ export default function GreenRoom({
                   }`}
                   onClick={() => socket.emit('pick:side', side)}
                 >
-                  <span className="side-name">{side}</span>
+                  <span className="side-name">{t(side)}</span>
                   <span className="side-claim">
-                    {[pick.yourSide === side ? 'you' : null, pick.peerSide === side ? peer : null]
+                    {[pick.yourSide === side ? t('you') : null, pick.peerSide === side ? peer : null]
                       .filter(Boolean)
                       .join(' + ') || ' '}
                   </span>
@@ -216,10 +205,7 @@ export default function GreenRoom({
                 checked={consent}
                 onChange={(e) => setConsent(e.target.checked)}
               />
-              <span>
-                the ai judge reads a transcript of this debate. nothing is recorded, nothing is
-                stored. it all burns after the verdict.
-              </span>
+              <span>{t('consent')}</span>
             </label>
 
             <button className="btn btn-primary btn-wide" disabled={!canConfirm} onClick={confirm}>
@@ -231,24 +217,18 @@ export default function GreenRoom({
 
       {mediaError ? (
         <div className="banner banner-error">
-          {mediaError}{' '}
+          {t(mediaError)}{' '}
           <button className="btn btn-small" onClick={onRetryMedia}>
-            retry
+            {t('retry')}
           </button>
         </div>
       ) : null}
 
       {!waiting && rtcState === 'failed' ? (
-        <div className="banner banner-error">
-          your networks refuse to shake hands. hotspot one phone and rematch.
-        </div>
+        <div className="banner banner-error">{t('netFail')}</div>
       ) : null}
 
-      {!speechSupported ? (
-        <div className="banner banner-warn">
-          this browser can't transcribe you, so the judge can't score you. use chrome on a laptop.
-        </div>
-      ) : null}
+      {!speechSupported ? <div className="banner banner-warn">{t('noSpeech')}</div> : null}
     </div>
   );
 }

@@ -1,13 +1,14 @@
 import { useEffect, useState } from 'react';
-import type { CategoryScores, Side, Verdict as VerdictData } from '../../../server/src/protocol';
+import type { CategoryScores, Side, TopicText, Verdict as VerdictData } from '../../../server/src/protocol';
 import { isSoundMuted, playCrash, playDrumRoll, playHit, setSoundMuted, speak } from '../sound';
+import { useI18n } from '../i18n';
 import VideoTile from '../VideoTile';
 
 interface Props {
   info: { verdict: VerdictData; names: Record<Side, string> } | null;
   status: { state: 'pending' | 'failed'; message?: string } | null;
   mySide: Side | undefined;
-  topic: string;
+  topic: TopicText | null;
   localStream: MediaStream | null;
   remoteStream: MediaStream | null;
   rtcConnected: boolean;
@@ -30,26 +31,25 @@ function LiveStrip({
   myName,
   onLeaveCall,
 }: Pick<Props, 'localStream' | 'remoteStream' | 'rtcConnected' | 'peerName' | 'myName' | 'onLeaveCall'>) {
+  const { t } = useI18n();
   if (!localStream) {
-    return <p className="live-note">you left the call. they can't see or hear you.</p>;
+    return <p className="live-note">{t('youLeft')}</p>;
   }
   return (
     <div className="live-strip">
       <div className="live-strip-tiles">
-        <VideoTile stream={localStream} muted mirror label={myName} sub="live" />
+        <VideoTile stream={localStream} muted mirror label={myName} sub={t('live')} />
         <VideoTile
           stream={rtcConnected ? remoteStream : null}
           muted={false}
           label={peerName}
-          sub={rtcConnected && remoteStream ? 'live' : undefined}
-          placeholder="left the call"
+          sub={rtcConnected && remoteStream ? t('live') : undefined}
+          placeholder={t('leftCall')}
         />
       </div>
-      <p className="live-note">
-        you're both still live. cameras and mics stay on until you leave.
-      </p>
+      <p className="live-note">{t('stillLive')}</p>
       <button className="btn btn-small" onClick={onLeaveCall}>
-        leave the call
+        {t('leaveCall')}
       </button>
     </div>
   );
@@ -57,26 +57,21 @@ function LiveStrip({
 
 interface Category {
   key: keyof CategoryScores;
-  label: string;
-  desc: string;
+  labelKey: string;
+  descKey: string;
   max: number;
 }
 
 const CATEGORIES: Category[] = [
-  { key: 'argument', label: 'made your case', desc: 'clear reasons for your side', max: 30 },
-  { key: 'evidence', label: 'backed it up', desc: 'facts and real examples', max: 20 },
-  { key: 'clash', label: 'fought back', desc: 'answered their actual points', max: 30 },
-  { key: 'delivery', label: 'used your time', desc: 'substance, not rambling', max: 20 },
+  { key: 'argument', labelKey: 'catArgument', descKey: 'catArgumentDesc', max: 30 },
+  { key: 'evidence', labelKey: 'catEvidence', descKey: 'catEvidenceDesc', max: 20 },
+  { key: 'clash', labelKey: 'catClash', descKey: 'catClashDesc', max: 30 },
+  { key: 'delivery', labelKey: 'catDelivery', descKey: 'catDeliveryDesc', max: 20 },
 ];
 
 // Reveal order builds drama: light categories first, clash (the "did you
 // actually debate them" score) closes the show.
-const REVEAL_ORDER: Category[] = [
-  CATEGORIES[1], // backed it up
-  CATEGORIES[3], // used your time
-  CATEGORIES[0], // made your case
-  CATEGORIES[2], // fought back
-];
+const REVEAL_ORDER: Category[] = [CATEGORIES[1], CATEGORIES[3], CATEGORIES[0], CATEGORIES[2]];
 
 // Game-show generous curve — texture, not a transcript.
 function grade(score: number, max: number): string {
@@ -111,6 +106,7 @@ export default function VerdictScreen({
   onLeaveCall,
   onRetry,
 }: Props) {
+  const { lang, t } = useI18n();
   const strip = (
     <LiveStrip
       localStream={localStream}
@@ -179,20 +175,20 @@ export default function VerdictScreen({
   if (!info) {
     return (
       <div className="stage center-col verdict-wait">
-        <p className="kicker">{topic}</p>
+        <p className="kicker">{topic?.[lang] ?? ''}</p>
         {status?.state === 'failed' ? (
           <>
-            <h1 className="display">the judge dropped the gavel</h1>
-            <p className="subtitle">{status.message ?? 'technical difficulty. your debate is safe.'}</p>
+            <h1 className="display">{t('judgeFailed')}</h1>
+            <p className="subtitle">{t('judgeFailedSub')}</p>
             <button className="btn btn-primary" onClick={onRetry}>
-              call the judge back
+              {t('callJudgeBack')}
             </button>
           </>
         ) : (
           <>
-            <h1 className="display deliberating">the judge is deliberating</h1>
+            <h1 className="display deliberating">{t('deliberating')}</h1>
             <div className="gavel-spinner" aria-hidden="true" />
-            <p className="subtitle">yes, it heard what you said. yes, it's counting that.</p>
+            <p className="subtitle">{t('deliberatingSub')}</p>
           </>
         )}
         {strip}
@@ -208,16 +204,16 @@ export default function VerdictScreen({
   if (stage === 'scores') {
     return (
       <div className="stage center-col verdict-scores">
-        <p className="kicker">{topic}</p>
-        <h1 className="display">the scores are in</h1>
+        <p className="kicker">{topic?.[lang] ?? ''}</p>
+        <h1 className="display">{t('scoresIn')}</h1>
         <div className="score-reveals">
           {REVEAL_ORDER.slice(0, revealed).map((c) => (
             <div className="score-reveal card" key={c.key}>
               <div className="score-reveal-head">
-                <span className="score-reveal-label">{c.label}</span>
-                <span className="score-reveal-max">out of {c.max}</span>
+                <span className="score-reveal-label">{t(c.labelKey)}</span>
+                <span className="score-reveal-max">{t('outOf', { n: c.max })}</span>
               </div>
-              <p className="score-reveal-desc">{c.desc}</p>
+              <p className="score-reveal-desc">{t(c.descKey)}</p>
               <div className="score-reveal-sides">
                 <div className="score-reveal-side">
                   <span className="fighter for">{names.FOR}</span>
@@ -239,7 +235,7 @@ export default function VerdictScreen({
           ))}
         </div>
         {revealed >= REVEAL_ORDER.length ? (
-          <p className="subtitle">totals hidden. the judge has the envelope.</p>
+          <p className="subtitle">{t('totalsHidden')}</p>
         ) : null}
         {strip}
       </div>
@@ -249,7 +245,7 @@ export default function VerdictScreen({
   if (stage === 'drumroll') {
     return (
       <div className="stage center-col verdict-drum">
-        <h1 className="display huge">THE YAPMASTER IS…</h1>
+        <h1 className="display huge">{t('yapmasterIs')}</h1>
         {strip}
       </div>
     );
@@ -257,16 +253,16 @@ export default function VerdictScreen({
 
   return (
     <div className="stage center-col verdict">
-      <p className="kicker">{topic}</p>
+      <p className="kicker">{topic?.[lang] ?? ''}</p>
       <div className={`stamp ${winner === 'FOR' ? 'for' : 'against'}`}>
-        <span className="stamp-label">YAPMASTER</span>
+        <span className="stamp-label">{t('yapmaster')}</span>
         <span className="stamp-name display">{names[winner]}</span>
-        <span className="stamp-side">{winner}</span>
+        <span className="stamp-side">{t(winner)}</span>
       </div>
       <p className="summary">{verdict.summary}</p>
       {mySide !== undefined ? (
         <p className={`you-result ${youWon ? 'won' : 'lost'}`}>
-          {youWon ? "that's you. well argued." : 'good yap though. run it back.'}
+          {youWon ? t('youWon') : t('youLost')}
         </p>
       ) : null}
       {strip}
@@ -274,9 +270,7 @@ export default function VerdictScreen({
       {stage === 'details' ? (
         <div className="verdict-details">
           {verdict.injectionDetected ? (
-            <div className="banner banner-warn">
-              someone tried to sweet-talk the judge. it did not go well for them.
-            </div>
+            <div className="banner banner-warn">{t('injection')}</div>
           ) : null}
 
           <div className="scoreboard card">
@@ -299,8 +293,8 @@ export default function VerdictScreen({
                       style={{ width: `${(verdict.scores.FOR[c.key] / c.max) * 100}%` }}
                     />
                   </div>
-                  <span className="score-label" title={c.desc}>
-                    {c.label} <em>/{c.max}</em>
+                  <span className="score-label" title={t(c.descKey)}>
+                    {t(c.labelKey)} <em>/{c.max}</em>
                   </span>
                   <div className="score-bar">
                     <div
@@ -340,15 +334,13 @@ export default function VerdictScreen({
 
           <div className="verdict-actions">
             <button className="btn btn-primary" onClick={() => window.location.assign('/')}>
-              run it back
+              {t('runItBack')}
             </button>
             <button className="btn" onClick={toggleMute}>
-              {muted ? 'unmute stage sound' : 'mute stage sound'}
+              {muted ? t('unmuteStage') : t('muteStage')}
             </button>
           </div>
-          <p className="footnote">
-            condolences to {names[loser]}. the transcript has already been deleted.
-          </p>
+          <p className="footnote">{t('condolences', { x: names[loser] })}</p>
         </div>
       ) : null}
     </div>

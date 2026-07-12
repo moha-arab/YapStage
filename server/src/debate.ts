@@ -9,6 +9,7 @@ import type {
 } from './protocol.js';
 import { type Lobby, type Participant, destroyLobby, sideOf, touch } from './lobby.js';
 import { namesOf, runJudge } from './judge.js';
+import { TOPIC_BY_ID } from './topics.js';
 
 export type Io = Server<ClientToServer, ServerToClient, Record<string, never>, SocketData>;
 
@@ -51,16 +52,17 @@ const MAX_TRANSCRIPT_ENTRIES = 400;
 export function startDebate(io: Io, lobby: Lobby): void {
   if (lobby.status !== 'greenroom' || !lobby.host || !lobby.guest) return;
   const { pick } = lobby;
+  const topic = pick.hostTopicId ? TOPIC_BY_ID.get(pick.hostTopicId) : undefined;
   const agreed =
-    pick.hostTopic !== null &&
-    pick.hostTopic === pick.guestTopic &&
+    topic !== undefined &&
+    pick.hostTopicId === pick.guestTopicId &&
     pick.hostSide !== null &&
     pick.guestSide !== null &&
     pick.hostSide !== pick.guestSide;
   if (!agreed) return;
   touch(lobby);
   lobby.status = 'in_debate';
-  lobby.topic = pick.hostTopic!;
+  lobby.topic = topic;
   lobby.sides = { host: pick.hostSide!, guest: pick.guestSide! };
 
   const names: Record<Side, string> = {

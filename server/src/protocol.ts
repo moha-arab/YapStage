@@ -29,17 +29,24 @@ export type SignalPayload =
   | { description: SessionDescription }
   | { candidate: IceCandidate };
 
-export interface TopicCategory {
-  key: string;
-  label: string;
-  topics: string[];
+/** A topic in both languages; players match on the id. */
+export interface TopicText {
+  id: string;
+  en: string;
+  ar: string;
 }
 
-/** Pregame picks. The debate starts only when both players picked the same
-    topic, opposite sides, and both confirmed. */
+export interface TopicCategory {
+  key: string;
+  label: { en: string; ar: string };
+  topics: TopicText[];
+}
+
+/** Pregame picks (topic ids). The debate starts only when both players
+    picked the same topic, opposite sides, and both confirmed. */
 export interface PickState {
-  yourTopic: string | null;
-  peerTopic: string | null;
+  yourTopicId: string | null;
+  peerTopicId: string | null;
   yourSide: Side | null;
   peerSide: Side | null;
   youConfirmed: boolean;
@@ -59,10 +66,10 @@ export interface LobbyUpdate {
 }
 
 export interface DebateStart {
-  topic: string;
+  topic: TopicText;
   yourSide: Side;
   names: Record<Side, string>;
-  startsAt: number; // epoch ms — reveal countdown ends and step 0 begins
+  startsAt: number; // epoch ms: reveal countdown ends and step 0 begins
   serverNow: number;
 }
 
@@ -115,7 +122,7 @@ export interface ClientToServer {
     p: { code: string; sessionId: string },
     cb: (res: { ok: boolean }) => void,
   ) => void;
-  'pick:topic': (topic: string) => void; // set YOUR topic choice
+  'pick:topic': (topicId: string) => void; // set YOUR topic choice (by id)
   'pick:side': (side: Side) => void; // set YOUR side
   'pick:confirm': () => void; // second confirm (with matching picks) starts the debate
   'rtc:ready': () => void;
