@@ -54,7 +54,7 @@ export default function Debate({
           you argue {mySide}
         </div>
         <p className="subtitle">
-          yes, that side. no, you can't switch. {start.names.FOR} opens in{' '}
+          you picked this. no takebacks. {start.names.FOR} opens in{' '}
           {Math.max(1, Math.ceil(revealMs / 1000))}...
         </p>
       </div>

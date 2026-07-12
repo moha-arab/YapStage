@@ -4,10 +4,19 @@ export interface Participant {
   socketId: string;
   sessionId: string;
   name: string;
-  ready: boolean; // consent given + Ready clicked in green room
   rtcReady: boolean; // gUM done, tracks added, handlers registered
   disconnectedAt?: number;
   graceTimer?: NodeJS.Timeout;
+}
+
+/** Green-room picks, per player. Any change resets both confirmations. */
+export interface Pick {
+  hostTopic: string | null;
+  guestTopic: string | null;
+  hostSide: Side | null;
+  guestSide: Side | null;
+  hostConfirmed: boolean;
+  guestConfirmed: boolean;
 }
 
 export interface TranscriptEntry {
@@ -30,6 +39,7 @@ export interface Lobby {
   host?: Participant;
   guest?: Participant;
   status: LobbyStatus;
+  pick: Pick;
   topic?: string;
   sides?: { host: Side; guest: Side };
   stepIndex: number; // -1 before step 0
@@ -65,8 +75,16 @@ export function createLobby(socketId: string, sessionId: string, name: string): 
   const now = Date.now();
   const lobby: Lobby = {
     code: generateCode(),
-    host: { socketId, sessionId, name, ready: false, rtcReady: false },
+    host: { socketId, sessionId, name, rtcReady: false },
     status: 'waiting',
+    pick: {
+      hostTopic: null,
+      guestTopic: null,
+      hostSide: null,
+      guestSide: null,
+      hostConfirmed: false,
+      guestConfirmed: false,
+    },
     stepIndex: -1,
     stepStartedAt: 0,
     transcript: [],

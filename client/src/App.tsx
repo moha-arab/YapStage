@@ -17,7 +17,7 @@ import {
   teardownPeer,
 } from './webrtc';
 import { setOnChunk, speechSupported, startTurn, stopTurn } from './speech';
-import { saveBout } from './history';
+import { saveReceipt } from './history';
 import Home from './screens/Home';
 import GreenRoom from './screens/GreenRoom';
 import Debate from './screens/Debate';
@@ -108,7 +108,7 @@ export default function App() {
         const theirSide = mySide === 'FOR' ? 'AGAINST' : 'FOR';
         const sum = (x: { argument: number; evidence: number; clash: number; delivery: number }) =>
           x.argument + x.evidence + x.clash + x.delivery;
-        saveBout({
+        saveReceipt({
           at: Date.now(),
           topic: s.topic,
           me: s.names[mySide],

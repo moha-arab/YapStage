@@ -8,7 +8,6 @@ import type {
   SpeechChunk,
 } from './protocol.js';
 import { type Lobby, type Participant, destroyLobby, sideOf, touch } from './lobby.js';
-import { TOPICS } from './topics.js';
 import { namesOf, runJudge } from './judge.js';
 
 export type Io = Server<ClientToServer, ServerToClient, Record<string, never>, SocketData>;
@@ -51,15 +50,22 @@ const MAX_TRANSCRIPT_ENTRIES = 400;
 
 export function startDebate(io: Io, lobby: Lobby): void {
   if (lobby.status !== 'greenroom' || !lobby.host || !lobby.guest) return;
+  const { pick } = lobby;
+  const agreed =
+    pick.hostTopic !== null &&
+    pick.hostTopic === pick.guestTopic &&
+    pick.hostSide !== null &&
+    pick.guestSide !== null &&
+    pick.hostSide !== pick.guestSide;
+  if (!agreed) return;
   touch(lobby);
   lobby.status = 'in_debate';
-  lobby.topic = TOPICS[Math.floor(Math.random() * TOPICS.length)];
-  const hostSide: Side = Math.random() < 0.5 ? 'FOR' : 'AGAINST';
-  lobby.sides = { host: hostSide, guest: hostSide === 'FOR' ? 'AGAINST' : 'FOR' };
+  lobby.topic = pick.hostTopic!;
+  lobby.sides = { host: pick.hostSide!, guest: pick.guestSide! };
 
   const names: Record<Side, string> = {
-    FOR: hostSide === 'FOR' ? lobby.host.name : lobby.guest.name,
-    AGAINST: hostSide === 'AGAINST' ? lobby.host.name : lobby.guest.name,
+    FOR: lobby.sides.host === 'FOR' ? lobby.host.name : lobby.guest.name,
+    AGAINST: lobby.sides.host === 'AGAINST' ? lobby.host.name : lobby.guest.name,
   };
 
   const now = Date.now();

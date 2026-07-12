@@ -1,7 +1,7 @@
-// Past bouts, kept on THIS device only (localStorage). The server keeps its
-// privacy promise: it stores nothing, ever. Your laptop is the one gossiping.
+// Receipts: past debates, kept on THIS device only (localStorage). The server
+// keeps its privacy promise and stores nothing. Your laptop is the one gossiping.
 
-export interface Bout {
+export interface Receipt {
   at: number;
   topic: string;
   me: string;
@@ -11,25 +11,27 @@ export interface Bout {
   theirTotal: number;
 }
 
-const KEY = 'yapstage.bouts';
+const KEY = 'yapstage.receipts';
+const LEGACY_KEY = 'yapstage.bouts';
 const MAX = 10;
 
-export function loadBouts(): Bout[] {
+export function loadReceipts(): Receipt[] {
   try {
-    const raw = localStorage.getItem(KEY);
+    const raw = localStorage.getItem(KEY) ?? localStorage.getItem(LEGACY_KEY);
     if (!raw) return [];
-    const parsed = JSON.parse(raw) as Bout[];
+    const parsed = JSON.parse(raw) as Receipt[];
     return Array.isArray(parsed) ? parsed.slice(0, MAX) : [];
   } catch {
     return [];
   }
 }
 
-export function saveBout(bout: Bout): void {
+export function saveReceipt(receipt: Receipt): void {
   try {
-    const bouts = [bout, ...loadBouts()].slice(0, MAX);
-    localStorage.setItem(KEY, JSON.stringify(bouts));
+    const receipts = [receipt, ...loadReceipts()].slice(0, MAX);
+    localStorage.setItem(KEY, JSON.stringify(receipts));
+    localStorage.removeItem(LEGACY_KEY);
   } catch {
-    // storage full or blocked: history is a luxury, not a requirement
+    // storage full or blocked: receipts are a luxury, not a requirement
   }
 }

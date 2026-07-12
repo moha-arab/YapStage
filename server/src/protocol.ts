@@ -29,6 +29,23 @@ export type SignalPayload =
   | { description: SessionDescription }
   | { candidate: IceCandidate };
 
+export interface TopicCategory {
+  key: string;
+  label: string;
+  topics: string[];
+}
+
+/** Pregame picks. The debate starts only when both players picked the same
+    topic, opposite sides, and both confirmed. */
+export interface PickState {
+  yourTopic: string | null;
+  peerTopic: string | null;
+  yourSide: Side | null;
+  peerSide: Side | null;
+  youConfirmed: boolean;
+  peerConfirmed: boolean;
+}
+
 export interface LobbyUpdate {
   code: string;
   role: Role;
@@ -36,8 +53,8 @@ export interface LobbyUpdate {
   peerName?: string;
   participantCount: 1 | 2;
   locked: boolean;
-  youReady: boolean;
-  peerReady: boolean;
+  deck: TopicCategory[];
+  pick: PickState;
   iceServers: IceServer[];
 }
 
@@ -98,7 +115,9 @@ export interface ClientToServer {
     p: { code: string; sessionId: string },
     cb: (res: { ok: boolean }) => void,
   ) => void;
-  'greenroom:ready': () => void;
+  'pick:topic': (topic: string) => void; // set YOUR topic choice
+  'pick:side': (side: Side) => void; // set YOUR side
+  'pick:confirm': () => void; // second confirm (with matching picks) starts the debate
   'rtc:ready': () => void;
   'rtc:signal': (p: SignalPayload) => void;
   'speech:chunk': (p: SpeechChunk) => void;

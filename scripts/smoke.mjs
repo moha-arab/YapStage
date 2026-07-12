@@ -58,14 +58,30 @@ a.emit('rtc:signal', { description: { type: 'offer', sdp: 'fake-sdp' } });
 const sig = await relayed;
 check('rtc:signal relayed verbatim', sig?.description?.sdp === 'fake-sdp');
 
+// picks: both must choose the SAME topic and OPPOSITE sides, then both confirm
+const PICKED = 'Kurdistan should be an independent country';
+a.emit('pick:topic', PICKED);
+a.emit('pick:side', 'FOR');
+b.emit('pick:side', 'FOR'); // same side: agreement impossible yet
+await new Promise((r) => setTimeout(r, 300));
+let early = false;
+a.once('debate:start', () => { early = true; });
+a.emit('pick:confirm'); // topics don't match AND sides clash: must be a no-op
+b.emit('pick:confirm');
+await new Promise((r) => setTimeout(r, 500));
+check('confirm before agreement is refused', !early);
+
 const startA = once(a, 'debate:start');
 const startB = once(b, 'debate:start');
-a.emit('greenroom:ready');
-b.emit('greenroom:ready');
+b.emit('pick:topic', PICKED);
+b.emit('pick:side', 'AGAINST');
+await new Promise((r) => setTimeout(r, 300));
+a.emit('pick:confirm');
+b.emit('pick:confirm');
 const [sa, sb] = await Promise.all([startA, startB]);
-check('debate starts with same topic', Boolean(sa.topic) && sa.topic === sb.topic);
-check('sides are opposite', sa.yourSide !== sb.yourSide);
-check('names carried on both sides', Boolean(sa.names.FOR) && Boolean(sa.names.AGAINST));
+check('debate starts with the agreed topic', sa.topic === PICKED && sb.topic === PICKED);
+check('sides match the picks', sa.yourSide === 'FOR' && sb.yourSide === 'AGAINST');
+check('names carried on both sides', sa.names.FOR === 'pizzamaster' && sa.names.AGAINST === 'yapqueen');
 
 const forSock = sa.yourSide === 'FOR' ? a : b;
 const againstSock = sa.yourSide === 'FOR' ? b : a;
@@ -129,8 +145,13 @@ const code2 = created2.update.code;
 await emitP(b2, 'lobby:join', { code: code2, sessionId: 'sess-b2', name: 'guestgal' });
 
 const start2 = once(a2, 'debate:start');
-a2.emit('greenroom:ready');
-b2.emit('greenroom:ready');
+a2.emit('pick:topic', 'The UN is useless');
+b2.emit('pick:topic', 'The UN is useless');
+a2.emit('pick:side', 'FOR');
+b2.emit('pick:side', 'AGAINST');
+await new Promise((r) => setTimeout(r, 300));
+a2.emit('pick:confirm');
+b2.emit('pick:confirm');
 await start2;
 await once(a2, 'debate:phase', 20000); // debate underway (reveal is 8s at real speed)
 
@@ -179,8 +200,13 @@ const code3 = created3.update.code;
 await emitP(b3, 'lobby:join', { code: code3, sessionId: 'sess-b3', name: 'blinker' });
 
 const start3 = once(a3, 'debate:start');
-a3.emit('greenroom:ready');
-b3.emit('greenroom:ready');
+a3.emit('pick:topic', 'Crypto is a scam with extra steps');
+b3.emit('pick:topic', 'Crypto is a scam with extra steps');
+a3.emit('pick:side', 'FOR');
+b3.emit('pick:side', 'AGAINST');
+await new Promise((r) => setTimeout(r, 300));
+a3.emit('pick:confirm');
+b3.emit('pick:confirm');
 await start3;
 await once(a3, 'debate:phase', 20000);
 

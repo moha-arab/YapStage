@@ -263,7 +263,124 @@ body::after {
   flex: 1;
 }
 
-/* past bouts (device-local) */
+/* topic picker */
+.picker {
+  max-width: 720px;
+  margin: 20px auto 0;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  transform: rotate(0.3deg);
+}
+
+.cat-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.cat-tab {
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--muted);
+  background: transparent;
+  border: 2px solid var(--line);
+  padding: 5px 12px;
+  cursor: pointer;
+}
+
+.cat-active {
+  color: #1c1508;
+  background: var(--gold);
+  border-color: var(--gold);
+  transform: rotate(-2deg);
+}
+
+.topic-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.topic-btn {
+  font: inherit;
+  font-size: 14px;
+  text-align: left;
+  color: var(--ink);
+  background: var(--panel-2);
+  border: 2px solid var(--line);
+  padding: 9px 12px;
+  cursor: pointer;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+}
+
+.topic-btn:hover {
+  border-color: var(--ink);
+}
+
+.topic-on-table {
+  border-color: var(--gold);
+  background: rgba(255, 199, 46, 0.08);
+  transform: rotate(-0.4deg);
+}
+
+.topic-marks {
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--gold);
+  white-space: nowrap;
+}
+
+.side-row {
+  display: flex;
+  gap: 10px;
+  align-items: stretch;
+}
+
+.side-btn {
+  flex: 1;
+  font: inherit;
+  cursor: pointer;
+  background: transparent;
+  border: 3px solid currentColor;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  align-items: flex-start;
+}
+
+.side-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.side-name {
+  font-family: 'Ultra', serif;
+  font-size: 18px;
+}
+
+.side-claim {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  opacity: 0.8;
+}
+
+.side-mine {
+  box-shadow: 4px 4px 0 currentColor;
+  transform: rotate(-1deg);
+}
+
+/* receipts (device-local) */
 .bouts {
   width: min(520px, 92vw);
   display: flex;

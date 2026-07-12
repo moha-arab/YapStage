@@ -27,6 +27,7 @@ import {
 } from './lobby.js';
 import { abort, acceptChunk, resendState, startDebate, type Io } from './debate.js';
 import { runJudge } from './judge.js';
+import { ALL_TOPICS, TOPIC_CATEGORIES } from './topics.js';
 
 // Deployed on Railway via Dockerfile (see railway.json). Fastify serves the
 // built client from client/dist and hosts the Socket.IO signaling server.
@@ -62,6 +63,7 @@ const io: Io = new Server<ClientToServer, ServerToClient, Record<string, never>,
 function updateFor(lobby: Lobby, receiver: Participant): LobbyUpdate {
   const isHost = receiver === lobby.host;
   const peer = isHost ? lobby.guest : lobby.host;
+  const { pick } = lobby;
   return {
     code: lobby.code,
     role: isHost ? 'host' : 'guest',
@@ -69,8 +71,15 @@ function updateFor(lobby: Lobby, receiver: Participant): LobbyUpdate {
     peerName: peer?.name,
     participantCount: lobby.host && lobby.guest ? 2 : 1,
     locked: Boolean(lobby.host && lobby.guest),
-    youReady: receiver.ready,
-    peerReady: peer?.ready ?? false,
+    deck: TOPIC_CATEGORIES,
+    pick: {
+      yourTopic: isHost ? pick.hostTopic : pick.guestTopic,
+      peerTopic: isHost ? pick.guestTopic : pick.hostTopic,
+      yourSide: isHost ? pick.hostSide : pick.guestSide,
+      peerSide: isHost ? pick.guestSide : pick.hostSide,
+      youConfirmed: isHost ? pick.hostConfirmed : pick.guestConfirmed,
+      peerConfirmed: isHost ? pick.guestConfirmed : pick.hostConfirmed,
+    },
     iceServers: getIceServers(),
   };
 }
@@ -108,7 +117,6 @@ io.on('connection', (socket) => {
       socketId: socket.id,
       sessionId: String(p.sessionId ?? ''),
       name,
-      ready: false,
       rtcReady: false,
     };
     lobby.status = 'greenroom';
@@ -163,15 +171,54 @@ io.on('connection', (socket) => {
     }
   });
 
-  socket.on('greenroom:ready', () => {
+  socket.on('pick:topic', (topic) => {
     const lobby = socket.data.code ? getLobby(socket.data.code) : undefined;
     if (!lobby || lobby.status !== 'greenroom') return;
     const me = participantOf(lobby, socket.id);
     if (!me) return;
-    me.ready = true;
+    const t = String(topic ?? '');
+    if (!ALL_TOPICS.has(t)) return;
+    if (me === lobby.host) lobby.pick.hostTopic = t;
+    else lobby.pick.guestTopic = t;
+    // any change requires both players to re-confirm
+    lobby.pick.hostConfirmed = false;
+    lobby.pick.guestConfirmed = false;
     touch(lobby);
     broadcastLobbyUpdate(lobby);
-    if (lobby.host?.ready && lobby.guest?.ready) startDebate(io, lobby);
+  });
+
+  socket.on('pick:side', (side) => {
+    const lobby = socket.data.code ? getLobby(socket.data.code) : undefined;
+    if (!lobby || lobby.status !== 'greenroom') return;
+    const me = participantOf(lobby, socket.id);
+    if (!me) return;
+    if (side !== 'FOR' && side !== 'AGAINST') return;
+    if (me === lobby.host) lobby.pick.hostSide = side;
+    else lobby.pick.guestSide = side;
+    lobby.pick.hostConfirmed = false;
+    lobby.pick.guestConfirmed = false;
+    touch(lobby);
+    broadcastLobbyUpdate(lobby);
+  });
+
+  socket.on('pick:confirm', () => {
+    const lobby = socket.data.code ? getLobby(socket.data.code) : undefined;
+    if (!lobby || lobby.status !== 'greenroom') return;
+    const me = participantOf(lobby, socket.id);
+    if (!me) return;
+    const { pick } = lobby;
+    const agreed =
+      pick.hostTopic !== null &&
+      pick.hostTopic === pick.guestTopic &&
+      pick.hostSide !== null &&
+      pick.guestSide !== null &&
+      pick.hostSide !== pick.guestSide;
+    if (!agreed) return;
+    if (me === lobby.host) pick.hostConfirmed = true;
+    else pick.guestConfirmed = true;
+    touch(lobby);
+    broadcastLobbyUpdate(lobby);
+    if (pick.hostConfirmed && pick.guestConfirmed) startDebate(io, lobby);
   });
 
   socket.on('rtc:ready', () => {
@@ -228,10 +275,12 @@ io.on('connection', (socket) => {
       } else {
         lobby.guest = undefined;
         lobby.status = 'waiting';
-        if (lobby.host) {
-          lobby.host.ready = false;
-          lobby.host.rtcReady = false;
-        }
+        // clear the departed guest's picks and all confirmations
+        lobby.pick.guestTopic = null;
+        lobby.pick.guestSide = null;
+        lobby.pick.hostConfirmed = false;
+        lobby.pick.guestConfirmed = false;
+        if (lobby.host) lobby.host.rtcReady = false;
         touch(lobby);
         broadcastLobbyUpdate(lobby);
       }
