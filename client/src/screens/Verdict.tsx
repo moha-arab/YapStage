@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import type { CategoryScores, Side, Verdict as VerdictData } from '../../../server/src/protocol';
-import { isSoundMuted, playCrash, playDrumRoll, setSoundMuted, speak } from '../sound';
+import { isSoundMuted, playCrash, playDrumRoll, playHit, setSoundMuted, speak } from '../sound';
 
 interface Props {
   info: { verdict: VerdictData; names: Record<Side, string> } | null;
@@ -36,34 +36,82 @@ const CATEGORIES: { key: keyof CategoryScores; label: string; max: number }[] = 
   { key: 'delivery', label: 'Delivery', max: 20 },
 ];
 
+// Reveal order builds drama: light categories first, clash (the "did you
+// actually debate them" score) closes the show.
+const REVEAL_ORDER: { key: keyof CategoryScores; label: string; max: number }[] = [
+  { key: 'evidence', label: 'Evidence', max: 20 },
+  { key: 'delivery', label: 'Delivery', max: 20 },
+  { key: 'argument', label: 'Argument', max: 30 },
+  { key: 'clash', label: 'Clash', max: 30 },
+];
+
+// Game-show generous curve — texture, not a transcript.
+function grade(score: number, max: number): string {
+  const pct = score / max;
+  if (pct >= 0.92) return 'A+';
+  if (pct >= 0.83) return 'A';
+  if (pct >= 0.7) return 'B';
+  if (pct >= 0.55) return 'C';
+  if (pct >= 0.4) return 'D';
+  return 'F';
+}
+
 function total(s: CategoryScores): number {
   return s.argument + s.evidence + s.clash + s.delivery;
 }
 
-type Stage = 'waiting' | 'drumroll' | 'reveal' | 'details';
+type Stage = 'waiting' | 'scores' | 'drumroll' | 'reveal' | 'details';
+
+const FIRST_CARD_MS = 1200;
+const PER_CARD_MS = 2600;
 
 export default function VerdictScreen({ info, status, mySide, topic, remoteStream, onRetry }: Props) {
   const [stage, setStage] = useState<Stage>('waiting');
+  const [revealed, setRevealed] = useState(0);
   const [muted, setMuted] = useState(isSoundMuted());
 
   useEffect(() => {
     if (!info) return;
     let alive = true;
-    setStage('drumroll');
-    playDrumRoll(3000);
-    const t1 = setTimeout(() => {
-      if (!alive) return;
-      playCrash();
-      speak(info.verdict.summary);
-      setStage('reveal');
-    }, 3200);
-    const t2 = setTimeout(() => {
-      if (alive) setStage('details');
-    }, 4800);
+    const timers: ReturnType<typeof setTimeout>[] = [];
+    setStage('scores');
+    setRevealed(0);
+
+    REVEAL_ORDER.forEach((_, i) => {
+      timers.push(
+        setTimeout(() => {
+          if (!alive) return;
+          playHit();
+          setRevealed(i + 1);
+        }, FIRST_CARD_MS + i * PER_CARD_MS),
+      );
+    });
+
+    const drumAt = FIRST_CARD_MS + REVEAL_ORDER.length * PER_CARD_MS + 900;
+    timers.push(
+      setTimeout(() => {
+        if (!alive) return;
+        setStage('drumroll');
+        playDrumRoll(3000);
+      }, drumAt),
+    );
+    timers.push(
+      setTimeout(() => {
+        if (!alive) return;
+        playCrash();
+        speak(info.verdict.summary);
+        setStage('reveal');
+      }, drumAt + 3200),
+    );
+    timers.push(
+      setTimeout(() => {
+        if (alive) setStage('details');
+      }, drumAt + 4800),
+    );
+
     return () => {
       alive = false;
-      clearTimeout(t1);
-      clearTimeout(t2);
+      timers.forEach(clearTimeout);
     };
   }, [info]);
 
@@ -101,6 +149,46 @@ export default function VerdictScreen({ info, status, mySide, topic, remoteStrea
   const winner = verdict.winner;
   const loser: Side = winner === 'FOR' ? 'AGAINST' : 'FOR';
   const youWon = mySide !== undefined && mySide === winner;
+
+  if (stage === 'scores') {
+    return (
+      <div className="stage center-col verdict-scores">
+        <RemoteAudio stream={remoteStream} />
+        <p className="kicker">{topic}</p>
+        <h1 className="display">The scores are in…</h1>
+        <div className="score-reveals">
+          {REVEAL_ORDER.slice(0, revealed).map((c) => (
+            <div className="score-reveal card" key={c.key}>
+              <div className="score-reveal-head">
+                <span className="score-reveal-label">{c.label}</span>
+                <span className="score-reveal-max">out of {c.max}</span>
+              </div>
+              <div className="score-reveal-sides">
+                <div className="score-reveal-side">
+                  <span className="fighter for">{names.FOR}</span>
+                  <span className="score-reveal-num">{verdict.scores.FOR[c.key]}</span>
+                  <span className={`grade-chip grade-${grade(verdict.scores.FOR[c.key], c.max).replace('+', 'plus')}`}>
+                    {grade(verdict.scores.FOR[c.key], c.max)}
+                  </span>
+                </div>
+                <span className="vs">VS</span>
+                <div className="score-reveal-side">
+                  <span className="fighter against">{names.AGAINST}</span>
+                  <span className="score-reveal-num">{verdict.scores.AGAINST[c.key]}</span>
+                  <span className={`grade-chip grade-${grade(verdict.scores.AGAINST[c.key], c.max).replace('+', 'plus')}`}>
+                    {grade(verdict.scores.AGAINST[c.key], c.max)}
+                  </span>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+        {revealed >= REVEAL_ORDER.length ? (
+          <p className="subtitle">Totals hidden. Judge's decision incoming…</p>
+        ) : null}
+      </div>
+    );
+  }
 
   if (stage === 'drumroll') {
     return (

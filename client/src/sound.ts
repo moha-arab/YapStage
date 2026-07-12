@@ -64,6 +64,14 @@ export function playDrumRoll(durationMs = 3000): void {
   }
 }
 
+/** Single snare tick — one per category-score reveal. */
+export function playHit(): void {
+  if (muted) return;
+  initAudio();
+  if (!ctx || !noise) return;
+  hit(ctx.currentTime + 0.02, 0.14, 0.45, 1300);
+}
+
 /** Cymbal crash + low thump for the YapMaster stamp. */
 export function playCrash(): void {
   if (muted) return;

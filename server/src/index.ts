@@ -30,6 +30,8 @@ import { runJudge } from './judge.js';
 
 // Deployed on Railway via Dockerfile (see railway.json). Fastify serves the
 // built client from client/dist and hosts the Socket.IO signaling server.
+// NB: Railway's watch path is /server/** — client-only changes need a server
+// file touched (like this comment) to trigger a deploy.
 const here = path.dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: path.resolve(here, '../../.env') });
 
