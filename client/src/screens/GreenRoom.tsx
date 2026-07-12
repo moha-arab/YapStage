@@ -3,6 +3,7 @@ import type { LobbyUpdate } from '../../../server/src/protocol';
 import { socket } from '../socket';
 import { initAudio } from '../sound';
 import { useAudioLevel } from '../useAudioLevel';
+import MicMeter from '../MicMeter';
 import VideoTile from '../VideoTile';
 
 interface Props {
@@ -13,17 +14,6 @@ interface Props {
   speechSupported: boolean;
   rtcState: RTCPeerConnectionState | null;
   onRetryMedia: () => void;
-}
-
-function MicMeter({ level, label, warn }: { level: number; label: string; warn: boolean }) {
-  return (
-    <div className={`meter-row ${warn ? 'meter-warn' : ''}`}>
-      <span className="meter-label">{label}</span>
-      <div className="meter">
-        <div className="meter-fill" style={{ width: `${Math.round(level * 100)}%` }} />
-      </div>
-    </div>
-  );
 }
 
 export default function GreenRoom({

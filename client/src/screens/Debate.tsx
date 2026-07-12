@@ -1,5 +1,7 @@
 import type { DebateStart, PhaseUpdate, Side } from '../../../server/src/protocol';
 import { formatClock, useCountdown } from '../useCountdown';
+import { useAudioLevel } from '../useAudioLevel';
+import MicMeter from '../MicMeter';
 import VideoTile from '../VideoTile';
 
 interface Props {
@@ -34,6 +36,8 @@ export default function Debate({
   const revealMs = useCountdown(start.startsAt, start.serverNow);
   const msLeft = useCountdown(phase?.deadline, phase?.serverNow);
   const graceMs = useCountdown(peerLostUntil ?? undefined, peerLostUntil ? Date.now() : undefined);
+  const localLevel = useAudioLevel(localStream);
+  const remoteLevel = useAudioLevel(remoteStream);
 
   // Before the first phase event: the fight card.
   if (!phase) {
@@ -82,24 +86,30 @@ export default function Debate({
       </div>
 
       <div className="tiles">
-        <VideoTile
-          stream={localStream}
-          muted
-          mirror
-          label={start.names[mySide]}
-          sub={`you · ${mySide}`}
-          side={mySide}
-          active={myTurn}
-        />
-        <VideoTile
-          stream={remoteStream}
-          muted={remoteMuted}
-          label={start.names[peerSide]}
-          sub={peerSide}
-          side={peerSide}
-          active={!myTurn}
-          placeholder="they froze. hold on."
-        />
+        <div className="tile-stack">
+          <VideoTile
+            stream={localStream}
+            muted
+            mirror
+            label={start.names[mySide]}
+            sub={`you · ${mySide}`}
+            side={mySide}
+            active={myTurn}
+          />
+          <MicMeter level={localLevel} label="your mic" />
+        </div>
+        <div className="tile-stack">
+          <VideoTile
+            stream={remoteStream}
+            muted={remoteMuted}
+            label={start.names[peerSide]}
+            sub={peerSide}
+            side={peerSide}
+            active={!myTurn}
+            placeholder="they froze. hold on."
+          />
+          <MicMeter level={remoteLevel} label={`${start.names[peerSide]} mic`} />
+        </div>
       </div>
 
       <div className="clock-row">

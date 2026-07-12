@@ -17,6 +17,7 @@ import {
   teardownPeer,
 } from './webrtc';
 import { setOnChunk, speechSupported, startTurn, stopTurn } from './speech';
+import { saveBout } from './history';
 import Home from './screens/Home';
 import GreenRoom from './screens/GreenRoom';
 import Debate from './screens/Debate';
@@ -48,6 +49,8 @@ export default function App() {
   lobbyRef.current = lobby;
   const startedRef = useRef(false);
   startedRef.current = Boolean(start);
+  const startDataRef = useRef<DebateStart | null>(null);
+  startDataRef.current = start;
   const settledRef = useRef(false); // verdict shown or aborted — nothing to resume
   settledRef.current = Boolean(verdictInfo) || Boolean(abortReason);
 
@@ -98,6 +101,23 @@ export default function App() {
       stopTurn();
       setVerdictInfo(p);
       setJudgeStatus(null);
+      // Device-local history only. The server still remembers nothing.
+      const s = startDataRef.current;
+      if (s) {
+        const mySide = s.yourSide;
+        const theirSide = mySide === 'FOR' ? 'AGAINST' : 'FOR';
+        const sum = (x: { argument: number; evidence: number; clash: number; delivery: number }) =>
+          x.argument + x.evidence + x.clash + x.delivery;
+        saveBout({
+          at: Date.now(),
+          topic: s.topic,
+          me: s.names[mySide],
+          them: s.names[theirSide],
+          won: p.verdict.winner === mySide,
+          myTotal: sum(p.verdict.scores[mySide]),
+          theirTotal: sum(p.verdict.scores[theirSide]),
+        });
+      }
     });
     socket.on('connect', () => {
       // Transient reconnect at ANY stage: try to reclaim our seat. A refreshed

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import type { JoinError, LobbyUpdate } from '../../../server/src/protocol';
 import { sessionId, socket } from '../socket';
+import { loadBouts } from '../history';
 
 const NAME_RE = /^[a-zA-Z0-9_]{3,16}$/;
 
@@ -23,8 +24,10 @@ export default function Home({ notice, onEntered }: Props) {
   );
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [bouts] = useState(loadBouts);
 
   const validName = NAME_RE.test(name);
+  const wins = bouts.filter((b) => b.won).length;
 
   function create() {
     if (!validName) return setError(ERRORS.bad_name);
@@ -102,6 +105,24 @@ export default function Home({ notice, onEntered }: Props) {
 
         {error ? <p className="error">{error}</p> : null}
       </div>
+
+      {bouts.length > 0 ? (
+        <div className="bouts">
+          <span className="tape">
+            fight record: {wins}-{bouts.length - wins}
+          </span>
+          {bouts.slice(0, 5).map((b) => (
+            <div className="bout-row" key={b.at}>
+              <span className={`bout-mark ${b.won ? 'bout-w' : 'bout-l'}`}>{b.won ? 'W' : 'L'}</span>
+              <span className="bout-names">
+                {b.me} <em>{b.myTotal}</em> vs {b.them} <em>{b.theirTotal}</em>
+              </span>
+              <span className="bout-topic">"{b.topic}"</span>
+            </div>
+          ))}
+          <p className="small-print">saved on this device only. we keep nothing.</p>
+        </div>
+      ) : null}
 
       <p className="footnote">works best in chrome on a laptop. the judge needs ears.</p>
       <p className="small-print">
