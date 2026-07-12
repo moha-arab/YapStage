@@ -29,20 +29,27 @@ function RemoteAudio({ stream }: { stream: MediaStream | null }) {
   return <audio ref={ref} autoPlay />;
 }
 
-const CATEGORIES: { key: keyof CategoryScores; label: string; max: number }[] = [
-  { key: 'argument', label: 'Argument', max: 30 },
-  { key: 'evidence', label: 'Evidence', max: 20 },
-  { key: 'clash', label: 'Clash', max: 30 },
-  { key: 'delivery', label: 'Delivery', max: 20 },
+interface Category {
+  key: keyof CategoryScores;
+  label: string;
+  desc: string;
+  max: number;
+}
+
+const CATEGORIES: Category[] = [
+  { key: 'argument', label: 'made your case', desc: 'clear reasons for your side', max: 30 },
+  { key: 'evidence', label: 'backed it up', desc: 'facts and real examples', max: 20 },
+  { key: 'clash', label: 'fought back', desc: 'answered their actual points', max: 30 },
+  { key: 'delivery', label: 'used your time', desc: 'substance, not rambling', max: 20 },
 ];
 
 // Reveal order builds drama: light categories first, clash (the "did you
 // actually debate them" score) closes the show.
-const REVEAL_ORDER: { key: keyof CategoryScores; label: string; max: number }[] = [
-  { key: 'evidence', label: 'Evidence', max: 20 },
-  { key: 'delivery', label: 'Delivery', max: 20 },
-  { key: 'argument', label: 'Argument', max: 30 },
-  { key: 'clash', label: 'Clash', max: 30 },
+const REVEAL_ORDER: Category[] = [
+  CATEGORIES[1], // backed it up
+  CATEGORIES[3], // used your time
+  CATEGORIES[0], // made your case
+  CATEGORIES[2], // fought back
 ];
 
 // Game-show generous curve — texture, not a transcript.
@@ -163,6 +170,7 @@ export default function VerdictScreen({ info, status, mySide, topic, remoteStrea
                 <span className="score-reveal-label">{c.label}</span>
                 <span className="score-reveal-max">out of {c.max}</span>
               </div>
+              <p className="score-reveal-desc">{c.desc}</p>
               <div className="score-reveal-sides">
                 <div className="score-reveal-side">
                   <span className="fighter for">{names.FOR}</span>
@@ -243,7 +251,7 @@ export default function VerdictScreen({ info, status, mySide, topic, remoteStrea
                       style={{ width: `${(verdict.scores.FOR[c.key] / c.max) * 100}%` }}
                     />
                   </div>
-                  <span className="score-label">
+                  <span className="score-label" title={c.desc}>
                     {c.label} <em>/{c.max}</em>
                   </span>
                   <div className="score-bar">

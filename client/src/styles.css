@@ -998,6 +998,12 @@ body::after {
   letter-spacing: 0.12em;
 }
 
+.score-reveal-desc {
+  font-size: 13px;
+  color: var(--muted);
+  margin: 0 0 10px;
+}
+
 .score-reveal-sides {
   display: flex;
   align-items: center;

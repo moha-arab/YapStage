@@ -1,11 +1,13 @@
 // Synthesized stage sound. No audio assets: everything is built from noise
-// and oscillators using standard drum-synthesis recipes (snare = filtered
-// noise crack + drum body tone; cymbal = inharmonic metallic partials).
+// and oscillators using standard drum-synthesis recipes. Every hit gets a
+// few ms of attack ramp (instant attacks = click transients = ear pain) and
+// the whole chain runs through a compressor so overlapping hits can't spike.
 // AudioContext is created/resumed inside a user-gesture handler (the green
-// room Ready click) so Chrome's autoplay policy never blocks the verdict.
+// room confirm click) so Chrome's autoplay policy never blocks the verdict.
 
 let ctx: AudioContext | null = null;
 let noise: AudioBuffer | null = null;
+let master: DynamicsCompressorNode | null = null;
 let muted = false;
 
 export function isSoundMuted(): boolean {
@@ -19,7 +21,15 @@ export function setSoundMuted(m: boolean): void {
 
 export function initAudio(): void {
   try {
-    if (!ctx) ctx = new AudioContext();
+    if (!ctx) {
+      ctx = new AudioContext();
+      master = ctx.createDynamicsCompressor();
+      master.threshold.value = -18;
+      master.ratio.value = 4;
+      master.attack.value = 0.003;
+      master.release.value = 0.25;
+      master.connect(ctx.destination);
+    }
     if (ctx.state === 'suspended') void ctx.resume();
     if (ctx && !noise) {
       const len = Math.floor(ctx.sampleRate * 0.3);
@@ -35,35 +45,43 @@ export function initAudio(): void {
   }
 }
 
-/** One snare hit: bright noise crack + short drum-body tone. */
+/** Gain with a soft attack: never step from silence to full (that pops). */
+function envelope(at: number, peak: number, decayTo: number): GainNode {
+  const g = ctx!.createGain();
+  g.gain.setValueAtTime(0.0001, at);
+  g.gain.linearRampToValueAtTime(peak, at + 0.006);
+  g.gain.exponentialRampToValueAtTime(0.001, at + decayTo);
+  g.connect(master!);
+  return g;
+}
+
+/** One snare hit: rounded noise crack + short drum-body tone. */
 function snare(at: number, velocity: number): void {
-  if (!ctx || !noise) return;
+  if (!ctx || !noise || !master) return;
   const crack = ctx.createBufferSource();
   crack.buffer = noise;
   const bp = ctx.createBiquadFilter();
   bp.type = 'bandpass';
-  bp.frequency.value = 1900;
-  bp.Q.value = 0.7;
-  const cg = ctx.createGain();
-  cg.gain.setValueAtTime(velocity, at);
-  cg.gain.exponentialRampToValueAtTime(0.001, at + 0.11);
+  bp.frequency.value = 1500;
+  bp.Q.value = 0.5;
+  const lp = ctx.createBiquadFilter();
+  lp.type = 'lowpass';
+  lp.frequency.value = 6500; // shave the hiss edge off the top
+  const cg = envelope(at, velocity, 0.12);
   crack.connect(bp);
-  bp.connect(cg);
-  cg.connect(ctx.destination);
+  bp.connect(lp);
+  lp.connect(cg);
   crack.start(at);
-  crack.stop(at + 0.12);
+  crack.stop(at + 0.14);
 
   const body = ctx.createOscillator();
   body.type = 'triangle';
-  body.frequency.setValueAtTime(190, at);
-  body.frequency.exponentialRampToValueAtTime(140, at + 0.05);
-  const bg = ctx.createGain();
-  bg.gain.setValueAtTime(velocity * 0.5, at);
-  bg.gain.exponentialRampToValueAtTime(0.001, at + 0.07);
+  body.frequency.setValueAtTime(185, at);
+  body.frequency.exponentialRampToValueAtTime(135, at + 0.05);
+  const bg = envelope(at, velocity * 0.5, 0.08);
   body.connect(bg);
-  bg.connect(ctx.destination);
   body.start(at);
-  body.stop(at + 0.08);
+  body.stop(at + 0.1);
 }
 
 /** Single snare tick, one per category-score reveal. */
@@ -71,12 +89,12 @@ export function playHit(): void {
   if (muted) return;
   initAudio();
   if (!ctx || !noise) return;
-  snare(ctx.currentTime + 0.02, 0.5);
+  snare(ctx.currentTime + 0.02, 0.38);
 }
 
 /**
- * Accelerating two-hand snare roll with human imperfection: velocity varies
- * hit to hit, timing drifts a few ms, and it crescendos into a final accent.
+ * Accelerating two-hand snare roll: starts soft, builds, human timing jitter,
+ * ends on an accent that hands off to the crash.
  */
 export function playDrumRoll(durationMs = 3000): void {
   if (muted) return;
@@ -88,23 +106,22 @@ export function playDrumRoll(durationMs = 3000): void {
   let interval = 0.085;
   while (t < dur - 0.1) {
     const progress = t / dur;
-    const velocity = (0.16 + 0.4 * progress) * (0.85 + Math.random() * 0.3);
+    const velocity = (0.1 + 0.26 * progress) * (0.85 + Math.random() * 0.3);
     const jitter = (Math.random() - 0.5) * 0.012;
-    snare(start + t + jitter, Math.min(0.65, velocity));
+    snare(start + t + jitter, Math.min(0.42, velocity));
     t += interval;
     interval = Math.max(0.03, interval * 0.965);
   }
-  snare(start + dur, 0.8); // the accent that hands off to the crash
+  snare(start + dur, 0.55);
 }
 
-/** Crash: metallic inharmonic partials + noise wash + low tom thump. */
+/** Crash: metallic inharmonic partials + noise wash + low thump. */
 export function playCrash(): void {
   if (muted) return;
   initAudio();
-  if (!ctx || !noise) return;
+  if (!ctx || !noise || !master) return;
   const at = ctx.currentTime + 0.02;
 
-  // metallic character: six inharmonic square partials (classic cymbal recipe)
   const partials = [3117, 4110, 5253, 6488, 7615, 9037];
   for (const freq of partials) {
     const osc = ctx.createOscillator();
@@ -113,42 +130,31 @@ export function playCrash(): void {
     const hp = ctx.createBiquadFilter();
     hp.type = 'highpass';
     hp.frequency.value = 2800;
-    const g = ctx.createGain();
-    g.gain.setValueAtTime(0.09, at);
-    g.gain.exponentialRampToValueAtTime(0.001, at + 1.6 + Math.random() * 0.4);
+    const g = envelope(at, 0.05, 1.5 + Math.random() * 0.4);
     osc.connect(hp);
     hp.connect(g);
-    g.connect(ctx.destination);
     osc.start(at);
     osc.stop(at + 2.1);
   }
 
-  // air
   const wash = ctx.createBufferSource();
   wash.buffer = noise;
   wash.loop = true;
   const whp = ctx.createBiquadFilter();
   whp.type = 'highpass';
   whp.frequency.value = 5500;
-  const wg = ctx.createGain();
-  wg.gain.setValueAtTime(0.3, at);
-  wg.gain.exponentialRampToValueAtTime(0.001, at + 1.5);
+  const wg = envelope(at, 0.2, 1.4);
   wash.connect(whp);
   whp.connect(wg);
-  wg.connect(ctx.destination);
   wash.start(at);
   wash.stop(at + 1.6);
 
-  // weight
   const thump = ctx.createOscillator();
   thump.type = 'sine';
-  thump.frequency.setValueAtTime(120, at);
+  thump.frequency.setValueAtTime(115, at);
   thump.frequency.exponentialRampToValueAtTime(48, at + 0.28);
-  const tg = ctx.createGain();
-  tg.gain.setValueAtTime(0.7, at);
-  tg.gain.exponentialRampToValueAtTime(0.001, at + 0.4);
+  const tg = envelope(at, 0.5, 0.4);
   thump.connect(tg);
-  tg.connect(ctx.destination);
   thump.start(at);
   thump.stop(at + 0.45);
 }
