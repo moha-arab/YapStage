@@ -243,10 +243,12 @@ html[dir='rtl'] .meter-hint {
   padding: 11px 14px;
   width: 100%;
   outline: none;
+  caret-color: var(--gold);
 }
 
 .input:focus {
   border-color: var(--gold);
+  background: #000;
 }
 
 .input-code {
