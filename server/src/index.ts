@@ -57,6 +57,7 @@ app.get('/healthz', async () => ({
   lobbies: lobbyCount(),
   turn: turnMode(),
   stt: sttConfigured() ? 'cloudflare' : 'browser',
+  commit: process.env.RAILWAY_GIT_COMMIT_SHA?.slice(0, 7) ?? 'dev',
 }));
 
 await app.ready();
