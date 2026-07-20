@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120">
+  <!-- The Clash: two speech bubbles collide, the argument sparks. -->
+  <g transform="rotate(-6 32 47)">
+    <rect x="8" y="28" width="46" height="36" rx="10" fill="#ff4d2e"/>
+    <path d="M24 62 L19 79 L37 63 Z" fill="#ff4d2e"/>
+  </g>
+  <g transform="rotate(6 88 47)">
+    <rect x="66" y="28" width="46" height="36" rx="10" fill="#33b6ff"/>
+    <path d="M96 62 L101 79 L83 63 Z" fill="#33b6ff"/>
+  </g>
+  <path d="M60 24 L64.5 41.5 L82 46 L64.5 50.5 L60 68 L55.5 50.5 L38 46 L55.5 41.5 Z" fill="#ffc72e"/>
+</svg>

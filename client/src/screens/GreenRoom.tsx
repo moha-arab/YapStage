@@ -228,7 +228,9 @@ export default function GreenRoom({
         <div className="banner banner-error">{t('netFail')}</div>
       ) : null}
 
-      {!speechSupported ? <div className="banner banner-warn">{t('noSpeech')}</div> : null}
+      {!speechSupported && !lobby.sttAvailable ? (
+        <div className="banner banner-warn">{t('noSpeech')}</div>
+      ) : null}
     </div>
   );
 }

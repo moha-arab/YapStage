@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import type { DebateStart, PhaseUpdate, Side } from '../../../server/src/protocol';
 import { formatClock, useCountdown } from '../useCountdown';
 import { useAudioLevel } from '../useAudioLevel';
@@ -14,6 +15,7 @@ interface Props {
   rtcState: RTCPeerConnectionState | null;
   speechHeard: boolean;
   speechSupported: boolean;
+  sttServer: boolean;
 }
 
 const PHASES: { key: string; labelKey: string }[] = [
@@ -31,6 +33,7 @@ export default function Debate({
   rtcState,
   speechHeard,
   speechSupported,
+  sttServer,
 }: Props) {
   const { lang, t } = useI18n();
   const mySide = start.yourSide;
@@ -40,6 +43,28 @@ export default function Debate({
   const graceMs = useCountdown(peerLostUntil ?? undefined, peerLostUntil ? Date.now() : undefined);
   const localLevel = useAudioLevel(localStream);
   const remoteLevel = useAudioLevel(remoteStream);
+
+  // Phones: keep the screen awake for the whole debate.
+  useEffect(() => {
+    let lock: { release?: () => Promise<void> } | null = null;
+    const request = () => {
+      (navigator as Navigator & { wakeLock?: { request: (t: string) => Promise<never> } }).wakeLock
+        ?.request('screen')
+        .then((l) => {
+          lock = l as typeof lock;
+        })
+        .catch(() => {});
+    };
+    request();
+    const onVis = () => {
+      if (document.visibilityState === 'visible') request();
+    };
+    document.addEventListener('visibilitychange', onVis);
+    return () => {
+      document.removeEventListener('visibilitychange', onVis);
+      void lock?.release?.().catch(() => {});
+    };
+  }, []);
 
   // Before the first phase event: the fight card.
   if (!phase) {
@@ -121,11 +146,15 @@ export default function Debate({
         <div className={`shot-clock ${danger ? 'clock-danger' : ''}`}>{formatClock(msLeft)}</div>
         <div className={`mic-chip ${myTurn ? 'mic-live' : 'mic-off'}`}>
           {myTurn
-            ? speechSupported
+            ? sttServer
               ? speechHeard
-                ? t('micHears')
-                : t('micLouder')
-              : t('micLive')
+                ? t('micRecording')
+                : t('micLive')
+              : speechSupported
+                ? speechHeard
+                  ? t('micHears')
+                  : t('micLouder')
+                : t('micLive')
             : t('micOff')}
         </div>
       </div>

@@ -63,6 +63,8 @@ export interface LobbyUpdate {
   deck: TopicCategory[];
   pick: PickState;
   iceServers: IceServer[];
+  /** Server-side Whisper transcription available: any browser works. */
+  sttAvailable: boolean;
 }
 
 export interface DebateStart {
@@ -128,6 +130,8 @@ export interface ClientToServer {
   'rtc:ready': () => void;
   'rtc:signal': (p: SignalPayload) => void;
   'speech:chunk': (p: SpeechChunk) => void;
+  /** One recorded audio blob per completed speaking turn (server-STT mode). */
+  'audio:turn': (p: { stepIndex: number; mime: string; data: ArrayBuffer }) => void;
   'verdict:retry': () => void;
 }
 

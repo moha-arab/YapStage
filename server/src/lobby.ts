@@ -26,6 +26,13 @@ export interface TranscriptEntry {
   at: number;
 }
 
+export interface AudioTurn {
+  stepIndex: number;
+  side: Side;
+  mime: string;
+  data: Buffer;
+}
+
 export type LobbyStatus =
   | 'waiting'
   | 'greenroom'
@@ -48,6 +55,7 @@ export interface Lobby {
   phaseTimer?: NodeJS.Timeout;
   judgeTimer?: NodeJS.Timeout;
   transcript: TranscriptEntry[];
+  audioTurns: AudioTurn[];
   debateCompleted: boolean;
   judgeState: 'idle' | 'pending' | 'done' | 'failed';
   verdict?: Verdict;
@@ -88,6 +96,7 @@ export function createLobby(socketId: string, sessionId: string, name: string): 
     stepIndex: -1,
     stepStartedAt: 0,
     transcript: [],
+    audioTurns: [],
     debateCompleted: false,
     judgeState: 'idle',
     createdAt: now,

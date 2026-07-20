@@ -10,6 +10,7 @@ import type {
 import { type Lobby, type Participant, destroyLobby, sideOf, touch } from './lobby.js';
 import { namesOf, runJudge } from './judge.js';
 import { TOPIC_BY_ID } from './topics.js';
+import { transcribe } from './stt.js';
 
 export type Io = Server<ClientToServer, ServerToClient, Record<string, never>, SocketData>;
 
@@ -130,9 +131,13 @@ function finishDebate(io: Io, lobby: Lobby): void {
     // Test mode only — never log transcripts in production (privacy promise).
     console.log(`[debate] ${lobby.code} transcript:`, JSON.stringify(lobby.transcript));
   }
-  // Give trailing speech chunks time to land before the judge reads.
+  // Give trailing speech chunks / audio blobs time to land, then transcribe
+  // any recorded turns server-side before the judge reads.
   lobby.judgeTimer = setTimeout(() => {
-    void runJudge(io, lobby);
+    void (async () => {
+      await applyServerTranscription(lobby);
+      void runJudge(io, lobby);
+    })();
   }, JUDGE_DELAY_MS);
 }
 
@@ -203,22 +208,11 @@ export function resendState(io: Io, lobby: Lobby, participant: Participant): voi
   }
 }
 
-export function acceptChunk(lobby: Lobby, sender: Participant, chunk: SpeechChunk): void {
-  if (!lobby.debateCompleted && lobby.status !== 'in_debate') return;
-  if (lobby.transcript.length >= MAX_TRANSCRIPT_ENTRIES) return;
-
-  const text = String(chunk.text ?? '').trim().slice(0, MAX_CHUNK_CHARS);
-  if (!text) return;
-
-  const stepIndex = chunk.stepIndex;
-  if (!Number.isInteger(stepIndex) || stepIndex < 0 || stepIndex >= SCRIPT.length) return;
-
+/** Shared turn-validation for incoming transcription material. */
+function turnIsAcceptable(lobby: Lobby, sender: Participant, stepIndex: number): boolean {
+  if (!Number.isInteger(stepIndex) || stepIndex < 0 || stepIndex >= SCRIPT.length) return false;
   const side = sideOf(lobby, sender);
-  if (!side) return;
-
-  // The sender must have been the active speaker for the claimed step.
-  if (SCRIPT[stepIndex].speaker !== side) return;
-
+  if (!side || SCRIPT[stepIndex].speaker !== side) return false;
   const now = Date.now();
   const isCurrent = lobby.status === 'in_debate' && stepIndex === lobby.stepIndex;
   const isTrailingPrev =
@@ -230,9 +224,51 @@ export function acceptChunk(lobby: Lobby, sender: Participant, chunk: SpeechChun
     stepIndex === SCRIPT.length - 1 &&
     lobby.finishedAt !== undefined &&
     now - lobby.finishedAt < CHUNK_GRACE_MS;
+  return isCurrent || isTrailingPrev || isTrailingLast;
+}
 
-  if (!isCurrent && !isTrailingPrev && !isTrailingLast) return;
+/** One recorded audio blob per turn (server-STT mode). Replaces any earlier
+    blob for the same step; transcribed after the debate ends. */
+export function acceptAudioTurn(
+  lobby: Lobby,
+  sender: Participant,
+  stepIndex: number,
+  mime: string,
+  data: Buffer,
+): void {
+  if (!lobby.debateCompleted && lobby.status !== 'in_debate') return;
+  if (!turnIsAcceptable(lobby, sender, stepIndex)) return;
+  const side = sideOf(lobby, sender)!;
+  lobby.audioTurns = lobby.audioTurns.filter((a) => a.stepIndex !== stepIndex);
+  lobby.audioTurns.push({ stepIndex, side, mime, data });
+  touch(lobby);
+}
 
-  lobby.transcript.push({ stepIndex, side, text, at: now });
+/** Whisper the recorded turns; where transcription succeeds it REPLACES any
+    browser speech chunks for that step (higher quality, esp. Arabic). */
+async function applyServerTranscription(lobby: Lobby): Promise<void> {
+  if (lobby.audioTurns.length === 0) return;
+  const turns = lobby.audioTurns;
+  lobby.audioTurns = []; // free the buffers regardless of outcome
+  await Promise.all(
+    turns.map(async (turn) => {
+      const text = await transcribe(turn.data);
+      if (!text) return; // keep whatever browser chunks exist for this step
+      lobby.transcript = lobby.transcript.filter((e) => e.stepIndex !== turn.stepIndex);
+      lobby.transcript.push({ stepIndex: turn.stepIndex, side: turn.side, text, at: Date.now() });
+    }),
+  );
+}
+
+export function acceptChunk(lobby: Lobby, sender: Participant, chunk: SpeechChunk): void {
+  if (!lobby.debateCompleted && lobby.status !== 'in_debate') return;
+  if (lobby.transcript.length >= MAX_TRANSCRIPT_ENTRIES) return;
+
+  const text = String(chunk.text ?? '').trim().slice(0, MAX_CHUNK_CHARS);
+  if (!text) return;
+  if (!turnIsAcceptable(lobby, sender, chunk.stepIndex)) return;
+
+  const side = sideOf(lobby, sender)!;
+  lobby.transcript.push({ stepIndex: chunk.stepIndex, side, text, at: Date.now() });
   touch(lobby);
 }

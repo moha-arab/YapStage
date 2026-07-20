@@ -25,7 +25,8 @@ import {
   type Lobby,
   type Participant,
 } from './lobby.js';
-import { abort, acceptChunk, resendState, startDebate, type Io } from './debate.js';
+import { abort, acceptAudioTurn, acceptChunk, resendState, startDebate, type Io } from './debate.js';
+import { sttConfigured } from './stt.js';
 import { runJudge } from './judge.js';
 import { TOPIC_BY_ID, TOPIC_CATEGORIES } from './topics.js';
 
@@ -51,7 +52,12 @@ if (fs.existsSync(clientDist)) {
   console.warn(`[server] client build not found at ${clientDist} — API/socket only`);
 }
 
-app.get('/healthz', async () => ({ ok: true, lobbies: lobbyCount(), turn: turnMode() }));
+app.get('/healthz', async () => ({
+  ok: true,
+  lobbies: lobbyCount(),
+  turn: turnMode(),
+  stt: sttConfigured() ? 'cloudflare' : 'browser',
+}));
 
 await app.ready();
 
@@ -81,6 +87,7 @@ function updateFor(lobby: Lobby, receiver: Participant): LobbyUpdate {
       peerConfirmed: isHost ? pick.guestConfirmed : pick.hostConfirmed,
     },
     iceServers: getIceServers(),
+    sttAvailable: sttConfigured(),
   };
 }
 
@@ -245,6 +252,18 @@ io.on('connection', (socket) => {
     const me = participantOf(lobby, socket.id);
     if (!me) return;
     acceptChunk(lobby, me, chunk);
+  });
+
+  socket.on('audio:turn', (p) => {
+    if (!sttConfigured()) return;
+    const lobby = socket.data.code ? getLobby(socket.data.code) : undefined;
+    if (!lobby) return;
+    const me = participantOf(lobby, socket.id);
+    if (!me) return;
+    const raw = p?.data as unknown;
+    const buf = Buffer.isBuffer(raw) ? raw : raw instanceof ArrayBuffer ? Buffer.from(raw) : null;
+    if (!buf || buf.length < 1000 || buf.length > 3_000_000) return;
+    acceptAudioTurn(lobby, me, Number(p.stepIndex), String(p.mime ?? ''), buf);
   });
 
   socket.on('verdict:retry', () => {

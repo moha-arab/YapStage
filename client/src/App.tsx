@@ -17,6 +17,7 @@ import {
   teardownPeer,
 } from './webrtc';
 import { setOnChunk, setSpeechLang, speechSupported, startTurn, stopTurn } from './speech';
+import { recordingSupported, setOnRecordingActive, startTurnRecording, stopTurnRecording } from './recorder';
 import { saveReceipt } from './history';
 import { LangToggle, useI18n } from './i18n';
 import Home from './screens/Home';
@@ -83,10 +84,12 @@ export default function App() {
     socket.on('debate:ended', () => {
       setEnded(true);
       stopTurn();
+      stopTurnRecording(); // flushes the final turn's audio upload
       setMicEnabled(true); // free chat while the judge deliberates
     });
     socket.on('debate:aborted', ({ reason }) => {
       stopTurn();
+      stopTurnRecording();
       releaseMedia(); // camera light off on the cancelled screen
       setLocalStream(null);
       setRemoteStream(null);
@@ -150,10 +153,15 @@ export default function App() {
     };
   }, [resetToHome]);
 
-  // "We heard you" indicator: lights up when a transcript chunk lands.
+  // "We heard you" indicator: transcript chunk (browser STT) or captured
+  // audio data (server STT) both count as proof of life.
   useEffect(() => {
     setOnChunk(() => setSpeechHeard(true));
-    return () => setOnChunk(null);
+    setOnRecordingActive(() => setSpeechHeard(true));
+    return () => {
+      setOnChunk(null);
+      setOnRecordingActive(null);
+    };
   }, []);
 
   // Recognition listens in the UI language (English or Arabic).
@@ -165,15 +173,22 @@ export default function App() {
   langRef.current = lang;
 
   // The Jubilee rule: your mic exists only on your turn. Driven by server
-  // phase events, never by the countdown display.
+  // phase events, never by the countdown display. Transcription source:
+  // server Whisper (any browser) when available, else browser recognition.
   useEffect(() => {
     if (!start || !phase || ended || abortReason) return;
     const myTurn = phase.activeSpeaker === start.yourSide;
     setMicEnabled(myTurn);
     setSpeechHeard(false); // fresh turn, fresh proof-of-life
-    if (myTurn) startTurn(phase.stepIndex);
-    else stopTurn();
-  }, [phase, start, ended, abortReason]);
+    const serverStt = Boolean(lobbyRef.current?.sttAvailable) && recordingSupported;
+    if (myTurn) {
+      if (serverStt && localStream) startTurnRecording(localStream, phase.stepIndex);
+      else startTurn(phase.stepIndex);
+    } else {
+      stopTurn();
+      stopTurnRecording();
+    }
+  }, [phase, start, ended, abortReason, localStream]);
 
   // Camera starts the moment you're in a lobby: the solo green room is a
   // mirror check, not a dead black rectangle. Also surfaces permission
@@ -273,6 +288,7 @@ export default function App() {
         rtcState={rtcState}
         speechHeard={speechHeard}
         speechSupported={speechSupported}
+        sttServer={Boolean(lobby?.sttAvailable) && recordingSupported}
       />
     );
   } else if (lobby) {
