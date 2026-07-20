@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { JoinError, LobbyUpdate } from '../../../server/src/protocol';
 import { sessionId, socket } from '../socket';
 import { loadReceipts } from '../history';
@@ -27,6 +27,16 @@ export default function Home({ notice, onEntered }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [receipts] = useState(loadReceipts);
+
+  // With server-side transcription the chrome-only warning is a lie; only
+  // show it when this deployment really depends on the browser's own STT.
+  const [serverStt, setServerStt] = useState(true);
+  useEffect(() => {
+    fetch('/healthz')
+      .then((r) => r.json())
+      .then((h) => setServerStt(h.stt === 'cloudflare'))
+      .catch(() => {});
+  }, []);
 
   const validName = NAME_RE.test(name);
   const wins = receipts.filter((r) => r.won).length;
@@ -123,7 +133,7 @@ export default function Home({ notice, onEntered }: Props) {
         </div>
       ) : null}
 
-      <p className="footnote">{t('footChrome')}</p>
+      <p className="footnote">{t(serverStt ? 'footAny' : 'footChrome')}</p>
       <p className="small-print">{t('smallPrint')}</p>
 
       <div className="marquee" aria-hidden="true">
