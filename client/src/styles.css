@@ -293,7 +293,7 @@ html[dir='rtl'] .meter-hint {
 .home .card {
   width: min(440px, 92vw);
   text-align: start;
-  transform: rotate(-0.5deg);
+  /* no tilt on this card: rotated text inputs blur the caret into invisibility */
   box-shadow: 6px 6px 0 rgba(0, 0, 0, 0.5);
 }
 
