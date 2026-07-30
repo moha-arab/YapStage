@@ -8,6 +8,27 @@ let localStream: MediaStream | null = null;
 let localStreamPromise: Promise<MediaStream> | null = null;
 let pending: RTCIceCandidateInit[] = [];
 let onRemote: ((s: MediaStream) => void) | null = null;
+let onLocalDead: (() => void) | null = null;
+let onRemoteVideoDead: ((dead: boolean) => void) | null = null;
+
+/** UI hooks: local track died (unplugged device, revoked permission) and
+    remote video health (opponent's camera died while the connection lives). */
+export function setTrackHealthHandlers(
+  localDead: (() => void) | null,
+  remoteVideoDead: ((dead: boolean) => void) | null,
+): void {
+  onLocalDead = localDead;
+  onRemoteVideoDead = remoteVideoDead;
+}
+
+function watchLocalTracks(s: MediaStream): void {
+  for (const track of s.getTracks()) {
+    track.onended = () => {
+      // Only report death of the CURRENT stream — a reacquire stops old tracks.
+      if (localStream === s) onLocalDead?.();
+    };
+  }
+}
 
 export function ensureLocalStream(): Promise<MediaStream> {
   if (localStream) return Promise.resolve(localStream);
@@ -25,6 +46,7 @@ export function ensureLocalStream(): Promise<MediaStream> {
       })
       .then((s) => {
         localStream = s;
+        watchLocalTracks(s);
         return s;
       })
       .catch((err) => {
@@ -50,6 +72,13 @@ export function setupPeer(
   };
   pc.ontrack = (e) => {
     if (e.streams[0]) onRemote?.(e.streams[0]);
+    if (e.track.kind === 'video') {
+      // A remote camera dying does NOT change connectionState — without these
+      // the opponent just freezes with zero indication.
+      e.track.onmute = () => onRemoteVideoDead?.(true);
+      e.track.onunmute = () => onRemoteVideoDead?.(false);
+      e.track.onended = () => onRemoteVideoDead?.(true);
+    }
   };
   // ontrack fires when the OFFER is processed — long before media actually
   // flows. connectionState 'connected' is the real "you can see each other".
@@ -106,6 +135,44 @@ export function setMicEnabled(on: boolean): void {
   localStream?.getAudioTracks().forEach((t) => {
     t.enabled = on;
   });
+}
+
+/** Re-acquire camera+mic after a local track died and hot-swap the new tracks
+    into the live peer connection (replaceTrack needs no renegotiation). */
+export async function reacquireMedia(): Promise<MediaStream> {
+  const old = localStream;
+  const micWasOn = old?.getAudioTracks()[0]?.enabled ?? true;
+  localStream = null;
+  localStreamPromise = null;
+  old?.getTracks().forEach((t) => {
+    t.onended = null;
+    t.stop();
+  });
+  const fresh = await ensureLocalStream();
+  fresh.getAudioTracks().forEach((t) => {
+    t.enabled = micWasOn; // keep the Jubilee rule intact mid-turn
+  });
+  if (pc) {
+    for (const track of fresh.getTracks()) {
+      const sender = pc.getSenders().find((s) => s.track?.kind === track.kind);
+      if (sender) void sender.replaceTrack(track).catch(() => {});
+    }
+  }
+  return fresh;
+}
+
+/** ICE restart (host only calls this): recovers a connection that went
+    'failed' after a network path change. The guest answers via the normal
+    offer-handling path in handleSignal. */
+export async function attemptIceRestart(): Promise<void> {
+  if (!pc) return;
+  try {
+    const offer = await pc.createOffer({ iceRestart: true });
+    await pc.setLocalDescription(offer);
+    socket.emit('rtc:signal', { description: { type: offer.type, sdp: offer.sdp } });
+  } catch {
+    // a torn-down pc mid-call — nothing to restart
+  }
 }
 
 export function teardownPeer(): void {

@@ -27,6 +27,22 @@ body,
   min-height: 100vh;
 }
 
+/* Mobile Safari: 100vh includes the area behind the toolbar, which hides the
+   shot clock. Dynamic viewport units track the REAL visible height. */
+@supports (min-height: 100dvh) {
+  html,
+  body,
+  #root {
+    min-height: 100dvh;
+  }
+}
+
+/* Notched phones (viewport-fit=cover): keep content out of the hardware. */
+body {
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom)
+    env(safe-area-inset-left);
+}
+
 body {
   background: var(--bg);
   color: var(--ink);
@@ -698,6 +714,22 @@ html[dir='rtl'] .meter-hint {
   background-size: 7px 7px;
 }
 
+/* Over the video: "their camera died" / "tap to start" — never a bare black
+   rectangle that reads as a bug. */
+.tile-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 16px;
+  color: var(--ink);
+  font-family: var(--marker);
+  font-size: 16px;
+  background: rgba(11, 10, 8, 0.72);
+}
+
 .tile-for.tile-active {
   border-color: var(--for);
   box-shadow: 6px 6px 0 rgba(255, 77, 46, 0.55);
@@ -1357,5 +1389,31 @@ html[dir='rtl'] .meter-hint {
   .clock-row {
     flex-direction: column;
     gap: 8px;
+  }
+}
+
+/* Inline "why is the button grey" hint under the name field. */
+.field-hint {
+  font-family: var(--marker);
+  font-size: 13px;
+  color: var(--danger);
+  margin: 6px 0 0;
+}
+
+/* A phone held sideways is WIDER than 720px but only ~390px tall: without a
+   cap, the tiles alone overflow and the shot clock scrolls off-screen. */
+@media (orientation: landscape) and (max-height: 500px) {
+  .tile {
+    aspect-ratio: auto;
+    height: min(38vh, 200px);
+  }
+
+  .debate .topbar,
+  .round-card {
+    margin-bottom: 6px;
+  }
+
+  .home .logo {
+    font-size: clamp(36px, 7vw, 56px);
   }
 }

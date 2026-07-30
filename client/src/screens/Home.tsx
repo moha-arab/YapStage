@@ -1,16 +1,15 @@
 import { useEffect, useState } from 'react';
-import type { JoinError, LobbyUpdate } from '../../../server/src/protocol';
-import { sessionId, socket } from '../socket';
+import { NAME_RE, type JoinError, type LobbyUpdate } from '../../../server/src/protocol';
+import { session, socket } from '../socket';
 import { loadReceipts } from '../history';
 import { useI18n } from '../i18n';
-
-const NAME_RE = /^[a-zA-Z0-9_]{3,16}$/;
 
 const ERROR_KEYS: Record<JoinError, string> = {
   not_found: 'errNotFound',
   full: 'errFull',
   in_progress: 'errInProgress',
   bad_name: 'errBadName',
+  rate_limited: 'errRateLimited',
 };
 
 interface Props {
@@ -42,9 +41,10 @@ export default function Home({ notice, onEntered }: Props) {
   const wins = receipts.filter((r) => r.won).length;
 
   function create() {
+    if (busy) return;
     if (!validName) return setError('errBadName');
     setBusy(true);
-    socket.emit('lobby:create', { sessionId, name }, (res) => {
+    socket.emit('lobby:create', { sessionId: session.id, name }, (res) => {
       setBusy(false);
       if (res.ok) onEntered(res.update);
       else setError(ERROR_KEYS[res.error]);
@@ -52,10 +52,11 @@ export default function Home({ notice, onEntered }: Props) {
   }
 
   function join() {
+    if (busy) return;
     if (!validName) return setError('errBadName');
     if (code.trim().length !== 6) return setError('errCodeLen');
     setBusy(true);
-    socket.emit('lobby:join', { code: code.trim().toUpperCase(), sessionId, name }, (res) => {
+    socket.emit('lobby:join', { code: code.trim().toUpperCase(), sessionId: session.id, name }, (res) => {
       setBusy(false);
       if (res.ok) onEntered(res.update);
       else setError(ERROR_KEYS[res.error]);
@@ -87,6 +88,7 @@ export default function Home({ notice, onEntered }: Props) {
           }}
           autoFocus
         />
+        {name && !validName ? <p className="field-hint">{t('errBadName')}</p> : null}
 
         <div className="home-actions">
           <button className="btn btn-primary" disabled={busy || !validName} onClick={create}>

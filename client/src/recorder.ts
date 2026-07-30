@@ -49,6 +49,11 @@ export function startTurnRecording(stream: MediaStream, stepIndex: number): void
   recorder.onstop = () => {
     void flush();
   };
+  recorder.onerror = () => {
+    // Recorder died (OS suspended the page, device vanished): salvage what we
+    // captured instead of silently dropping the turn.
+    void flush();
+  };
   recorder.start(10_000); // periodic data = bounded chunks + proof of life
 }
 

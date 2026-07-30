@@ -1,4 +1,3 @@
-import { useEffect } from 'react';
 import type { DebateStart, PhaseUpdate, Side } from '../../../server/src/protocol';
 import { formatClock, useCountdown } from '../useCountdown';
 import { useAudioLevel } from '../useAudioLevel';
@@ -11,11 +10,14 @@ interface Props {
   phase: PhaseUpdate | null;
   localStream: MediaStream | null;
   remoteStream: MediaStream | null;
+  remoteVideoDead: boolean;
   peerLostUntil: number | null;
   rtcState: RTCPeerConnectionState | null;
   speechHeard: boolean;
   speechSupported: boolean;
   sttServer: boolean;
+  mediaError: string | null;
+  onRetryMedia: () => void;
 }
 
 const PHASES: { key: string; labelKey: string }[] = [
@@ -29,11 +31,14 @@ export default function Debate({
   phase,
   localStream,
   remoteStream,
+  remoteVideoDead,
   peerLostUntil,
   rtcState,
   speechHeard,
   speechSupported,
   sttServer,
+  mediaError,
+  onRetryMedia,
 }: Props) {
   const { lang, t } = useI18n();
   const mySide = start.yourSide;
@@ -43,28 +48,7 @@ export default function Debate({
   const graceMs = useCountdown(peerLostUntil ?? undefined, peerLostUntil ? Date.now() : undefined);
   const localLevel = useAudioLevel(localStream);
   const remoteLevel = useAudioLevel(remoteStream);
-
-  // Phones: keep the screen awake for the whole debate.
-  useEffect(() => {
-    let lock: { release?: () => Promise<void> } | null = null;
-    const request = () => {
-      (navigator as Navigator & { wakeLock?: { request: (t: string) => Promise<never> } }).wakeLock
-        ?.request('screen')
-        .then((l) => {
-          lock = l as typeof lock;
-        })
-        .catch(() => {});
-    };
-    request();
-    const onVis = () => {
-      if (document.visibilityState === 'visible') request();
-    };
-    document.addEventListener('visibilitychange', onVis);
-    return () => {
-      document.removeEventListener('visibilitychange', onVis);
-      void lock?.release?.().catch(() => {});
-    };
-  }, []);
+  // (Wake lock lives in App now — it must span the verdict screens too.)
 
   // Before the first phase event: the fight card.
   if (!phase) {
@@ -133,6 +117,7 @@ export default function Debate({
             side={peerSide}
             active={!myTurn}
             placeholder={t('theyFroze')}
+            dead={remoteVideoDead}
           />
           <MicMeter level={remoteLevel} label={t('peerMic', { x: start.names[peerSide] })} />
         </div>
@@ -165,6 +150,15 @@ export default function Debate({
           style={{ width: `${Math.min(100, (msLeft / (phase.seconds * 1000)) * 100)}%` }}
         />
       </div>
+
+      {mediaError ? (
+        <div className="banner banner-error">
+          {t(mediaError)}{' '}
+          <button className="btn btn-small" onClick={onRetryMedia}>
+            {t('retry')}
+          </button>
+        </div>
+      ) : null}
 
       {peerLostUntil ? (
         <div className="banner banner-warn">

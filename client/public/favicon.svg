@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <rect width="64" height="64" fill="#141210"/>
+  <!-- blocky Y, hard-shadow brand style: red offset behind gold -->
+  <polygon points="17,13 27,13 35,27 43,13 53,13 40,35 40,57 30,57 30,35" fill="#ff4d2e"/>
+  <polygon points="14,10 24,10 32,24 40,10 50,10 37,32 37,54 27,54 27,32" fill="#ffc72e"/>
+</svg>

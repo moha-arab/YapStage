@@ -28,12 +28,27 @@ function staticServers(): IceServer[] {
 
 let current: IceServer[] = staticServers();
 let cloudflareLive = false;
+let mintedAt = 0;
+
+// Credentials are minted for 24h; past this age they're likely expired and
+// serving them silently degrades relay to nothing. Better to degrade loudly.
+const STALE_MS = 20 * 60 * 60 * 1000;
+
+function mintedStale(): boolean {
+  return cloudflareLive && Date.now() - mintedAt > STALE_MS;
+}
 
 export function getIceServers(): IceServer[] {
+  if (mintedStale()) {
+    cloudflareLive = false;
+    current = staticServers();
+    console.error('[turn] minted credentials went stale (refresh failing) — serving fallback');
+  }
   return current;
 }
 
 export function turnMode(): 'cloudflare' | 'static' | 'stun-only' {
+  if (mintedStale()) return current.length > 1 ? 'static' : 'stun-only';
   if (cloudflareLive) return 'cloudflare';
   return current.length > 1 ? 'static' : 'stun-only';
 }
@@ -75,10 +90,13 @@ export async function refreshIceServers(): Promise<void> {
     current = [...staticServers(), ...minted];
     if (!cloudflareLive) console.log('[turn] Cloudflare TURN credentials active');
     cloudflareLive = true;
+    mintedAt = Date.now();
   } catch (err) {
     // A failed refresh must never break lobbies: keep serving the previous
-    // credentials (still valid for hours) or fall back to STUN-only.
+    // credentials (still valid for hours) or fall back to STUN-only. Retry on
+    // a short fuse instead of waiting the full 6h interval.
     console.error('[turn] refresh failed:', err);
     if (!cloudflareLive) current = staticServers();
+    setTimeout(() => void refreshIceServers(), 10 * 60 * 1000).unref();
   }
 }

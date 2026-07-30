@@ -4,6 +4,8 @@
 // in English AND Arabic (auto-detected). ~$0.0005 per audio minute.
 // Docs: https://developers.cloudflare.com/workers-ai/models/whisper-large-v3-turbo/
 
+import { event } from './stats.js';
+
 const MODEL = '@cf/openai/whisper-large-v3-turbo';
 
 export function sttConfigured(): boolean {
@@ -45,9 +47,15 @@ export async function transcribe(audio: Buffer): Promise<string | null> {
       r?.transcription_info?.text ??
       (Array.isArray(r?.segments) ? r.segments.map((s) => s.text ?? '').join(' ') : '');
     const clean = String(text ?? '').trim();
-    return clean.length > 0 ? clean : null;
+    if (clean.length > 0) {
+      event('stt_ok');
+      return clean;
+    }
+    event('stt_empty');
+    return null;
   } catch (err) {
     console.error('[stt] transcription failed:', err);
+    event('stt_failed', { err: String(err).slice(0, 200) });
     return null;
   } finally {
     clearTimeout(timer);

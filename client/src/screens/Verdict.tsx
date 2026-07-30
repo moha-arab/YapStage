@@ -6,7 +6,7 @@ import VideoTile from '../VideoTile';
 
 interface Props {
   info: { verdict: VerdictData; names: Record<Side, string> } | null;
-  status: { state: 'pending' | 'failed'; message?: string } | null;
+  status: { state: 'pending' | 'failed'; message?: string; terminal?: boolean } | null;
   mySide: Side | undefined;
   topic: TopicText | null;
   localStream: MediaStream | null;
@@ -179,9 +179,14 @@ export default function VerdictScreen({
         {status?.state === 'failed' ? (
           <>
             <h1 className="display">{t('judgeFailed')}</h1>
-            <p className="subtitle">{t('judgeFailedSub')}</p>
-            <button className="btn btn-primary" onClick={onRetry}>
-              {t('callJudgeBack')}
+            <p className="subtitle">{t(status.message ?? 'judgeFailedSub')}</p>
+            {!status.terminal ? (
+              <button className="btn btn-primary" onClick={onRetry}>
+                {t('callJudgeBack')}
+              </button>
+            ) : null}
+            <button className="btn" onClick={() => window.location.assign('/')}>
+              {t('backHome')}
             </button>
           </>
         ) : (

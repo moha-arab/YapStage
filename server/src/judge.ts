@@ -3,6 +3,7 @@ import type { CategoryScores, PhaseLabel, Side, Verdict } from './protocol.js';
 import type { Lobby } from './lobby.js';
 import { destroyLobby, touch } from './lobby.js';
 import type { Io } from './debate.js';
+import { event } from './stats.js';
 
 // Local copy of the step layout (phase/speaker per index) so judge.ts has no
 // runtime dependency on debate.ts. Durations don't matter to the judge.
@@ -154,14 +155,22 @@ async function callJudge(lobby: Lobby): Promise<Verdict> {
   // Bias containment: the judge never sees yap names (they leak gender and
   // identity cues) — only "Debater A (FOR)" / "Debater B (AGAINST)". The
   // winner's real name is substituted into the summary after judging.
-  const response = await getClient().messages.create({
-    model: 'claude-opus-4-8',
-    max_tokens: 2000,
-    system: buildSystemPrompt(),
-    messages: [{ role: 'user', content: xml }],
-    output_config: { format: { type: 'json_schema', schema: VERDICT_SCHEMA } },
-  });
+  const response = await getClient().messages.create(
+    {
+      model: 'claude-opus-4-8',
+      max_tokens: 2000,
+      system: buildSystemPrompt(),
+      messages: [{ role: 'user', content: xml }],
+      output_config: { format: { type: 'json_schema', schema: VERDICT_SCHEMA } },
+    },
+    // SDK defaults (10min timeout, retried) could pin 'deliberating' for half
+    // an hour; bound it so a hung call reaches the designed retry screen fast.
+    { timeout: 60_000, maxRetries: 1 },
+  );
 
+  if (response.stop_reason === 'max_tokens') {
+    throw new Error('Judge output truncated at max_tokens'); // JSON would be cut mid-string
+  }
   const block = response.content.find((b) => b.type === 'text');
   if (!block || block.type !== 'text') throw new Error('Judge returned no text block');
   const raw = JSON.parse(block.text) as Verdict;
@@ -206,12 +215,33 @@ export async function runJudge(io: Io, lobby: Lobby, requesterSocketId?: string)
     return;
   }
 
+  // Every attempt is a real Opus call. Cap and cool down so a stuck failure
+  // (bad key, outage) can't be turned into unbounded spend by a retry button.
+  if (lobby.judgeAttempts >= 3) {
+    io.to(requesterSocketId ?? lobby.code).emit('verdict:status', {
+      state: 'failed',
+      message: 'judgeGaveUp',
+      terminal: true,
+    });
+    return;
+  }
+  if (Date.now() - lobby.lastJudgeAt < 15_000) {
+    io.to(requesterSocketId ?? lobby.code).emit('verdict:status', {
+      state: 'failed',
+      message: 'judgeCooldown',
+    });
+    return;
+  }
+
   lobby.judgeState = 'pending'; // set synchronously before any await — no double-fire
+  lobby.judgeAttempts += 1;
+  lobby.lastJudgeAt = Date.now();
   touch(lobby);
   io.to(lobby.code).emit('verdict:status', { state: 'pending' });
 
   try {
     const verdict = await callJudge(lobby);
+    event('verdict_delivered', { code: lobby.code, injection: verdict.injectionDetected });
     lobby.judgeState = 'done';
     lobby.verdict = verdict;
     lobby.status = 'verdict';
@@ -219,13 +249,19 @@ export async function runJudge(io: Io, lobby: Lobby, requesterSocketId?: string)
     io.to(lobby.code).emit('verdict:result', { verdict, names: namesOf(lobby) });
     // Keep the lobby around briefly so a reconnecting client can re-fetch,
     // then let it go. Transcripts die with the lobby — nothing is persisted.
-    setTimeout(() => destroyLobby(lobby.code), 10 * 60 * 1000).unref();
+    setTimeout(() => {
+      destroyLobby(lobby.code);
+      io.socketsLeave(lobby.code);
+    }, 10 * 60 * 1000).unref();
   } catch (err) {
     console.error(`[judge] lobby ${lobby.code} failed:`, err);
+    event('judge_failed', { code: lobby.code, err: String(err).slice(0, 200) });
     lobby.judgeState = 'failed';
+    const spent = lobby.judgeAttempts >= 3;
     io.to(lobby.code).emit('verdict:status', {
       state: 'failed',
-      message: 'The judge hit a technical difficulty. Your debate is safe — retry the verdict.',
+      message: spent ? 'judgeGaveUp' : 'judgeFailedMsg',
+      terminal: spent,
     });
   }
 }

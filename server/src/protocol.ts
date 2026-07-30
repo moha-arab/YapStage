@@ -105,7 +105,7 @@ export interface Verdict {
   injectionDetected: boolean;
 }
 
-export type JoinError = 'not_found' | 'full' | 'in_progress' | 'bad_name';
+export type JoinError = 'not_found' | 'full' | 'in_progress' | 'bad_name' | 'rate_limited';
 
 export type CreateResult =
   | { ok: true; update: LobbyUpdate }
@@ -137,15 +137,15 @@ export interface ClientToServer {
 
 export interface ServerToClient {
   'lobby:update': (u: LobbyUpdate) => void;
-  'lobby:closed': (p: { reason: string }) => void;
+  'lobby:closed': (p: { reason: string; vars?: Record<string, string> }) => void;
   'rtc:go': () => void; // sent to HOST only when both peers are rtc-ready
   'rtc:signal': (p: SignalPayload) => void;
   'debate:start': (p: DebateStart) => void;
   'debate:phase': (p: PhaseUpdate) => void;
   'debate:ended': () => void;
-  'debate:aborted': (p: { reason: string }) => void;
+  'debate:aborted': (p: { reason: string; vars?: Record<string, string> }) => void;
   'peer:connection': (p: { state: 'lost' | 'restored'; graceDeadline?: number }) => void;
-  'verdict:status': (p: { state: 'pending' | 'failed'; message?: string }) => void;
+  'verdict:status': (p: { state: 'pending' | 'failed'; message?: string; terminal?: boolean }) => void;
   'verdict:result': (p: { verdict: Verdict; names: Record<Side, string> }) => void;
 }
 
@@ -154,4 +154,5 @@ export interface SocketData {
   role?: Role;
 }
 
-export const NAME_RE = /^[a-zA-Z0-9_]{3,16}$/;
+// Unicode letters (Arabic mode means Arabic names), digits, underscore.
+export const NAME_RE = /^[\p{L}\p{N}_]{3,16}$/u;

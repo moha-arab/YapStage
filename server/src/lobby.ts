@@ -58,7 +58,10 @@ export interface Lobby {
   audioTurns: AudioTurn[];
   debateCompleted: boolean;
   judgeState: 'idle' | 'pending' | 'done' | 'failed';
+  judgeAttempts: number;
+  lastJudgeAt: number;
   verdict?: Verdict;
+  abortInfo?: { reason: string; vars?: Record<string, string> };
   createdAt: number;
   touchedAt: number;
 }
@@ -99,6 +102,8 @@ export function createLobby(socketId: string, sessionId: string, name: string): 
     audioTurns: [],
     debateCompleted: false,
     judgeState: 'idle',
+    judgeAttempts: 0,
+    lastJudgeAt: 0,
     createdAt: now,
     touchedAt: now,
   };

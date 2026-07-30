@@ -11,6 +11,7 @@ import { type Lobby, type Participant, destroyLobby, sideOf, touch } from './lob
 import { namesOf, runJudge } from './judge.js';
 import { TOPIC_BY_ID } from './topics.js';
 import { transcribe } from './stt.js';
+import { event } from './stats.js';
 
 export type Io = Server<ClientToServer, ServerToClient, Record<string, never>, SocketData>;
 
@@ -62,6 +63,7 @@ export function startDebate(io: Io, lobby: Lobby): void {
     pick.hostSide !== pick.guestSide;
   if (!agreed) return;
   touch(lobby);
+  event('debate_started', { code: lobby.code, topic: pick.hostTopicId });
   lobby.status = 'in_debate';
   lobby.topic = topic;
   lobby.sides = { host: pick.hostSide!, guest: pick.guestSide! };
@@ -125,6 +127,7 @@ export function advance(io: Io, lobby: Lobby, expectedStep: number): void {
 function finishDebate(io: Io, lobby: Lobby): void {
   lobby.status = 'judging';
   lobby.debateCompleted = true;
+  event('debate_completed', { code: lobby.code });
   lobby.finishedAt = Date.now();
   io.to(lobby.code).emit('debate:ended');
   if (FAST) {
@@ -141,13 +144,20 @@ function finishDebate(io: Io, lobby: Lobby): void {
   }, JUDGE_DELAY_MS);
 }
 
-export function abort(io: Io, lobby: Lobby, reason: string): void {
+/** reason is an i18n KEY (client renders t(reason, vars)) — servers don't
+    speak a language, users do. */
+export function abort(io: Io, lobby: Lobby, reason: string, vars?: Record<string, string>): void {
   if (lobby.status === 'aborted' || lobby.status === 'verdict') return;
   if (lobby.phaseTimer) clearTimeout(lobby.phaseTimer);
   if (lobby.judgeTimer) clearTimeout(lobby.judgeTimer);
+  event('debate_aborted', { code: lobby.code, reason });
   lobby.status = 'aborted';
-  io.to(lobby.code).emit('debate:aborted', { reason });
-  setTimeout(() => destroyLobby(lobby.code), 60_000).unref();
+  lobby.abortInfo = { reason, vars };
+  io.to(lobby.code).emit('debate:aborted', { reason, vars });
+  setTimeout(() => {
+    destroyLobby(lobby.code);
+    io.socketsLeave(lobby.code);
+  }, 60_000).unref();
 }
 
 /**
@@ -159,9 +169,10 @@ export function resendState(io: Io, lobby: Lobby, participant: Participant): voi
   const socketId = participant.socketId;
   const now = Date.now();
 
-  if (lobby.status === 'in_debate' && lobby.stepIndex >= 0) {
-    // The client may have missed debate:start itself (blip at the transition):
-    // without it, it can't render the debate screen at all. Idempotent resend.
+  // The client may have missed debate:start itself (blip at the transition,
+  // or a post-debate page refresh): without it, it can't render the debate or
+  // verdict screens with names/topic/side. Idempotent resend.
+  const emitStart = () => {
     const side = sideOf(lobby, participant);
     if (lobby.topic && side) {
       io.to(socketId).emit('debate:start', {
@@ -172,6 +183,10 @@ export function resendState(io: Io, lobby: Lobby, participant: Participant): voi
         serverNow: now,
       });
     }
+  };
+
+  if (lobby.status === 'in_debate' && lobby.stepIndex >= 0) {
+    emitStart();
     const step = SCRIPT[lobby.stepIndex];
     io.to(socketId).emit('debate:phase', {
       stepIndex: lobby.stepIndex,
@@ -185,26 +200,29 @@ export function resendState(io: Io, lobby: Lobby, participant: Participant): voi
   }
 
   if (lobby.status === 'judging') {
+    emitStart();
     io.to(socketId).emit('debate:ended');
     io.to(socketId).emit(
       'verdict:status',
       lobby.judgeState === 'failed'
-        ? { state: 'failed', message: 'technical difficulty. your debate is safe. call the judge back.' }
+        ? { state: 'failed', message: 'judgeFailedMsg' }
         : { state: 'pending' },
     );
     return;
   }
 
   if (lobby.status === 'verdict' && lobby.verdict) {
+    emitStart();
     io.to(socketId).emit('debate:ended');
     io.to(socketId).emit('verdict:result', { verdict: lobby.verdict, names: namesOf(lobby) });
     return;
   }
 
   if (lobby.status === 'aborted') {
-    io.to(socketId).emit('debate:aborted', {
-      reason: 'the debate got cancelled while you were gone.',
-    });
+    io.to(socketId).emit(
+      'debate:aborted',
+      lobby.abortInfo ?? { reason: 'abortGone' },
+    );
   }
 }
 
@@ -227,8 +245,10 @@ function turnIsAcceptable(lobby: Lobby, sender: Participant, stepIndex: number):
   return isCurrent || isTrailingPrev || isTrailingLast;
 }
 
-/** One recorded audio blob per turn (server-STT mode). Replaces any earlier
-    blob for the same step; transcribed after the debate ends. */
+/** Recorded audio for a turn (server-STT mode). A turn may arrive as several
+    blobs — a phone that locks mid-turn flushes a partial recording and starts
+    a fresh one on return — so blobs APPEND (bounded) and each is transcribed;
+    their texts join for that step. */
 export function acceptAudioTurn(
   lobby: Lobby,
   sender: Participant,
@@ -239,7 +259,8 @@ export function acceptAudioTurn(
   if (!lobby.debateCompleted && lobby.status !== 'in_debate') return;
   if (!turnIsAcceptable(lobby, sender, stepIndex)) return;
   const side = sideOf(lobby, sender)!;
-  lobby.audioTurns = lobby.audioTurns.filter((a) => a.stepIndex !== stepIndex);
+  const forStep = lobby.audioTurns.filter((a) => a.stepIndex === stepIndex && a.side === side);
+  if (forStep.length >= 3 || lobby.audioTurns.length >= 18) return;
   lobby.audioTurns.push({ stepIndex, side, mime, data });
   touch(lobby);
 }
@@ -250,17 +271,27 @@ async function applyServerTranscription(lobby: Lobby): Promise<void> {
   if (lobby.audioTurns.length === 0) return;
   const turns = lobby.audioTurns;
   lobby.audioTurns = []; // free the buffers regardless of outcome
-  await Promise.all(
-    turns.map(async (turn) => {
-      const text = await transcribe(turn.data);
-      if (!text) return; // keep whatever browser chunks exist for this step
-      lobby.transcript = lobby.transcript.filter((e) => e.stepIndex !== turn.stepIndex);
-      lobby.transcript.push({ stepIndex: turn.stepIndex, side: turn.side, text, at: Date.now() });
-    }),
+  const results = await Promise.all(
+    turns.map(async (turn) => ({ turn, text: await transcribe(turn.data) })),
   );
+  // Group by step, keep upload order, join partial recordings into one text.
+  const bySteps = new Map<number, { side: Side; texts: string[] }>();
+  for (const { turn, text } of results) {
+    if (!text) continue; // keep whatever browser chunks exist for this step
+    const entry = bySteps.get(turn.stepIndex) ?? { side: turn.side, texts: [] };
+    entry.texts.push(text);
+    bySteps.set(turn.stepIndex, entry);
+  }
+  for (const [stepIndex, { side, texts }] of bySteps) {
+    lobby.transcript = lobby.transcript.filter((e) => e.stepIndex !== stepIndex);
+    lobby.transcript.push({ stepIndex, side, text: texts.join(' '), at: Date.now() });
+  }
 }
 
 export function acceptChunk(lobby: Lobby, sender: Participant, chunk: SpeechChunk): void {
+  // A payload-less emit must be a no-op, not an uncaughtException that takes
+  // down every live debate on the box.
+  if (!chunk || typeof chunk !== 'object') return;
   if (!lobby.debateCompleted && lobby.status !== 'in_debate') return;
   if (lobby.transcript.length >= MAX_TRANSCRIPT_ENTRIES) return;
 

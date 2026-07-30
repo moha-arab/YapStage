@@ -1,7 +1,7 @@
+import './env.js'; // MUST be first: populates process.env before any module that reads it at load time
 import path from 'node:path';
 import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import dotenv from 'dotenv';
 import Fastify from 'fastify';
 import fastifyStatic from '@fastify/static';
 import { Server } from 'socket.io';
@@ -29,21 +29,29 @@ import { abort, acceptAudioTurn, acceptChunk, resendState, startDebate, type Io 
 import { sttConfigured } from './stt.js';
 import { runJudge } from './judge.js';
 import { TOPIC_BY_ID, TOPIC_CATEGORIES } from './topics.js';
+import { event, statsSnapshot } from './stats.js';
+import { allow } from './ratelimit.js';
 
 // Deployed on Railway via Dockerfile (see railway.json). Fastify serves the
 // built client from client/dist and hosts the Socket.IO signaling server.
-// NB: Railway's watch path is /server/** — client-only changes need a server
-// file touched (like this comment) to trigger a deploy. touch: live-strip+copy
+// (.env is loaded by ./env.js, imported first above.)
 const here = path.dirname(fileURLToPath(import.meta.url));
-dotenv.config({ path: path.resolve(here, '../../.env') });
 
 const PORT = Number(process.env.PORT) || 3000;
 const GRACE_MS = 15_000;
+const MAX_LOBBIES = 500;
+
+// Backstop: one malformed packet must never take down every live debate.
+// All lobby state is in-memory, so a crash is a mass abort.
+process.on('uncaughtException', (err) => console.error('[fatal]', err));
+process.on('unhandledRejection', (err) => console.error('[fatal-rejection]', err));
 
 await refreshIceServers();
 setInterval(() => void refreshIceServers(), REFRESH_MS).unref();
 
-const app = Fastify({ logger: false });
+// Exactly one proxy hop (Railway's edge) — trusting the whole XFF chain would
+// let clients spoof their own rate-limit identity.
+const app = Fastify({ logger: false, trustProxy: 1 });
 
 const clientDist = path.resolve(here, '../../client/dist');
 if (fs.existsSync(clientDist)) {
@@ -60,11 +68,50 @@ app.get('/healthz', async () => ({
   commit: process.env.RAILWAY_GIT_COMMIT_SHA?.slice(0, 7) ?? 'dev',
 }));
 
+// Gate with STATS_KEY when set (404 so the endpoint doesn't advertise itself);
+// public when unset — zero-config for casual use, lockable in one env var.
+app.get<{ Querystring: { key?: string } }>('/stats', async (req, reply) => {
+  if (process.env.STATS_KEY && req.query.key !== process.env.STATS_KEY) {
+    return reply.code(404).send({ error: 'Not Found' });
+  }
+  return { ...statsSnapshot(), lobbies: lobbyCount() };
+});
+
+// Uncaught client errors phone home here so breakage on someone's device is
+// visible in the logs without them having to report it.
+app.post<{ Body: { msg?: string; stack?: string; url?: string; ua?: string } }>(
+  '/client-error',
+  { bodyLimit: 8192 },
+  async (req, reply) => {
+    // Per-IP limit plus a global fuse: a distributed spray must not be able to
+    // bury the real errors this endpoint exists to surface.
+    if (!allow(`cerr:${req.ip}`, 10, 60_000) || !allow('cerr:global', 300, 60_000)) {
+      return reply.code(429).send({ ok: false });
+    }
+    const b = req.body ?? {};
+    // Strip control chars so injected text can't fake its own log lines.
+    const clean = (v: unknown, max: number) =>
+      String(v ?? '')
+        .replace(/[\u0000-\u001f\u007f]/g, ' ')
+        .slice(0, max);
+    event('client_error', {
+      msg: clean(b.msg, 500),
+      stack: clean(b.stack, 2000),
+      url: clean(b.url, 200),
+      ua: clean(b.ua, 200),
+    });
+    return { ok: true };
+  },
+);
+
 await app.ready();
 
 const io: Io = new Server<ClientToServer, ServerToClient, Record<string, never>, SocketData>(
   app.server,
-  { serveClient: false },
+  // maxHttpBufferSize must sit ABOVE the audio:turn app-level cap (3MB): the
+  // engine.io default of 1MB would hard-disconnect a speaker mid-upload
+  // instead of letting the handler reject the blob.
+  { serveClient: false, maxHttpBufferSize: 4_000_000 },
 );
 
 function updateFor(lobby: Lobby, receiver: Participant): LobbyUpdate {
@@ -98,12 +145,40 @@ function broadcastLobbyUpdate(lobby: Lobby): void {
   }
 }
 
+function ipOf(socket: { handshake: { headers: Record<string, unknown>; address: string } }): string {
+  // RIGHTMOST x-forwarded-for entry: that's the one Railway's proxy appended.
+  // Anything left of it is client-supplied and trivially spoofable.
+  const fwd = socket.handshake.headers['x-forwarded-for'];
+  const chain = Array.isArray(fwd) ? fwd.join(',') : typeof fwd === 'string' ? fwd : '';
+  const parts = chain.split(',');
+  const last = parts[parts.length - 1]?.trim();
+  return last || socket.handshake.address;
+}
+
+// A socket that creates/joins a second lobby silently abandons its first one;
+// without this, the abandoned lobby survives until the 30-minute TTL sweep.
+function releasePreviousSeat(socket: { id: string; data: SocketData }): void {
+  const prev = socket.data.code ? getLobby(socket.data.code) : undefined;
+  if (prev && prev.status === 'waiting' && participantOf(prev, socket.id)) {
+    destroyLobby(prev.code);
+    io.socketsLeave(prev.code);
+  }
+  socket.data.code = undefined;
+}
+
 io.on('connection', (socket) => {
   socket.on('lobby:create', (p, cb) => {
     if (typeof cb !== 'function') return;
+    // Friendly ceiling: two friends never hit this; a lobby-spam script does.
+    if (!allow(`create:${ipOf(socket)}`, 10, 5 * 60_000)) {
+      return cb({ ok: false, error: 'rate_limited' });
+    }
     const name = String(p?.name ?? '').trim();
     if (!NAME_RE.test(name)) return cb({ ok: false, error: 'bad_name' });
-    const lobby = createLobby(socket.id, String(p.sessionId ?? ''), name);
+    if (lobbyCount() >= MAX_LOBBIES) return cb({ ok: false, error: 'rate_limited' });
+    releasePreviousSeat(socket);
+    const lobby = createLobby(socket.id, String(p.sessionId ?? '').slice(0, 64), name);
+    event('lobby_created', { code: lobby.code });
     socket.data.code = lobby.code;
     socket.data.role = 'host';
     void socket.join(lobby.code);
@@ -112,18 +187,24 @@ io.on('connection', (socket) => {
 
   socket.on('lobby:join', (p, cb) => {
     if (typeof cb !== 'function') return;
+    // Also throttles brute-forcing lobby codes (32^6 space, but still).
+    if (!allow(`join:${ipOf(socket)}`, 30, 5 * 60_000)) {
+      return cb({ ok: false, error: 'rate_limited' });
+    }
     const name = String(p?.name ?? '').trim();
     if (!NAME_RE.test(name)) return cb({ ok: false, error: 'bad_name' });
-    const lobby = getLobby(String(p.code ?? ''));
+    const lobby = getLobby(String(p.code ?? '').slice(0, 8));
     if (!lobby) return cb({ ok: false, error: 'not_found' });
     if (lobby.status !== 'waiting') {
-      return cb({ ok: false, error: lobby.guest ? 'full' : 'in_progress' });
+      // greenroom = the seat is taken; anything later = it started without you.
+      return cb({ ok: false, error: lobby.status === 'greenroom' ? 'full' : 'in_progress' });
     }
     if (lobby.guest) return cb({ ok: false, error: 'full' });
 
+    releasePreviousSeat(socket);
     lobby.guest = {
       socketId: socket.id,
-      sessionId: String(p.sessionId ?? ''),
+      sessionId: String(p.sessionId ?? '').slice(0, 64),
       name,
       rtcReady: false,
     };
@@ -132,6 +213,7 @@ io.on('connection', (socket) => {
     socket.data.code = lobby.code;
     socket.data.role = 'guest';
     void socket.join(lobby.code);
+    event('lobby_joined', { code: lobby.code });
     cb({ ok: true, update: updateFor(lobby, lobby.guest) });
     broadcastLobbyUpdate(lobby);
   });
@@ -180,12 +262,15 @@ io.on('connection', (socket) => {
   });
 
   socket.on('pick:topic', (topicId) => {
+    if (!allow(`pick:${socket.id}`, 60, 10_000)) return;
     const lobby = socket.data.code ? getLobby(socket.data.code) : undefined;
     if (!lobby || lobby.status !== 'greenroom') return;
     const me = participantOf(lobby, socket.id);
     if (!me) return;
     const id = String(topicId ?? '');
     if (!TOPIC_BY_ID.has(id)) return;
+    // No-op picks don't rebroadcast: repeated identical events are free.
+    if ((me === lobby.host ? lobby.pick.hostTopicId : lobby.pick.guestTopicId) === id) return;
     if (me === lobby.host) lobby.pick.hostTopicId = id;
     else lobby.pick.guestTopicId = id;
     // any change requires both players to re-confirm
@@ -196,11 +281,13 @@ io.on('connection', (socket) => {
   });
 
   socket.on('pick:side', (side) => {
+    if (!allow(`pick:${socket.id}`, 60, 10_000)) return;
     const lobby = socket.data.code ? getLobby(socket.data.code) : undefined;
     if (!lobby || lobby.status !== 'greenroom') return;
     const me = participantOf(lobby, socket.id);
     if (!me) return;
     if (side !== 'FOR' && side !== 'AGAINST') return;
+    if ((me === lobby.host ? lobby.pick.hostSide : lobby.pick.guestSide) === side) return;
     if (me === lobby.host) lobby.pick.hostSide = side;
     else lobby.pick.guestSide = side;
     lobby.pick.hostConfirmed = false;
@@ -241,6 +328,16 @@ io.on('connection', (socket) => {
   });
 
   socket.on('rtc:signal', (payload) => {
+    if (!allow(`sig:${socket.id}`, 200, 10_000)) return;
+    // Only relay things shaped like signaling; this server is not a generic
+    // megabyte pipe between two browsers.
+    if (!payload || typeof payload !== 'object') return;
+    if (!('description' in payload) && !('candidate' in payload)) return;
+    try {
+      if (JSON.stringify(payload).length > 16_000) return;
+    } catch {
+      return;
+    }
     const lobby = socket.data.code ? getLobby(socket.data.code) : undefined;
     if (!lobby) return;
     const peer = peerOf(lobby, socket.id);
@@ -248,6 +345,7 @@ io.on('connection', (socket) => {
   });
 
   socket.on('speech:chunk', (chunk) => {
+    if (!chunk || typeof chunk !== 'object') return;
     const lobby = socket.data.code ? getLobby(socket.data.code) : undefined;
     if (!lobby) return;
     const me = participantOf(lobby, socket.id);
@@ -257,14 +355,15 @@ io.on('connection', (socket) => {
 
   socket.on('audio:turn', (p) => {
     if (!sttConfigured()) return;
+    if (!p || typeof p !== 'object') return;
     const lobby = socket.data.code ? getLobby(socket.data.code) : undefined;
     if (!lobby) return;
     const me = participantOf(lobby, socket.id);
     if (!me) return;
-    const raw = p?.data as unknown;
+    const raw = p.data as unknown;
     const buf = Buffer.isBuffer(raw) ? raw : raw instanceof ArrayBuffer ? Buffer.from(raw) : null;
     if (!buf || buf.length < 1000 || buf.length > 3_000_000) return;
-    acceptAudioTurn(lobby, me, Number(p.stepIndex), String(p.mime ?? ''), buf);
+    acceptAudioTurn(lobby, me, Number(p.stepIndex), String(p.mime ?? '').slice(0, 80), buf);
   });
 
   socket.on('verdict:retry', () => {
@@ -285,13 +384,22 @@ io.on('connection', (socket) => {
 
     if (lobby.status === 'waiting') {
       destroyLobby(lobby.code);
+      io.socketsLeave(lobby.code);
       return;
     }
 
     if (lobby.status === 'greenroom') {
       if (isHost) {
-        io.to(lobby.code).emit('lobby:closed', { reason: 'the host left. rude. make your own lobby.' });
-        destroyLobby(lobby.code);
+        // Same grace the debate gets: an accidental F5 or a network blip
+        // shouldn't nuke the lobby for both players instantly.
+        me.disconnectedAt = Date.now();
+        me.graceTimer = setTimeout(() => {
+          const l = getLobby(lobby.code);
+          if (!l || !me.disconnectedAt) return;
+          io.to(l.code).emit('lobby:closed', { reason: 'closedHostLeft' });
+          destroyLobby(l.code);
+          io.socketsLeave(l.code);
+        }, GRACE_MS);
       } else {
         lobby.guest = undefined;
         lobby.status = 'waiting';
@@ -319,7 +427,7 @@ io.on('connection', (socket) => {
       me.graceTimer = setTimeout(() => {
         // Still disconnected after the grace window → the debate can't continue.
         if (me.disconnectedAt && lobby.status === 'in_debate') {
-          abort(io, lobby, `${me.name}'s wifi tapped out. debate cancelled.`);
+          abort(io, lobby, 'abortWifi', { x: me.name });
         }
       }, GRACE_MS);
       return;
@@ -331,7 +439,10 @@ io.on('connection', (socket) => {
       // Both gone — let the verdict linger briefly for resumes, then clean up.
       setTimeout(() => {
         const l = getLobby(lobby.code);
-        if (l && l.host?.disconnectedAt && l.guest?.disconnectedAt) destroyLobby(l.code);
+        if (l && l.host?.disconnectedAt && l.guest?.disconnectedAt) {
+          destroyLobby(l.code);
+          io.socketsLeave(l.code);
+        }
       }, 60_000).unref();
     }
   });
@@ -340,7 +451,8 @@ io.on('connection', (socket) => {
 startSweep((code) => {
   // Tell any still-connected clients their lobby expired (room emits work
   // even after the lobby record is gone — the sockets are still joined).
-  io.to(code).emit('lobby:closed', { reason: 'this lobby expired. thirty minutes of silence will do that.' });
+  io.to(code).emit('lobby:closed', { reason: 'closedExpired' });
+  io.socketsLeave(code);
   console.log(`[sweep] destroyed stale lobby ${code}`);
 });
 

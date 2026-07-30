@@ -244,5 +244,74 @@ check('verdict status/result delivered to resumed client', (await verdictReaches
 a3.disconnect();
 b3re.disconnect();
 
+// ---------- Scenario 4: hardening (crash-resistance, validation, UX) ----------
+console.log('\n=== Scenario 4: hardening ===');
+
+// (a) a payload-less speech:chunk must NOT crash the server — if it did, the
+// health check right after would fail to connect.
+const h = connect();
+const hLobby = await emitP(h, 'lobby:create', { sessionId: 'sess-h', name: 'crasher' });
+const h2 = connect();
+await emitP(h2, 'lobby:join', { code: hLobby.update.code, sessionId: 'sess-h2', name: 'victim' });
+// drive to in_debate so acceptChunk's early guards pass and it reaches the deref
+h.emit('pick:topic', 'money-happiness');
+h2.emit('pick:topic', 'money-happiness');
+h.emit('pick:side', 'FOR');
+h2.emit('pick:side', 'AGAINST');
+await new Promise((r) => setTimeout(r, 200));
+const hStarted = once(h, 'debate:start', 8000);
+h.emit('pick:confirm');
+h2.emit('pick:confirm');
+await hStarted;
+h.emit('speech:chunk'); // no payload — the crash vector
+h.emit('speech:chunk', null);
+h.emit('audio:turn'); // no payload
+h.emit('rtc:signal'); // no payload
+await new Promise((r) => setTimeout(r, 300));
+const stillAlive = await fetch(`${URL}/healthz`).then((r) => r.ok).catch(() => false);
+check('server survives payload-less events (no crash)', stillAlive);
+h.disconnect();
+h2.disconnect();
+
+// (b) Arabic names are now valid
+const ar = connect();
+const arRes = await emitP(ar, 'lobby:create', { sessionId: 'sess-ar', name: 'محمد' });
+check('Arabic name accepted', arRes.ok === true);
+ar.disconnect();
+
+// (c) joining a lobby whose debate already started says in_progress, not full
+const p1 = connect();
+const pRes = await emitP(p1, 'lobby:create', { sessionId: 'sess-p1', name: 'starter' });
+const pCode = pRes.update.code;
+const p2 = connect();
+await emitP(p2, 'lobby:join', { code: pCode, sessionId: 'sess-p2', name: 'joiner' });
+p1.emit('pick:topic', 'kurdistan');
+p2.emit('pick:topic', 'kurdistan');
+p1.emit('pick:side', 'FOR');
+p2.emit('pick:side', 'AGAINST');
+await new Promise((r) => setTimeout(r, 200));
+const pStarted = once(p1, 'debate:start', 8000);
+p1.emit('pick:confirm');
+p2.emit('pick:confirm');
+await pStarted;
+const late = connect();
+const lateRes = await emitP(late, 'lobby:join', { code: pCode, sessionId: 'sess-late', name: 'latecomer' });
+check('join after start says in_progress (not full)', !lateRes.ok && lateRes.error === 'in_progress');
+p1.disconnect();
+p2.disconnect();
+late.disconnect();
+
+// (d) a second create on one socket releases the first lobby (no orphan)
+const orphanCheck = connect();
+const first = await emitP(orphanCheck, 'lobby:create', { sessionId: 'sess-o', name: 'doublecreator' });
+const second = await emitP(orphanCheck, 'lobby:create', { sessionId: 'sess-o', name: 'doublecreator' });
+const firstGone = await emitP(connect(), 'lobby:join', {
+  code: first.update.code,
+  sessionId: 'sess-probe',
+  name: 'prober',
+});
+check('second create orphaned the first lobby', second.ok && !firstGone.ok && firstGone.error === 'not_found');
+orphanCheck.disconnect();
+
 console.log(`\n${failures === 0 ? 'ALL CHECKS PASSED' : failures + ' CHECK(S) FAILED'}`);
 process.exit(failures === 0 ? 0 : 1);

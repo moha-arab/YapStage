@@ -9,6 +9,7 @@ let ctx: AudioContext | null = null;
 let noise: AudioBuffer | null = null;
 let master: DynamicsCompressorNode | null = null;
 let muted = false;
+let ttsPrimed = false;
 
 export function isSoundMuted(): boolean {
   return muted;
@@ -38,8 +39,18 @@ export function initAudio(): void {
       for (let i = 0; i < len; i++) data[i] = Math.random() * 2 - 1;
     }
     // Chrome loads speechSynthesis voices asynchronously; poke the list early
-    // so a voice is ready by verdict time.
-    if ('speechSynthesis' in window) window.speechSynthesis.getVoices();
+    // so a voice is ready by verdict time. iOS Safari additionally refuses
+    // speak() calls that never happened inside a user gesture — prime it with
+    // a silent utterance now (we're inside the confirm click).
+    if ('speechSynthesis' in window) {
+      window.speechSynthesis.getVoices();
+      if (!ttsPrimed) {
+        ttsPrimed = true;
+        const u = new SpeechSynthesisUtterance(' ');
+        u.volume = 0;
+        window.speechSynthesis.speak(u);
+      }
+    }
   } catch {
     ctx = null;
   }
