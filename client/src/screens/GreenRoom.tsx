@@ -164,7 +164,7 @@ export default function GreenRoom({
                 <button
                   key={m}
                   className={`cat-tab ${mode === m ? 'cat-active' : ''}`}
-                  disabled={!isHost || pick.youConfirmed}
+                  disabled={!isHost}
                   onClick={() => socket.emit('pick:mode', m)}
                 >
                   {t(`mode_${m}`)}
@@ -232,7 +232,7 @@ export default function GreenRoom({
                     <button
                       key={c.key}
                       className={`cat-tab ${lobby.categoryKey === c.key ? 'cat-active' : ''}`}
-                      disabled={!isHost || pick.youConfirmed}
+                      disabled={!isHost}
                       onClick={() => socket.emit('pick:category', c.key)}
                     >
                       {c.label[lang]}

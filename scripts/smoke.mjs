@@ -340,13 +340,24 @@ const MONEY_IDS = ['capitalism-failing', 'college-worth', 'money-happiness', 'la
   check('category mode blocks start until a category is chosen', !startedEarly);
 
   host.emit('pick:category', 'money');
+  // rewind: host locks in, then changes their mind — the lock must clear and
+  // the category must change (the "stuck / can't rewind" bug).
+  host.emit('pick:confirm');
+  await new Promise((r) => setTimeout(r, 150));
+  const afterChange = once(guest, 'lobby:update', 4000);
+  host.emit('pick:category', 'america');
+  const ac = await afterChange;
+  check('rewind: changing category after locking in clears the lock', ac.pick.peerConfirmed === false);
+  check('rewind: the category actually changed', ac.categoryKey === 'america');
+
+  const AMERICA_IDS = ['trump-america', 'us-israel-funding', 'america-greatest', 'two-party', 'immigrants-path', 'guns-protect'];
   const started = once(host, 'debate:start', 8000);
   const gStarted = once(guest, 'debate:start', 8000);
   host.emit('pick:confirm');
   guest.emit('pick:confirm');
   const ds = await started;
   const gds = await gStarted;
-  check('category mode: topic comes from the chosen category', MONEY_IDS.includes(ds.topic.id));
+  check('category mode: topic comes from the (re-picked) category', AMERICA_IDS.includes(ds.topic.id));
   check('category mode: sides are opposite', ds.yourSide !== gds.yourSide);
   host.disconnect();
   guest.disconnect();
@@ -360,6 +371,7 @@ const MONEY_IDS = ['capitalism-failing', 'college-worth', 'money-happiness', 'la
   const code = cr.update.code;
   await emitP(guest, 'lobby:join', { code, sessionId: 'r-g', name: 'randguest' });
   host.emit('pick:mode', 'random');
+  await new Promise((r) => setTimeout(r, 200)); // let the mode propagate before confirming
   const started = once(host, 'debate:start', 8000);
   const gStarted = once(guest, 'debate:start', 8000);
   host.emit('pick:confirm');
