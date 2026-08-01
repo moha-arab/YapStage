@@ -84,6 +84,9 @@ export default function Debate({
   // own mic being disabled on our turn.
   const remoteMuted = phase.activeSpeaker !== peerSide;
   const danger = msLeft < 10_000;
+  // The bot's argument for THIS turn (null while it's still generating).
+  const botText = botTurn && botTurn.stepIndex === phase.stepIndex ? botTurn.text : null;
+  const botThinking = isBot && !myTurn && !botText;
 
   return (
     <div className="stage debate">
@@ -131,7 +134,11 @@ export default function Debate({
               </div>
               {!myTurn ? <div className="live-pill">{t('onTheMic')}</div> : null}
             </div>
-            {!myTurn && botTurn?.text ? <p className="bot-caption">{botTurn.text}</p> : null}
+            {!myTurn && botText ? (
+              <p className="bot-caption">{botText}</p>
+            ) : botThinking ? (
+              <p className="bot-caption bot-thinking-cap">{t('botThinking')}</p>
+            ) : null}
           </div>
         ) : (
           <div className="tile-stack">
@@ -156,7 +163,7 @@ export default function Debate({
           {myTurn ? t('goSuffix') : t('hasTheMic')}
         </div>
         <div className={`shot-clock ${danger && !(isBot && !myTurn) ? 'clock-danger' : ''}`}>
-          {isBot && !myTurn ? t('botSpeaking') : formatClock(msLeft)}
+          {isBot && !myTurn ? (botThinking ? t('botThinking') : t('botSpeaking')) : formatClock(msLeft)}
         </div>
         <div className={`mic-chip ${myTurn ? 'mic-live' : 'mic-off'}`}>
           {myTurn

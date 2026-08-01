@@ -1696,3 +1696,8 @@ html[dir='rtl'] .meter-hint {
   max-height: 128px;
   overflow-y: auto;
 }
+.bot-thinking-cap {
+  color: var(--muted);
+  font-style: italic;
+  animation: botpulse 1.1s ease-in-out infinite;
+}
