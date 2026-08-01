@@ -131,11 +131,15 @@ if (FAST) {
     Body: {
       motion?: { en?: string; ar?: string };
       lines?: { stepIndex: number; side: 'FOR' | 'AGAINST'; text: string }[];
+      composedSide?: 'FOR' | 'AGAINST';
     };
   }>('/judge-eval', { bodyLimit: 400_000 }, async (req, reply) => {
     const b = req.body ?? {};
     try {
-      const verdict = await scoreTranscript(b.motion ?? {}, Array.isArray(b.lines) ? b.lines : []);
+      const verdict = await scoreTranscript(b.motion ?? {}, Array.isArray(b.lines) ? b.lines : [], {
+        composedSide:
+          b.composedSide === 'FOR' || b.composedSide === 'AGAINST' ? b.composedSide : undefined,
+      });
       return { ok: true, verdict };
     } catch (err) {
       return reply.code(500).send({ ok: false, error: String(err).slice(0, 200) });

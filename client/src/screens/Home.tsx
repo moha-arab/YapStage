@@ -19,7 +19,7 @@ interface Props {
 }
 
 export default function Home({ notice, onEntered, onPlayBot }: Props) {
-  const { t } = useI18n();
+  const { lang, t } = useI18n();
   const [name, setName] = useState('');
   const [code, setCode] = useState(
     () => new URLSearchParams(window.location.search).get('code')?.toUpperCase() ?? '',
@@ -27,6 +27,7 @@ export default function Home({ notice, onEntered, onPlayBot }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [receipts] = useState(loadReceipts);
+  const [showMatches, setShowMatches] = useState(false);
 
   // With server-side transcription the chrome-only warning is a lie; only
   // show it when this deployment really depends on the browser's own STT.
@@ -131,16 +132,32 @@ export default function Home({ notice, onEntered, onPlayBot }: Props) {
           <span className="tape">
             {t('receipts')}: {wins}-{receipts.length - wins}
           </span>
-          {receipts.slice(0, 5).map((r) => (
-            <div className="bout-row" key={r.at}>
-              <span className={`bout-mark ${r.won ? 'bout-w' : 'bout-l'}`}>{r.won ? 'W' : 'L'}</span>
-              <span className="bout-names">
-                {r.me} <em>{r.myTotal}</em> vs {r.them} <em>{r.theirTotal}</em>
-              </span>
-              <span className="bout-topic">"{r.topic}"</span>
-            </div>
-          ))}
-          <p className="small-print">{t('receiptsNote')}</p>
+          <button
+            className="btn btn-small"
+            aria-expanded={showMatches}
+            onClick={() => setShowMatches((s) => !s)}
+          >
+            {t('prevMatches')} ({receipts.length})
+          </button>
+          {showMatches ? (
+            <>
+              {receipts.map((r) => (
+                <div className="bout-row" key={r.at}>
+                  <span className={`bout-mark ${r.won ? 'bout-w' : 'bout-l'}`}>
+                    {r.won ? 'W' : 'L'}
+                  </span>
+                  <span className="bout-names">
+                    {r.me} <em>{r.myTotal}</em> vs {r.them} <em>{r.theirTotal}</em>
+                  </span>
+                  <span className="bout-topic">"{r.topic}"</span>
+                  <span className="bout-date">
+                    {new Date(r.at).toLocaleDateString(lang === 'ar' ? 'ar' : 'en-US')}
+                  </span>
+                </div>
+              ))}
+              <p className="small-print">{t('receiptsNote')}</p>
+            </>
+          ) : null}
         </div>
       ) : null}
 

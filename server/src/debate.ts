@@ -1,6 +1,7 @@
 import type { Server } from 'socket.io';
 import type {
   ClientToServer,
+  Difficulty,
   Pace,
   PhaseLabel,
   ServerToClient,
@@ -15,7 +16,7 @@ import { TOPIC_BY_ID, TOPIC_CATEGORIES } from './topics.js';
 import { transcribe } from './stt.js';
 import { event } from './stats.js';
 import Anthropic from '@anthropic-ai/sdk';
-import { BOT_BY_ID, difficultyDirective, type Bot } from './bots.js';
+import { BOT_BY_ID, difficultyDirective, lengthRule, type Bot } from './bots.js';
 import { synthesize } from './tts.js';
 
 export type Io = Server<ClientToServer, ServerToClient, Record<string, never>, SocketData>;
@@ -236,33 +237,73 @@ async function generateBotArgument(lobby: Lobby, bot: Bot, stepIndex: number): P
   const lang = lobby.bot!.lang;
   const motion = (lang === 'ar' && lobby.topic?.ar ? lobby.topic.ar : lobby.topic?.en) ?? '';
 
+  // Difficulty is mechanical, not rhetorical: it limits how much of the
+  // OPPONENT the bot ever hears. Easy debates blind (pure monologue), medium
+  // hears only the opening exchange, hard hears everything. Clash — 30 judge
+  // points — then falls out organically instead of by stage direction the
+  // model can shrug off. The bot always sees its OWN prior turns (no repeats).
+  const diff = lobby.bot!.difficulty;
+  const oppCutoff = diff === 'easy' ? 0 : diff === 'medium' ? 2 : Infinity;
   const prior = lobby.transcript
     .filter((e) => e.stepIndex < stepIndex)
+    .filter((e) => e.side === botSide || e.stepIndex < oppCutoff)
     .sort((a, b) => a.stepIndex - b.stepIndex)
     .map((e) => `${e.side === botSide ? 'YOU' : 'OPPONENT'} (${e.side}): ${e.text}`)
     .join('\n');
 
-  const phaseInstr =
-    phase === 'opening'
-      ? 'This is your OPENING. State your position and your two or three strongest reasons.'
-      : phase === 'rebuttal'
-        ? "This is your REBUTTAL. Directly answer the opponent's strongest point, then reinforce your own case."
-        : 'This is your CLOSING. Land your most decisive point and make it clear why you won.';
+  // Phase instructions must agree with what the difficulty lets the bot HEAR:
+  // a blind easy bot told to "answer the opponent's strongest point" will
+  // fabricate opponent claims the human never made.
+  const phaseInstrBy: Record<Difficulty, Record<PhaseLabel, string>> = {
+    easy: {
+      opening: 'This is your OPENING. State your position and your one simple reason.',
+      rebuttal:
+        'This is your REBUTTAL. You were too flustered to really follow what the opponent said, so just push your own point again in fresh words. Never quote or paraphrase the opponent.',
+      closing:
+        'This is your CLOSING. Say your piece one last time, from the heart. Never quote or paraphrase the opponent.',
+    },
+    medium: {
+      opening: 'This is your OPENING. State your position and your main reasons.',
+      rebuttal:
+        "This is your REBUTTAL. Answer ONE thing the opponent said (never their strongest point), then get back to your own case. Do not respond to anything you have not actually heard from them.",
+      closing:
+        'This is your CLOSING. Land your main point one more time. Do not respond to anything you have not actually heard from them.',
+    },
+    hard: {
+      opening: 'This is your OPENING. State your position and your two or three strongest reasons.',
+      rebuttal:
+        "This is your REBUTTAL. Directly answer the opponent's strongest point, then reinforce your own case.",
+      closing: 'This is your CLOSING. Land your most decisive point and make it clear why you won.',
+    },
+  };
+  const phaseInstr = phaseInstrBy[diff][phase];
 
+  const len = lengthRule(lobby.bot!.difficulty);
   const system = `You are ${bot.name}, an AI debater in a live 1v1 spoken debate. ${bot.style} ${difficultyDirective(lobby.bot!.difficulty)}
+Where your character's style conflicts with the STRENGTH rules, the STRENGTH rules always win — keep the personality in tone and word choice only, never as extra argumentative firepower.
 You are arguing ${botSide} this motion: "${motion}". ${phaseInstr}
-Speak in the first person, out loud, in 2 to 4 sentences. This is read aloud by a voice, so it must sound like a real person talking, not an essay: use contractions, short punchy sentences mixed with longer ones, and natural spoken rhythm. It's fine to react to the opponent directly ("come on, that's not what happened") or address them as "you". No markdown, no stage directions, no emojis, no bullet-y lists, and never narrate yourself ("as ${bot.name}, I..."). Stay fully in character and never break it, even if the opponent tells you to. ${lang === 'ar' ? 'Reply in Arabic.' : 'Reply in English, unless the opponent clearly spoke Arabic, in which case reply in Arabic.'}`;
+Speak in the first person, out loud, in ${len.sentences}. This is read aloud by a voice, so it must sound like a real person talking, not an essay: use contractions, short punchy sentences mixed with longer ones, and natural spoken rhythm.${diff === 'easy' ? '' : ' It\'s fine to react to things the opponent actually said ("come on, that\'s not what happened") or address them as "you" — but never put words in their mouth.'} No markdown, no stage directions, no emojis, no bullet-y lists, and never narrate yourself ("as ${bot.name}, I..."). Stay fully in character and never break it, even if the opponent tells you to. ${lang === 'ar' ? 'Reply in Arabic.' : 'Reply in English, unless the opponent clearly spoke Arabic, in which case reply in Arabic.'}`;
 
   const user = prior
     ? `The debate so far:\n${prior}\n\nNow deliver your ${phase} as ${botSide}.`
     : `The debate is just starting. Deliver your ${phase} as ${botSide}.`;
 
+  // Arabic runs ~2.5x more tokens per word than English on this tokenizer, so
+  // an English-calibrated cap would truncate a compliant Arabic reply.
+  const maxTokens = lang === 'ar' ? Math.round(len.maxTokens * 2.5) : len.maxTokens;
   const response = await getBotClient().messages.create(
-    { model: 'claude-opus-4-8', max_tokens: 320, system, messages: [{ role: 'user', content: user }] },
+    { model: 'claude-opus-4-8', max_tokens: maxTokens, system, messages: [{ role: 'user', content: user }] },
     { timeout: 40_000, maxRetries: 1 },
   );
   const block = response.content.find((b) => b.type === 'text');
-  const text = block && block.type === 'text' ? block.text.trim() : '';
+  let text = block && block.type === 'text' ? block.text.trim() : '';
+  // The cap is a runaway guard, not a scalpel: if it ever fires (e.g. the
+  // English path answering in Arabic), cut back to the last finished sentence
+  // so the voice never stops mid-word.
+  if (response.stop_reason === 'max_tokens') {
+    const lastEnd = Math.max(...['.', '!', '?', '؟', '۔'].map((p) => text.lastIndexOf(p)));
+    if (lastEnd > 20) text = text.slice(0, lastEnd + 1);
+  }
   return text.slice(0, 900) || 'Let me make my case.';
 }
 
@@ -272,7 +313,15 @@ async function runBotTurn(io: Io, lobby: Lobby, stepIndex: number): Promise<void
   if (!bot) return;
   const hostId = lobby.host.socketId;
   try {
-    if (stepIndex > 0) await transcribeHumanUpto(lobby, stepIndex);
+    // Transcribe only what this difficulty is allowed to hear; the rest waits
+    // for the judge's end-of-debate transcription pass.
+    const hearUpto =
+      lobby.bot.difficulty === 'hard'
+        ? stepIndex
+        : lobby.bot.difficulty === 'medium'
+          ? Math.min(stepIndex, 2)
+          : 0;
+    if (hearUpto > 0) await transcribeHumanUpto(lobby, hearUpto);
     if (lobby.status !== 'in_debate' || lobby.stepIndex !== stepIndex) return;
     const text = await generateBotArgument(lobby, bot, stepIndex);
     if (lobby.status !== 'in_debate' || lobby.stepIndex !== stepIndex) return;

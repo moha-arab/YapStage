@@ -542,6 +542,18 @@ html[dir='rtl'] .meter-hint {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.bout-date {
+  margin-inline-start: auto;
+  font-size: 11px;
+  color: var(--muted);
+  flex: none;
+}
+/* long yap names must squeeze, not push the row into horizontal page scroll */
+.bout-row .bout-names {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 
 /* marquee ticker */
 .marquee {

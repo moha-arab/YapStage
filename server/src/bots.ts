@@ -115,14 +115,30 @@ export function publicBots() {
     }));
 }
 
-/** Difficulty shapes how strong (rigorous, specific, responsive) the bot is. */
+/** Difficulty shapes how strong (rigorous, specific, responsive) the bot is.
+    The judge reads a transcript, where an LLM's default fluency IS strength —
+    so "easy" must be enforced with hard flaws, not vibes: an average human
+    should beat an easy bot most of the time. */
 export function difficultyDirective(d: Difficulty): string {
   switch (d) {
     case 'easy':
-      return 'STRENGTH: beatable. Argue like a casual amateur — general points, vibes over hard evidence, and you do not always answer the opponent\'s strongest argument. A sharp human should out-argue you.';
+      return "STRENGTH: genuinely beatable — that is the product, do not sandbag it. Hard rules: make exactly ONE simple point per turn, vague and general — no statistics, no studies, no named examples, no lists of reasons. In your rebuttal and closing you MUST NOT answer the opponent's strongest argument: miss their point, answer a weaker one, or just restate your own claim in new words. Never summarize the debate and never explain why you have won. An average human who engages your points should clearly out-argue you.";
     case 'hard':
-      return 'STRENGTH: elite. Argue like a champion — concrete specifics and evidence, clean structure, and directly dismantle the opponent\'s best point every single turn. Genuinely hard to beat.';
+      return "STRENGTH: elite. Argue like a champion — concrete specifics and evidence, clean structure, and directly dismantle the opponent's best point every single turn. Genuinely hard to beat.";
     default:
-      return 'STRENGTH: solid. Argue like a prepared debater — real reasons with some specifics, answer the opponent\'s main point most turns, stay organized.';
+      return "STRENGTH: solid but human — clearly better than a beginner, clearly below a champion. Hard rules: general reasons only, with at most ONE concrete example in the whole debate — no statistics, no named studies, no data. In your rebuttal, respond to only ONE of the opponent's points and never their strongest one. Once in the debate you must half-concede something ('okay, fair, but...'). Never lay out a numbered or signposted case, never turn the opponent's words against them, never deliver a tidy summary of why you have won. A prepared human who cites anything concrete should edge you out.";
+  }
+}
+
+/** Per-difficulty length ceilings: easy bots must also LOOK small on the
+    transcript, not deliver a tidy paragraph. */
+export function lengthRule(d: Difficulty): { sentences: string; maxTokens: number } {
+  switch (d) {
+    case 'easy':
+      return { sentences: 'one or two short sentences, under 35 words total', maxTokens: 110 };
+    case 'hard':
+      return { sentences: '3 or 4 sentences', maxTokens: 320 };
+    default:
+      return { sentences: 'two sentences, under 55 words total', maxTokens: 130 };
   }
 }

@@ -5,21 +5,35 @@
 //  - position balance: FOR-wins vs AGAINST-wins across balanced case sets
 //  - agreement with an independent blind reader (the reference)
 // Usage: URL=http://localhost:3009 CASES=scripts/judge-cases.json node scripts/judge-eval.mjs
+//
+// COMPOSED=winner|loser additionally marks one side as typed text (the bots-
+// mode channel note): 'winner' marks the constructed-STRONGER side composed —
+// the worst case for over-correction (does the handicap rob a genuinely
+// stronger typed side?); 'loser' marks the weaker side — the worst case for
+// under-correction. Accuracy should hold in both.
 import { readFileSync } from 'node:fs';
 
 const URL = process.env.URL ?? 'http://localhost:3009';
 const CASES = process.env.CASES ?? 'scripts/judge-cases.json';
+const COMPOSED = process.env.COMPOSED ?? '';
 
 const data = JSON.parse(readFileSync(CASES, 'utf8'));
 const cases = data.cases || [];
 const ratings = Object.fromEntries((data.ratings || []).map((r) => [r.id, r]));
 const sum = (s) => s.argument + s.evidence + s.clash + s.delivery;
 
+function composedSideFor(c) {
+  if (!COMPOSED || c.intendedStronger === 'balanced') return undefined;
+  const stronger = c.intendedStronger;
+  const weaker = stronger === 'FOR' ? 'AGAINST' : 'FOR';
+  return COMPOSED === 'winner' ? stronger : weaker;
+}
+
 async function judge(c) {
   const res = await fetch(`${URL}/judge-eval`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ motion: { en: c.motionEn }, lines: c.lines }),
+    body: JSON.stringify({ motion: { en: c.motionEn }, lines: c.lines, composedSide: composedSideFor(c) }),
   });
   if (!res.ok) throw new Error(`judge-eval ${res.status}: ${(await res.text()).slice(0, 200)}`);
   return (await res.json()).verdict;
