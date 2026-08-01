@@ -372,5 +372,61 @@ const MONEY_IDS = ['capitalism-failing', 'college-worth', 'money-happiness', 'la
   guest.disconnect();
 }
 
+// ---------- Scenario 6: rematch ----------
+console.log('\n=== Scenario 6: rematch ===');
+async function runToVerdict(a, b, aId, bId, name, topic) {
+  const cr = await emitP(a, 'lobby:create', { sessionId: aId, name });
+  const code = cr.update.code;
+  await emitP(b, 'lobby:join', { code, sessionId: bId, name: name + 'two' });
+  a.emit('pick:topic', topic);
+  b.emit('pick:topic', topic);
+  a.emit('pick:side', 'FOR');
+  b.emit('pick:side', 'AGAINST');
+  await new Promise((r) => setTimeout(r, 200));
+  const started = once(a, 'debate:start', 8000);
+  a.emit('pick:confirm');
+  b.emit('pick:confirm');
+  await started;
+  await once(a, 'verdict:result', 120000);
+}
+
+// happy path: both tap, back to a fresh green room
+{
+  const a = connect();
+  const b = connect();
+  await runToVerdict(a, b, 'rm-a', 'rm-b', 'rematcher', 'money-happiness');
+  const aUpdate = once(a, 'rematch:update', 5000);
+  a.emit('rematch');
+  const au = await aUpdate;
+  check('rematch: first tapper waits (youWant, not peerWant)', au.youWant === true && au.peerWant === false && au.peerLeft === false);
+
+  const aGo = once(a, 'rematch:go', 5000);
+  const bGo = once(b, 'rematch:go', 5000);
+  const aLobby = once(a, 'lobby:update', 5000);
+  b.emit('rematch');
+  await aGo;
+  await bGo;
+  const lu = await aLobby;
+  check('rematch: both sent back to green room', true);
+  check('rematch: picks reset for fresh setup', lu.pick.yourTopicId === null && lu.pick.youConfirmed === false);
+  check('rematch: topic mode preserved', lu.topicMode === 'agree');
+  a.disconnect();
+  b.disconnect();
+}
+
+// peer-left: one taps rematch, the other leaves
+{
+  const a = connect();
+  const b = connect();
+  await runToVerdict(a, b, 'rl-a', 'rl-b', 'leaver', 'crypto-scam');
+  a.emit('rematch');
+  await once(a, 'rematch:update', 5000); // youWant
+  const peerLeft = once(a, 'rematch:update', 8000);
+  b.disconnect();
+  const pl = await peerLeft;
+  check('rematch: peer leaving resolves to peerLeft', pl.peerLeft === true);
+  a.disconnect();
+}
+
 console.log(`\n${failures === 0 ? 'ALL CHECKS PASSED' : failures + ' CHECK(S) FAILED'}`);
 process.exit(failures === 0 ? 0 : 1);

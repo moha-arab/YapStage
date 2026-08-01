@@ -72,6 +72,7 @@ export default function App() {
     terminal?: boolean;
   } | null>(null);
   const [abortInfo, setAbortInfo] = useState<AbortInfo | null>(null);
+  const [rematch, setRematch] = useState<{ youWant: boolean; peerWant: boolean; peerLeft: boolean } | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [peerLostUntil, setPeerLostUntil] = useState<number | null>(null);
   const [localStream, setLocalStream] = useState<MediaStream | null>(null);
@@ -108,6 +109,7 @@ export default function App() {
     setVerdictInfo(null);
     setJudgeStatus(null);
     setAbortInfo(null);
+    setRematch(null);
     setPeerLostUntil(null);
     setLocalStream(null);
     setRemoteStream(null);
@@ -169,6 +171,19 @@ export default function App() {
         });
       }
     });
+    socket.on('rematch:update', (p) => setRematch(p));
+    socket.on('rematch:go', () => {
+      // Both agreed: drop the finished-debate state and fall back to the green
+      // room. Keep the camera/connection — the server kept the same lobby.
+      setStart(null);
+      setPhase(null);
+      setEnded(false);
+      setVerdictInfo(null);
+      setJudgeStatus(null);
+      setAbortInfo(null);
+      setRematch(null);
+      clearResume();
+    });
     socket.on('connect', () => {
       // Transient reconnect at ANY stage: try to reclaim our seat. A refreshed
       // page has a new sessionId so this only fires for true network blips.
@@ -212,6 +227,8 @@ export default function App() {
       socket.off('peer:connection');
       socket.off('verdict:status');
       socket.off('verdict:result');
+      socket.off('rematch:update');
+      socket.off('rematch:go');
       socket.off('connect');
     };
   }, [resetToHome]);
@@ -473,6 +490,8 @@ export default function App() {
           setRtcState(null);
         }}
         onRetry={() => socket.emit('verdict:retry')}
+        rematch={rematch}
+        onRematch={() => socket.emit('rematch')}
       />
     );
   } else if (start) {

@@ -144,6 +144,7 @@ export interface ClientToServer {
   /** One recorded audio blob per completed speaking turn (server-STT mode). */
   'audio:turn': (p: { stepIndex: number; mime: string; data: ArrayBuffer }) => void;
   'verdict:retry': () => void;
+  'rematch': () => void; // want to run it back with the same person
 }
 
 export interface ServerToClient {
@@ -158,6 +159,10 @@ export interface ServerToClient {
   'peer:connection': (p: { state: 'lost' | 'restored'; graceDeadline?: number }) => void;
   'verdict:status': (p: { state: 'pending' | 'failed'; message?: string; terminal?: boolean }) => void;
   'verdict:result': (p: { verdict: Verdict; names: Record<Side, string> }) => void;
+  /** Rematch handshake state (per recipient's own view). */
+  'rematch:update': (p: { youWant: boolean; peerWant: boolean; peerLeft: boolean }) => void;
+  /** Both agreed — reset to the green room for a fresh debate. */
+  'rematch:go': () => void;
 }
 
 export interface SocketData {

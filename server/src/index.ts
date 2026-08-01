@@ -150,6 +150,60 @@ function broadcastLobbyUpdate(lobby: Lobby): void {
   }
 }
 
+// Each side gets its OWN view of the rematch handshake (you vs peer).
+function broadcastRematch(lobby: Lobby): void {
+  const guestGone = !lobby.guest || Boolean(lobby.guest.disconnectedAt);
+  const hostGone = !lobby.host || Boolean(lobby.host.disconnectedAt);
+  if (lobby.host && !lobby.host.disconnectedAt) {
+    io.to(lobby.host.socketId).emit('rematch:update', {
+      youWant: lobby.rematch.host,
+      peerWant: lobby.rematch.guest,
+      peerLeft: guestGone,
+    });
+  }
+  if (lobby.guest && !lobby.guest.disconnectedAt) {
+    io.to(lobby.guest.socketId).emit('rematch:update', {
+      youWant: lobby.rematch.guest,
+      peerWant: lobby.rematch.host,
+      peerLeft: hostGone,
+    });
+  }
+}
+
+// Both agreed: wipe the finished debate back to a fresh green room, keeping the
+// two players, their connection, and the chosen topic-mode. They re-set-up.
+function resetForRematch(lobby: Lobby): void {
+  if (lobby.phaseTimer) clearTimeout(lobby.phaseTimer);
+  if (lobby.judgeTimer) clearTimeout(lobby.judgeTimer);
+  lobby.phaseTimer = undefined;
+  lobby.judgeTimer = undefined;
+  lobby.status = 'greenroom';
+  lobby.topic = undefined;
+  lobby.sides = undefined;
+  lobby.transcript = [];
+  lobby.audioTurns = [];
+  lobby.debateCompleted = false;
+  lobby.judgeState = 'idle';
+  lobby.judgeAttempts = 0;
+  lobby.lastJudgeAt = 0;
+  lobby.verdict = undefined;
+  lobby.abortInfo = undefined;
+  lobby.stepIndex = -1;
+  lobby.stepStartedAt = 0;
+  lobby.finishedAt = undefined;
+  lobby.rematch = { host: false, guest: false };
+  // Keep topicMode + categoryKey (they land back on the same setup). Clear the
+  // per-player picks + confirms so they choose fresh.
+  lobby.pick.hostTopicId = null;
+  lobby.pick.guestTopicId = null;
+  lobby.pick.hostSide = null;
+  lobby.pick.guestSide = null;
+  lobby.pick.hostConfirmed = false;
+  lobby.pick.guestConfirmed = false;
+  touch(lobby);
+  event('rematch', { code: lobby.code });
+}
+
 function ipOf(socket: { handshake: { headers: Record<string, unknown>; address: string } }): string {
   // RIGHTMOST x-forwarded-for entry: that's the one Railway's proxy appended.
   // Anything left of it is client-supplied and trivially spoofable.
@@ -419,6 +473,26 @@ io.on('connection', (socket) => {
     void runJudge(io, lobby, socket.id);
   });
 
+  socket.on('rematch', () => {
+    const lobby = socket.data.code ? getLobby(socket.data.code) : undefined;
+    if (!lobby || lobby.status !== 'verdict') return;
+    const me = participantOf(lobby, socket.id);
+    if (!me) return;
+    if (me === lobby.host) lobby.rematch.host = true;
+    else lobby.rematch.guest = true;
+    touch(lobby);
+
+    const bothHere =
+      lobby.host && lobby.guest && !lobby.host.disconnectedAt && !lobby.guest.disconnectedAt;
+    if (lobby.rematch.host && lobby.rematch.guest && bothHere) {
+      resetForRematch(lobby);
+      broadcastLobbyUpdate(lobby); // fresh green-room state first
+      io.to(lobby.code).emit('rematch:go'); // then tell clients to leave the verdict
+    } else {
+      broadcastRematch(lobby);
+    }
+  });
+
   socket.on('disconnect', () => {
     const lobby = socket.data.code ? getLobby(socket.data.code) : undefined;
     if (!lobby) return;
@@ -488,6 +562,10 @@ io.on('connection', (socket) => {
           io.socketsLeave(l.code);
         }
       }, 60_000).unref();
+    } else if (lobby.status === 'verdict') {
+      // One left on the verdict screen — tell the other so a pending rematch
+      // request resolves to "other player left" instead of hanging.
+      broadcastRematch(lobby);
     }
   });
 });

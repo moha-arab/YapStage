@@ -16,6 +16,8 @@ interface Props {
   myName: string;
   onLeaveCall: () => void;
   onRetry: () => void;
+  onRematch: () => void;
+  rematch: { youWant: boolean; peerWant: boolean; peerLeft: boolean } | null;
 }
 
 /**
@@ -105,6 +107,8 @@ export default function VerdictScreen({
   myName,
   onLeaveCall,
   onRetry,
+  onRematch,
+  rematch,
 }: Props) {
   const { lang, t } = useI18n();
   const strip = (
@@ -338,8 +342,21 @@ export default function VerdictScreen({
           </div>
 
           <div className="verdict-actions">
-            <button className="btn btn-primary" onClick={() => window.location.assign('/')}>
-              {t('runItBack')}
+            {rematch?.peerLeft ? (
+              <button className="btn btn-primary" disabled>
+                {t('rematchPeerLeft', { x: peerName })}
+              </button>
+            ) : rematch?.youWant ? (
+              <button className="btn btn-primary" disabled>
+                {t('rematchWaiting', { x: peerName })}
+              </button>
+            ) : (
+              <button className="btn btn-primary" onClick={onRematch}>
+                {rematch?.peerWant ? t('rematchAccept', { x: peerName }) : t('rematch')}
+              </button>
+            )}
+            <button className="btn" onClick={() => window.location.assign('/')}>
+              {t('backHome')}
             </button>
             <button className="btn" onClick={toggleMute}>
               {muted ? t('unmuteStage') : t('muteStage')}

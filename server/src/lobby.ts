@@ -62,6 +62,7 @@ export interface Lobby {
   judgeState: 'idle' | 'pending' | 'done' | 'failed';
   judgeAttempts: number;
   lastJudgeAt: number;
+  rematch: { host: boolean; guest: boolean }; // who tapped "run it back"
   verdict?: Verdict;
   abortInfo?: { reason: string; vars?: Record<string, string> };
   createdAt: number;
@@ -108,6 +109,7 @@ export function createLobby(socketId: string, sessionId: string, name: string): 
     judgeState: 'idle',
     judgeAttempts: 0,
     lastJudgeAt: 0,
+    rematch: { host: false, guest: false },
     createdAt: now,
     touchedAt: now,
   };
