@@ -145,6 +145,7 @@ export interface ClientToServer {
   'audio:turn': (p: { stepIndex: number; mime: string; data: ArrayBuffer }) => void;
   'verdict:retry': () => void;
   'rematch': () => void; // want to run it back with the same person
+  'coach:ask': (p: { question: string }) => void; // ask the YapMaster about YOUR debate
 }
 
 export interface ServerToClient {
@@ -163,6 +164,8 @@ export interface ServerToClient {
   'rematch:update': (p: { youWant: boolean; peerWant: boolean; peerLeft: boolean }) => void;
   /** Both agreed — reset to the green room for a fresh debate. */
   'rematch:go': () => void;
+  /** The YapMaster's coaching answer (sent only to the asker). */
+  'coach:reply': (p: { text: string; error?: boolean; done?: boolean }) => void;
 }
 
 export interface SocketData {

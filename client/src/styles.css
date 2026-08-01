@@ -1378,10 +1378,81 @@ html[dir='rtl'] .meter-hint {
   gap: 6px;
 }
 
+/* ask the yapmaster: a small coaching chat on the verdict screen */
+.coach-card {
+  width: min(560px, 92vw);
+  margin: 0 auto;
+  text-align: start;
+}
+
+.coach-title {
+  font-family: var(--marker);
+  font-size: 18px;
+  color: var(--gold);
+  margin: 0 0 10px;
+}
+
+.coach-log {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.coach-msg {
+  margin: 0;
+  padding: 8px 12px;
+  font-size: 15px;
+  border: 2px solid var(--line);
+  max-width: 88%;
+}
+
+.coach-msg.you {
+  align-self: flex-end;
+  background: var(--panel-2);
+  color: var(--ink);
+  border-color: var(--gold);
+}
+
+.coach-msg.coach {
+  align-self: flex-start;
+  background: var(--bg);
+  color: var(--ink);
+}
+
+.coach-msg.thinking {
+  color: var(--muted);
+  font-style: italic;
+}
+
+.coach-presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.coach-input-row {
+  display: flex;
+  gap: 8px;
+}
+
+.coach-input-row .input {
+  flex: 1;
+}
+
+.coach-done {
+  font-family: var(--marker);
+  font-size: 14px;
+  color: var(--muted);
+  margin: 4px 0 0;
+}
+
 .verdict-actions {
   display: flex;
   gap: 12px;
   justify-content: center;
+  flex-wrap: wrap;
 }
 
 /* post-debate live strip: the open call must be visible, always */

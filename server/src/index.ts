@@ -20,6 +20,7 @@ import {
   lobbyCount,
   participantOf,
   peerOf,
+  sideOf,
   startSweep,
   touch,
   type Lobby,
@@ -28,6 +29,7 @@ import {
 import { abort, acceptAudioTurn, acceptChunk, resendState, startDebate, type Io } from './debate.js';
 import { sttConfigured } from './stt.js';
 import { runJudge } from './judge.js';
+import { coachReply } from './coach.js';
 import { TOPIC_BY_ID, TOPIC_CATEGORIES } from './topics.js';
 import { event, statsSnapshot } from './stats.js';
 import { allow } from './ratelimit.js';
@@ -192,6 +194,7 @@ function resetForRematch(lobby: Lobby): void {
   lobby.stepStartedAt = 0;
   lobby.finishedAt = undefined;
   lobby.rematch = { host: false, guest: false };
+  lobby.coachAsks = 0;
   // Keep topicMode + categoryKey (they land back on the same setup). Clear the
   // per-player picks + confirms so they choose fresh.
   lobby.pick.hostTopicId = null;
@@ -491,6 +494,37 @@ io.on('connection', (socket) => {
     } else {
       broadcastRematch(lobby);
     }
+  });
+
+  // Ask the YapMaster about the debate you just finished. Answered from the
+  // in-memory verdict + transcript — no account, nothing stored.
+  socket.on('coach:ask', (p) => {
+    if (!allow(`coach:${socket.id}`, 12, 60_000)) return;
+    if (!p || typeof p !== 'object') return;
+    const lobby = socket.data.code ? getLobby(socket.data.code) : undefined;
+    if (!lobby || lobby.status !== 'verdict' || !lobby.verdict) return;
+    const me = participantOf(lobby, socket.id);
+    if (!me) return;
+    const side = sideOf(lobby, me);
+    if (!side) return;
+    const question = String(p.question ?? '').trim().slice(0, 300);
+    if (!question) return;
+
+    const sid = socket.id;
+    if (lobby.coachAsks >= 8) {
+      io.to(sid).emit('coach:reply', { text: '', done: true });
+      return;
+    }
+    lobby.coachAsks += 1;
+    touch(lobby);
+    event('coach_ask', { code: lobby.code });
+    void coachReply(lobby, side, question)
+      .then((text) => io.to(sid).emit('coach:reply', { text }))
+      .catch((err) => {
+        console.error(`[coach] lobby ${lobby.code} failed:`, err);
+        event('coach_failed', { code: lobby.code });
+        io.to(sid).emit('coach:reply', { text: '', error: true });
+      });
   });
 
   socket.on('disconnect', () => {

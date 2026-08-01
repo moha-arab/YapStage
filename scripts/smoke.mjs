@@ -407,6 +407,13 @@ async function runToVerdict(a, b, aId, bId, name, topic) {
   const a = connect();
   const b = connect();
   await runToVerdict(a, b, 'rm-a', 'rm-b', 'rematcher', 'money-happiness');
+
+  // ask the YapMaster about the debate we just finished (in-memory, no storage)
+  const coachP = once(a, 'coach:reply', 60000);
+  a.emit('coach:ask', { question: 'why did I lose?' });
+  const coach = await coachP;
+  check('coach: replies with grounded text', typeof coach.text === 'string' && coach.text.length > 20 && !coach.error);
+
   const aUpdate = once(a, 'rematch:update', 5000);
   a.emit('rematch');
   const au = await aUpdate;

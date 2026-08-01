@@ -1,8 +1,16 @@
 import { useEffect, useState } from 'react';
 import type { CategoryScores, Side, TopicText, Verdict as VerdictData } from '../../../server/src/protocol';
 import { isSoundMuted, playCrash, playDrumRoll, playHit, setSoundMuted, speak } from '../sound';
+import { socket } from '../socket';
 import { useI18n } from '../i18n';
 import VideoTile from '../VideoTile';
+
+const COACH_LIMIT = 6;
+interface CoachMsg {
+  role: 'you' | 'coach';
+  text: string;
+  error?: boolean;
+}
 
 interface Props {
   info: { verdict: VerdictData; names: Record<Side, string> } | null;
@@ -124,6 +132,32 @@ export default function VerdictScreen({
   const [stage, setStage] = useState<Stage>('waiting');
   const [revealed, setRevealed] = useState(0);
   const [muted, setMuted] = useState(isSoundMuted());
+  const [coachLog, setCoachLog] = useState<CoachMsg[]>([]);
+  const [coachThinking, setCoachThinking] = useState(false);
+  const [coachAsks, setCoachAsks] = useState(0);
+  const [coachInput, setCoachInput] = useState('');
+
+  useEffect(() => {
+    const onReply = (p: { text: string; error?: boolean; done?: boolean }) => {
+      setCoachThinking(false);
+      if (p.done) return; // cap reached — the input is already hidden
+      setCoachLog((l) => [...l, { role: 'coach', text: p.text, error: p.error }]);
+    };
+    socket.on('coach:reply', onReply);
+    return () => {
+      socket.off('coach:reply', onReply);
+    };
+  }, []);
+
+  function askCoach(q: string) {
+    const question = q.trim();
+    if (!question || coachThinking || coachAsks >= COACH_LIMIT) return;
+    setCoachLog((l) => [...l, { role: 'you', text: question }]);
+    setCoachThinking(true);
+    setCoachAsks((n) => n + 1);
+    setCoachInput('');
+    socket.emit('coach:ask', { question });
+  }
 
   useEffect(() => {
     if (!info) return;
@@ -340,6 +374,66 @@ export default function VerdictScreen({
               </div>
             ))}
           </div>
+
+          {mySide !== undefined ? (
+            <div className="coach-card card">
+              <h3 className="coach-title">{t('coachTitle')}</h3>
+              {coachLog.length > 0 || coachThinking ? (
+                <div className="coach-log">
+                  {coachLog.map((m, i) => (
+                    <p key={i} className={`coach-msg ${m.role}`}>
+                      {m.error ? t('coachError') : m.text}
+                    </p>
+                  ))}
+                  {coachThinking ? (
+                    <p className="coach-msg coach thinking">{t('coachThinking')}</p>
+                  ) : null}
+                </div>
+              ) : null}
+
+              {coachAsks < COACH_LIMIT ? (
+                <>
+                  <div className="coach-presets">
+                    <button
+                      className="btn btn-small"
+                      disabled={coachThinking}
+                      onClick={() => askCoach(youWon ? t('coachHowWon') : t('coachWhyLost'))}
+                    >
+                      {youWon ? t('coachHowWon') : t('coachWhyLost')}
+                    </button>
+                    <button
+                      className="btn btn-small"
+                      disabled={coachThinking}
+                      onClick={() => askCoach(t('coachImprove'))}
+                    >
+                      {t('coachImprove')}
+                    </button>
+                  </div>
+                  <div className="coach-input-row">
+                    <input
+                      className="input"
+                      value={coachInput}
+                      placeholder={t('coachPlaceholder')}
+                      maxLength={300}
+                      onChange={(e) => setCoachInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') askCoach(coachInput);
+                      }}
+                    />
+                    <button
+                      className="btn"
+                      disabled={coachThinking || !coachInput.trim()}
+                      onClick={() => askCoach(coachInput)}
+                    >
+                      {t('coachSend')}
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <p className="coach-done">{t('coachDone')}</p>
+              )}
+            </div>
+          ) : null}
 
           <div className="verdict-actions">
             {rematch?.peerLeft ? (
