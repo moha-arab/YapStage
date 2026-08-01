@@ -26,12 +26,22 @@ function escapeXml(s: string): string {
   return s.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;');
 }
 
-function buildTranscriptXml(lobby: Lobby): { xml: string; missingSides: Side[] } {
+interface Line {
+  stepIndex: number;
+  side: Side;
+  text: string;
+  at?: number;
+}
+
+function buildTranscriptXml(
+  motion: { en?: string; ar?: string },
+  transcript: Line[],
+): { xml: string; missingSides: Side[] } {
   const bySide: Record<Side, number> = { FOR: 0, AGAINST: 0 };
   const segments = STEP_META.map((meta, i) => {
-    const texts = lobby.transcript
+    const texts = transcript
       .filter((e) => e.stepIndex === i)
-      .sort((a, b) => a.at - b.at)
+      .sort((a, b) => (a.at ?? 0) - (b.at ?? 0))
       .map((e) => e.text);
     bySide[meta.speaker] += texts.length;
     if (texts.length === 0) {
@@ -45,7 +55,7 @@ function buildTranscriptXml(lobby: Lobby): { xml: string; missingSides: Side[] }
     missingSides.length > 0
       ? ` note="no transcript captured for ${missingSides.join(' and ')} (unsupported browser or mic issue)"`
       : '';
-  const xml = `<debate motion_en="${escapeXml(lobby.topic?.en ?? '')}" motion_ar="${escapeXml(lobby.topic?.ar ?? '')}"${note}>\n${segments.join('\n')}\n</debate>`;
+  const xml = `<debate motion_en="${escapeXml(motion.en ?? '')}" motion_ar="${escapeXml(motion.ar ?? '')}"${note}>\n${segments.join('\n')}\n</debate>`;
   return { xml, missingSides };
 }
 
@@ -57,6 +67,7 @@ NEUTRALITY — read this twice:
 - These are friends playing a game; debaters often defend positions they don't believe, including edgy or offensive ones. Defending ANY position skillfully scores high. Full stop.
 - The swap test, apply it before you answer: if the two debaters had argued the opposite sides with exactly this quality of argumentation, your scores must swap exactly with them. If they would not swap, you are scoring the position instead of the debating — fix your scores before answering.
 - Never give benefit-of-the-doubt asymmetrically. Vague claims are equally vague on both sides.
+- Speaking order is not merit. FOR always opens and AGAINST always gets the last word (the final closing). Do not let recency or the last word sway you: weigh openings and closings on equal footing, and never reward or penalize a debater for their slot in the running order.
 
 SCORING RUBRIC (fixed weights, score each debater in each category):
 - argument (0-30) "made your case": did they state a clear position and back it with reasons that actually connect to their conclusion?
@@ -148,13 +159,18 @@ export function namesOf(lobby: Lobby): Record<Side, string> {
   };
 }
 
-async function callJudge(lobby: Lobby): Promise<Verdict> {
-  const names = namesOf(lobby);
-  const { xml } = buildTranscriptXml(lobby);
+/**
+ * Score a transcript against a motion. The judge never sees names or which
+ * real person is which — only "Debater A (FOR)" / "Debater B (AGAINST)". The
+ * returned summary still holds the [WINNER] token (callers substitute a name).
+ * Exported so the fairness eval can score synthetic transcripts directly.
+ */
+export async function scoreTranscript(
+  motion: { en?: string; ar?: string },
+  transcript: Line[],
+): Promise<Verdict> {
+  const { xml } = buildTranscriptXml(motion, transcript);
 
-  // Bias containment: the judge never sees yap names (they leak gender and
-  // identity cues) — only "Debater A (FOR)" / "Debater B (AGAINST)". The
-  // winner's real name is substituted into the summary after judging.
   const response = await getClient().messages.create(
     {
       model: 'claude-opus-4-8',
@@ -188,18 +204,24 @@ async function callJudge(lobby: Lobby): Promise<Verdict> {
   const winnerSide: Side = raw.winner === 'AGAINST' ? 'AGAINST' : 'FOR';
   return {
     winner: winnerSide,
-    summary: String(raw.summary ?? '').replaceAll('[WINNER]', names[winnerSide]).slice(0, 400),
+    summary: String(raw.summary ?? '').slice(0, 400),
     scores: { FOR: cf, AGAINST: ca },
     bestQuote: {
-      FOR: String(raw.bestQuote.FOR ?? '').slice(0, 300),
-      AGAINST: String(raw.bestQuote.AGAINST ?? '').slice(0, 300),
+      FOR: String(raw.bestQuote?.FOR ?? '').slice(0, 300),
+      AGAINST: String(raw.bestQuote?.AGAINST ?? '').slice(0, 300),
     },
     feedback: {
-      FOR: (raw.feedback.FOR ?? []).slice(0, 2).map((s) => String(s).slice(0, 300)),
-      AGAINST: (raw.feedback.AGAINST ?? []).slice(0, 2).map((s) => String(s).slice(0, 300)),
+      FOR: (raw.feedback?.FOR ?? []).slice(0, 2).map((s) => String(s).slice(0, 300)),
+      AGAINST: (raw.feedback?.AGAINST ?? []).slice(0, 2).map((s) => String(s).slice(0, 300)),
     },
     injectionDetected: Boolean(raw.injectionDetected),
   };
+}
+
+async function callJudge(lobby: Lobby): Promise<Verdict> {
+  const names = namesOf(lobby);
+  const v = await scoreTranscript(lobby.topic ?? {}, lobby.transcript);
+  return { ...v, summary: v.summary.replaceAll('[WINNER]', names[v.winner]) };
 }
 
 export async function runJudge(io: Io, lobby: Lobby, requesterSocketId?: string): Promise<void> {

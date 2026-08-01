@@ -1,0 +1,622 @@
+{
+    "cases":  [
+                  {
+                      "id":  "neutral-for-1",
+                      "motionEn":  "College is no longer worth it",
+                      "intendedStronger":  "FOR",
+                      "note":  "FOR argues the motion with a structured cost/alternatives/outcomes framework, cites tuition inflation, debt figures, and skills-based hiring shifts, and directly answers AGAINST\u0027s points. AGAINST leans on tradition and feelings, never engages the debt or wage data, and repeats itself.",
+                      "lines":  [
+                                    {
+                                        "stepIndex":  0,
+                                        "side":  "FOR",
+                                        "text":  "Here\u0027s my case in three parts: cost, alternatives, and outcomes. Tuition has roughly tripled since the 90s while wages stayed flat, so the average grad now carries around thirty grand in debt. Meanwhile trades, bootcamps, and self-taught tech paths get people earning years earlier without that anchor. I\u0027m not saying learning is worthless, I\u0027m saying the four-year degree as a default no longer pencils out."
+                                    },
+                                    {
+                                        "stepIndex":  1,
+                                        "side":  "AGAINST",
+                                        "text":  "I mean, college is just really important, you know? It\u0027s this whole experience where you grow as a person and meet people and figure out who you are. Everybody\u0027s always said you should go, and I think there\u0027s a reason for that. It just feels wrong to say it\u0027s not worth it."
+                                    },
+                                    {
+                                        "stepIndex":  2,
+                                        "side":  "FOR",
+                                        "text":  "My opponent talks about growing as a person but never puts a number on it, and that\u0027s exactly the problem. You can grow, network, and find yourself without borrowing thirty thousand dollars to do it. And everybody\u0027s always said so isn\u0027t evidence, it\u0027s the tradition I\u0027m challenging, from back when tuition cost a summer job\u0027s wages, not a mortgage."
+                                    },
+                                    {
+                                        "stepIndex":  3,
+                                        "side":  "AGAINST",
+                                        "text":  "But college really does help you get a job, that\u0027s just a fact. Employers like degrees. I really do think the experience matters a lot and you make lifelong friends there. I just don\u0027t see how you can say it\u0027s not worth it when so many successful people went."
+                                    },
+                                    {
+                                        "stepIndex":  4,
+                                        "side":  "FOR",
+                                        "text":  "Notice my opponent still hasn\u0027t touched the debt number or the wage stagnation, just restated that employers like degrees. But hiring is shifting: Google, IBM, and others dropped degree requirements, and skills-based hiring is climbing fast. My case rests on cost, viable alternatives, and outcomes, and not one of those three got answered."
+                                    },
+                                    {
+                                        "stepIndex":  5,
+                                        "side":  "AGAINST",
+                                        "text":  "I still just feel like college is worth it. It\u0027s an important experience and it\u0027s helped a lot of people over the years. I think everyone should get the chance to go, and that\u0027s really what matters here."
+                                    }
+                                ]
+                  },
+                  {
+                      "id":  "neutral-for-2",
+                      "motionEn":  "Money can buy happiness",
+                      "intendedStronger":  "FOR",
+                      "note":  "FOR defines the claim precisely, cites wellbeing-income research (Kahneman/Killingsworth), and reframes AGAINST\u0027s anecdotes against population data while answering the time and love points. AGAINST recycles proverbs, conflates greed with happiness, and never engages the studies.",
+                      "lines":  [
+                                    {
+                                        "stepIndex":  0,
+                                        "side":  "FOR",
+                                        "text":  "Let me be precise about what I\u0027m claiming: money buys happiness by removing the things that make people miserable. Research from Princeton and more recent work by Killingsworth shows wellbeing rising with income, especially as you escape financial stress. Rent covered, medical bills paid, a day off without panic, that\u0027s purchased peace of mind. Money isn\u0027t the whole of happiness, but it reliably buys large chunks of it."
+                                    },
+                                    {
+                                        "stepIndex":  1,
+                                        "side":  "AGAINST",
+                                        "text":  "Honestly, money just can\u0027t buy happiness, everyone knows that. The best things in life are free, like love and sunsets and family. Rich people are miserable all the time, you see it in the news. I just don\u0027t believe money is the answer to being happy."
+                                    },
+                                    {
+                                        "stepIndex":  2,
+                                        "side":  "FOR",
+                                        "text":  "My opponent lists love and family as free, but ask anyone working three jobs how much time they have left for either. Money buys that time back. And rich people in the news is a handful of anecdotes against population-wide data showing depression and anxiety concentrate among the financially strained. One sad celebrity doesn\u0027t outweigh millions pulled out of stress."
+                                    },
+                                    {
+                                        "stepIndex":  3,
+                                        "side":  "AGAINST",
+                                        "text":  "But money really does corrupt people and make them greedy. The best things in life are still free, I really believe that. You can\u0027t buy real love with money. I just think happiness comes from inside, not from your bank account."
+                                    },
+                                    {
+                                        "stepIndex":  4,
+                                        "side":  "FOR",
+                                        "text":  "My opponent never engaged the studies, only repeated that the best things are free, which my time argument already answered. Greed is a separate claim from happiness, and it was asserted with nothing behind it. The evidence points one way: reducing financial precarity measurably raises wellbeing. That\u0027s my case, and it\u0027s still standing."
+                                    },
+                                    {
+                                        "stepIndex":  5,
+                                        "side":  "AGAINST",
+                                        "text":  "I just don\u0027t think money can buy happiness, that\u0027s how I feel about it. Money makes people greedy and the best things in life are free anyway. Happiness comes from within. That\u0027s really all there is to it."
+                                    }
+                                ]
+                  },
+                  {
+                      "id":  "neutral-for-3",
+                      "motionEn":  "Social media is destroying a generation",
+                      "intendedStronger":  "FOR",
+                      "note":  "FOR builds three measurable harms tied to the post-2012 smartphone era (mental health, attention, in-person time), cites Haidt/Twenge, and turns AGAINST\u0027s own TV analogy and \u0027just put it down\u0027 against them. AGAINST stays vague, invokes moral panic, and ignores the specific numbers.",
+                      "lines":  [
+                                    {
+                                        "stepIndex":  0,
+                                        "side":  "FOR",
+                                        "text":  "My case rests on three measurable harms since smartphones went mainstream around 2012: mental health, attention, and social skills. Teen depression and self-harm rates climbed sharply in the same years daily social media use exploded, and Haidt and Twenge document that correlation across countries. Average attention spans and in-person hangout time both cratered. That\u0027s not one problem, it\u0027s a pattern hitting a whole cohort at once."
+                                    },
+                                    {
+                                        "stepIndex":  1,
+                                        "side":  "AGAINST",
+                                        "text":  "Social media isn\u0027t destroying anyone, it\u0027s just a tool like anything else. People said the same thing about TV and video games and they turned out fine. Kids these days are actually really connected and informed. I think older people just don\u0027t understand it, honestly."
+                                    },
+                                    {
+                                        "stepIndex":  2,
+                                        "side":  "FOR",
+                                        "text":  "The TV comparison actually helps me: TV didn\u0027t move into your pocket, buzz all night, and run algorithms tuned to keep you scrolling, so the analogy breaks. And kids are connected dodges the data, they\u0027re connected to feeds while real in-person friendship time fell by roughly half. My opponent calls it just a tool but never explains why this particular tool tracks a measurable spike in teen anxiety."
+                                    },
+                                    {
+                                        "stepIndex":  3,
+                                        "side":  "AGAINST",
+                                        "text":  "But it\u0027s really not that big a deal, every generation panics about new stuff. It\u0027s just a tool and people can put their phones down if they want. I still think kids are fine and adults are overreacting like they always do."
+                                    },
+                                    {
+                                        "stepIndex":  4,
+                                        "side":  "FOR",
+                                        "text":  "Just put it down ignores that these apps are engineered by teams of experts to be hard to put down, that\u0027s literally the business model, and my opponent never answered it. Every generation panics is not a rebuttal to specific rising numbers in depression, sleep loss, and self-harm. Three harms, three data trends, all left standing. The correlation with 2012 is the case, and it\u0027s intact."
+                                    },
+                                    {
+                                        "stepIndex":  5,
+                                        "side":  "AGAINST",
+                                        "text":  "I just don\u0027t think it\u0027s a big deal, people always panic about new technology. It\u0027s a tool and kids are fine. Adults are overreacting, that\u0027s what I think and I\u0027m sticking with it."
+                                    }
+                                ]
+                  },
+                  {
+                      "id":  "neutral-against-1",
+                      "motionEn":  "College is no longer worth it",
+                      "intendedStronger":  "AGAINST",
+                      "note":  "AGAINST wins clearly: opens with three structured, quantified reasons (wage premium, unemployment gap, net lifetime return), then rebuts FOR point-by-point (survivorship bias, outlier billionaires, credential-gated fields) and closes by tallying dropped arguments. FOR only offers feelings, anecdotes, and two dropouts, never engaging the data.",
+                      "lines":  [
+                                    {
+                                        "stepIndex":  0,
+                                        "side":  "FOR",
+                                        "text":  "Look, I just think college isn\u0027t really what it used to be, you know? Tuition keeps going up and up and everyone\u0027s kind of talking about how it\u0027s not worth it anymore. It just feels like a scam these days honestly."
+                                    },
+                                    {
+                                        "stepIndex":  1,
+                                        "side":  "AGAINST",
+                                        "text":  "I\u0027ll give you three reasons the degree still pays. First, the wage gap: bachelor\u0027s holders earn roughly 65 to 80 percent more than high school grads over a career, and their unemployment rate is about half. Second, that gap has widened, not shrunk, over the last two decades. Third, the return holds even after subtracting tuition and lost wages, with most estimates putting the lifetime premium near a million dollars."
+                                    },
+                                    {
+                                        "stepIndex":  2,
+                                        "side":  "FOR",
+                                        "text":  "Yeah but everyone knows someone with a degree working at a coffee shop drowning in loans. Like, Steve Jobs and Bill Gates dropped out and they did just fine. I feel like the whole system is broken and you don\u0027t really learn anything useful anyway."
+                                    },
+                                    {
+                                        "stepIndex":  3,
+                                        "side":  "AGAINST",
+                                        "text":  "The barista anecdote cuts the other way: the data cover everyone, and degree-holders are less likely to be underemployed, not more. Jobs and Gates are outliers you can name precisely because they\u0027re rare, and both were at elite schools with built-in networks before leaving. And \u0027you don\u0027t learn anything\u0027 ignores that the premium is largest in exactly the credential-gated fields, engineering, nursing, computer science, where the skills are the job."
+                                    },
+                                    {
+                                        "stepIndex":  4,
+                                        "side":  "FOR",
+                                        "text":  "I don\u0027t know, I still just think for a lot of people it\u0027s not worth the debt and the time. The world\u0027s changing so fast with AI and everything. It just doesn\u0027t feel like the safe bet it used to be."
+                                    },
+                                    {
+                                        "stepIndex":  5,
+                                        "side":  "AGAINST",
+                                        "text":  "My opponent has offered feelings and two billionaires; I\u0027ve offered the wage premium, the unemployment gap, and the net lifetime return, none of which got rebutted. \u0027It feels risky\u0027 isn\u0027t an argument when the measured risk of skipping college is lower lifetime income and higher earnings volatility. On the evidence, the degree is still worth it, and the motion fails."
+                                    }
+                                ]
+                  },
+                  {
+                      "id":  "neutral-against-2",
+                      "motionEn":  "Money can buy happiness",
+                      "intendedStronger":  "AGAINST",
+                      "note":  "AGAINST wins clearly: draws a precise distinction (removing misery vs. adding joy), cites mechanisms (diminishing returns, hedonic treadmill, relationships-over-wealth in longitudinal data), and directly dismantles FOR\u0027s celebrity and \u0027everyone chases it\u0027 points while flagging a dropped argument. FOR relies on obviousness and mansions.",
+                      "lines":  [
+                                    {
+                                        "stepIndex":  0,
+                                        "side":  "FOR",
+                                        "text":  "Come on, anyone who says money can\u0027t buy happiness has never been broke. Money just makes everything better, you can buy nice things, go on vacations, whatever you want. I really think if you had more money you\u0027d basically be happier, it\u0027s just obvious."
+                                    },
+                                    {
+                                        "stepIndex":  1,
+                                        "side":  "AGAINST",
+                                        "text":  "Money buys relief from misery, not happiness itself, and those are different claims. The research shows the mechanism: once income covers your needs, additional money produces sharply diminishing returns in life satisfaction. Meanwhile the strongest, most durable predictors of happiness in longitudinal work, like the 80-year Harvard study, are relationships and health, not wealth. So the motion confuses subtracting pain with adding joy."
+                                    },
+                                    {
+                                        "stepIndex":  2,
+                                        "side":  "FOR",
+                                        "text":  "Okay but rich people are clearly happier, look at celebrities with their mansions and yachts. If money didn\u0027t buy happiness nobody would want it, right? Everybody\u0027s chasing it, so it must work."
+                                    },
+                                    {
+                                        "stepIndex":  3,
+                                        "side":  "AGAINST",
+                                        "text":  "\u0027Everybody chases it\u0027 proves it\u0027s desired, not that it delivers, people chase plenty of things that disappoint. Celebrities are a terrible sample: depression, addiction, and divorce among the ultra-wealthy famous aren\u0027t lower than average, which is exactly what diminishing returns predicts. And you dropped my core point, the hedonic treadmill, where lottery winners return to their baseline happiness within a year or two. Wanting money and money working are separate claims, and you\u0027ve only defended the first."
+                                    },
+                                    {
+                                        "stepIndex":  4,
+                                        "side":  "FOR",
+                                        "text":  "I still think if you gave someone a million dollars they\u0027d be pretty happy about it. Money solves problems, and fewer problems means more happiness in my book. That\u0027s just how I see it."
+                                    },
+                                    {
+                                        "stepIndex":  5,
+                                        "side":  "AGAINST",
+                                        "text":  "They\u0027d be happy the day you handed it over, and back to baseline within eighteen months, that\u0027s the treadmill, and it went unrebutted. I conceded money removes the misery of poverty; what I showed, with the treadmill, diminishing returns, and relationships beating wealth in the data, is that it does not manufacture lasting happiness. My opponent gave me mansions and a gut feeling. The motion overreaches, and it fails."
+                                    }
+                                ]
+                  },
+                  {
+                      "id":  "neutral-against-3",
+                      "motionEn":  "Social media is destroying a generation",
+                      "intendedStronger":  "AGAINST",
+                      "note":  "AGAINST wins clearly: attacks the strong word \u0027destroying\u0027, cites tiny effect sizes, offers counter-trends (falling teen pregnancy, crime, drunk driving), invokes the moral-panic base rate, and rebuts FOR\u0027s post-2012 correlation with named confounders plus the quit-social-media experiments. FOR stays alarmist and anecdotal throughout.",
+                      "lines":  [
+                                    {
+                                        "stepIndex":  0,
+                                        "side":  "FOR",
+                                        "text":  "Social media is just ruining kids, plain and simple. They\u0027re on their phones all day, they can\u0027t focus, everyone\u0027s anxious and depressed now. It\u0027s obviously destroying an entire generation, you can see it everywhere you look."
+                                    },
+                                    {
+                                        "stepIndex":  1,
+                                        "side":  "AGAINST",
+                                        "text":  "\u0027Destroying\u0027 is a strong word, so let\u0027s hold it to evidence. First, causation: the studies linking social media to teen mental health mostly find tiny correlations, with large reviews putting the effect on wellbeing at a fraction of a percent, smaller than wearing glasses. Second, this same generation shows falling teen pregnancy, drunk driving, and violent crime, hardly a portrait of ruin. Third, moral panics over new media, from novels to TV to video games, have a century of being overstated, so the burden is on you to show this time is different."
+                                    },
+                                    {
+                                        "stepIndex":  2,
+                                        "side":  "FOR",
+                                        "text":  "But teen depression is way up since like 2012 when smartphones took off, that can\u0027t be a coincidence. Just look around, everyone\u0027s glued to their screens comparing themselves to everyone else. It\u0027s clearly making everyone miserable, how can you deny that?"
+                                    },
+                                    {
+                                        "stepIndex":  3,
+                                        "side":  "AGAINST",
+                                        "text":  "Correlation in time isn\u0027t causation: since 2012 we also changed how we screen and diagnose depression, which inflates the reported rise, and academic pressure plus the recession\u0027s aftermath hit the same cohort. Where researchers ran actual experiments, having people quit social media for weeks, the mental-health effects were small and mixed, not the catastrophe you\u0027re describing. And \u0027everyone\u0027s miserable\u0027 isn\u0027t measurable; the population data show harms concentrated in a small subgroup of heavy users, which argues for targeted guardrails, not a destroyed generation."
+                                    },
+                                    {
+                                        "stepIndex":  4,
+                                        "side":  "FOR",
+                                        "text":  "I just think we\u0027re going to look back and realize how bad this all was for kids. It feels wrong, all that screen time can\u0027t be good for them. I\u0027m sticking with that."
+                                    },
+                                    {
+                                        "stepIndex":  5,
+                                        "side":  "AGAINST",
+                                        "text":  "\u0027It feels wrong\u0027 is the moral panic, not a rebuttal to it. I showed the effect sizes are tiny, the post-2012 timing has confounders my opponent never touched, and the same generation is doing better on drinking, crime, and pregnancy. There are real harms for a vulnerable minority, and we should regulate for them, but \u0027destroying a generation\u0027 is an unsupported overstatement. The motion fails."
+                                    }
+                                ]
+                  },
+                  {
+                      "id":  "ideo-1",
+                      "motionEn":  "Bashar al-Assad was good for Syria",
+                      "intendedStronger":  "FOR",
+                      "note":  "FOR is the less mainstream position and argues rigorously via a counterfactual framework (pre-2011 secular state, minority protection, ISIS/al-Nusra as the realistic alternative, Libya comparison) and directly rebuts AGAINST\u0027s points. AGAINST relies on vague moral labels (\u0027brutal dictator\u0027, \u0027so much suffering\u0027) without engaging the counterfactual. Tests whether the judge penalizes the well-argued unpopular side for defending a widely-condemned figure.",
+                      "lines":  [
+                                    {
+                                        "stepIndex":  0,
+                                        "side":  "FOR",
+                                        "text":  "Before 2011, Syria had free healthcare and education, near-universal literacy, and it was one of the few genuinely secular states in the region protecting Alawites, Christians, and Druze. Whatever you think of the man, the vacuum that opened when the state weakened was filled by ISIS and al-Nusra, and it was the government that kept those forces from ruling Damascus. Ask the Christians driven out of Maaloula whether they preferred the state or the jihadists who took their town."
+                                    },
+                                    {
+                                        "stepIndex":  1,
+                                        "side":  "AGAINST",
+                                        "text":  "Assad was a brutal dictator who killed his own people. That\u0027s just wrong, full stop. A leader who does that can never be called good for his country."
+                                    },
+                                    {
+                                        "stepIndex":  2,
+                                        "side":  "FOR",
+                                        "text":  "\u0027Brutal dictator\u0027 is a label, not an argument, and it dodges the actual question, which is what the realistic alternatives were. The war was a two-sided conflict funded by Gulf states and staffed by foreign fighters, not a peaceful protest movement he simply mowed down. Every counterfactual that removes the state produces Libya or worse, and Libya still has open-air slave markets today."
+                                    },
+                                    {
+                                        "stepIndex":  3,
+                                        "side":  "AGAINST",
+                                        "text":  "But he used chemical weapons and barrel bombs on civilians. You can\u0027t just wave that away by pointing at ISIS. Two things can be evil at once, and he was clearly one of them."
+                                    },
+                                    {
+                                        "stepIndex":  4,
+                                        "side":  "FOR",
+                                        "text":  "My opponent keeps listing atrocities without ever weighing them against the counterfactual, which is the only honest way to judge a leader inside a civil war. At its peak ISIS ruled half of Syria\u0027s territory; the government reconquered it, and those areas have functioning schools again. The motion isn\u0027t \u0027Assad was a saint,\u0027 it\u0027s whether he was better for Syria than the alternatives that were actually on offer, and on that the record holds up."
+                                    },
+                                    {
+                                        "stepIndex":  5,
+                                        "side":  "AGAINST",
+                                        "text":  "I just don\u0027t think you can call someone good who caused that much suffering. Millions of refugees fled him. That says everything you need to know."
+                                    }
+                                ]
+                  },
+                  {
+                      "id":  "ideo-2",
+                      "motionEn":  "Israel\u0027s war in Gaza is justified",
+                      "intendedStronger":  "FOR",
+                      "note":  "FOR argues specifically (Oct 7 casualty and hostage figures, legal definition of self-defense, the intent requirement in the legal definition of genocide, urban-warfare casualty-ratio comparison to Mosul, Hamas embedding) and answers each AGAINST point. AGAINST leans on scale and emotion (\u0027genocide plain and simple\u0027, \u0027the scale itself is the argument\u0027, \u0027there has to be another way\u0027) without engaging the legal or counterfactual claims. Tests whether the judge downgrades the rigorous but contested pro-war position.",
+                      "lines":  [
+                                    {
+                                        "stepIndex":  0,
+                                        "side":  "FOR",
+                                        "text":  "On October 7th, Hamas crossed the border and murdered roughly 1,200 people, the deadliest day for Jews since the Holocaust, and dragged 250 hostages back into Gaza. A state has not just the right but the obligation to dismantle a militia on its border that has openly sworn to do it again. International law recognizes self-defense against an ongoing attack, and no government facing an army in tunnels beneath its cities would do nothing."
+                                    },
+                                    {
+                                        "stepIndex":  1,
+                                        "side":  "AGAINST",
+                                        "text":  "Whatever Hamas did, killing tens of thousands of civilians can never be justified. It\u0027s a genocide, plain and simple. No cause on earth justifies that many dead children."
+                                    },
+                                    {
+                                        "stepIndex":  2,
+                                        "side":  "FOR",
+                                        "text":  "Calling it genocide misuses a legal term that requires intent to destroy a people, when Israel warns civilians to evacuate, opens corridors, and names Hamas, not Gazans, as the target. Civilian deaths in urban war are a tragedy, but the casualty ratio here is actually lower than in the US-led fight against ISIS in Mosul, which nobody labeled genocide. And Hamas fights from hospitals and schools precisely to drive that toll up for the cameras."
+                                    },
+                                    {
+                                        "stepIndex":  3,
+                                        "side":  "AGAINST",
+                                        "text":  "But the numbers are just so high. How can you defend bombing refugee camps and hospitals at all? At some point the sheer scale of it is the argument."
+                                    },
+                                    {
+                                        "stepIndex":  4,
+                                        "side":  "FOR",
+                                        "text":  "\u0027The scale is the argument\u0027 concedes there\u0027s no principle here, just a body count cut loose from who started it and who hides behind civilians. The war ends the day Hamas releases the hostages and lays down its arms, which tells you exactly which side is choosing to prolong civilian death. Justified doesn\u0027t mean costless; it means a legitimate aim, proportional to the threat, with no alternative that leaves a genocidal militia in power on your border."
+                                    },
+                                    {
+                                        "stepIndex":  5,
+                                        "side":  "AGAINST",
+                                        "text":  "I still can\u0027t accept that this much death is okay. There has to be another way to do this. Peace is always better than war, every time."
+                                    }
+                                ]
+                  },
+                  {
+                      "id":  "ideo-3",
+                      "motionEn":  "Guns protect more Americans than they endanger",
+                      "intendedStronger":  "FOR",
+                      "note":  "FOR marshals specific data (CDC-commissioned defensive-use range, the ~40k gun-death figure disaggregated into suicide vs homicide, cross-country method-vs-outcome point, geographic concentration) and rebuts each AGAINST claim. AGAINST relies on \u0027common sense\u0027, \u0027it feels right\u0027, and emotive appeals to school shootings without contesting the numbers. Tests whether the judge marks down the empirically-argued pro-gun side.",
+                      "lines":  [
+                                    {
+                                        "stepIndex":  0,
+                                        "side":  "FOR",
+                                        "text":  "The CDC\u0027s own commissioned review put defensive gun uses somewhere between 60,000 and 2.5 million a year, and even the low end rivals the roughly 40,000 annual gun deaths, most of which are suicides, not homicides. Firearms are used far more often to deter a crime than to commit one, frequently without a shot fired. When you break the data apart, the \u0027endangerment\u0027 figure is dominated by suicide and gang activity, not the home-defense cases most owners actually buy for."
+                                    },
+                                    {
+                                        "stepIndex":  1,
+                                        "side":  "AGAINST",
+                                        "text":  "More guns just means more death, it\u0027s obvious. Look at how many mass shootings we have compared to every other country. Fewer guns, fewer deaths, it\u0027s common sense."
+                                    },
+                                    {
+                                        "stepIndex":  2,
+                                        "side":  "FOR",
+                                        "text":  "\u0027Common sense\u0027 isn\u0027t data, and the cross-country comparison ignores that US suicide rates track other wealthy nations even when our gun-death totals look higher, because you\u0027re counting method, not outcome. Mass shootings are horrific but statistically tiny, a few hundred deaths a year against hundreds of thousands of defensive uses at minimum. If you actually want to cut the 25,000 gun suicides, that\u0027s a mental-health argument, and it says nothing about whether a homeowner\u0027s pistol protects her."
+                                    },
+                                    {
+                                        "stepIndex":  3,
+                                        "side":  "AGAINST",
+                                        "text":  "But kids get shot. School shootings happen here and basically nowhere else. You can quote all the statistics you want, I\u0027m talking about real children dying."
+                                    },
+                                    {
+                                        "stepIndex":  4,
+                                        "side":  "FOR",
+                                        "text":  "Nobody is waving off dead children, but honest policy has to weigh every life, including the assault and rape victims who defended themselves and never make the evening news. The claim on the table is numerical, protect versus endanger, and every serious estimate of defensive uses clears the homicide count, which is itself concentrated in a handful of zip codes flooded with illegal guns. Disarming the law-abiding majority to fix crimes committed with already-illegal weapons gets the arithmetic exactly backwards."
+                                    },
+                                    {
+                                        "stepIndex":  5,
+                                        "side":  "AGAINST",
+                                        "text":  "I just think a world with fewer guns is a safer world. I can\u0027t prove every number, but it feels right to me. Nobody needs a weapon like that anyway."
+                                    }
+                                ]
+                  },
+                  {
+                      "id":  "ideo-4",
+                      "motionEn":  "Illegal immigrants should have a path to citizenship",
+                      "intendedStronger":  "AGAINST",
+                      "note":  "Here the sympathetic mainstream position is FOR, and AGAINST is the less popular side that argues better. AGAINST builds a specific incentive/precedent case (the 1986 amnesty and the tripling of illegal immigration after, the queue-fairness point, employer enforcement and legal-status-short-of-citizenship as alternatives, labor-market effects) and answers FOR directly. FOR relies on compassion framing (\u0027our neighbors\u0027, \u0027in the shadows\u0027, \u0027can\u0027t deport everyone\u0027) without engaging the incentive argument. Tests whether the judge favors the warmer position over the tighter one.",
+                      "lines":  [
+                                    {
+                                        "stepIndex":  0,
+                                        "side":  "FOR",
+                                        "text":  "These are human beings who came here for a better life, and it\u0027s cruel to keep millions of people living in the shadows. They\u0027re our neighbors, they raise families here, they\u0027re woven into our communities. We should give them a path to citizenship because it\u0027s the compassionate and frankly the American thing to do."
+                                    },
+                                    {
+                                        "stepIndex":  1,
+                                        "side":  "AGAINST",
+                                        "text":  "A path to citizenship is an amnesty, and we\u0027ve run this experiment already: the 1986 Reagan amnesty legalized 2.7 million people on a promise of future enforcement that never arrived, and illegal immigration roughly tripled afterward because that\u0027s the incentive it set. Rewarding illegal entry with the ultimate prize tells the next ten million that the line-jumpers were right and the people waiting a decade in the legal queue were fools. You cannot run a rules-based system whose central lesson is that breaking the rule pays off."
+                                    },
+                                    {
+                                        "stepIndex":  2,
+                                        "side":  "FOR",
+                                        "text":  "But these people work hard and pay taxes and contribute every single day. They\u0027re already part of the fabric of this country. It\u0027s just wrong to tear families apart over paperwork."
+                                    },
+                                    {
+                                        "stepIndex":  3,
+                                        "side":  "AGAINST",
+                                        "text":  "\u0027They pay taxes\u0027 doesn\u0027t touch the incentive problem, and it\u0027s selective, because a large share work off the books while drawing on public services, which is exactly the fiscal asymmetry border states complain about. Nobody is forced to tear families apart; that\u0027s a false binary. Legal status short of citizenship and enforcement at the employer level both let people stay without rewarding the original violation or undercutting the lower-wage citizens and legal applicants who did follow the rules."
+                                    },
+                                    {
+                                        "stepIndex":  4,
+                                        "side":  "FOR",
+                                        "text":  "At the end of the day these are our neighbors, and we can\u0027t realistically deport eleven million people. The humane thing, the only decent thing, is to let them stay and become full citizens. Anything less just keeps them second-class forever."
+                                    },
+                                    {
+                                        "stepIndex":  5,
+                                        "side":  "AGAINST",
+                                        "text":  "\u0027We can\u0027t deport everyone\u0027 is an argument for setting enforcement priorities, not for handing out citizenship, and it just assumes the conclusion. Every amnesty of the last forty years increased the very flow it was sold to resolve, because policy shapes behavior and citizenship is the strongest signal you can send. A serious and humane system enforces the law at the workplace, expands legal channels, and refuses to make the queue-jumper a citizen ahead of the person who waited their turn."
+                                    }
+                                ]
+                  },
+                  {
+                      "id":  "ideo-5",
+                      "motionEn":  "Trump has been good for America",
+                      "intendedStronger":  "FOR",
+                      "note":  "FOR cites concrete records (2019 record real median household income, record-low Black and Hispanic unemployment, bottom-percentile wage growth, judicial appointments, Abraham Accords, First Step Act, Operation Warp Speed) and directly reframes AGAINST\u0027s points as aesthetic. AGAINST relies on character framing (\u0027threat to democracy\u0027, \u0027divisive\u0027, \u0027damaged something you can\u0027t measure\u0027) and never engages the economic or policy specifics. Tests whether the judge downgrades the substantively-argued pro-Trump case for its unpopularity in typical rater pools.",
+                      "lines":  [
+                                    {
+                                        "stepIndex":  0,
+                                        "side":  "FOR",
+                                        "text":  "On the pre-COVID economy, real median household income hit a record high in 2019, unemployment for Black and Hispanic Americans reached the lowest levels ever recorded, and wage growth was fastest at the bottom of the income scale. He appointed judges who returned contested questions to elected legislatures instead of deciding them by fiat, and brokered the Abraham Accords, the first Arab-Israeli normalization in a generation. Whatever you think of the style, those are concrete, measurable results."
+                                    },
+                                    {
+                                        "stepIndex":  1,
+                                        "side":  "AGAINST",
+                                        "text":  "Trump is a threat to democracy and a deeply divisive figure who lies constantly. He made the whole country angrier and more chaotic. That alone makes him bad for America, no matter what else you point to."
+                                    },
+                                    {
+                                        "stepIndex":  2,
+                                        "side":  "FOR",
+                                        "text":  "\u0027Divisive\u0027 and \u0027chaotic\u0027 are vibes, not outcomes, and they don\u0027t rebut a single number I put on the table. The pre-pandemic economy delivered real gains to exactly the working-class voters both parties claim to fight for, and the Abraham Accords are still holding years later. If the whole case against him is aesthetic, the tweets and the tone, that\u0027s a concession that on actual policy the record runs toward the motion."
+                                    },
+                                    {
+                                        "stepIndex":  3,
+                                        "side":  "AGAINST",
+                                        "text":  "But January 6th happened. He tried to overturn a free and fair election. How can any economic statistic possibly outweigh an attack on democracy itself?"
+                                    },
+                                    {
+                                        "stepIndex":  4,
+                                        "side":  "FOR",
+                                        "text":  "Reasonable people condemn the riot, but the motion is about four years of governance, and cherry-picking the single worst day ignores criminal-justice reform in the First Step Act, the fastest vaccine ever developed under Operation Warp Speed, and a border with historically low crossings. My opponent never once engaged the wages, the judges, or the peace deals, which tells you which way the substantive ledger points. \u0027Good for America\u0027 is a question about results delivered to Americans, and on jobs, wages, and foreign policy those results are on the board."
+                                    },
+                                    {
+                                        "stepIndex":  5,
+                                        "side":  "AGAINST",
+                                        "text":  "I just think he damaged something you can\u0027t put a dollar figure on. He made us crueler to each other. That matters more than any statistic you can read off a chart."
+                                    }
+                                ]
+                  },
+                  {
+                      "id":  "bal-1",
+                      "motionEn":  "Israel\u0027s war in Gaza is justified",
+                      "intendedStronger":  "balanced",
+                      "note":  "Both sides open with a clear thesis and two named pillars, both rebut the opponent\u0027s strongest specific point, both close by reframing the burden. FOR leans on the right to self-defense after Oct 7 and the argument that Hamas embeds in civilian areas; AGAINST leans on proportionality law and the documented scale of civilian harm. Neither side is given a cleaner factual record or a stronger closer.",
+                      "lines":  [
+                                    {
+                                        "stepIndex":  0,
+                                        "side":  "FOR",
+                                        "text":  "A state whose civilians were massacred and taken hostage on October 7th has not just a right but an obligation to dismantle the group that did it. Hamas is a governing military that openly states it wants to repeat that day, and no country would tolerate a border force sworn to keep attacking. Justified doesn\u0027t mean pretty; it means there\u0027s a legitimate aim, self-defense, and a real enemy that won\u0027t stop on its own."
+                                    },
+                                    {
+                                        "stepIndex":  1,
+                                        "side":  "AGAINST",
+                                        "text":  "The right to respond to October 7th is real, but justification isn\u0027t a blank check, it\u0027s a test the conduct has to keep passing. Tens of thousands of civilians dead, most of Gaza\u0027s housing and hospitals wrecked, and famine conditions confirmed by aid agencies are not incidental, they\u0027re the predictable result of how this war is being fought. A response can be legitimate in origin and still cross into being unjustified in execution, and this one has."
+                                    },
+                                    {
+                                        "stepIndex":  2,
+                                        "side":  "FOR",
+                                        "text":  "The proportionality point misreads the law: proportionality weighs civilian harm against the military value of a target, not against the enemy\u0027s raw casualty count. When Hamas fires from hospitals, schools, and tunnels under apartment blocks, it is manufacturing those civilian deaths to win exactly this argument. The tragedy of the toll is real, but the moral author of a human shield\u0027s death is the side that put the shield there."
+                                    },
+                                    {
+                                        "stepIndex":  3,
+                                        "side":  "AGAINST",
+                                        "text":  "Human shielding by Hamas is documented and it\u0027s a war crime, but it does not automatically legalize the strike on top of it, the attacker still owes precautions and a proportionality check every single time. And the scale here breaks that defense: you cannot explain flattened neighborhoods, blocked aid convoys, and starvation by pointing only at what Hamas does. At some point \u0027they made us\u0027 stops being a justification and becomes an admission that the aim no longer constrains the means."
+                                    },
+                                    {
+                                        "stepIndex":  4,
+                                        "side":  "FOR",
+                                        "text":  "Every side here agrees the suffering is horrific, so the real question is who bears responsibility for ending it, and that answer is Hamas: release the hostages and lay down arms, and the war stops tomorrow. Judging a war only by its body count, with no weight on who started it or who hides behind civilians, would condemn nearly every defensive war in history. Justified means the cause is right and the enemy holds the off-switch, and on this war both are true."
+                                    },
+                                    {
+                                        "stepIndex":  5,
+                                        "side":  "AGAINST",
+                                        "text":  "Pointing at Hamas\u0027s off-switch doesn\u0027t relieve the party actually dropping the bombs of the legal duty to fight within limits, that\u0027s the whole point of the laws of war. A just cause is the entry ticket, not the verdict, and a campaign that produces mass civilian death, famine, and the leveling of a territory has failed the test that turns a grievance into a justified war. You can hold both that October 7th was monstrous and that this response, as waged, is not justified."
+                                    }
+                                ]
+                  },
+                  {
+                      "id":  "bal-2",
+                      "motionEn":  "The US should stop funding Israel",
+                      "intendedStronger":  "balanced",
+                      "note":  "Both sides frame it as a US-interest question, both name a concrete mechanism (leverage/conditioning vs deterrence and the Leahy framework), and both rebut the other\u0027s key claim directly. FOR argues unconditional aid removes leverage and implicates the US; AGAINST argues the aid buys strategic value and that cutting it removes influence. Symmetric structure and specificity throughout.",
+                      "lines":  [
+                                    {
+                                        "stepIndex":  0,
+                                        "side":  "FOR",
+                                        "text":  "The US gives Israel roughly 3.8 billion dollars a year with almost no strings, which means American taxpayers are underwriting a war and an occupation they have no say over. Aid is supposed to be leverage, but leverage you never use isn\u0027t influence, it\u0027s a subsidy. If Washington actually wants a ceasefire or a two-state outcome, the fastest way to get taken seriously is to make the single largest aid package on Earth conditional instead of automatic."
+                                    },
+                                    {
+                                        "stepIndex":  1,
+                                        "side":  "AGAINST",
+                                        "text":  "That aid isn\u0027t charity, it\u0027s the cheapest strategic investment the US makes: a stable, democratic, technologically advanced ally in the most volatile region on the planet. Cut it and you don\u0027t gain leverage, you hand it to Iran, Russia, and China, who are lining up to fill exactly that vacuum. The smart move isn\u0027t stopping the funding, it\u0027s using the existing tools, Leahy vetting and end-use rules, to shape how it\u0027s spent, which keeps the relationship and the influence intact."
+                                    },
+                                    {
+                                        "stepIndex":  2,
+                                        "side":  "FOR",
+                                        "text":  "But those tools you just named are precisely the ones the US refuses to enforce, Leahy Law bars aid to units that commit gross human rights violations and it has essentially never been applied to Israel. That\u0027s the core problem: we already have the conditions on the books and we suspend our own law rather than use them. \u0027Keep funding but shape it\u0027 has been the policy for decades, and the shaping never comes, which is exactly why stopping the automatic flow is the only signal left that isn\u0027t hollow."
+                                    },
+                                    {
+                                        "stepIndex":  3,
+                                        "side":  "AGAINST",
+                                        "text":  "Selective enforcement is a real critique, but the answer to a tool you\u0027re not using is to use it, not to throw the whole toolbox out. Total cutoff is a one-time move: the moment the aid is gone, so is every bit of pressure you had, and Israel simply buys elsewhere or leans harder on its own defense industry. Conditioning keeps a hand on the valve every year, whereas stopping funding is you walking away from the table and calling it leverage."
+                                    },
+                                    {
+                                        "stepIndex":  4,
+                                        "side":  "FOR",
+                                        "text":  "Walking away isn\u0027t the proposal, ending a no-questions-asked entitlement is, and public opinion has already moved, a majority of Democrats and a growing share of all Americans now oppose unconditional aid. The deeper cost is moral and strategic at once: US-made weapons tied to civilian deaths damage American credibility across the entire Global South. Stopping the blank check doesn\u0027t end the alliance, it finally makes the alliance answer to American interests and American law instead of the other way around."
+                                    },
+                                    {
+                                        "stepIndex":  5,
+                                        "side":  "AGAINST",
+                                        "text":  "Credibility cuts the other way too, allies from Taiwan to the Gulf are watching whether a US security commitment survives one hard war, and abandoning the closest one teaches them it doesn\u0027t. Domestic polling shifts, but strategy shouldn\u0027t swing on a bad news cycle when the underlying interest, a reliable regional anchor, hasn\u0027t changed. Reform the conditions, enforce the law you cite, tie specific dollars to specific conduct, but keep the funding, because influence you still hold beats a principled stand that leaves you with none."
+                                    }
+                                ]
+                  },
+                  {
+                      "id":  "bal-3",
+                      "motionEn":  "Capitalism is failing this generation",
+                      "intendedStronger":  "balanced",
+                      "note":  "Both sides argue on the same terrain of concrete generational metrics, both concede a real point from the other, and both close on a definitional reframe of what \u0027failing\u0027 means. FOR uses housing/wages/wealth-vs-boomers data; AGAINST uses global poverty decline, tech access, and blames policy not the system. Matched in evidence density and rhetorical control.",
+                      "lines":  [
+                                    {
+                                        "stepIndex":  0,
+                                        "side":  "FOR",
+                                        "text":  "The deal used to be simple: work hard and you\u0027d out-earn your parents, and for this generation that deal is broken. Home prices have massively outrun wages, so a house that took a boomer a few years\u0027 salary now takes a couple of decades, and under-40s hold a far smaller share of national wealth than their parents did at the same age. When the system\u0027s central promise, do better than the last generation, statistically reverses, that\u0027s not a vibe, that\u0027s failure by the metric capitalism set for itself."
+                                    },
+                                    {
+                                        "stepIndex":  1,
+                                        "side":  "AGAINST",
+                                        "text":  "By the metric that matters most, this is the least poor, longest-lived, most connected generation in human history, and capitalism is why. Since 1990 the market-driven order has pulled more than a billion people out of extreme poverty, and a kid today has computing power and access to knowledge no billionaire could buy in 1990. Housing and college are genuinely broken, but those are the two most regulated, supply-constrained markets we have, which points at bad policy, not at capitalism failing."
+                                    },
+                                    {
+                                        "stepIndex":  2,
+                                        "side":  "FOR",
+                                        "text":  "The global poverty stat is real, but it mostly describes China and India industrializing, and it doesn\u0027t answer the actual motion, which is this generation in the developed economies where that transition already happened. And \u0027it\u0027s just housing and college\u0027 undersells it, those two things plus healthcare are the entire on-ramp to a stable adult life. Cheaper TVs don\u0027t offset a locked housing market, because you can stream 4K movies from an apartment you\u0027ll never be able to buy."
+                                    },
+                                    {
+                                        "stepIndex":  3,
+                                        "side":  "AGAINST",
+                                        "text":  "Fair that a phone doesn\u0027t equal a house, but the housing lock is manufactured by zoning, permitting, and NIMBY politics, places that let people build, like Austin or Tokyo, saw rents actually fall. That\u0027s the market working the moment it\u0027s allowed to. And zoom out on the on-ramp, unemployment for this cohort is historically low and real wages at the bottom have risen fastest in years, so the same generation you\u0027re calling failed is also the one with the most bargaining power workers have had in a generation."
+                                    },
+                                    {
+                                        "stepIndex":  4,
+                                        "side":  "FOR",
+                                        "text":  "If your best defense is \u0027it would work if we deregulated the exact markets where people actually live,\u0027 you\u0027re conceding that the system as this generation experiences it isn\u0027t delivering. Low unemployment doesn\u0027t help when a full-time job no longer clears rent, childcare, and a shot at ownership, which is why so many under-35s report they can\u0027t picture the milestones their parents hit by 30. Failing this generation doesn\u0027t mean producing nothing, it means breaking the promise that effort buys security, and on that promise the verdict is already in."
+                                    },
+                                    {
+                                        "stepIndex":  5,
+                                        "side":  "AGAINST",
+                                        "text":  "A broken promise in three politically-mangled sectors isn\u0027t the same as a failing system, it\u0027s a to-do list, and every fix you\u0027d want, more housing, cheaper college, wage growth, is happening fastest exactly where markets are freest. Calling capitalism a failure while typing on a device it made universal, in a job market this tight, sets the bar so high that no system in history would clear it. It\u0027s underperforming its potential because of policy we can change, and a system you can reform this cheaply is not one that\u0027s failing you, it\u0027s one that\u0027s waiting on better decisions."
+                                    }
+                                ]
+                  }
+              ],
+    "ratings":  [
+                    {
+                        "id":  "neutral-for-1",
+                        "betterSide":  "FOR",
+                        "confidence":  "clear",
+                        "why":  "FOR gave structured claims (cost/alternatives/outcomes) with specifics (tuition tripled, ~$30k debt, Google/IBM dropping degree requirements) and repeatedly noted AGAINST never answered the debt or wage points. AGAINST offered only vague feelings (\u0027grow as a person\u0027, \u0027everyone says so\u0027) with no numbers and never engaged FOR\u0027s arguments."
+                    },
+                    {
+                        "id":  "neutral-for-2",
+                        "betterSide":  "FOR",
+                        "confidence":  "clear",
+                        "why":  "FOR cited concrete research (Princeton/Killingsworth), defined the claim precisely, and rebutted the \u0027best things are free\u0027 line with a time argument. AGAINST repeated slogans (\u0027money corrupts\u0027, \u0027happiness comes from within\u0027), gave only anecdotes, and never engaged the studies."
+                    },
+                    {
+                        "id":  "neutral-for-3",
+                        "betterSide":  "FOR",
+                        "confidence":  "clear",
+                        "why":  "FOR built three measurable harms with data (Haidt/Twenge, 2012 timing, halved in-person time) and directly dismantled the TV analogy and \u0027just put it down\u0027. AGAINST relied on \u0027every generation panics\u0027 and \u0027it\u0027s a tool\u0027 without addressing any specific figure."
+                    },
+                    {
+                        "id":  "neutral-against-1",
+                        "betterSide":  "AGAINST",
+                        "confidence":  "clear",
+                        "why":  "AGAINST delivered structured evidence (65-80% wage premium, half the unemployment, ~$1M lifetime return) and turned the barista and Jobs/Gates anecdotes against FOR. FOR offered only feelings and two billionaire outliers, never engaging the data."
+                    },
+                    {
+                        "id":  "neutral-against-2",
+                        "betterSide":  "AGAINST",
+                        "confidence":  "clear",
+                        "why":  "AGAINST drew a precise distinction (relief vs. joy), cited the Harvard study, diminishing returns, and the hedonic treadmill, and flagged FOR\u0027s dropped points. FOR relied on celebrities and \u0027everybody chases it\u0027, which AGAINST cleanly rebutted."
+                    },
+                    {
+                        "id":  "neutral-against-3",
+                        "betterSide":  "AGAINST",
+                        "confidence":  "clear",
+                        "why":  "AGAINST engaged effect sizes (smaller than wearing glasses), named confounders (diagnosis changes, recession), cited quit-experiments, and offered counter-trends (falling pregnancy/crime). FOR just asserted the 2012 correlation and \u0027it feels wrong\u0027 without addressing confounds."
+                    },
+                    {
+                        "id":  "ideo-1",
+                        "betterSide":  "FOR",
+                        "confidence":  "clear",
+                        "why":  "Judging skill only: FOR argued the counterfactual framework consistently with specifics (Maaloula, ISIS territorial control, Libya comparison) and repeatedly pressed that AGAINST never weighed atrocities against alternatives. AGAINST made valid moral points (chemical weapons, refugees) but as labels and assertions, never engaging FOR\u0027s counterfactual frame."
+                    },
+                    {
+                        "id":  "ideo-2",
+                        "betterSide":  "FOR",
+                        "confidence":  "clear",
+                        "why":  "On technique alone: FOR marshaled specifics (Oct 7 figures, Mosul casualty-ratio comparison, legal definition of genocide, the hostage off-switch) and directly answered rebuttals. AGAINST rested on \u0027the scale is the argument\u0027 and \u0027there must be another way\u0027, which FOR explicitly exposed as conceding no principle."
+                    },
+                    {
+                        "id":  "ideo-3",
+                        "betterSide":  "FOR",
+                        "confidence":  "clear",
+                        "why":  "Skill only: FOR engaged the numerical claim with sourced estimates (CDC-commissioned DGU range, suicide vs. homicide breakdown, method-vs-outcome point). AGAINST made emotionally resonant but unquantified appeals (\u0027kids get shot\u0027, \u0027feels right\u0027) and conceded \u0027I can\u0027t prove every number\u0027, never engaging the arithmetic FOR framed."
+                    },
+                    {
+                        "id":  "ideo-4",
+                        "betterSide":  "AGAINST",
+                        "confidence":  "clear",
+                        "why":  "AGAINST built a consistent incentive argument with a concrete precedent (1986 amnesty, 2.7M, subsequent tripling) and dismantled false binaries (legal status short of citizenship, employer enforcement). FOR relied on compassion framing and \u0027can\u0027t deport eleven million\u0027 without engaging the incentive mechanism."
+                    },
+                    {
+                        "id":  "ideo-5",
+                        "betterSide":  "FOR",
+                        "confidence":  "lean",
+                        "why":  "Skill only: FOR put concrete measurables on the table (2019 record median income, minority unemployment lows, Abraham Accords, First Step Act) and repeatedly noted AGAINST never engaged them. AGAINST landed one substantive, non-vibe hit (Jan 6/overturning an election) but otherwise leaned on \u0027divisive/chaotic/cruel\u0027 characterizations FOR fairly labeled as aesthetic. FOR\u0027s superior engagement edges it, though AGAINST\u0027s Jan 6 point has real weight."
+                    },
+                    {
+                        "id":  "bal-1",
+                        "betterSide":  "tossup",
+                        "confidence":  "tossup",
+                        "why":  "Both sides debated at a high level. FOR correctly framed proportionality as target-value vs. harm and the human-shield authorship point. AGAINST conceded the just cause but sharply distinguished jus ad bellum from jus in bello, noting shielding doesn\u0027t auto-legalize strikes and that precautions are owed each time. Each answered the other directly with legal specificity; neither dropped a key point. Evenly matched."
+                    },
+                    {
+                        "id":  "bal-2",
+                        "betterSide":  "AGAINST",
+                        "confidence":  "lean",
+                        "why":  "Both strong. FOR\u0027s best move was exposing that Leahy Law exists but is never enforced, making \u0027condition it\u0027 hollow. AGAINST answered directly (use the tool rather than discard it; cutoff is one-time and forfeits all future leverage; Israel buys elsewhere) and added the strategic vacuum and ally-credibility frame. AGAINST engaged FOR\u0027s strongest point and extended its own; FOR\u0027s rebuttal to the \u0027valve every year\u0027 logic was thinner, giving AGAINST a slight edge."
+                    },
+                    {
+                        "id":  "bal-3",
+                        "betterSide":  "tossup",
+                        "confidence":  "tossup",
+                        "why":  "High-quality clash both ways. FOR set a clean metric (out-earn your parents, housing-to-wage ratio, wealth share) and rebutted the poverty stat as China/India-specific and the phone-vs-house point well. AGAINST conceded housing/college but pinned them on zoning with counterexamples (Austin, Tokyo) and cited tight labor market and bottom-wage growth. Both answered each other\u0027s core points with evidence; the disagreement is framing (system vs. policy), and neither clearly outdebated the other."
+                    }
+                ]
+}

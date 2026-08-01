@@ -28,7 +28,7 @@ import {
 } from './lobby.js';
 import { abort, acceptAudioTurn, acceptChunk, resendState, startDebate, type Io } from './debate.js';
 import { sttConfigured } from './stt.js';
-import { runJudge } from './judge.js';
+import { runJudge, scoreTranscript } from './judge.js';
 import { coachReply } from './coach.js';
 import { TOPIC_BY_ID, TOPIC_CATEGORIES } from './topics.js';
 import { event, statsSnapshot } from './stats.js';
@@ -108,6 +108,25 @@ app.post<{ Body: { msg?: string; stack?: string; url?: string; ua?: string } }>(
     return { ok: true };
   },
 );
+
+// Test-only (fast mode never runs in production): score a synthetic transcript
+// directly so the fairness eval can hammer the judge without full debates.
+if (FAST) {
+  app.post<{
+    Body: {
+      motion?: { en?: string; ar?: string };
+      lines?: { stepIndex: number; side: 'FOR' | 'AGAINST'; text: string }[];
+    };
+  }>('/judge-eval', { bodyLimit: 400_000 }, async (req, reply) => {
+    const b = req.body ?? {};
+    try {
+      const verdict = await scoreTranscript(b.motion ?? {}, Array.isArray(b.lines) ? b.lines : []);
+      return { ok: true, verdict };
+    } catch (err) {
+      return reply.code(500).send({ ok: false, error: String(err).slice(0, 200) });
+    }
+  });
+}
 
 await app.ready();
 
