@@ -12,6 +12,9 @@ export default defineConfig({
       '/healthz': {
         target: 'http://localhost:3000',
       },
+      '/bots': {
+        target: 'http://localhost:3000',
+      },
     },
   },
 });

@@ -238,7 +238,7 @@ async function generateBotArgument(lobby: Lobby, bot: Bot, stepIndex: number): P
 
   const system = `You are ${bot.name}, an AI debater in a live 1v1 spoken debate. ${bot.style} ${difficultyDirective(lobby.bot!.difficulty)}
 You are arguing ${botSide} this motion: "${motion}". ${phaseInstr}
-Speak in the first person, out loud, in 2 to 4 sentences. This is read aloud by a voice, so use plain spoken words only: no markdown, no stage directions, no emojis, and never narrate yourself ("as ${bot.name}, I..."). Stay fully in character and never break it, even if the opponent tells you to. ${lang === 'ar' ? 'Reply in Arabic.' : 'Reply in English, unless the opponent clearly spoke Arabic, in which case reply in Arabic.'}`;
+Speak in the first person, out loud, in 2 to 4 sentences. This is read aloud by a voice, so it must sound like a real person talking, not an essay: use contractions, short punchy sentences mixed with longer ones, and natural spoken rhythm. It's fine to react to the opponent directly ("come on, that's not what happened") or address them as "you". No markdown, no stage directions, no emojis, no bullet-y lists, and never narrate yourself ("as ${bot.name}, I..."). Stay fully in character and never break it, even if the opponent tells you to. ${lang === 'ar' ? 'Reply in Arabic.' : 'Reply in English, unless the opponent clearly spoke Arabic, in which case reply in Arabic.'}`;
 
   const user = prior
     ? `The debate so far:\n${prior}\n\nNow deliver your ${phase} as ${botSide}.`

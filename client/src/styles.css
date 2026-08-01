@@ -221,6 +221,7 @@ html[dir='rtl'] .meter-hint {
 
 .btn:disabled {
   opacity: 0.45;
+  filter: saturate(0.35);
   cursor: default;
   box-shadow: none;
 }
@@ -1542,8 +1543,15 @@ html[dir='rtl'] .meter-hint {
 }
 
 .bot-select {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
   gap: 14px;
   padding-bottom: 40px;
+}
+.bot-select .topbar {
+  align-self: stretch;
+  margin-bottom: 4px;
 }
 
 .bot-title {
@@ -1555,9 +1563,14 @@ html[dir='rtl'] .meter-hint {
 
 .bot-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(148px, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 12px;
-  width: min(900px, 94vw);
+  width: min(760px, 94vw);
+}
+@media (max-width: 560px) {
+  .bot-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
 }
 
 .bot-ladder-note {
@@ -1589,8 +1602,11 @@ html[dir='rtl'] .meter-hint {
   transform: translateY(-3px);
   border-color: var(--muted);
 }
-.bot-picked {
+.bot-picked,
+.bot-card.bot-boss.bot-picked {
   border-color: var(--gold);
+  outline: 3px solid var(--gold);
+  outline-offset: 3px;
   box-shadow: 5px 5px 0 rgba(255, 199, 46, 0.45);
   transform: translateY(-3px) rotate(-0.5deg);
 }
@@ -1603,7 +1619,9 @@ html[dir='rtl'] .meter-hint {
   color: var(--muted);
 }
 .bot-boss {
-  border-color: var(--gold);
+  /* gold-tinted but clearly dimmer than the picked state, so the boss card
+     doesn't read as pre-selected */
+  border-color: rgba(255, 199, 46, 0.4);
   background: linear-gradient(160deg, var(--panel), #241d10);
 }
 .bot-boss .bot-name {
@@ -1652,7 +1670,7 @@ html[dir='rtl'] .meter-hint {
 }
 
 .bot-setup {
-  width: min(900px, 94vw);
+  width: min(760px, 94vw);
   display: flex;
   flex-direction: column;
   gap: 12px;
@@ -1685,7 +1703,7 @@ html[dir='rtl'] .meter-hint {
   aspect-ratio: 16 / 10;
 }
 .bot-go {
-  width: min(900px, 94vw);
+  width: min(760px, 94vw);
 }
 
 /* avatar frame + speaking animation */
