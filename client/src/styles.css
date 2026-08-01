@@ -610,6 +610,9 @@ html[dir='rtl'] .meter-hint {
   font-size: 15px;
   margin-inline-start: auto;
   text-align: end;
+  min-width: 0; /* let the flex item shrink so long motions wrap instead of clipping */
+  max-width: 62%;
+  overflow-wrap: break-word;
 }
 
 /* Green room: ticket stub invite */
@@ -929,6 +932,21 @@ html[dir='rtl'] .meter-hint {
 }
 
 /* Debate */
+/* Fill the viewport and center the arena in the space under the topbar, so the
+   debate doesn't huddle in the top half of the screen. */
+.stage.debate {
+  display: flex;
+  flex-direction: column;
+}
+.debate .arena {
+  width: 100%;
+  margin-block: auto;
+}
+/* keep the motion clear of the fixed language toggle in the top-right corner */
+.debate .topbar {
+  padding-inline-end: 64px;
+}
+
 .debate .round-card {
   display: flex;
   align-items: center;

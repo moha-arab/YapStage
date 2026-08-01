@@ -97,6 +97,7 @@ export default function Debate({
         <span className="motion-banner">{start.topic[lang]}</span>
       </header>
 
+      <div className="arena">
       <div className="round-card">
         {PHASES.map((p) => (
           <span key={p.key} className={`round ${phase.phase === p.key ? 'round-now' : ''}`}>
@@ -126,7 +127,7 @@ export default function Debate({
                 botId={botOpponent.id}
                 color={botOpponent.color}
                 speaking={Boolean(botSpeaking) && !myTurn}
-                size={150}
+                size={200}
               />
               <div className="tag">
                 <span className="tag-name">{botOpponent.name}</span>
@@ -202,6 +203,7 @@ export default function Debate({
       {!isBot && !peerLostUntil && (rtcState === 'disconnected' || rtcState === 'failed') ? (
         <div className="banner banner-warn">{t('videoDropped')}</div>
       ) : null}
+      </div>
     </div>
   );
 }
