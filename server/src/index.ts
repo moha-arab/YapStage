@@ -40,6 +40,9 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT) || 3000;
 const GRACE_MS = 15_000;
 const MAX_LOBBIES = 500;
+// Fast mode is test-only (never set in production). The smoke test creates many
+// lobbies from one IP, so the create/join limiter is off in fast mode.
+const FAST = process.env.DEBATE_SPEED === 'fast';
 
 // Backstop: one malformed packet must never take down every live debate.
 // All lobby state is in-memory, so a crash is a mass abort.
@@ -126,6 +129,8 @@ function updateFor(lobby: Lobby, receiver: Participant): LobbyUpdate {
     participantCount: lobby.host && lobby.guest ? 2 : 1,
     locked: Boolean(lobby.host && lobby.guest),
     deck: TOPIC_CATEGORIES,
+    topicMode: lobby.topicMode,
+    categoryKey: lobby.categoryKey,
     pick: {
       yourTopicId: isHost ? pick.hostTopicId : pick.guestTopicId,
       peerTopicId: isHost ? pick.guestTopicId : pick.hostTopicId,
@@ -170,7 +175,7 @@ io.on('connection', (socket) => {
   socket.on('lobby:create', (p, cb) => {
     if (typeof cb !== 'function') return;
     // Friendly ceiling: two friends never hit this; a lobby-spam script does.
-    if (!allow(`create:${ipOf(socket)}`, 10, 5 * 60_000)) {
+    if (!FAST && !allow(`create:${ipOf(socket)}`, 10, 5 * 60_000)) {
       return cb({ ok: false, error: 'rate_limited' });
     }
     const name = String(p?.name ?? '').trim();
@@ -188,7 +193,7 @@ io.on('connection', (socket) => {
   socket.on('lobby:join', (p, cb) => {
     if (typeof cb !== 'function') return;
     // Also throttles brute-forcing lobby codes (32^6 space, but still).
-    if (!allow(`join:${ipOf(socket)}`, 30, 5 * 60_000)) {
+    if (!FAST && !allow(`join:${ipOf(socket)}`, 30, 5 * 60_000)) {
       return cb({ ok: false, error: 'rate_limited' });
     }
     const name = String(p?.name ?? '').trim();
@@ -261,10 +266,42 @@ io.on('connection', (socket) => {
     }
   });
 
-  socket.on('pick:topic', (topicId) => {
+  // Host chooses how the topic is decided. Any change resets both confirms.
+  socket.on('pick:mode', (mode) => {
     if (!allow(`pick:${socket.id}`, 60, 10_000)) return;
     const lobby = socket.data.code ? getLobby(socket.data.code) : undefined;
     if (!lobby || lobby.status !== 'greenroom') return;
+    if (participantOf(lobby, socket.id) !== lobby.host) return; // host-only
+    if (mode !== 'agree' && mode !== 'category' && mode !== 'random') return;
+    if (lobby.topicMode === mode) return;
+    lobby.topicMode = mode;
+    lobby.categoryKey = null; // a mode switch clears the pending category
+    lobby.pick.hostConfirmed = false;
+    lobby.pick.guestConfirmed = false;
+    touch(lobby);
+    broadcastLobbyUpdate(lobby);
+  });
+
+  // Host picks the category for 'category' mode.
+  socket.on('pick:category', (key) => {
+    if (!allow(`pick:${socket.id}`, 60, 10_000)) return;
+    const lobby = socket.data.code ? getLobby(socket.data.code) : undefined;
+    if (!lobby || lobby.status !== 'greenroom' || lobby.topicMode !== 'category') return;
+    if (participantOf(lobby, socket.id) !== lobby.host) return; // host-only
+    const k = String(key ?? '');
+    if (!TOPIC_CATEGORIES.some((c) => c.key === k)) return;
+    if (lobby.categoryKey === k) return;
+    lobby.categoryKey = k;
+    lobby.pick.hostConfirmed = false;
+    lobby.pick.guestConfirmed = false;
+    touch(lobby);
+    broadcastLobbyUpdate(lobby);
+  });
+
+  socket.on('pick:topic', (topicId) => {
+    if (!allow(`pick:${socket.id}`, 60, 10_000)) return;
+    const lobby = socket.data.code ? getLobby(socket.data.code) : undefined;
+    if (!lobby || lobby.status !== 'greenroom' || lobby.topicMode !== 'agree') return;
     const me = participantOf(lobby, socket.id);
     if (!me) return;
     const id = String(topicId ?? '');
@@ -283,7 +320,7 @@ io.on('connection', (socket) => {
   socket.on('pick:side', (side) => {
     if (!allow(`pick:${socket.id}`, 60, 10_000)) return;
     const lobby = socket.data.code ? getLobby(socket.data.code) : undefined;
-    if (!lobby || lobby.status !== 'greenroom') return;
+    if (!lobby || lobby.status !== 'greenroom' || lobby.topicMode !== 'agree') return;
     const me = participantOf(lobby, socket.id);
     if (!me) return;
     if (side !== 'FOR' && side !== 'AGAINST') return;
@@ -302,13 +339,20 @@ io.on('connection', (socket) => {
     const me = participantOf(lobby, socket.id);
     if (!me) return;
     const { pick } = lobby;
+    // What "ready to confirm" means depends on the mode.
     const agreed =
       pick.hostTopicId !== null &&
       pick.hostTopicId === pick.guestTopicId &&
       pick.hostSide !== null &&
       pick.guestSide !== null &&
       pick.hostSide !== pick.guestSide;
-    if (!agreed) return;
+    const ready =
+      lobby.topicMode === 'agree'
+        ? agreed
+        : lobby.topicMode === 'category'
+          ? lobby.categoryKey !== null
+          : true; // random: nothing to pick
+    if (!ready) return;
     if (me === lobby.host) pick.hostConfirmed = true;
     else pick.guestConfirmed = true;
     touch(lobby);

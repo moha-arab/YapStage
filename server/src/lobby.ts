@@ -1,4 +1,4 @@
-import type { Side, TopicText, Verdict } from './protocol.js';
+import type { Side, TopicMode, TopicText, Verdict } from './protocol.js';
 
 export interface Participant {
   socketId: string;
@@ -46,6 +46,8 @@ export interface Lobby {
   host?: Participant;
   guest?: Participant;
   status: LobbyStatus;
+  topicMode: TopicMode; // how the topic is decided (host-controlled)
+  categoryKey: string | null; // chosen category in 'category' mode
   pick: Pick;
   topic?: TopicText;
   sides?: { host: Side; guest: Side };
@@ -88,6 +90,8 @@ export function createLobby(socketId: string, sessionId: string, name: string): 
     code: generateCode(),
     host: { socketId, sessionId, name, rtcReady: false },
     status: 'waiting',
+    topicMode: 'agree',
+    categoryKey: null,
     pick: {
       hostTopicId: null,
       guestTopicId: null,

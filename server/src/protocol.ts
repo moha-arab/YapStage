@@ -6,6 +6,12 @@ export type Side = 'FOR' | 'AGAINST';
 export type Role = 'host' | 'guest';
 export type PhaseLabel = 'opening' | 'rebuttal' | 'closing';
 
+// How the debate's topic gets decided (host chooses):
+//  agree    — both pick the exact topic + sides (the negotiated flow)
+//  category — host picks a category; server rolls a random topic + sides from it
+//  random   — server rolls category, topic, and sides
+export type TopicMode = 'agree' | 'category' | 'random';
+
 // Structural stand-ins for DOM WebRTC types (server tsconfig has no DOM lib).
 export interface IceServer {
   urls: string | string[];
@@ -61,6 +67,9 @@ export interface LobbyUpdate {
   participantCount: 1 | 2;
   locked: boolean;
   deck: TopicCategory[];
+  topicMode: TopicMode;
+  /** In 'category' mode, the host-chosen category key (else null). */
+  categoryKey: string | null;
   pick: PickState;
   iceServers: IceServer[];
   /** Server-side Whisper transcription available: any browser works. */
@@ -124,6 +133,8 @@ export interface ClientToServer {
     p: { code: string; sessionId: string },
     cb: (res: { ok: boolean }) => void,
   ) => void;
+  'pick:mode': (mode: TopicMode) => void; // host only: how the topic is decided
+  'pick:category': (key: string) => void; // host only: category for 'category' mode
   'pick:topic': (topicId: string) => void; // set YOUR topic choice (by id)
   'pick:side': (side: Side) => void; // set YOUR side
   'pick:confirm': () => void; // second confirm (with matching picks) starts the debate

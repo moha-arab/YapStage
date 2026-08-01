@@ -62,11 +62,15 @@ export default function GreenRoom({
     socket.emit('pick:confirm');
   }
 
+  const isHost = lobby.role === 'host';
+  const mode = lobby.topicMode;
   const topicsMatch = pick.yourTopicId !== null && pick.yourTopicId === pick.peerTopicId;
   const sidesOk =
     pick.yourSide !== null && pick.peerSide !== null && pick.yourSide !== pick.peerSide;
   const agreed = topicsMatch && sidesOk;
-  const canConfirm = consent && !!localStream && connected && agreed && !pick.youConfirmed;
+  const ready =
+    mode === 'agree' ? agreed : mode === 'category' ? lobby.categoryKey !== null : true;
+  const canConfirm = consent && !!localStream && connected && ready && !pick.youConfirmed;
 
   const confirmLabel = pick.youConfirmed
     ? t('confirmedWaiting', { x: peer })
@@ -74,17 +78,23 @@ export default function GreenRoom({
       ? rtcState === 'failed'
         ? t('videoFailed')
         : t('connectingVideo')
-      : !pick.yourTopicId
-        ? t('pickTopic')
-        : !topicsMatch
-          ? t('waitSameTopic', { x: peer })
-          : !pick.yourSide
-            ? t('pickSide')
-            : !pick.peerSide
-              ? t('waitSide', { x: peer })
-              : !sidesOk
-                ? t('sameSide', { x: t(pick.yourSide!) })
-                : t('confirm');
+      : mode === 'agree'
+        ? !pick.yourTopicId
+          ? t('pickTopic')
+          : !topicsMatch
+            ? t('waitSameTopic', { x: peer })
+            : !pick.yourSide
+              ? t('pickSide')
+              : !pick.peerSide
+                ? t('waitSide', { x: peer })
+                : !sidesOk
+                  ? t('sameSide', { x: t(pick.yourSide!) })
+                  : t('confirm')
+        : mode === 'category' && !lobby.categoryKey
+          ? isHost
+            ? t('pickCategory')
+            : t('waitCategory', { x: peer })
+          : t('startRandomDebate');
 
   const selfTile = (
     <div className={`tile-stack ${waiting ? 'tile-solo' : ''}`}>
@@ -149,55 +159,91 @@ export default function GreenRoom({
           </div>
 
           <div className="picker card">
-            <div className="cat-tabs">
-              {deck.map((c, i) => (
+            <div className="mode-row">
+              {(['agree', 'category', 'random'] as const).map((m) => (
                 <button
-                  key={c.key}
-                  className={`cat-tab ${i === cat ? 'cat-active' : ''}`}
-                  onClick={() => setCat(i)}
+                  key={m}
+                  className={`cat-tab ${mode === m ? 'cat-active' : ''}`}
+                  disabled={!isHost || pick.youConfirmed}
+                  onClick={() => socket.emit('pick:mode', m)}
                 >
-                  {c.label[lang]}
+                  {t(`mode_${m}`)}
                 </button>
               ))}
             </div>
+            {!isHost ? <p className="mode-hint">{t('modeHostControls', { x: peer })}</p> : null}
 
-            <div className="topic-list">
-              {deck[cat]?.topics.map((topic) => {
-                const mine = pick.yourTopicId === topic.id;
-                const theirs = pick.peerTopicId === topic.id;
-                return (
-                  <button
-                    key={topic.id}
-                    className={`topic-btn ${mine && theirs ? 'topic-on-table' : ''}`}
-                    onClick={() => socket.emit('pick:topic', topic.id)}
-                  >
-                    {topic[lang]}
-                    <span className="topic-marks">
-                      {mine && theirs ? t('bothMark') : mine ? t('you') : theirs ? peer : ''}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
+            {mode === 'agree' ? (
+              <>
+                <div className="cat-tabs">
+                  {deck.map((c, i) => (
+                    <button
+                      key={c.key}
+                      className={`cat-tab ${i === cat ? 'cat-active' : ''}`}
+                      onClick={() => setCat(i)}
+                    >
+                      {c.label[lang]}
+                    </button>
+                  ))}
+                </div>
 
-            <div className="side-row">
-              {(['FOR', 'AGAINST'] as Side[]).map((side) => (
-                <button
-                  key={side}
-                  className={`side-btn ${side === 'FOR' ? 'for' : 'against'} ${
-                    pick.yourSide === side ? 'side-mine' : ''
-                  }`}
-                  onClick={() => socket.emit('pick:side', side)}
-                >
-                  <span className="side-name">{t(side)}</span>
-                  <span className="side-claim">
-                    {[pick.yourSide === side ? t('you') : null, pick.peerSide === side ? peer : null]
-                      .filter(Boolean)
-                      .join(' + ') || ' '}
-                  </span>
-                </button>
-              ))}
-            </div>
+                <div className="topic-list">
+                  {deck[cat]?.topics.map((topic) => {
+                    const mine = pick.yourTopicId === topic.id;
+                    const theirs = pick.peerTopicId === topic.id;
+                    return (
+                      <button
+                        key={topic.id}
+                        className={`topic-btn ${mine && theirs ? 'topic-on-table' : ''}`}
+                        onClick={() => socket.emit('pick:topic', topic.id)}
+                      >
+                        {topic[lang]}
+                        <span className="topic-marks">
+                          {mine && theirs ? t('bothMark') : mine ? t('you') : theirs ? peer : ''}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                <div className="side-row">
+                  {(['FOR', 'AGAINST'] as Side[]).map((side) => (
+                    <button
+                      key={side}
+                      className={`side-btn ${side === 'FOR' ? 'for' : 'against'} ${
+                        pick.yourSide === side ? 'side-mine' : ''
+                      }`}
+                      onClick={() => socket.emit('pick:side', side)}
+                    >
+                      <span className="side-name">{t(side)}</span>
+                      <span className="side-claim">
+                        {[pick.yourSide === side ? t('you') : null, pick.peerSide === side ? peer : null]
+                          .filter(Boolean)
+                          .join(' + ') || ' '}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </>
+            ) : mode === 'category' ? (
+              <>
+                <div className="cat-tabs">
+                  {deck.map((c) => (
+                    <button
+                      key={c.key}
+                      className={`cat-tab ${lobby.categoryKey === c.key ? 'cat-active' : ''}`}
+                      disabled={!isHost || pick.youConfirmed}
+                      onClick={() => socket.emit('pick:category', c.key)}
+                    >
+                      {c.label[lang]}
+                    </button>
+                  ))}
+                </div>
+                <p className="mode-desc">{t('categoryDesc')}</p>
+              </>
+            ) : (
+              <p className="mode-desc">{t('randomDesc')}</p>
+            )}
 
             <label className="consent-row">
               <input

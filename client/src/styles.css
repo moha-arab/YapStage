@@ -348,6 +348,39 @@ html[dir='rtl'] .meter-hint {
   transform: rotate(0.3deg);
 }
 
+/* mode selector: the three big top buttons get a heavier weight than the
+   category tabs so it reads as the primary choice. */
+.mode-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.mode-row .cat-tab {
+  flex: 1 1 auto;
+  font-size: 13px;
+  padding: 9px 12px;
+  text-align: center;
+}
+
+.mode-row .cat-tab:disabled {
+  cursor: default;
+  opacity: 0.85;
+}
+
+.mode-hint {
+  font-family: var(--marker);
+  font-size: 13px;
+  color: var(--muted);
+  margin: -4px 0 0;
+}
+
+.mode-desc {
+  font-size: 15px;
+  color: var(--ink);
+  margin: 2px 0;
+}
+
 .cat-tabs {
   display: flex;
   flex-wrap: wrap;

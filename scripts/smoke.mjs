@@ -313,5 +313,64 @@ const firstGone = await emitP(connect(), 'lobby:join', {
 check('second create orphaned the first lobby', second.ok && !firstGone.ok && firstGone.error === 'not_found');
 orphanCheck.disconnect();
 
+// ---------- Scenario 5: topic modes (agree / category / random) ----------
+console.log('\n=== Scenario 5: topic modes ===');
+const MONEY_IDS = ['capitalism-failing', 'college-worth', 'money-happiness', 'landlords', 'crypto-scam', 'no-billionaires'];
+
+// category mode
+{
+  const host = connect();
+  const guest = connect();
+  const cr = await emitP(host, 'lobby:create', { sessionId: 'm-h', name: 'modehost' });
+  const code = cr.update.code;
+  check('new lobby defaults to agree mode', cr.update.topicMode === 'agree');
+  await emitP(guest, 'lobby:join', { code, sessionId: 'm-g', name: 'modeguest' });
+  host.emit('pick:mode', 'category');
+  guest.emit('pick:mode', 'random'); // guest is not host — must be ignored
+  await new Promise((r) => setTimeout(r, 150));
+
+  // confirm must be blocked until a category is chosen
+  let startedEarly = false;
+  const earlyHandler = () => { startedEarly = true; };
+  host.once('debate:start', earlyHandler);
+  host.emit('pick:confirm');
+  guest.emit('pick:confirm');
+  await new Promise((r) => setTimeout(r, 500));
+  host.off('debate:start', earlyHandler);
+  check('category mode blocks start until a category is chosen', !startedEarly);
+
+  host.emit('pick:category', 'money');
+  const started = once(host, 'debate:start', 8000);
+  const gStarted = once(guest, 'debate:start', 8000);
+  host.emit('pick:confirm');
+  guest.emit('pick:confirm');
+  const ds = await started;
+  const gds = await gStarted;
+  check('category mode: topic comes from the chosen category', MONEY_IDS.includes(ds.topic.id));
+  check('category mode: sides are opposite', ds.yourSide !== gds.yourSide);
+  host.disconnect();
+  guest.disconnect();
+}
+
+// random mode
+{
+  const host = connect();
+  const guest = connect();
+  const cr = await emitP(host, 'lobby:create', { sessionId: 'r-h', name: 'randhost' });
+  const code = cr.update.code;
+  await emitP(guest, 'lobby:join', { code, sessionId: 'r-g', name: 'randguest' });
+  host.emit('pick:mode', 'random');
+  const started = once(host, 'debate:start', 8000);
+  const gStarted = once(guest, 'debate:start', 8000);
+  host.emit('pick:confirm');
+  guest.emit('pick:confirm');
+  const ds = await started;
+  const gds = await gStarted;
+  check('random mode: debate starts with a real topic', typeof ds.topic?.id === 'string' && ds.topic.id.length > 0);
+  check('random mode: sides are opposite', ds.yourSide !== gds.yourSide);
+  host.disconnect();
+  guest.disconnect();
+}
+
 console.log(`\n${failures === 0 ? 'ALL CHECKS PASSED' : failures + ' CHECK(S) FAILED'}`);
 process.exit(failures === 0 ? 0 : 1);

@@ -7,9 +7,10 @@ import type {
   SocketData,
   SpeechChunk,
 } from './protocol.js';
+import type { TopicText } from './protocol.js';
 import { type Lobby, type Participant, destroyLobby, sideOf, touch } from './lobby.js';
 import { namesOf, runJudge } from './judge.js';
-import { TOPIC_BY_ID } from './topics.js';
+import { TOPIC_BY_ID, TOPIC_CATEGORIES } from './topics.js';
 import { transcribe } from './stt.js';
 import { event } from './stats.js';
 
@@ -51,22 +52,47 @@ const JUDGE_DELAY_MS = 3000;
 const MAX_CHUNK_CHARS = 600;
 const MAX_TRANSCRIPT_ENTRIES = 400;
 
+const randomOf = <T>(arr: readonly T[]): T => arr[Math.floor(Math.random() * arr.length)];
+
 export function startDebate(io: Io, lobby: Lobby): void {
   if (lobby.status !== 'greenroom' || !lobby.host || !lobby.guest) return;
-  const { pick } = lobby;
-  const topic = pick.hostTopicId ? TOPIC_BY_ID.get(pick.hostTopicId) : undefined;
-  const agreed =
-    topic !== undefined &&
-    pick.hostTopicId === pick.guestTopicId &&
-    pick.hostSide !== null &&
-    pick.guestSide !== null &&
-    pick.hostSide !== pick.guestSide;
-  if (!agreed) return;
+  const { pick, topicMode } = lobby;
+
+  // Resolve the motion and who argues which side, per mode. Random modes roll
+  // here (server-authoritative) so the fight-card reveal is the first anyone
+  // sees of the topic — no one can preview-and-bail.
+  let topic: TopicText | undefined;
+  let hostSide: Side;
+  let guestSide: Side;
+
+  if (topicMode === 'agree') {
+    topic = pick.hostTopicId ? TOPIC_BY_ID.get(pick.hostTopicId) : undefined;
+    const agreed =
+      topic !== undefined &&
+      pick.hostTopicId === pick.guestTopicId &&
+      pick.hostSide !== null &&
+      pick.guestSide !== null &&
+      pick.hostSide !== pick.guestSide;
+    if (!agreed) return;
+    hostSide = pick.hostSide!;
+    guestSide = pick.guestSide!;
+  } else {
+    const pool =
+      topicMode === 'category'
+        ? TOPIC_CATEGORIES.find((c) => c.key === lobby.categoryKey)?.topics
+        : randomOf(TOPIC_CATEGORIES).topics;
+    if (!pool || pool.length === 0) return;
+    topic = randomOf(pool);
+    // Coin-flip who's FOR — you don't get to grab the easy side.
+    [hostSide, guestSide] = Math.random() < 0.5 ? ['FOR', 'AGAINST'] : ['AGAINST', 'FOR'];
+  }
+  if (!topic) return;
+
   touch(lobby);
-  event('debate_started', { code: lobby.code, topic: pick.hostTopicId });
+  event('debate_started', { code: lobby.code, topic: topic.id, mode: topicMode });
   lobby.status = 'in_debate';
   lobby.topic = topic;
-  lobby.sides = { host: pick.hostSide!, guest: pick.guestSide! };
+  lobby.sides = { host: hostSide, guest: guestSide };
 
   const names: Record<Side, string> = {
     FOR: lobby.sides.host === 'FOR' ? lobby.host.name : lobby.guest.name,
