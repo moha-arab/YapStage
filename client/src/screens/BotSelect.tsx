@@ -1,0 +1,203 @@
+import { useEffect, useState } from 'react';
+import type { BotInfo, Difficulty, Side, TopicCategory, TopicMode } from '../../../server/src/protocol';
+import { useI18n } from '../i18n';
+import { initAudio } from '../sound';
+import BotAvatar from '../BotAvatar';
+import VideoTile from '../VideoTile';
+
+export interface BotStartConfig {
+  botId: string;
+  difficulty: Difficulty;
+  topicMode: TopicMode;
+  categoryKey?: string;
+  topicId?: string;
+  side: Side | 'random';
+}
+
+interface Props {
+  localStream: MediaStream | null;
+  mediaError: string | null;
+  onRetryMedia: () => void;
+  onStart: (c: BotStartConfig) => void;
+  onBack: () => void;
+}
+
+const DIFFS: Difficulty[] = ['easy', 'medium', 'hard'];
+
+export default function BotSelect({ localStream, mediaError, onRetryMedia, onStart, onBack }: Props) {
+  const { lang, t } = useI18n();
+  const [bots, setBots] = useState<BotInfo[]>([]);
+  const [topics, setTopics] = useState<TopicCategory[]>([]);
+  const [botId, setBotId] = useState<string | null>(null);
+  const [difficulty, setDifficulty] = useState<Difficulty>('medium');
+  const [mode, setMode] = useState<TopicMode>('random');
+  const [cat, setCat] = useState(0);
+  const [topicId, setTopicId] = useState<string | null>(null);
+  const [side, setSide] = useState<Side | 'random'>('random');
+
+  useEffect(() => {
+    fetch('/bots')
+      .then((r) => r.json())
+      .then((d) => {
+        setBots(d.bots ?? []);
+        setTopics(d.topics ?? []);
+      })
+      .catch(() => {});
+  }, []);
+
+  const ready =
+    !!botId &&
+    !!localStream &&
+    (mode === 'agree' ? !!topicId : true);
+
+  function start() {
+    if (!ready || !botId) return;
+    initAudio(); // user gesture: unlocks the bot's voice + the verdict drum roll
+    onStart({
+      botId,
+      difficulty,
+      topicMode: mode,
+      categoryKey: mode === 'category' ? topics[cat]?.key : undefined,
+      topicId: mode === 'agree' ? (topicId ?? undefined) : undefined,
+      side,
+    });
+  }
+
+  return (
+    <div className="stage bot-select">
+      <header className="topbar">
+        <button className="btn btn-small" onClick={onBack}>
+          {t('back')}
+        </button>
+        <span className="brand">
+          YAP<span className="logo-accent">STAGE</span>
+        </span>
+        <span className="pill">{t('vsBot')}</span>
+      </header>
+
+      <h1 className="display bot-title">{t('chooseOpponent')}</h1>
+
+      <div className="bot-grid">
+        {bots.map((b) => (
+          <button
+            key={b.id}
+            className={`bot-card ${botId === b.id ? 'bot-picked' : ''}`}
+            onClick={() => setBotId(b.id)}
+          >
+            <BotAvatar botId={b.id} color={b.color} size={92} speaking={botId === b.id} />
+            <span className="bot-name">{b.name}</span>
+            <span className="bot-tagline">{b.tagline}</span>
+            <span className="bot-blurb">{b.blurb}</span>
+          </button>
+        ))}
+      </div>
+
+      <div className="bot-setup card">
+        <div className="setup-row">
+          <span className="setup-label">{t('difficulty')}</span>
+          <div className="chip-row">
+            {DIFFS.map((d) => (
+              <button
+                key={d}
+                className={`cat-tab ${difficulty === d ? 'cat-active' : ''}`}
+                onClick={() => setDifficulty(d)}
+              >
+                {t(`diff_${d}`)}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="setup-row">
+          <span className="setup-label">{t('topic')}</span>
+          <div className="chip-row">
+            {(['agree', 'category', 'random'] as TopicMode[]).map((m) => (
+              <button
+                key={m}
+                className={`cat-tab ${mode === m ? 'cat-active' : ''}`}
+                onClick={() => setMode(m)}
+              >
+                {t(`mode_${m}`)}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {mode !== 'random' ? (
+          <div className="cat-tabs">
+            {topics.map((c, i) => (
+              <button
+                key={c.key}
+                className={`cat-tab ${i === cat ? 'cat-active' : ''}`}
+                onClick={() => {
+                  setCat(i);
+                  setTopicId(null);
+                }}
+              >
+                {c.label[lang]}
+              </button>
+            ))}
+          </div>
+        ) : null}
+
+        {mode === 'agree' ? (
+          <div className="topic-list">
+            {topics[cat]?.topics.map((tp) => (
+              <button
+                key={tp.id}
+                className={`topic-btn ${topicId === tp.id ? 'topic-on-table' : ''}`}
+                onClick={() => setTopicId(tp.id)}
+              >
+                {tp[lang]}
+              </button>
+            ))}
+          </div>
+        ) : mode === 'category' ? (
+          <p className="mode-desc">{t('categoryDesc')}</p>
+        ) : (
+          <p className="mode-desc">{t('randomDesc')}</p>
+        )}
+
+        <div className="setup-row">
+          <span className="setup-label">{t('yourSideLabel')}</span>
+          <div className="chip-row">
+            {(['FOR', 'AGAINST', 'random'] as const).map((sd) => (
+              <button
+                key={sd}
+                className={`cat-tab ${side === sd ? 'cat-active' : ''}`}
+                onClick={() => setSide(sd)}
+              >
+                {sd === 'random' ? t('sideRandom') : t(sd)}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <div className="bot-mirror">
+        <VideoTile
+          stream={localStream}
+          muted
+          mirror
+          label={t('you')}
+          sub={t('onCam')}
+          placeholder={mediaError ? t('cameraBlocked') : t('cameraWarming')}
+        />
+        <p className="small-print">{t('botCamNote')}</p>
+      </div>
+
+      {mediaError ? (
+        <div className="banner banner-error">
+          {t(mediaError)}{' '}
+          <button className="btn btn-small" onClick={onRetryMedia}>
+            {t('retry')}
+          </button>
+        </div>
+      ) : null}
+
+      <button className="btn btn-primary btn-wide bot-go" disabled={!ready} onClick={start}>
+        {botId ? t('debateThem') : t('pickABot')}
+      </button>
+    </div>
+  );
+}

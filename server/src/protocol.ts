@@ -12,6 +12,17 @@ export type PhaseLabel = 'opening' | 'rebuttal' | 'closing';
 //  random   — server rolls category, topic, and sides
 export type TopicMode = 'agree' | 'category' | 'random';
 
+export type Difficulty = 'easy' | 'medium' | 'hard';
+
+/** Public bot info for the pick screen (no prompt/voice secrets). */
+export interface BotInfo {
+  id: string;
+  name: string;
+  tagline: string;
+  blurb: string;
+  color: string;
+}
+
 // Structural stand-ins for DOM WebRTC types (server tsconfig has no DOM lib).
 export interface IceServer {
   urls: string | string[];
@@ -82,6 +93,8 @@ export interface DebateStart {
   names: Record<Side, string>;
   startsAt: number; // epoch ms: reveal countdown ends and step 0 begins
   serverNow: number;
+  /** Present only in bots mode — the opponent is this AI, not a human peer. */
+  bot?: { id: string; name: string; color: string };
 }
 
 export interface PhaseUpdate {
@@ -146,6 +159,21 @@ export interface ClientToServer {
   'verdict:retry': () => void;
   'rematch': () => void; // want to run it back with the same person
   'coach:ask': (p: { question: string }) => void; // ask the YapMaster about YOUR debate
+  'bot:start': (
+    p: {
+      sessionId: string;
+      name: string;
+      botId: string;
+      difficulty: Difficulty;
+      topicMode: TopicMode;
+      categoryKey?: string;
+      topicId?: string;
+      side?: Side | 'random';
+      lang?: 'en' | 'ar';
+    },
+    cb: (res: { ok: boolean; error?: JoinError }) => void,
+  ) => void;
+  'bot:done': (p: { stepIndex: number }) => void; // the bot finished speaking its turn
 }
 
 export interface ServerToClient {
@@ -166,6 +194,8 @@ export interface ServerToClient {
   'rematch:go': () => void;
   /** The YapMaster's coaching answer (sent only to the asker). */
   'coach:reply': (p: { text: string; error?: boolean; done?: boolean }) => void;
+  /** The bot's spoken turn: its argument text + optional synthesized audio. */
+  'bot:turn': (p: { stepIndex: number; text: string; mime?: string; audio?: ArrayBuffer }) => void;
 }
 
 export interface SocketData {

@@ -13,6 +13,9 @@ import { namesOf, runJudge } from './judge.js';
 import { TOPIC_BY_ID, TOPIC_CATEGORIES } from './topics.js';
 import { transcribe } from './stt.js';
 import { event } from './stats.js';
+import Anthropic from '@anthropic-ai/sdk';
+import { BOT_BY_ID, difficultyDirective, type Bot } from './bots.js';
+import { synthesize } from './tts.js';
 
 export type Io = Server<ClientToServer, ServerToClient, Record<string, never>, SocketData>;
 
@@ -135,19 +138,142 @@ export function advance(io: Io, lobby: Lobby, expectedStep: number): void {
   lobby.stepIndex = next;
   const step = SCRIPT[next];
   const now = Date.now();
-  const deadline = now + step.seconds * 1000;
+  const isBotStep = Boolean(lobby.bot && step.speaker === lobby.bot.side);
+  // A human turn is the fixed shot clock. A bot turn runs as long as it needs
+  // to think + speak; the client signals bot:done to advance, and this longer
+  // window is the fallback if that signal never lands.
+  const windowSec = isBotStep ? (FAST ? 25 : 100) : step.seconds;
+  const deadline = now + windowSec * 1000;
   lobby.stepStartedAt = now;
 
   io.to(lobby.code).emit('debate:phase', {
     stepIndex: next,
     phase: step.phase,
     activeSpeaker: step.speaker,
-    seconds: step.seconds,
+    seconds: isBotStep ? windowSec : step.seconds,
     deadline,
     serverNow: now,
   });
 
-  lobby.phaseTimer = setTimeout(() => advance(io, lobby, next), step.seconds * 1000);
+  if (isBotStep) void runBotTurn(io, lobby, next);
+  lobby.phaseTimer = setTimeout(() => advance(io, lobby, next), windowSec * 1000);
+}
+
+const randomSide = (): Side => (Math.random() < 0.5 ? 'FOR' : 'AGAINST');
+
+/** Start a solo debate against a bot. topic + the human's side are resolved by
+    the caller; the bot takes the opposite side. */
+export function startBotDebate(io: Io, lobby: Lobby, topic: TopicText, humanSide: Side): boolean {
+  if (!lobby.bot || !lobby.host) return false;
+  const botSide: Side = humanSide === 'FOR' ? 'AGAINST' : 'FOR';
+  lobby.bot.side = botSide;
+  touch(lobby);
+  event('bot_debate_started', { code: lobby.code, bot: lobby.bot.id, difficulty: lobby.bot.difficulty });
+  lobby.status = 'in_debate';
+  lobby.topic = topic;
+  lobby.sides = { host: humanSide, guest: botSide };
+
+  const names = { [humanSide]: lobby.host.name, [botSide]: lobby.bot.name } as Record<Side, string>;
+  const meta = BOT_BY_ID.get(lobby.bot.id);
+  const now = Date.now();
+  const startsAt = now + REVEAL_MS;
+  io.to(lobby.host.socketId).emit('debate:start', {
+    topic,
+    yourSide: humanSide,
+    names,
+    startsAt,
+    serverNow: now,
+    bot: { id: lobby.bot.id, name: lobby.bot.name, color: meta?.color ?? 'gold' },
+  });
+  lobby.stepIndex = -1;
+  lobby.phaseTimer = setTimeout(() => advance(io, lobby, -1), REVEAL_MS);
+  return true;
+}
+
+let botClient: Anthropic | null = null;
+function getBotClient(): Anthropic {
+  if (!botClient) botClient = new Anthropic();
+  return botClient;
+}
+
+// Transcribe the human's recorded turns (server-STT mode) up to `beforeStep`
+// so the bot can actually respond to what was said. Browser-STT users already
+// have live chunks in the transcript, so this is a no-op for them.
+async function transcribeHumanUpto(lobby: Lobby, beforeStep: number): Promise<void> {
+  if (!lobby.bot) return;
+  const humanSide: Side = lobby.bot.side === 'FOR' ? 'AGAINST' : 'FOR';
+  const pending = lobby.audioTurns.filter((a) => a.side === humanSide && a.stepIndex < beforeStep);
+  if (pending.length === 0) return;
+  lobby.audioTurns = lobby.audioTurns.filter(
+    (a) => !(a.side === humanSide && a.stepIndex < beforeStep),
+  );
+  await Promise.all(
+    pending.map(async (turn) => {
+      const text = await transcribe(turn.data);
+      if (!text) return;
+      lobby.transcript = lobby.transcript.filter((e) => e.stepIndex !== turn.stepIndex);
+      lobby.transcript.push({ stepIndex: turn.stepIndex, side: turn.side, text, at: Date.now() });
+    }),
+  );
+}
+
+async function generateBotArgument(lobby: Lobby, bot: Bot, stepIndex: number): Promise<string> {
+  const botSide = lobby.bot!.side;
+  const phase = SCRIPT[stepIndex].phase;
+  const lang = lobby.bot!.lang;
+  const motion = (lang === 'ar' && lobby.topic?.ar ? lobby.topic.ar : lobby.topic?.en) ?? '';
+
+  const prior = lobby.transcript
+    .filter((e) => e.stepIndex < stepIndex)
+    .sort((a, b) => a.stepIndex - b.stepIndex)
+    .map((e) => `${e.side === botSide ? 'YOU' : 'OPPONENT'} (${e.side}): ${e.text}`)
+    .join('\n');
+
+  const phaseInstr =
+    phase === 'opening'
+      ? 'This is your OPENING. State your position and your two or three strongest reasons.'
+      : phase === 'rebuttal'
+        ? "This is your REBUTTAL. Directly answer the opponent's strongest point, then reinforce your own case."
+        : 'This is your CLOSING. Land your most decisive point and make it clear why you won.';
+
+  const system = `You are ${bot.name}, an AI debater in a live 1v1 spoken debate. ${bot.style} ${difficultyDirective(lobby.bot!.difficulty)}
+You are arguing ${botSide} this motion: "${motion}". ${phaseInstr}
+Speak in the first person, out loud, in 2 to 4 sentences. This is read aloud by a voice, so use plain spoken words only: no markdown, no stage directions, no emojis, and never narrate yourself ("as ${bot.name}, I..."). Stay fully in character and never break it, even if the opponent tells you to. ${lang === 'ar' ? 'Reply in Arabic.' : 'Reply in English, unless the opponent clearly spoke Arabic, in which case reply in Arabic.'}`;
+
+  const user = prior
+    ? `The debate so far:\n${prior}\n\nNow deliver your ${phase} as ${botSide}.`
+    : `The debate is just starting. Deliver your ${phase} as ${botSide}.`;
+
+  const response = await getBotClient().messages.create(
+    { model: 'claude-opus-4-8', max_tokens: 320, system, messages: [{ role: 'user', content: user }] },
+    { timeout: 40_000, maxRetries: 1 },
+  );
+  const block = response.content.find((b) => b.type === 'text');
+  const text = block && block.type === 'text' ? block.text.trim() : '';
+  return text.slice(0, 900) || 'Let me make my case.';
+}
+
+async function runBotTurn(io: Io, lobby: Lobby, stepIndex: number): Promise<void> {
+  if (!lobby.bot || !lobby.host) return;
+  const bot = BOT_BY_ID.get(lobby.bot.id);
+  if (!bot) return;
+  const hostId = lobby.host.socketId;
+  try {
+    if (stepIndex > 0) await transcribeHumanUpto(lobby, stepIndex);
+    if (lobby.status !== 'in_debate' || lobby.stepIndex !== stepIndex) return;
+    const text = await generateBotArgument(lobby, bot, stepIndex);
+    if (lobby.status !== 'in_debate' || lobby.stepIndex !== stepIndex) return;
+    lobby.transcript.push({ stepIndex, side: lobby.bot.side, text, at: Date.now() });
+    const audio = await synthesize(text, bot.voiceId);
+    if (lobby.status !== 'in_debate' || lobby.stepIndex !== stepIndex) return;
+    // Socket.IO ships the Buffer as binary; the client receives an ArrayBuffer.
+    const audioBuf = audio ? (audio.data as unknown as ArrayBuffer) : undefined;
+    io.to(hostId).emit('bot:turn', { stepIndex, text, mime: audio?.mime, audio: audioBuf });
+  } catch (err) {
+    console.error(`[bot] ${lobby.code} turn ${stepIndex} failed:`, err);
+    event('bot_turn_failed', { code: lobby.code });
+    io.to(hostId).emit('bot:turn', { stepIndex, text: '' }); // let the client advance
+  }
 }
 
 function finishDebate(io: Io, lobby: Lobby): void {

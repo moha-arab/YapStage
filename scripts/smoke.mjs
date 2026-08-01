@@ -447,5 +447,48 @@ async function runToVerdict(a, b, aId, bId, name, topic) {
   a.disconnect();
 }
 
+// ---------- Scenario 7: bots mode ----------
+console.log('\n=== Scenario 7: bots mode ===');
+{
+  const h = connect();
+  const HUMAN = {
+    0: 'money buys back your time and removes the financial stress that ruins lives, and that is the foundation of happiness',
+    2: 'my opponent never actually answered the time argument, which is the core of my case',
+    4: 'in closing, money buys time, security, and options, and those build a happy life',
+  };
+  const res = await emitP(h, 'bot:start', {
+    sessionId: 'bot-h',
+    name: 'botfighter',
+    botId: 'rookie',
+    difficulty: 'easy',
+    topicMode: 'agree',
+    topicId: 'money-happiness',
+    side: 'FOR',
+    lang: 'en',
+  });
+  check('bot:start accepted', res.ok === true);
+  const start = await once(h, 'debate:start', 12000);
+  check(
+    'bot debate: opponent is the chosen bot',
+    Boolean(start.bot) && start.bot.id === 'rookie' && start.names.AGAINST === 'The Rookie',
+  );
+  let botTurns = 0;
+  h.on('debate:phase', (ph) => {
+    if (ph.activeSpeaker === start.yourSide && HUMAN[ph.stepIndex]) {
+      h.emit('speech:chunk', { stepIndex: ph.stepIndex, text: HUMAN[ph.stepIndex] });
+    }
+  });
+  h.on('bot:turn', (bt) => {
+    botTurns += 1;
+    h.emit('bot:done', { stepIndex: bt.stepIndex }); // advance as the client would
+  });
+  await once(h, 'debate:ended', 300000);
+  const v = await once(h, 'verdict:result', 120000);
+  check('bot generated all three of its turns', botTurns === 3);
+  check('bot was scored (it argued a real transcript)', v.verdict.scores.AGAINST.argument > 0);
+  check('verdict carries the bot name', v.names.AGAINST === 'The Rookie');
+  h.disconnect();
+}
+
 console.log(`\n${failures === 0 ? 'ALL CHECKS PASSED' : failures + ' CHECK(S) FAILED'}`);
 process.exit(failures === 0 ? 0 : 1);

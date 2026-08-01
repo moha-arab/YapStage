@@ -26,7 +26,18 @@ import {
   type Lobby,
   type Participant,
 } from './lobby.js';
-import { abort, acceptAudioTurn, acceptChunk, resendState, startDebate, type Io } from './debate.js';
+import {
+  abort,
+  acceptAudioTurn,
+  acceptChunk,
+  advance,
+  resendState,
+  SCRIPT,
+  startBotDebate,
+  startDebate,
+  type Io,
+} from './debate.js';
+import { BOT_BY_ID, publicBots } from './bots.js';
 import { sttConfigured } from './stt.js';
 import { runJudge, scoreTranscript } from './judge.js';
 import { coachReply } from './coach.js';
@@ -70,8 +81,11 @@ app.get('/healthz', async () => ({
   lobbies: lobbyCount(),
   turn: turnMode(),
   stt: sttConfigured() ? 'cloudflare' : 'browser',
+  tts: process.env.ELEVENLABS_API_KEY ? 'elevenlabs' : 'browser',
   commit: process.env.RAILWAY_GIT_COMMIT_SHA?.slice(0, 7) ?? 'dev',
 }));
+
+app.get('/bots', async () => ({ bots: publicBots(), topics: TOPIC_CATEGORIES }));
 
 // Gate with STATS_KEY when set (404 so the endpoint doesn't advertise itself);
 // public when unset — zero-config for casual use, lockable in one env var.
@@ -544,6 +558,59 @@ io.on('connection', (socket) => {
         event('coach_failed', { code: lobby.code });
         io.to(sid).emit('coach:reply', { text: '', error: true });
       });
+  });
+
+  socket.on('bot:start', (p, cb) => {
+    if (typeof cb !== 'function') return;
+    if (!FAST && !allow(`create:${ipOf(socket)}`, 10, 5 * 60_000)) {
+      return cb({ ok: false, error: 'rate_limited' });
+    }
+    const name = String(p?.name ?? '').trim();
+    if (!NAME_RE.test(name)) return cb({ ok: false, error: 'bad_name' });
+    const bot = BOT_BY_ID.get(String(p?.botId ?? ''));
+    if (!bot) return cb({ ok: false, error: 'not_found' });
+    if (lobbyCount() >= MAX_LOBBIES) return cb({ ok: false, error: 'rate_limited' });
+
+    const difficulty = p?.difficulty === 'easy' || p?.difficulty === 'hard' ? p.difficulty : 'medium';
+    const topicMode = p?.topicMode === 'agree' || p?.topicMode === 'category' ? p.topicMode : 'random';
+    const lang = p?.lang === 'ar' ? 'ar' : 'en';
+
+    // Resolve the motion.
+    let topic;
+    if (topicMode === 'agree') {
+      topic = TOPIC_BY_ID.get(String(p?.topicId ?? ''));
+      if (!topic) return cb({ ok: false, error: 'not_found' });
+    } else if (topicMode === 'category') {
+      const cat = TOPIC_CATEGORIES.find((c) => c.key === String(p?.categoryKey ?? ''));
+      if (!cat) return cb({ ok: false, error: 'not_found' });
+      topic = cat.topics[Math.floor(Math.random() * cat.topics.length)];
+    } else {
+      const cat = TOPIC_CATEGORIES[Math.floor(Math.random() * TOPIC_CATEGORIES.length)];
+      topic = cat.topics[Math.floor(Math.random() * cat.topics.length)];
+    }
+    const humanSide =
+      p?.side === 'FOR' || p?.side === 'AGAINST' ? p.side : Math.random() < 0.5 ? 'FOR' : 'AGAINST';
+    const botSide = humanSide === 'FOR' ? 'AGAINST' : 'FOR';
+
+    releasePreviousSeat(socket);
+    const lobby = createLobby(socket.id, String(p?.sessionId ?? '').slice(0, 64), name);
+    lobby.bot = { id: bot.id, name: bot.name, difficulty, side: botSide, lang };
+    socket.data.code = lobby.code;
+    socket.data.role = 'host';
+    void socket.join(lobby.code);
+    cb({ ok: true });
+    startBotDebate(io, lobby, topic, humanSide);
+  });
+
+  socket.on('bot:done', (p) => {
+    const lobby = socket.data.code ? getLobby(socket.data.code) : undefined;
+    if (!lobby || !lobby.bot || lobby.status !== 'in_debate') return;
+    if (participantOf(lobby, socket.id) !== lobby.host) return;
+    const idx = Number(p?.stepIndex);
+    if (lobby.stepIndex === idx && SCRIPT[idx]?.speaker === lobby.bot.side) {
+      if (lobby.phaseTimer) clearTimeout(lobby.phaseTimer);
+      advance(io, lobby, idx);
+    }
   });
 
   socket.on('disconnect', () => {

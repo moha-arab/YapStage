@@ -152,6 +152,13 @@ function clampScores(scores: CategoryScores): CategoryScores {
 
 export function namesOf(lobby: Lobby): Record<Side, string> {
   const sides = lobby.sides!;
+  if (lobby.bot) {
+    const humanSide: Side = lobby.bot.side === 'FOR' ? 'AGAINST' : 'FOR';
+    return {
+      [humanSide]: lobby.host?.name ?? 'you',
+      [lobby.bot.side]: lobby.bot.name,
+    } as Record<Side, string>;
+  }
   return {
     FOR: sides.host === 'FOR' ? lobby.host?.name ?? 'FOR' : lobby.guest?.name ?? 'FOR',
     AGAINST:

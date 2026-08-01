@@ -4,6 +4,7 @@ import { useAudioLevel } from '../useAudioLevel';
 import { useI18n } from '../i18n';
 import MicMeter from '../MicMeter';
 import VideoTile from '../VideoTile';
+import BotAvatar from '../BotAvatar';
 
 interface Props {
   start: DebateStart;
@@ -18,6 +19,9 @@ interface Props {
   sttServer: boolean;
   mediaError: string | null;
   onRetryMedia: () => void;
+  botOpponent?: { id: string; name: string; color: string } | null;
+  botTurn?: { stepIndex: number; text: string } | null;
+  botSpeaking?: boolean;
 }
 
 const PHASES: { key: string; labelKey: string }[] = [
@@ -39,8 +43,12 @@ export default function Debate({
   sttServer,
   mediaError,
   onRetryMedia,
+  botOpponent,
+  botTurn,
+  botSpeaking,
 }: Props) {
   const { lang, t } = useI18n();
+  const isBot = Boolean(botOpponent);
   const mySide = start.yourSide;
   const peerSide: Side = mySide === 'FOR' ? 'AGAINST' : 'FOR';
   const revealMs = useCountdown(start.startsAt, start.serverNow);
@@ -108,19 +116,38 @@ export default function Debate({
           />
           <MicMeter level={localLevel} label={t('yourMic')} />
         </div>
-        <div className="tile-stack">
-          <VideoTile
-            stream={remoteStream}
-            muted={remoteMuted}
-            label={start.names[peerSide]}
-            sub={t(peerSide)}
-            side={peerSide}
-            active={!myTurn}
-            placeholder={t('theyFroze')}
-            dead={remoteVideoDead}
-          />
-          <MicMeter level={remoteLevel} label={t('peerMic', { x: start.names[peerSide] })} />
-        </div>
+        {isBot && botOpponent ? (
+          <div className="tile-stack">
+            <div className={`tile bot-tile tile-${peerSide === 'FOR' ? 'for' : 'against'} ${!myTurn ? 'tile-active' : ''}`}>
+              <BotAvatar
+                botId={botOpponent.id}
+                color={botOpponent.color}
+                speaking={Boolean(botSpeaking) && !myTurn}
+                size={150}
+              />
+              <div className="tag">
+                <span className="tag-name">{botOpponent.name}</span>
+                <span className="tag-sub">{t(peerSide)}</span>
+              </div>
+              {!myTurn ? <div className="live-pill">{t('onTheMic')}</div> : null}
+            </div>
+            {!myTurn && botTurn?.text ? <p className="bot-caption">{botTurn.text}</p> : null}
+          </div>
+        ) : (
+          <div className="tile-stack">
+            <VideoTile
+              stream={remoteStream}
+              muted={remoteMuted}
+              label={start.names[peerSide]}
+              sub={t(peerSide)}
+              side={peerSide}
+              active={!myTurn}
+              placeholder={t('theyFroze')}
+              dead={remoteVideoDead}
+            />
+            <MicMeter level={remoteLevel} label={t('peerMic', { x: start.names[peerSide] })} />
+          </div>
+        )}
       </div>
 
       <div className="clock-row">
@@ -128,7 +155,9 @@ export default function Debate({
           {start.names[phase.activeSpeaker]}
           {myTurn ? t('goSuffix') : t('hasTheMic')}
         </div>
-        <div className={`shot-clock ${danger ? 'clock-danger' : ''}`}>{formatClock(msLeft)}</div>
+        <div className={`shot-clock ${danger && !(isBot && !myTurn) ? 'clock-danger' : ''}`}>
+          {isBot && !myTurn ? t('botSpeaking') : formatClock(msLeft)}
+        </div>
         <div className={`mic-chip ${myTurn ? 'mic-live' : 'mic-off'}`}>
           {myTurn
             ? sttServer
@@ -160,13 +189,13 @@ export default function Debate({
         </div>
       ) : null}
 
-      {peerLostUntil ? (
+      {!isBot && peerLostUntil ? (
         <div className="banner banner-warn">
           {t('reconnecting', { n: Math.max(0, Math.ceil(graceMs / 1000)) })}
         </div>
       ) : null}
 
-      {!peerLostUntil && (rtcState === 'disconnected' || rtcState === 'failed') ? (
+      {!isBot && !peerLostUntil && (rtcState === 'disconnected' || rtcState === 'failed') ? (
         <div className="banner banner-warn">{t('videoDropped')}</div>
       ) : null}
     </div>

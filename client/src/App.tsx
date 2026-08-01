@@ -27,6 +27,8 @@ import Home from './screens/Home';
 import GreenRoom from './screens/GreenRoom';
 import Debate from './screens/Debate';
 import VerdictScreen from './screens/Verdict';
+import BotSelect, { type BotStartConfig } from './screens/BotSelect';
+import { playBotTurn, stopBotVoice } from './botvoice';
 
 interface VerdictInfo {
   verdict: VerdictData;
@@ -82,6 +84,21 @@ export default function App() {
   const [mediaRetry, setMediaRetry] = useState(0);
   const [rtcState, setRtcState] = useState<RTCPeerConnectionState | null>(null);
   const [speechHeard, setSpeechHeard] = useState(false);
+  const [botPicking, setBotPicking] = useState(false);
+  const [botName, setBotName] = useState('');
+  const [botTurn, setBotTurn] = useState<{ stepIndex: number; text: string } | null>(null);
+  const [botSpeaking, setBotSpeaking] = useState(false);
+
+  // Server-STT availability (for bot mode, which has no LobbyUpdate to carry it).
+  const sttGlobalRef = useRef(false);
+  useEffect(() => {
+    fetch('/healthz')
+      .then((r) => r.json())
+      .then((h) => {
+        sttGlobalRef.current = h.stt === 'cloudflare';
+      })
+      .catch(() => {});
+  }, []);
 
   const lobbyRef = useRef<LobbyUpdate | null>(null);
   lobbyRef.current = lobby;
@@ -101,6 +118,7 @@ export default function App() {
   const resetToHome = useCallback((message: string | null) => {
     releaseMedia();
     stopTurn();
+    stopBotVoice();
     clearResume();
     setLobby(null);
     setStart(null);
@@ -115,6 +133,9 @@ export default function App() {
     setRemoteStream(null);
     setRemoteVideoDead(false);
     setMediaError(null);
+    setBotPicking(false);
+    setBotTurn(null);
+    setBotSpeaking(false);
     setNotice(message);
   }, []);
 
@@ -129,16 +150,31 @@ export default function App() {
       setEnded(true);
       stopTurn();
       stopTurnRecording(); // flushes the final turn's audio upload
+      stopBotVoice();
+      setBotTurn(null);
+      setBotSpeaking(false);
       setMicEnabled(true); // free chat while the judge deliberates
       storeResume(lobbyRef.current?.code); // a refresh may now safely resume
+    });
+    socket.on('bot:turn', (p) => {
+      // The bot's spoken turn: show its text, animate the avatar, and speak it.
+      // When speech finishes, tell the server to advance to the next turn.
+      setBotTurn({ stepIndex: p.stepIndex, text: p.text });
+      setBotSpeaking(true);
+      playBotTurn(p.text, p.audio, p.mime, langRef.current, () => {
+        setBotSpeaking(false);
+        socket.emit('bot:done', { stepIndex: p.stepIndex });
+      });
     });
     socket.on('debate:aborted', ({ reason, vars }) => {
       stopTurn();
       stopTurnRecording();
+      stopBotVoice();
       releaseMedia(); // camera light off on the cancelled screen
       clearResume();
       setLocalStream(null);
       setRemoteStream(null);
+      setBotTurn(null);
       setAbortInfo({ key: reason, vars });
     });
     socket.on('peer:connection', (p) =>
@@ -229,6 +265,7 @@ export default function App() {
       socket.off('verdict:result');
       socket.off('rematch:update');
       socket.off('rematch:go');
+      socket.off('bot:turn');
       socket.off('connect');
     };
   }, [resetToHome]);
@@ -298,7 +335,8 @@ export default function App() {
     const myTurn = phase.activeSpeaker === start.yourSide;
     setMicEnabled(myTurn);
     setSpeechHeard(false); // fresh turn, fresh proof-of-life
-    const serverStt = Boolean(lobbyRef.current?.sttAvailable) && recordingSupported;
+    const serverStt =
+      (Boolean(lobbyRef.current?.sttAvailable) || sttGlobalRef.current) && recordingSupported;
     if (myTurn) {
       if (serverStt && localStream) startTurnRecording(localStream, phase.stepIndex);
       else startTurn(phase.stepIndex);
@@ -318,7 +356,8 @@ export default function App() {
       const p = phaseRef.current;
       if (!s || !p || endedRef.current) return;
       const myTurn = p.activeSpeaker === s.yourSide;
-      const serverStt = Boolean(lobbyRef.current?.sttAvailable) && recordingSupported;
+      const serverStt =
+        (Boolean(lobbyRef.current?.sttAvailable) || sttGlobalRef.current) && recordingSupported;
       if (!myTurn || !serverStt) return;
       if (document.visibilityState === 'hidden') {
         stopTurnRecording();
@@ -389,11 +428,11 @@ export default function App() {
     return () => clearInterval(timer);
   }, [rtcState, lobby?.role]);
 
-  // Camera starts the moment you're in a lobby: the solo green room is a
-  // mirror check, not a dead black rectangle. Also surfaces permission
-  // problems before your opponent is watching you fumble.
+  // Camera starts the moment you're in a lobby OR picking a bot: the solo green
+  // room / bot picker is a mirror check, not a dead black rectangle. Also
+  // surfaces permission problems before the debate.
   useEffect(() => {
-    if (!lobby) return;
+    if (!lobby && !botPicking && !start?.bot) return;
     let cancelled = false;
     void (async () => {
       try {
@@ -409,7 +448,7 @@ export default function App() {
     return () => {
       cancelled = true;
     };
-  }, [lobby?.code, mediaRetry]);
+  }, [lobby?.code, botPicking, Boolean(start?.bot), mediaRetry]);
 
   // Peer link only when both corners are occupied.
   useEffect(() => {
@@ -443,6 +482,30 @@ export default function App() {
     setNotice(null);
     setLobby(u);
   }, []);
+
+  const onPlayBot = useCallback((name: string) => {
+    setNotice(null);
+    setBotName(name);
+    setBotPicking(true);
+  }, []);
+
+  const startBot = useCallback(
+    (c: BotStartConfig) => {
+      socket.emit(
+        'bot:start',
+        { sessionId: session.id, name: botName, lang: langRef.current, ...c },
+        (res) => {
+          if (res.ok) return; // debate:start arrives next and renders the debate
+          const map: Record<string, string> = {
+            rate_limited: 'errRateLimited',
+            bad_name: 'errBadName',
+          };
+          resetToHome(map[res.error ?? ''] ?? 'lostLobby');
+        },
+      );
+    },
+    [botName, resetToHome],
+  );
 
   // Dead local track with a live call: re-acquire and hot-swap (replaceTrack,
   // no renegotiation). Without a prior stream, fall back to the full retry
@@ -492,6 +555,7 @@ export default function App() {
         onRetry={() => socket.emit('verdict:retry')}
         rematch={rematch}
         onRematch={() => socket.emit('rematch')}
+        botOpponent={start?.bot ?? null}
       />
     );
   } else if (start) {
@@ -506,9 +570,26 @@ export default function App() {
         rtcState={rtcState}
         speechHeard={speechHeard}
         speechSupported={speechSupported}
-        sttServer={Boolean(lobby?.sttAvailable) && recordingSupported}
+        sttServer={(Boolean(lobby?.sttAvailable) || sttGlobalRef.current) && recordingSupported}
         mediaError={mediaError}
         onRetryMedia={retryMedia}
+        botOpponent={start.bot ?? null}
+        botTurn={botTurn}
+        botSpeaking={botSpeaking}
+      />
+    );
+  } else if (botPicking) {
+    content = (
+      <BotSelect
+        localStream={localStream}
+        mediaError={mediaError}
+        onRetryMedia={retryMedia}
+        onStart={startBot}
+        onBack={() => {
+          setBotPicking(false);
+          releaseMedia();
+          setLocalStream(null);
+        }}
       />
     );
   } else if (lobby) {
@@ -524,7 +605,7 @@ export default function App() {
       />
     );
   } else {
-    content = <Home notice={notice} onEntered={handleEntered} />;
+    content = <Home notice={notice} onEntered={handleEntered} onPlayBot={onPlayBot} />;
   }
 
   return (

@@ -26,6 +26,7 @@ interface Props {
   onRetry: () => void;
   onRematch: () => void;
   rematch: { youWant: boolean; peerWant: boolean; peerLeft: boolean } | null;
+  botOpponent?: { id: string; name: string; color: string } | null;
 }
 
 /**
@@ -117,9 +118,11 @@ export default function VerdictScreen({
   onRetry,
   onRematch,
   rematch,
+  botOpponent,
 }: Props) {
   const { lang, t } = useI18n();
-  const strip = (
+  // No shared call to keep visible when the opponent is a bot.
+  const strip = botOpponent ? null : (
     <LiveStrip
       localStream={localStream}
       remoteStream={remoteStream}
@@ -436,7 +439,11 @@ export default function VerdictScreen({
           ) : null}
 
           <div className="verdict-actions">
-            {rematch?.peerLeft ? (
+            {botOpponent ? (
+              <button className="btn btn-primary" onClick={() => window.location.assign('/')}>
+                {t('newOpponent')}
+              </button>
+            ) : rematch?.peerLeft ? (
               <button className="btn btn-primary" disabled>
                 {t('rematchPeerLeft', { x: peerName })}
               </button>

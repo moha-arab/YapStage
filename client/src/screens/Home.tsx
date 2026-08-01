@@ -15,9 +15,10 @@ const ERROR_KEYS: Record<JoinError, string> = {
 interface Props {
   notice: string | null;
   onEntered: (u: LobbyUpdate) => void;
+  onPlayBot: (name: string) => void;
 }
 
-export default function Home({ notice, onEntered }: Props) {
+export default function Home({ notice, onEntered, onPlayBot }: Props) {
   const { t } = useI18n();
   const [name, setName] = useState('');
   const [code, setCode] = useState(
@@ -112,6 +113,14 @@ export default function Home({ notice, onEntered }: Props) {
               {t('joinOne')}
             </button>
           </div>
+          <div className="home-or">{t('orWord')}</div>
+          <button
+            className="btn btn-bot btn-wide"
+            disabled={!validName}
+            onClick={() => onPlayBot(name)}
+          >
+            {t('playBot')}
+          </button>
         </div>
 
         {error ? <p className="error">{t(error)}</p> : null}
