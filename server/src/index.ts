@@ -31,8 +31,9 @@ import {
   acceptAudioTurn,
   acceptChunk,
   advance,
+  endTurnEarly,
   resendState,
-  SCRIPT,
+  scriptFor,
   startBotDebate,
   startDebate,
   type Io,
@@ -166,6 +167,7 @@ function updateFor(lobby: Lobby, receiver: Participant): LobbyUpdate {
     deck: TOPIC_CATEGORIES,
     topicMode: lobby.topicMode,
     categoryKey: lobby.categoryKey,
+    pace: lobby.pace,
     pick: {
       yourTopicId: isHost ? pick.hostTopicId : pick.guestTopicId,
       peerTopicId: isHost ? pick.guestTopicId : pick.hostTopicId,
@@ -372,6 +374,21 @@ io.on('connection', (socket) => {
     broadcastLobbyUpdate(lobby);
   });
 
+  // Host picks the pace (turn lengths). Any change resets both confirms.
+  socket.on('pick:pace', (pace) => {
+    if (!allow(`pick:${socket.id}`, 60, 10_000)) return;
+    const lobby = socket.data.code ? getLobby(socket.data.code) : undefined;
+    if (!lobby || lobby.status !== 'greenroom') return;
+    if (participantOf(lobby, socket.id) !== lobby.host) return; // host-only
+    if (pace !== 'standard' && pace !== 'blitz') return;
+    if (lobby.pace === pace) return;
+    lobby.pace = pace;
+    lobby.pick.hostConfirmed = false;
+    lobby.pick.guestConfirmed = false;
+    touch(lobby);
+    broadcastLobbyUpdate(lobby);
+  });
+
   // Host picks the category for 'category' mode.
   socket.on('pick:category', (key) => {
     if (!allow(`pick:${socket.id}`, 60, 10_000)) return;
@@ -487,6 +504,17 @@ io.on('connection', (socket) => {
     acceptChunk(lobby, me, chunk);
   });
 
+  // "Pass the mic" — the active speaker ends their own turn early.
+  socket.on('turn:done', (p) => {
+    if (!allow(`pick:${socket.id}`, 60, 10_000)) return;
+    if (!p || typeof p !== 'object') return;
+    const lobby = socket.data.code ? getLobby(socket.data.code) : undefined;
+    if (!lobby) return;
+    const me = participantOf(lobby, socket.id);
+    if (!me) return;
+    endTurnEarly(io, lobby, me, Number(p.stepIndex));
+  });
+
   socket.on('audio:turn', (p) => {
     if (!sttConfigured()) return;
     if (!p || typeof p !== 'object') return;
@@ -573,6 +601,7 @@ io.on('connection', (socket) => {
 
     const topicMode = p?.topicMode === 'agree' || p?.topicMode === 'category' ? p.topicMode : 'random';
     const lang = p?.lang === 'ar' ? 'ar' : 'en';
+    const pace = p?.pace === 'blitz' ? 'blitz' : 'standard';
 
     // Resolve the motion.
     let topic;
@@ -593,6 +622,7 @@ io.on('connection', (socket) => {
 
     releasePreviousSeat(socket);
     const lobby = createLobby(socket.id, String(p?.sessionId ?? '').slice(0, 64), name);
+    lobby.pace = pace;
     lobby.bot = { id: bot.id, name: bot.name, difficulty: bot.difficulty, side: botSide, lang };
     socket.data.code = lobby.code;
     socket.data.role = 'host';
@@ -606,7 +636,7 @@ io.on('connection', (socket) => {
     if (!lobby || !lobby.bot || lobby.status !== 'in_debate') return;
     if (participantOf(lobby, socket.id) !== lobby.host) return;
     const idx = Number(p?.stepIndex);
-    if (lobby.stepIndex === idx && SCRIPT[idx]?.speaker === lobby.bot.side) {
+    if (lobby.stepIndex === idx && scriptFor(lobby)[idx]?.speaker === lobby.bot.side) {
       if (lobby.phaseTimer) clearTimeout(lobby.phaseTimer);
       advance(io, lobby, idx);
     }

@@ -1711,6 +1711,23 @@ html[dir='rtl'] .meter-hint {
   gap: 8px;
   flex-wrap: wrap;
 }
+.pace-hint {
+  font-family: var(--marker);
+  font-size: 12.5px;
+  color: var(--muted);
+}
+
+/* "pass the mic" sits under the clock track, only on your turn */
+.pass-row {
+  display: flex;
+  justify-content: center;
+  margin-top: 12px;
+}
+.pass-mic {
+  font-family: var(--marker);
+  font-size: 14px;
+  letter-spacing: 0.04em;
+}
 
 .bot-mirror {
   width: min(260px, 68vw);

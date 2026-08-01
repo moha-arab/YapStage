@@ -1,4 +1,4 @@
-import type { Difficulty, Side, TopicMode, TopicText, Verdict } from './protocol.js';
+import type { Difficulty, Pace, Side, TopicMode, TopicText, Verdict } from './protocol.js';
 
 export interface Participant {
   socketId: string;
@@ -48,6 +48,7 @@ export interface Lobby {
   status: LobbyStatus;
   topicMode: TopicMode; // how the topic is decided (host-controlled)
   categoryKey: string | null; // chosen category in 'category' mode
+  pace: Pace; // turn lengths (host-controlled; survives rematch like topicMode)
   /** Set only in bots mode: the AI opponent. host is the human; there's no guest. */
   bot?: { id: string; name: string; difficulty: Difficulty; side: Side; lang: 'en' | 'ar' };
   pick: Pick;
@@ -96,6 +97,7 @@ export function createLobby(socketId: string, sessionId: string, name: string): 
     status: 'waiting',
     topicMode: 'agree',
     categoryKey: null,
+    pace: 'standard',
     pick: {
       hostTopicId: null,
       guestTopicId: null,

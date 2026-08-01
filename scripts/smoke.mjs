@@ -370,8 +370,23 @@ const MONEY_IDS = ['capitalism-failing', 'college-worth', 'money-happiness', 'la
   const cr = await emitP(host, 'lobby:create', { sessionId: 'r-h', name: 'randhost' });
   const code = cr.update.code;
   await emitP(guest, 'lobby:join', { code, sessionId: 'r-g', name: 'randguest' });
+  check('lobby defaults to standard pace', cr.update.pace === 'standard');
   host.emit('pick:mode', 'random');
   await new Promise((r) => setTimeout(r, 200)); // let the mode propagate before confirming
+
+  // pace is host-controlled, like the mode
+  const paceUpdate = once(guest, 'lobby:update', 4000);
+  host.emit('pick:pace', 'blitz');
+  const u1 = await paceUpdate;
+  check('pace: host sets blitz', u1.pace === 'blitz');
+  let lastPace = u1.pace;
+  const paceTracker = (u) => { lastPace = u.pace; };
+  guest.on('lobby:update', paceTracker);
+  guest.emit('pick:pace', 'standard'); // guest is not host — must be ignored
+  await new Promise((r) => setTimeout(r, 250));
+  guest.off('lobby:update', paceTracker);
+  check('pace: guest cannot change it', lastPace === 'blitz');
+
   const started = once(host, 'debate:start', 8000);
   const gStarted = once(guest, 'debate:start', 8000);
   host.emit('pick:confirm');
@@ -380,6 +395,27 @@ const MONEY_IDS = ['capitalism-failing', 'college-worth', 'money-happiness', 'la
   const gds = await gStarted;
   check('random mode: debate starts with a real topic', typeof ds.topic?.id === 'string' && ds.topic.id.length > 0);
   check('random mode: sides are opposite', ds.yourSide !== gds.yourSide);
+
+  // --- pass the mic ---
+  const forSock = ds.yourSide === 'FOR' ? host : guest;
+  const p0 = await once(host, 'debate:phase', 15000);
+  check('step 0 opens with FOR on the mic', p0.stepIndex === 0 && p0.activeSpeaker === 'FOR');
+  await new Promise((r) => setTimeout(r, 300));
+  const t0 = Date.now();
+  const nextPhase = once(host, 'debate:phase', 8000);
+  forSock.emit('turn:done', { stepIndex: 0 });
+  const p1 = await nextPhase;
+  // fast-mode turns run 5s; an early pass lands the next phase almost instantly
+  check('pass the mic: turn ends early', p1.stepIndex === 1 && Date.now() - t0 < 3000);
+
+  const t1 = Date.now();
+  const nextPhase2 = once(host, 'debate:phase', 15000);
+  forSock.emit('turn:done', { stepIndex: 1 }); // AGAINST has the mic — must be ignored
+  const p2 = await nextPhase2;
+  check(
+    'pass the mic: only the active speaker can pass',
+    p2.stepIndex === 2 && Date.now() - t1 >= 3500,
+  );
   host.disconnect();
   guest.disconnect();
 }

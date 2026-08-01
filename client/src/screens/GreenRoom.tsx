@@ -173,6 +173,23 @@ export default function GreenRoom({
             </div>
             {!isHost ? <p className="mode-hint">{t('modeHostControls', { x: peer })}</p> : null}
 
+            <div className="setup-row pace-row">
+              <span className="setup-label">{t('paceLabel')}</span>
+              <div className="chip-row">
+                {(['standard', 'blitz'] as const).map((pc) => (
+                  <button
+                    key={pc}
+                    className={`cat-tab ${lobby.pace === pc ? 'cat-active' : ''}`}
+                    disabled={!isHost}
+                    onClick={() => socket.emit('pick:pace', pc)}
+                  >
+                    {t(`pace_${pc}`)}
+                  </button>
+                ))}
+              </div>
+              <span className="pace-hint">{t(`paceHint_${lobby.pace}`)}</span>
+            </div>
+
             {mode === 'agree' ? (
               <>
                 <div className="cat-tabs">

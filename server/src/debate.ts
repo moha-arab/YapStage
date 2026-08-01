@@ -1,6 +1,7 @@
 import type { Server } from 'socket.io';
 import type {
   ClientToServer,
+  Pace,
   PhaseLabel,
   ServerToClient,
   Side,
@@ -27,25 +28,34 @@ export interface Step {
 
 const FAST = process.env.DEBATE_SPEED === 'fast';
 
-export const SCRIPT: Step[] = FAST
-  ? [
-      { phase: 'opening', speaker: 'FOR', seconds: 5 },
-      { phase: 'opening', speaker: 'AGAINST', seconds: 5 },
-      { phase: 'rebuttal', speaker: 'FOR', seconds: 4 },
-      { phase: 'rebuttal', speaker: 'AGAINST', seconds: 4 },
-      { phase: 'closing', speaker: 'FOR', seconds: 3 },
-      { phase: 'closing', speaker: 'AGAINST', seconds: 3 },
-    ]
-  : [
-      { phase: 'opening', speaker: 'FOR', seconds: 60 },
-      { phase: 'opening', speaker: 'AGAINST', seconds: 60 },
-      { phase: 'rebuttal', speaker: 'FOR', seconds: 45 },
-      { phase: 'rebuttal', speaker: 'AGAINST', seconds: 45 },
-      { phase: 'closing', speaker: 'FOR', seconds: 30 },
-      { phase: 'closing', speaker: 'AGAINST', seconds: 30 },
-    ];
+const script = (o: number, r: number, c: number): Step[] => [
+  { phase: 'opening', speaker: 'FOR', seconds: o },
+  { phase: 'opening', speaker: 'AGAINST', seconds: o },
+  { phase: 'rebuttal', speaker: 'FOR', seconds: r },
+  { phase: 'rebuttal', speaker: 'AGAINST', seconds: r },
+  { phase: 'closing', speaker: 'FOR', seconds: c },
+  { phase: 'closing', speaker: 'AGAINST', seconds: c },
+];
 
-const REVEAL_MS = FAST ? 3000 : 8000;
+// Turn lengths per pace. These are CEILINGS, not sentences — "pass the mic"
+// ends any turn early, so standard only feels long if you use all of it.
+const SCRIPTS: Record<Pace, Step[]> = {
+  standard: script(60, 45, 30),
+  blitz: script(30, 20, 15),
+};
+const FAST_SCRIPT = script(5, 4, 3);
+
+/** The step script this lobby runs (FAST test mode overrides pace). */
+export function scriptFor(lobby: Pick<Lobby, 'pace'>): Step[] {
+  return FAST ? FAST_SCRIPT : SCRIPTS[lobby.pace] ?? SCRIPTS.standard;
+}
+
+/** Kept for callers that only need the universal 6-step SHAPE (phases,
+    speakers, length) — every pace shares it; only seconds differ. */
+export const SCRIPT: Step[] = FAST ? FAST_SCRIPT : SCRIPTS.standard;
+
+const revealMs = (lobby: Pick<Lobby, 'pace'>): number =>
+  FAST ? 3000 : lobby.pace === 'blitz' ? 5000 : 8000;
 
 // Trailing grace: a final speech result often lands 1-2s after a turn ends.
 const CHUNK_GRACE_MS = 2500;
@@ -103,7 +113,8 @@ export function startDebate(io: Io, lobby: Lobby): void {
   };
 
   const now = Date.now();
-  const startsAt = now + REVEAL_MS;
+  const reveal = revealMs(lobby);
+  const startsAt = now + reveal;
   io.to(lobby.host.socketId).emit('debate:start', {
     topic: lobby.topic,
     yourSide: lobby.sides.host,
@@ -120,7 +131,7 @@ export function startDebate(io: Io, lobby: Lobby): void {
   });
 
   lobby.stepIndex = -1;
-  lobby.phaseTimer = setTimeout(() => advance(io, lobby, -1), REVEAL_MS);
+  lobby.phaseTimer = setTimeout(() => advance(io, lobby, -1), reveal);
 }
 
 export function advance(io: Io, lobby: Lobby, expectedStep: number): void {
@@ -129,14 +140,15 @@ export function advance(io: Io, lobby: Lobby, expectedStep: number): void {
   if (lobby.status !== 'in_debate' || lobby.stepIndex !== expectedStep) return;
   touch(lobby);
 
+  const steps = scriptFor(lobby);
   const next = expectedStep + 1;
-  if (next >= SCRIPT.length) {
+  if (next >= steps.length) {
     finishDebate(io, lobby);
     return;
   }
 
   lobby.stepIndex = next;
-  const step = SCRIPT[next];
+  const step = steps[next];
   const now = Date.now();
   const isBotStep = Boolean(lobby.bot && step.speaker === lobby.bot.side);
   // A human turn is the fixed shot clock. A bot turn runs as long as it needs
@@ -176,7 +188,8 @@ export function startBotDebate(io: Io, lobby: Lobby, topic: TopicText, humanSide
   const names = { [humanSide]: lobby.host.name, [botSide]: lobby.bot.name } as Record<Side, string>;
   const meta = BOT_BY_ID.get(lobby.bot.id);
   const now = Date.now();
-  const startsAt = now + REVEAL_MS;
+  const reveal = revealMs(lobby);
+  const startsAt = now + reveal;
   io.to(lobby.host.socketId).emit('debate:start', {
     topic,
     yourSide: humanSide,
@@ -186,7 +199,7 @@ export function startBotDebate(io: Io, lobby: Lobby, topic: TopicText, humanSide
     bot: { id: lobby.bot.id, name: lobby.bot.name, color: meta?.color ?? 'gold' },
   });
   lobby.stepIndex = -1;
-  lobby.phaseTimer = setTimeout(() => advance(io, lobby, -1), REVEAL_MS);
+  lobby.phaseTimer = setTimeout(() => advance(io, lobby, -1), reveal);
   return true;
 }
 
@@ -219,7 +232,7 @@ async function transcribeHumanUpto(lobby: Lobby, beforeStep: number): Promise<vo
 
 async function generateBotArgument(lobby: Lobby, bot: Bot, stepIndex: number): Promise<string> {
   const botSide = lobby.bot!.side;
-  const phase = SCRIPT[stepIndex].phase;
+  const phase = scriptFor(lobby)[stepIndex].phase;
   const lang = lobby.bot!.lang;
   const motion = (lang === 'ar' && lobby.topic?.ar ? lobby.topic.ar : lobby.topic?.en) ?? '';
 
@@ -274,6 +287,22 @@ async function runBotTurn(io: Io, lobby: Lobby, stepIndex: number): Promise<void
     event('bot_turn_failed', { code: lobby.code });
     io.to(hostId).emit('bot:turn', { stepIndex, text: '' }); // let the client advance
   }
+}
+
+/** "Pass the mic": the ACTIVE speaker ends their own turn early. Validation
+    mirrors bot:done — right lobby state, right step, right speaker — so a
+    stale or hostile emit can never advance someone else's turn. */
+export function endTurnEarly(io: Io, lobby: Lobby, sender: Participant, stepIndex: number): void {
+  if (lobby.status !== 'in_debate') return;
+  if (!Number.isInteger(stepIndex) || stepIndex !== lobby.stepIndex) return;
+  const step = scriptFor(lobby)[stepIndex];
+  if (!step) return;
+  const side = sideOf(lobby, sender);
+  if (!side || step.speaker !== side) return;
+  if (lobby.bot && step.speaker === lobby.bot.side) return; // bot turns end via bot:done
+  event('turn_passed', { code: lobby.code, stepIndex });
+  if (lobby.phaseTimer) clearTimeout(lobby.phaseTimer);
+  advance(io, lobby, stepIndex);
 }
 
 function finishDebate(io: Io, lobby: Lobby): void {
@@ -339,7 +368,7 @@ export function resendState(io: Io, lobby: Lobby, participant: Participant): voi
 
   if (lobby.status === 'in_debate' && lobby.stepIndex >= 0) {
     emitStart();
-    const step = SCRIPT[lobby.stepIndex];
+    const step = scriptFor(lobby)[lobby.stepIndex];
     io.to(socketId).emit('debate:phase', {
       stepIndex: lobby.stepIndex,
       phase: step.phase,
@@ -380,9 +409,10 @@ export function resendState(io: Io, lobby: Lobby, participant: Participant): voi
 
 /** Shared turn-validation for incoming transcription material. */
 function turnIsAcceptable(lobby: Lobby, sender: Participant, stepIndex: number): boolean {
-  if (!Number.isInteger(stepIndex) || stepIndex < 0 || stepIndex >= SCRIPT.length) return false;
+  const steps = scriptFor(lobby);
+  if (!Number.isInteger(stepIndex) || stepIndex < 0 || stepIndex >= steps.length) return false;
   const side = sideOf(lobby, sender);
-  if (!side || SCRIPT[stepIndex].speaker !== side) return false;
+  if (!side || steps[stepIndex].speaker !== side) return false;
   const now = Date.now();
   const isCurrent = lobby.status === 'in_debate' && stepIndex === lobby.stepIndex;
   const isTrailingPrev =
@@ -391,7 +421,7 @@ function turnIsAcceptable(lobby: Lobby, sender: Participant, stepIndex: number):
     now - lobby.stepStartedAt < CHUNK_GRACE_MS;
   const isTrailingLast =
     lobby.status === 'judging' &&
-    stepIndex === SCRIPT.length - 1 &&
+    stepIndex === steps.length - 1 &&
     lobby.finishedAt !== undefined &&
     now - lobby.finishedAt < CHUNK_GRACE_MS;
   return isCurrent || isTrailingPrev || isTrailingLast;

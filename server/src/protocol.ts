@@ -14,6 +14,10 @@ export type TopicMode = 'agree' | 'category' | 'random';
 
 export type Difficulty = 'easy' | 'medium' | 'hard';
 
+// Debate pacing. standard = 60/45/30s turns; blitz = 30/20/15s (a ~2min game).
+// Turn lengths are maximums either way — "pass the mic" ends a turn early.
+export type Pace = 'standard' | 'blitz';
+
 /** Public bot info for the pick screen (no prompt/voice secrets). */
 export interface BotInfo {
   id: string;
@@ -83,6 +87,7 @@ export interface LobbyUpdate {
   topicMode: TopicMode;
   /** In 'category' mode, the host-chosen category key (else null). */
   categoryKey: string | null;
+  pace: Pace;
   pick: PickState;
   iceServers: IceServer[];
   /** Server-side Whisper transcription available: any browser works. */
@@ -150,12 +155,15 @@ export interface ClientToServer {
   ) => void;
   'pick:mode': (mode: TopicMode) => void; // host only: how the topic is decided
   'pick:category': (key: string) => void; // host only: category for 'category' mode
+  'pick:pace': (pace: Pace) => void; // host only: turn lengths
   'pick:topic': (topicId: string) => void; // set YOUR topic choice (by id)
   'pick:side': (side: Side) => void; // set YOUR side
   'pick:confirm': () => void; // second confirm (with matching picks) starts the debate
   'rtc:ready': () => void;
   'rtc:signal': (p: SignalPayload) => void;
   'speech:chunk': (p: SpeechChunk) => void;
+  /** End YOUR OWN current turn early — the mic passes immediately. */
+  'turn:done': (p: { stepIndex: number }) => void;
   /** One recorded audio blob per completed speaking turn (server-STT mode). */
   'audio:turn': (p: { stepIndex: number; mime: string; data: ArrayBuffer }) => void;
   'verdict:retry': () => void;
@@ -171,6 +179,7 @@ export interface ClientToServer {
       topicId?: string;
       side?: Side | 'random';
       lang?: 'en' | 'ar';
+      pace?: Pace;
     },
     cb: (res: { ok: boolean; error?: JoinError }) => void,
   ) => void;

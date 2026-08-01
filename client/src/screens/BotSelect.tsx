@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import type { BotInfo, Side, TopicCategory, TopicMode } from '../../../server/src/protocol';
+import type { BotInfo, Pace, Side, TopicCategory, TopicMode } from '../../../server/src/protocol';
 import { useI18n } from '../i18n';
 import { initAudio } from '../sound';
 import BotAvatar from '../BotAvatar';
@@ -11,6 +11,7 @@ export interface BotStartConfig {
   categoryKey?: string;
   topicId?: string;
   side: Side | 'random';
+  pace: Pace;
 }
 
 interface Props {
@@ -30,6 +31,7 @@ export default function BotSelect({ localStream, mediaError, onRetryMedia, onSta
   const [cat, setCat] = useState(0);
   const [topicId, setTopicId] = useState<string | null>(null);
   const [side, setSide] = useState<Side | 'random'>('random');
+  const [pace, setPace] = useState<Pace>('standard');
 
   useEffect(() => {
     fetch('/bots')
@@ -54,6 +56,7 @@ export default function BotSelect({ localStream, mediaError, onRetryMedia, onSta
       categoryKey: mode === 'category' ? topics[cat]?.key : undefined,
       topicId: mode === 'agree' ? (topicId ?? undefined) : undefined,
       side,
+      pace,
     });
   }
 
@@ -145,6 +148,22 @@ export default function BotSelect({ localStream, mediaError, onRetryMedia, onSta
         ) : (
           <p className="mode-desc">{t('randomDesc')}</p>
         )}
+
+        <div className="setup-row pace-row">
+          <span className="setup-label">{t('paceLabel')}</span>
+          <div className="chip-row">
+            {(['standard', 'blitz'] as const).map((pc) => (
+              <button
+                key={pc}
+                className={`cat-tab ${pace === pc ? 'cat-active' : ''}`}
+                onClick={() => setPace(pc)}
+              >
+                {t(`pace_${pc}`)}
+              </button>
+            ))}
+          </div>
+          <span className="pace-hint">{t(`paceHint_${pace}`)}</span>
+        </div>
 
         <div className="setup-row">
           <span className="setup-label">{t('yourSideLabel')}</span>

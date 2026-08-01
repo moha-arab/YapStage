@@ -576,6 +576,7 @@ export default function App() {
         botOpponent={start.bot ?? null}
         botTurn={botTurn}
         botSpeaking={botSpeaking}
+        onPassMic={(stepIndex) => socket.emit('turn:done', { stepIndex })}
       />
     );
   } else if (botPicking) {

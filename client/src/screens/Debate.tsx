@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import type { DebateStart, PhaseUpdate, Side } from '../../../server/src/protocol';
 import { formatClock, useCountdown } from '../useCountdown';
 import { useAudioLevel } from '../useAudioLevel';
@@ -22,6 +23,7 @@ interface Props {
   botOpponent?: { id: string; name: string; color: string } | null;
   botTurn?: { stepIndex: number; text: string } | null;
   botSpeaking?: boolean;
+  onPassMic: (stepIndex: number) => void;
 }
 
 const PHASES: { key: string; labelKey: string }[] = [
@@ -46,6 +48,7 @@ export default function Debate({
   botOpponent,
   botTurn,
   botSpeaking,
+  onPassMic,
 }: Props) {
   const { lang, t } = useI18n();
   const isBot = Boolean(botOpponent);
@@ -57,6 +60,15 @@ export default function Debate({
   const localLevel = useAudioLevel(localStream);
   const remoteLevel = useAudioLevel(remoteStream);
   // (Wake lock lives in App now — it must span the verdict screens too.)
+
+  // "Pass the mic" arms 2s into your turn so a click aimed at something else
+  // can't yield a turn that just started under the cursor.
+  const [passArmed, setPassArmed] = useState(false);
+  useEffect(() => {
+    setPassArmed(false);
+    const id = setTimeout(() => setPassArmed(true), 2000);
+    return () => clearTimeout(id);
+  }, [phase?.stepIndex]);
 
   // Before the first phase event: the fight card.
   if (!phase) {
@@ -184,6 +196,18 @@ export default function Debate({
           style={{ width: `${Math.min(100, (msLeft / (phase.seconds * 1000)) * 100)}%` }}
         />
       </div>
+
+      {myTurn ? (
+        <div className="pass-row">
+          <button
+            className="btn btn-small pass-mic"
+            disabled={!passArmed}
+            onClick={() => onPassMic(phase.stepIndex)}
+          >
+            {t('passMic')}
+          </button>
+        </div>
+      ) : null}
 
       {mediaError ? (
         <div className="banner banner-error">
