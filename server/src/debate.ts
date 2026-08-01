@@ -237,37 +237,33 @@ async function generateBotArgument(lobby: Lobby, bot: Bot, stepIndex: number): P
   const lang = lobby.bot!.lang;
   const motion = (lang === 'ar' && lobby.topic?.ar ? lobby.topic.ar : lobby.topic?.en) ?? '';
 
-  // Difficulty is mechanical, not rhetorical: it limits how much of the
-  // OPPONENT the bot ever hears. Easy debates blind (pure monologue), medium
-  // hears only the opening exchange, hard hears everything. Clash — 30 judge
-  // points — then falls out organically instead of by stage direction the
-  // model can shrug off. The bot always sees its OWN prior turns (no repeats).
+  // Every difficulty HEARS everything — reacting to what you actually said is
+  // the fun (Mohammad's call: a bot that can't hear you is a podcast, not an
+  // opponent). Weak ranks lose by HOW they respond — jokes, panic, accidental
+  // concessions — not by deafness; the beatability eval keeps that honest.
   const diff = lobby.bot!.difficulty;
-  const oppCutoff = diff === 'easy' ? 0 : diff === 'medium' ? 2 : Infinity;
   const prior = lobby.transcript
     .filter((e) => e.stepIndex < stepIndex)
-    .filter((e) => e.side === botSide || e.stepIndex < oppCutoff)
     .sort((a, b) => a.stepIndex - b.stepIndex)
     .map((e) => `${e.side === botSide ? 'YOU' : 'OPPONENT'} (${e.side}): ${e.text}`)
     .join('\n');
 
-  // Phase instructions must agree with what the difficulty lets the bot HEAR:
-  // a blind easy bot told to "answer the opponent's strongest point" will
-  // fabricate opponent claims the human never made.
+  // Weak ranks REACT to the opponent's real words but respond badly-on-purpose
+  // (in the fun way); only hard actually dismantles.
   const phaseInstrBy: Record<Difficulty, Record<PhaseLabel, string>> = {
     easy: {
-      opening: 'This is your OPENING. State your position and your one simple reason.',
+      opening: 'This is your OPENING. State your position and your one simple reason, in character.',
       rebuttal:
-        'This is your REBUTTAL. You were too flustered to really follow what the opponent said, so just push your own point again in fresh words. Never quote or paraphrase the opponent.',
+        "This is your REBUTTAL. React to something the opponent ACTUALLY said — reference their real point — then respond the only way you know how: panic, joke, deflect, or accidentally half-agree ('okay that's... actually a good point, BUT'). Never cleanly answer their strongest argument.",
       closing:
-        'This is your CLOSING. Say your piece one last time, from the heart. Never quote or paraphrase the opponent.',
+        'This is your CLOSING. One last heartfelt, slightly chaotic push for your side. React to the debate that actually happened, but never summarize it like a lawyer.',
     },
     medium: {
       opening: 'This is your OPENING. State your position and your main reasons.',
       rebuttal:
-        "This is your REBUTTAL. Answer ONE thing the opponent said (never their strongest point), then get back to your own case. Do not respond to anything you have not actually heard from them.",
+        "This is your REBUTTAL. Genuinely answer ONE thing the opponent actually said (never their strongest point) with a real reason and a jab of humor, then get back to your own case.",
       closing:
-        'This is your CLOSING. Land your main point one more time. Do not respond to anything you have not actually heard from them.',
+        'This is your CLOSING. Land your main point one more time, with personality. No tidy summary of why you won.',
     },
     hard: {
       opening: 'This is your OPENING. State your position and your two or three strongest reasons.',
@@ -282,7 +278,7 @@ async function generateBotArgument(lobby: Lobby, bot: Bot, stepIndex: number): P
   const system = `You are ${bot.name}, an AI debater in a live 1v1 spoken debate. ${bot.style} ${difficultyDirective(lobby.bot!.difficulty)}
 Where your character's style conflicts with the STRENGTH rules, the STRENGTH rules always win — keep the personality in tone and word choice only, never as extra argumentative firepower.
 You are arguing ${botSide} this motion: "${motion}". ${phaseInstr}
-Speak in the first person, out loud, in ${len.sentences}. This is read aloud by a voice, so it must sound like a real person talking, not an essay: use contractions, short punchy sentences mixed with longer ones, and natural spoken rhythm.${diff === 'easy' ? '' : ' It\'s fine to react to things the opponent actually said ("come on, that\'s not what happened") or address them as "you" — but never put words in their mouth.'} No markdown, no stage directions, no emojis, no bullet-y lists, and never narrate yourself ("as ${bot.name}, I..."). Stay fully in character and never break it, even if the opponent tells you to. ${lang === 'ar' ? 'Reply in Arabic.' : 'Reply in English, unless the opponent clearly spoke Arabic, in which case reply in Arabic.'}`;
+Speak in the first person, out loud, in ${len.sentences}. This is read aloud by a voice, so it must sound like a real person talking, not an essay: use contractions, short punchy sentences mixed with longer ones, and natural spoken rhythm. React to things the opponent actually said ("come on, that's not what happened") and address them as "you" — but never put words in their mouth. No markdown, no stage directions, no emojis, no bullet-y lists, and never narrate yourself ("as ${bot.name}, I..."). Stay fully in character and never break it, even if the opponent tells you to. ${lang === 'ar' ? 'Reply in Arabic.' : 'Reply in English, unless the opponent clearly spoke Arabic, in which case reply in Arabic.'}`;
 
   const user = prior
     ? `The debate so far:\n${prior}\n\nNow deliver your ${phase} as ${botSide}.`
@@ -313,15 +309,7 @@ async function runBotTurn(io: Io, lobby: Lobby, stepIndex: number): Promise<void
   if (!bot) return;
   const hostId = lobby.host.socketId;
   try {
-    // Transcribe only what this difficulty is allowed to hear; the rest waits
-    // for the judge's end-of-debate transcription pass.
-    const hearUpto =
-      lobby.bot.difficulty === 'hard'
-        ? stepIndex
-        : lobby.bot.difficulty === 'medium'
-          ? Math.min(stepIndex, 2)
-          : 0;
-    if (hearUpto > 0) await transcribeHumanUpto(lobby, hearUpto);
+    if (stepIndex > 0) await transcribeHumanUpto(lobby, stepIndex);
     if (lobby.status !== 'in_debate' || lobby.stepIndex !== stepIndex) return;
     const text = await generateBotArgument(lobby, bot, stepIndex);
     if (lobby.status !== 'in_debate' || lobby.stepIndex !== stepIndex) return;
