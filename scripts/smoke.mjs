@@ -459,8 +459,7 @@ console.log('\n=== Scenario 7: bots mode ===');
   const res = await emitP(h, 'bot:start', {
     sessionId: 'bot-h',
     name: 'botfighter',
-    botId: 'rookie',
-    difficulty: 'easy',
+    botId: 'pug',
     topicMode: 'agree',
     topicId: 'money-happiness',
     side: 'FOR',
@@ -469,8 +468,8 @@ console.log('\n=== Scenario 7: bots mode ===');
   check('bot:start accepted', res.ok === true);
   const start = await once(h, 'debate:start', 12000);
   check(
-    'bot debate: opponent is the chosen bot',
-    Boolean(start.bot) && start.bot.id === 'rookie' && start.names.AGAINST === 'The Rookie',
+    'bot debate: opponent is the chosen character',
+    Boolean(start.bot) && start.bot.id === 'pug' && start.names.AGAINST === 'Rex',
   );
   let botTurns = 0;
   h.on('debate:phase', (ph) => {
@@ -486,7 +485,7 @@ console.log('\n=== Scenario 7: bots mode ===');
   const v = await once(h, 'verdict:result', 120000);
   check('bot generated all three of its turns', botTurns === 3);
   check('bot was scored (it argued a real transcript)', v.verdict.scores.AGAINST.argument > 0);
-  check('verdict carries the bot name', v.names.AGAINST === 'The Rookie');
+  check('verdict carries the bot name', v.names.AGAINST === 'Rex');
   h.disconnect();
 }
 

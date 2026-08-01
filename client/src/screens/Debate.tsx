@@ -132,13 +132,10 @@ export default function Debate({
                 <span className="tag-name">{botOpponent.name}</span>
                 <span className="tag-sub">{t(peerSide)}</span>
               </div>
-              {!myTurn ? <div className="live-pill">{t('onTheMic')}</div> : null}
+              {!myTurn ? (
+                <div className="live-pill">{botThinking ? t('botThinking') : t('onTheMic')}</div>
+              ) : null}
             </div>
-            {!myTurn && botText ? (
-              <p className="bot-caption">{botText}</p>
-            ) : botThinking ? (
-              <p className="bot-caption bot-thinking-cap">{t('botThinking')}</p>
-            ) : null}
           </div>
         ) : (
           <div className="tile-stack">

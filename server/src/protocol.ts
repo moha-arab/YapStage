@@ -21,6 +21,8 @@ export interface BotInfo {
   tagline: string;
   blurb: string;
   color: string;
+  rank: number; // 1 = easiest, ascending
+  skill: string; // short strength label
 }
 
 // Structural stand-ins for DOM WebRTC types (server tsconfig has no DOM lib).
@@ -163,8 +165,7 @@ export interface ClientToServer {
     p: {
       sessionId: string;
       name: string;
-      botId: string;
-      difficulty: Difficulty;
+      botId: string; // the character IS the difficulty
       topicMode: TopicMode;
       categoryKey?: string;
       topicId?: string;

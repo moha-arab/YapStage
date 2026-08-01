@@ -1560,43 +1560,95 @@ html[dir='rtl'] .meter-hint {
   width: min(900px, 94vw);
 }
 
+.bot-ladder-note {
+  font-family: var(--marker);
+  font-size: 14px;
+  color: var(--muted);
+  text-align: center;
+  margin: -6px 0 6px;
+}
+
 .bot-card {
+  position: relative;
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 4px;
-  padding: 16px 12px;
+  padding: 18px 12px 14px;
   text-align: center;
   background: var(--panel);
   border: 3px solid var(--line);
   border-radius: 2px;
   cursor: pointer;
   box-shadow: 4px 4px 0 rgba(0, 0, 0, 0.4);
-  transition: transform 0.1s ease;
+  transition:
+    transform 0.12s ease,
+    border-color 0.12s ease;
 }
 .bot-card:hover {
   transform: translateY(-3px);
+  border-color: var(--muted);
 }
 .bot-picked {
   border-color: var(--gold);
-  box-shadow: 5px 5px 0 rgba(255, 199, 46, 0.4);
+  box-shadow: 5px 5px 0 rgba(255, 199, 46, 0.45);
   transform: translateY(-3px) rotate(-0.5deg);
+}
+.bot-rank-badge {
+  position: absolute;
+  top: 6px;
+  inset-inline-start: 9px;
+  font-family: var(--marker);
+  font-size: 13px;
+  color: var(--muted);
+}
+.bot-boss {
+  border-color: var(--gold);
+  background: linear-gradient(160deg, var(--panel), #241d10);
+}
+.bot-boss .bot-name {
+  color: var(--gold);
 }
 .bot-name {
   font-family: 'Ultra', serif;
-  font-size: 16px;
-  margin-top: 6px;
+  font-size: 17px;
+  margin-top: 8px;
 }
 .bot-tagline {
   font-family: var(--marker);
   font-size: 12.5px;
   color: var(--gold);
   line-height: 1.3;
+  min-height: 30px;
 }
-.bot-blurb {
-  font-size: 11.5px;
+.bot-meter {
+  display: flex;
+  gap: 3px;
+  margin-top: 6px;
+}
+.meter-pip {
+  width: 9px;
+  height: 6px;
+  background: var(--line);
+  transform: skewX(-12deg);
+}
+.pip-on {
+  background: var(--gold);
+}
+.bot-skill {
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  font-weight: 700;
   color: var(--muted);
-  line-height: 1.4;
+  margin-top: 4px;
+}
+.bot-chosen-blurb {
+  font-size: 14px;
+  color: var(--ink);
+  font-style: italic;
+  text-align: center;
+  margin: 0 0 8px;
 }
 
 .bot-setup {

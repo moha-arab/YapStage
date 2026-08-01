@@ -571,7 +571,6 @@ io.on('connection', (socket) => {
     if (!bot) return cb({ ok: false, error: 'not_found' });
     if (lobbyCount() >= MAX_LOBBIES) return cb({ ok: false, error: 'rate_limited' });
 
-    const difficulty = p?.difficulty === 'easy' || p?.difficulty === 'hard' ? p.difficulty : 'medium';
     const topicMode = p?.topicMode === 'agree' || p?.topicMode === 'category' ? p.topicMode : 'random';
     const lang = p?.lang === 'ar' ? 'ar' : 'en';
 
@@ -594,7 +593,7 @@ io.on('connection', (socket) => {
 
     releasePreviousSeat(socket);
     const lobby = createLobby(socket.id, String(p?.sessionId ?? '').slice(0, 64), name);
-    lobby.bot = { id: bot.id, name: bot.name, difficulty, side: botSide, lang };
+    lobby.bot = { id: bot.id, name: bot.name, difficulty: bot.difficulty, side: botSide, lang };
     socket.data.code = lobby.code;
     socket.data.role = 'host';
     void socket.join(lobby.code);

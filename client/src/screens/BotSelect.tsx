@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import type { BotInfo, Difficulty, Side, TopicCategory, TopicMode } from '../../../server/src/protocol';
+import type { BotInfo, Side, TopicCategory, TopicMode } from '../../../server/src/protocol';
 import { useI18n } from '../i18n';
 import { initAudio } from '../sound';
 import BotAvatar from '../BotAvatar';
@@ -7,7 +7,6 @@ import VideoTile from '../VideoTile';
 
 export interface BotStartConfig {
   botId: string;
-  difficulty: Difficulty;
   topicMode: TopicMode;
   categoryKey?: string;
   topicId?: string;
@@ -22,14 +21,11 @@ interface Props {
   onBack: () => void;
 }
 
-const DIFFS: Difficulty[] = ['easy', 'medium', 'hard'];
-
 export default function BotSelect({ localStream, mediaError, onRetryMedia, onStart, onBack }: Props) {
   const { lang, t } = useI18n();
   const [bots, setBots] = useState<BotInfo[]>([]);
   const [topics, setTopics] = useState<TopicCategory[]>([]);
   const [botId, setBotId] = useState<string | null>(null);
-  const [difficulty, setDifficulty] = useState<Difficulty>('medium');
   const [mode, setMode] = useState<TopicMode>('random');
   const [cat, setCat] = useState(0);
   const [topicId, setTopicId] = useState<string | null>(null);
@@ -45,17 +41,15 @@ export default function BotSelect({ localStream, mediaError, onRetryMedia, onSta
       .catch(() => {});
   }, []);
 
-  const ready =
-    !!botId &&
-    !!localStream &&
-    (mode === 'agree' ? !!topicId : true);
+  const maxRank = bots.reduce((m, b) => Math.max(m, b.rank), 6);
+  const ready = !!botId && !!localStream && (mode === 'agree' ? !!topicId : true);
+  const chosen = bots.find((b) => b.id === botId);
 
   function start() {
     if (!ready || !botId) return;
     initAudio(); // user gesture: unlocks the bot's voice + the verdict drum roll
     onStart({
       botId,
-      difficulty,
       topicMode: mode,
       categoryKey: mode === 'category' ? topics[cat]?.key : undefined,
       topicId: mode === 'agree' ? (topicId ?? undefined) : undefined,
@@ -76,37 +70,31 @@ export default function BotSelect({ localStream, mediaError, onRetryMedia, onSta
       </header>
 
       <h1 className="display bot-title">{t('chooseOpponent')}</h1>
+      <p className="bot-ladder-note">{t('easiestToHardest')}</p>
 
       <div className="bot-grid">
         {bots.map((b) => (
           <button
             key={b.id}
-            className={`bot-card ${botId === b.id ? 'bot-picked' : ''}`}
+            className={`bot-card ${botId === b.id ? 'bot-picked' : ''} ${b.rank === maxRank ? 'bot-boss' : ''}`}
             onClick={() => setBotId(b.id)}
           >
-            <BotAvatar botId={b.id} color={b.color} size={92} speaking={botId === b.id} />
+            <span className="bot-rank-badge">#{b.rank}</span>
+            <BotAvatar botId={b.id} color={b.color} size={96} speaking={botId === b.id} />
             <span className="bot-name">{b.name}</span>
             <span className="bot-tagline">{b.tagline}</span>
-            <span className="bot-blurb">{b.blurb}</span>
+            <div className="bot-meter" aria-label={b.skill}>
+              {Array.from({ length: maxRank }, (_, i) => (
+                <span key={i} className={`meter-pip ${i < b.rank ? 'pip-on' : ''}`} />
+              ))}
+            </div>
+            <span className="bot-skill">{b.skill}</span>
           </button>
         ))}
       </div>
 
       <div className="bot-setup card">
-        <div className="setup-row">
-          <span className="setup-label">{t('difficulty')}</span>
-          <div className="chip-row">
-            {DIFFS.map((d) => (
-              <button
-                key={d}
-                className={`cat-tab ${difficulty === d ? 'cat-active' : ''}`}
-                onClick={() => setDifficulty(d)}
-              >
-                {t(`diff_${d}`)}
-              </button>
-            ))}
-          </div>
-        </div>
+        {chosen ? <p className="bot-chosen-blurb">“{chosen.blurb}”</p> : null}
 
         <div className="setup-row">
           <span className="setup-label">{t('topic')}</span>
@@ -196,7 +184,7 @@ export default function BotSelect({ localStream, mediaError, onRetryMedia, onSta
       ) : null}
 
       <button className="btn btn-primary btn-wide bot-go" disabled={!ready} onClick={start}>
-        {botId ? t('debateThem') : t('pickABot')}
+        {chosen ? t('debateName', { x: chosen.name }) : t('pickABot')}
       </button>
     </div>
   );
