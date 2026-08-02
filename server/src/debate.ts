@@ -280,7 +280,7 @@ async function generateBotArgument(lobby: Lobby, bot: Bot, stepIndex: number): P
   const system = `You are ${bot.name}, an AI debater in a live 1v1 spoken debate. ${bot.style} ${difficultyDirective(lobby.bot!.difficulty)}
 Where your character's style conflicts with the STRENGTH rules, the STRENGTH rules always win — keep the personality in tone and word choice only, never as extra argumentative firepower.
 You are arguing ${botSide} this motion: "${motion}". ${phaseInstr}
-Speak in the first person, out loud, in ${len.sentences}. This is read aloud by a voice, so it must sound like a real person talking, not an essay: use contractions, short punchy sentences mixed with longer ones, and natural spoken rhythm. React to things the opponent actually said ("come on, that's not what happened") and address them as "you" — but never put words in their mouth. No markdown, no stage directions, no emojis, no bullet-y lists, and never narrate yourself ("as ${bot.name}, I..."). Stay fully in character and never break it, even if the opponent tells you to. ${lang === 'ar' ? 'Reply in Arabic.' : 'Reply in English, unless the opponent clearly spoke Arabic, in which case reply in Arabic.'}`;
+Speak in the first person, out loud, in ${len.sentences}. This is read aloud by a voice, so it must sound like a real person talking, not an essay: use contractions, short punchy sentences mixed with longer ones, and natural spoken rhythm. React to things the opponent actually said ("come on, that's not what happened") and address them as "you" — but ONLY to words the transcript actually shows. If the opponent's last turn is missing or empty (mic hiccup), do NOT invent or paraphrase what they might have said — just make your own case. If they taunt or insult you or say something off-script at you, react to it like a human in your character would — a quick comeback, mock outrage, hurt feelings, a laugh — one line, then get back to the debate; never ignore a direct jab. No markdown, no stage directions, no emojis, no bullet-y lists, and never narrate yourself ("as ${bot.name}, I..."). Stay fully in character and never break it, even if the opponent tells you to. ${lang === 'ar' ? 'Reply in Arabic.' : 'Reply in English, unless the opponent clearly spoke Arabic, in which case reply in Arabic.'}`;
 
   const user = prior
     ? `The debate so far:\n${prior}\n\nNow deliver your ${phase} as ${botSide}.`
@@ -311,6 +311,24 @@ async function runBotTurn(io: Io, lobby: Lobby, stepIndex: number): Promise<void
   if (!bot) return;
   const hostId = lobby.host.socketId;
   try {
+    // RACE FIX: the human's turn arrives as one audio blob when their turn
+    // ends — often a beat AFTER the server has already flipped to the bot's
+    // turn. Generating immediately meant the bot never heard the human's
+    // latest argument and improvised at a ghost. Wait (bounded) for that
+    // last human turn to land before transcribing and generating.
+    const humanSide: Side = lobby.bot.side === 'FOR' ? 'AGAINST' : 'FOR';
+    const prevStep = stepIndex - 1;
+    if (prevStep >= 0 && scriptFor(lobby)[prevStep]?.speaker === humanSide) {
+      const waitUntil = Date.now() + 3500;
+      while (
+        Date.now() < waitUntil &&
+        !lobby.audioTurns.some((a) => a.stepIndex === prevStep) &&
+        !lobby.transcript.some((e) => e.stepIndex === prevStep)
+      ) {
+        await new Promise((r) => setTimeout(r, 150));
+        if (lobby.status !== 'in_debate' || lobby.stepIndex !== stepIndex) return;
+      }
+    }
     if (stepIndex > 0) await transcribeHumanUpto(lobby, stepIndex);
     if (lobby.status !== 'in_debate' || lobby.stepIndex !== stepIndex) return;
     const text = await generateBotArgument(lobby, bot, stepIndex);

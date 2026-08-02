@@ -14,7 +14,14 @@ export function ttsConfigured(): boolean {
   return Boolean(process.env.ELEVENLABS_API_KEY);
 }
 
-async function tryVoice(text: string, voiceId: string): Promise<Buffer | null> {
+interface TtsAttempt {
+  buf: Buffer | null;
+  /** Worth one retry: timeout, network error, 429, or 5xx. A 4xx (bad voice,
+      exhausted quota, revoked key) is not — retrying just adds latency. */
+  transient: boolean;
+}
+
+async function tryVoice(text: string, voiceId: string): Promise<TtsAttempt> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 25_000);
   try {
@@ -38,14 +45,14 @@ async function tryVoice(text: string, voiceId: string): Promise<Buffer | null> {
     if (!res.ok) {
       console.error(`[tts] ElevenLabs ${res.status} (voice ${voiceId}): ${(await res.text()).slice(0, 160)}`);
       event('tts_failed', { status: res.status });
-      return null;
+      return { buf: null, transient: res.status === 429 || res.status >= 500 };
     }
     const buf = Buffer.from(await res.arrayBuffer());
-    return buf.length < 200 ? null : buf;
+    return { buf: buf.length < 200 ? null : buf, transient: false };
   } catch (err) {
     console.error('[tts] failed:', err);
     event('tts_failed');
-    return null;
+    return { buf: null, transient: true };
   } finally {
     clearTimeout(timer);
   }
@@ -59,9 +66,13 @@ export async function synthesize(
   const clean = text.trim().slice(0, 1500);
   if (!clean) return null;
 
-  let buf = await tryVoice(clean, voiceId);
-  if (!buf && voiceId !== FALLBACK_VOICE) buf = await tryVoice(clean, FALLBACK_VOICE);
-  if (!buf) return null;
+  // One blip must not turn the bot robotic for a turn: retry the character's
+  // own voice once on transient failures, then try the known-good fallback
+  // voice, and only then let the client degrade to the browser voice.
+  let attempt = await tryVoice(clean, voiceId);
+  if (!attempt.buf && attempt.transient) attempt = await tryVoice(clean, voiceId);
+  if (!attempt.buf && voiceId !== FALLBACK_VOICE) attempt = await tryVoice(clean, FALLBACK_VOICE);
+  if (!attempt.buf) return null;
   event('tts_ok');
-  return { mime: 'audio/mpeg', data: buf };
+  return { mime: 'audio/mpeg', data: attempt.buf };
 }

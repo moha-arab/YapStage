@@ -29,7 +29,11 @@ export function initAudio(): void {
       master.ratio.value = 4;
       master.attack.value = 0.003;
       master.release.value = 0.25;
-      master.connect(ctx.destination);
+      // Global trim: stage sound sits UNDER voices, never competes with them.
+      const trim = ctx.createGain();
+      trim.gain.value = 0.55;
+      master.connect(trim);
+      trim.connect(ctx.destination);
     }
     if (ctx.state === 'suspended') void ctx.resume();
     if (ctx && !noise) {
@@ -77,7 +81,7 @@ function snare(at: number, velocity: number): void {
   bp.Q.value = 0.5;
   const lp = ctx.createBiquadFilter();
   lp.type = 'lowpass';
-  lp.frequency.value = 6500; // shave the hiss edge off the top
+  lp.frequency.value = 4200; // darker: the 5-8k band is what stings ears
   const cg = envelope(at, velocity, 0.12);
   crack.connect(bp);
   bp.connect(lp);
@@ -100,7 +104,7 @@ export function playHit(): void {
   if (muted) return;
   initAudio();
   if (!ctx || !noise) return;
-  snare(ctx.currentTime + 0.02, 0.38);
+  snare(ctx.currentTime + 0.02, 0.28);
 }
 
 /**
@@ -114,16 +118,16 @@ export function playDrumRoll(durationMs = 3000): void {
   const start = ctx.currentTime + 0.05;
   const dur = durationMs / 1000;
   let t = 0;
-  let interval = 0.085;
+  let interval = 0.095;
   while (t < dur - 0.1) {
     const progress = t / dur;
-    const velocity = (0.1 + 0.26 * progress) * (0.85 + Math.random() * 0.3);
+    const velocity = (0.07 + 0.17 * progress) * (0.85 + Math.random() * 0.3);
     const jitter = (Math.random() - 0.5) * 0.012;
-    snare(start + t + jitter, Math.min(0.42, velocity));
+    snare(start + t + jitter, Math.min(0.28, velocity));
     t += interval;
-    interval = Math.max(0.03, interval * 0.965);
+    interval = Math.max(0.048, interval * 0.972); // builds, but never machine-gun
   }
-  snare(start + dur, 0.55);
+  snare(start + dur, 0.38);
 }
 
 /** Crash: metallic inharmonic partials + noise wash + low thump. */
@@ -133,19 +137,20 @@ export function playCrash(): void {
   if (!ctx || !noise || !master) return;
   const at = ctx.currentTime + 0.02;
 
-  const partials = [3117, 4110, 5253, 6488, 7615, 9037];
+  // Sine partials, not square: square waves at 3-9kHz are literal ear-stabs.
+  const partials = [3117, 4110, 5253, 6488];
   for (const freq of partials) {
     const osc = ctx.createOscillator();
-    osc.type = 'square';
+    osc.type = 'sine';
     osc.frequency.value = freq * (0.99 + Math.random() * 0.02);
     const hp = ctx.createBiquadFilter();
     hp.type = 'highpass';
     hp.frequency.value = 2800;
-    const g = envelope(at, 0.05, 1.5 + Math.random() * 0.4);
+    const g = envelope(at, 0.035, 1.3 + Math.random() * 0.4);
     osc.connect(hp);
     hp.connect(g);
     osc.start(at);
-    osc.stop(at + 2.1);
+    osc.stop(at + 1.9);
   }
 
   const wash = ctx.createBufferSource();
@@ -153,10 +158,14 @@ export function playCrash(): void {
   wash.loop = true;
   const whp = ctx.createBiquadFilter();
   whp.type = 'highpass';
-  whp.frequency.value = 5500;
-  const wg = envelope(at, 0.2, 1.4);
+  whp.frequency.value = 4500;
+  const wlp = ctx.createBiquadFilter();
+  wlp.type = 'lowpass';
+  wlp.frequency.value = 9000; // shimmer without the dog-whistle top end
+  const wg = envelope(at, 0.12, 1.3);
   wash.connect(whp);
-  whp.connect(wg);
+  whp.connect(wlp);
+  wlp.connect(wg);
   wash.start(at);
   wash.stop(at + 1.6);
 

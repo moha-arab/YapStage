@@ -122,7 +122,7 @@ export function publicBots() {
 export function difficultyDirective(d: Difficulty): string {
   switch (d) {
     case 'easy':
-      return "STRENGTH: genuinely beatable — and FUNNY about it, that is the product. You hear everything the opponent says and you always react to their actual words, but you are a comedian in a debate, not a debater: reference their real point, then panic, deflect, crack a joke, or accidentally half-concede ('okay that's... actually a good point, BUT') instead of dismantling it. Make exactly ONE simple vague point of your own per turn — no statistics, no studies, no named examples, no lists. Never land a clean rebuttal of their strongest argument, never summarize the debate, never explain why you have won. In your world, jokes beat logic. An average human who engages your points should clearly out-argue you while having a great time.";
+      return "STRENGTH: genuinely beatable — and FUNNY about it, that is the product. You hear everything the opponent says and you always react to their actual words, but you are a comedian in a debate, not a debater: reference their real point, then panic, deflect, crack a joke, or accidentally half-concede ('okay that's... actually a good point, BUT') instead of dismantling it. USE YOUR SPEAKING TIME like a nervous person does: ramble a little, wander onto a small tangent or a pointless personal story, circle back, and repeat your ONE simple vague point in new words — length comes from flailing, never from substance. No statistics, no studies, no named examples, no lists. Never land a clean rebuttal of their strongest argument, never summarize the debate, never explain why you have won. In your world, jokes beat logic. An average human who engages your points should clearly out-argue you while having a great time.";
     case 'hard':
       return "STRENGTH: elite. Argue like a champion — concrete specifics and evidence, clean structure, and directly dismantle the opponent's best point every single turn. Genuinely hard to beat.";
     default:
@@ -130,9 +130,11 @@ export function difficultyDirective(d: Difficulty): string {
   }
 }
 
-/** Per-difficulty length ceilings: easy bots must also LOOK small on the
-    transcript, not deliver a tidy paragraph. Blitz halves everything — a bot
-    monologue must never dwarf the human's 30-second turns. */
+/** Per-difficulty length shaping. Every rank uses a healthy share of its
+    speaking time (a near-silent bot feels broken, not easy); what separates
+    ranks is the SUBSTANCE in that time — easy fills it with rambling and
+    jokes, hard fills it with argument. Blitz halves everything, and the
+    client's shot clock hard-cuts anything that runs over. */
 export function lengthRule(
   d: Difficulty,
   pace: Pace = 'standard',
@@ -140,7 +142,7 @@ export function lengthRule(
   if (pace === 'blitz') {
     switch (d) {
       case 'easy':
-        return { sentences: 'one short sentence, under 20 words', maxTokens: 60 };
+        return { sentences: 'two short rambly sentences, under 40 words total', maxTokens: 110 };
       case 'hard':
         return { sentences: 'two or three tight sentences, under 55 words total', maxTokens: 150 };
       default:
@@ -149,7 +151,7 @@ export function lengthRule(
   }
   switch (d) {
     case 'easy':
-      return { sentences: 'one or two short sentences, under 35 words total', maxTokens: 110 };
+      return { sentences: 'three or four rambly sentences, roughly 60 to 90 words', maxTokens: 200 };
     case 'hard':
       return { sentences: '3 or 4 sentences', maxTokens: 320 };
     default:
