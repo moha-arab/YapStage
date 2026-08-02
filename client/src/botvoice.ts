@@ -62,14 +62,25 @@ export function playBotTurn(
   mime: string | undefined,
   lang: 'en' | 'ar',
   onDone: () => void,
+  maxMs?: number,
 ): void {
   stopBotVoice();
   let done = false;
+  let cutoff: ReturnType<typeof setTimeout> | null = null;
   const finish = () => {
     if (done) return;
     done = true;
+    if (cutoff) clearTimeout(cutoff);
     onDone();
   };
+  // The bot gets the same shot clock a human gets: when its speaking allowance
+  // expires, the mic is taken away mid-sentence — no monologuing past the bell.
+  if (maxMs && maxMs > 0) {
+    cutoff = setTimeout(() => {
+      stopBotVoice();
+      finish();
+    }, maxMs);
+  }
 
   if (audio && audio.byteLength > 200) {
     try {

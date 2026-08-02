@@ -508,7 +508,16 @@ console.log('\n=== Scenario 7: bots mode ===');
     Boolean(start.bot) && start.bot.id === 'pug' && start.names.AGAINST === 'Rex',
   );
   let botTurns = 0;
+  let botPhaseHasSpeakClock = false;
+  let humanPhaseClean = true;
   h.on('debate:phase', (ph) => {
+    // Bot steps carry speakSeconds (the human-sized visible clock); human steps don't.
+    if (ph.activeSpeaker !== start.yourSide && ph.stepIndex === 1) {
+      botPhaseHasSpeakClock = ph.speakSeconds === 5; // FAST opening length
+    }
+    if (ph.activeSpeaker === start.yourSide && ph.speakSeconds !== undefined) {
+      humanPhaseClean = false;
+    }
     if (ph.activeSpeaker === start.yourSide && HUMAN[ph.stepIndex]) {
       h.emit('speech:chunk', { stepIndex: ph.stepIndex, text: HUMAN[ph.stepIndex] });
     }
@@ -520,6 +529,10 @@ console.log('\n=== Scenario 7: bots mode ===');
   await once(h, 'debate:ended', 300000);
   const v = await once(h, 'verdict:result', 120000);
   check('bot generated all three of its turns', botTurns === 3);
+  check(
+    'bot phases carry the human-sized speaking clock, human phases do not',
+    botPhaseHasSpeakClock && humanPhaseClean,
+  );
   check('bot was scored (it argued a real transcript)', v.verdict.scores.AGAINST.argument > 0);
   check('verdict carries the bot name', v.names.AGAINST === 'Rex');
   h.disconnect();

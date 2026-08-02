@@ -23,6 +23,7 @@ interface Props {
   botOpponent?: { id: string; name: string; color: string } | null;
   botTurn?: { stepIndex: number; text: string } | null;
   botSpeaking?: boolean;
+  botSpeakDeadline?: number | null;
   onPassMic: (stepIndex: number) => void;
 }
 
@@ -48,6 +49,7 @@ export default function Debate({
   botOpponent,
   botTurn,
   botSpeaking,
+  botSpeakDeadline,
   onPassMic,
 }: Props) {
   const { lang, t } = useI18n();
@@ -56,6 +58,11 @@ export default function Debate({
   const peerSide: Side = mySide === 'FOR' ? 'AGAINST' : 'FOR';
   const revealMs = useCountdown(start.startsAt, start.serverNow);
   const msLeft = useCountdown(phase?.deadline, phase?.serverNow);
+  // Client-local deadline for the bot's speaking clock (no server offset).
+  const botMsLeft = useCountdown(
+    botSpeakDeadline ?? undefined,
+    botSpeakDeadline ? Date.now() : undefined,
+  );
   const graceMs = useCountdown(peerLostUntil ?? undefined, peerLostUntil ? Date.now() : undefined);
   const localLevel = useAudioLevel(localStream);
   const remoteLevel = useAudioLevel(remoteStream);
@@ -95,10 +102,14 @@ export default function Debate({
   // Hear the opponent ONLY on their turn — belt-and-suspenders with their
   // own mic being disabled on our turn.
   const remoteMuted = phase.activeSpeaker !== peerSide;
-  const danger = msLeft < 10_000;
   // The bot's argument for THIS turn (null while it's still generating).
   const botText = botTurn && botTurn.stepIndex === phase.stepIndex ? botTurn.text : null;
   const botThinking = isBot && !myTurn && !botText;
+  // While the bot SPEAKS it runs the same visible shot clock a human gets.
+  const botOnClock = isBot && !myTurn && Boolean(botSpeakDeadline) && !botThinking;
+  const clockMs = botOnClock ? botMsLeft : msLeft;
+  const clockTotalSec = botOnClock ? (phase.speakSeconds ?? phase.seconds) : phase.seconds;
+  const danger = clockMs < 10_000 && (myTurn || botOnClock || !isBot);
 
   return (
     <div className="stage debate">
@@ -172,8 +183,12 @@ export default function Debate({
           {start.names[phase.activeSpeaker]}
           {myTurn ? t('goSuffix') : t('hasTheMic')}
         </div>
-        <div className={`shot-clock ${danger && !(isBot && !myTurn) ? 'clock-danger' : ''}`}>
-          {isBot && !myTurn ? (botThinking ? t('botThinking') : t('botSpeaking')) : formatClock(msLeft)}
+        <div className={`shot-clock ${danger ? 'clock-danger' : ''}`}>
+          {botThinking
+            ? t('botThinking')
+            : isBot && !myTurn && !botOnClock
+              ? formatClock(0) // bot just yielded; next turn lands in a beat
+              : formatClock(clockMs)}
         </div>
         <div className={`mic-chip ${myTurn ? 'mic-live' : 'mic-off'}`}>
           {myTurn
@@ -193,7 +208,15 @@ export default function Debate({
       <div className="clock-track">
         <div
           className={`clock-fill ${phase.activeSpeaker === 'FOR' ? 'fill-for' : 'fill-against'}`}
-          style={{ width: `${Math.min(100, (msLeft / (phase.seconds * 1000)) * 100)}%` }}
+          style={{
+            // While the bot thinks there's no clock to drain — the bar waits
+            // full until it starts talking, then ticks down like anyone else's.
+            width: botThinking
+              ? '100%'
+              : isBot && !myTurn && !botOnClock
+                ? '0%'
+                : `${Math.min(100, (clockMs / (clockTotalSec * 1000)) * 100)}%`,
+          }}
         />
       </div>
 

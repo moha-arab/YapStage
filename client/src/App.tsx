@@ -88,6 +88,8 @@ export default function App() {
   const [botName, setBotName] = useState('');
   const [botTurn, setBotTurn] = useState<{ stepIndex: number; text: string } | null>(null);
   const [botSpeaking, setBotSpeaking] = useState(false);
+  // Epoch ms when the bot must yield the mic — drives its visible shot clock.
+  const [botSpeakDeadline, setBotSpeakDeadline] = useState<number | null>(null);
 
   // Server-STT availability (for bot mode, which has no LobbyUpdate to carry it).
   const sttGlobalRef = useRef(false);
@@ -136,6 +138,7 @@ export default function App() {
     setBotPicking(false);
     setBotTurn(null);
     setBotSpeaking(false);
+    setBotSpeakDeadline(null);
     setNotice(message);
   }, []);
 
@@ -153,18 +156,38 @@ export default function App() {
       stopBotVoice();
       setBotTurn(null);
       setBotSpeaking(false);
-      setMicEnabled(true); // free chat while the judge deliberates
+      setBotSpeakDeadline(null);
+      if (startDataRef.current?.bot) {
+        // Bot debates: no peer to stay live for — camera and mic OFF at the
+        // verdict. (An active camera with no self-view on screen is exactly
+        // the invisible-mic problem we swore off.)
+        releaseMedia();
+        setLocalStream(null);
+      } else {
+        setMicEnabled(true); // friend mode: free chat while the judge deliberates
+      }
       storeResume(lobbyRef.current?.code); // a refresh may now safely resume
     });
     socket.on('bot:turn', (p) => {
       // The bot's spoken turn: show its text, animate the avatar, and speak it.
-      // When speech finishes, tell the server to advance to the next turn.
+      // It gets the same shot clock a human gets for this phase (speakSeconds):
+      // finish early and the turn passes early; run over and the voice is cut.
+      const speakSec = phaseRef.current?.speakSeconds ?? 60;
       setBotTurn({ stepIndex: p.stepIndex, text: p.text });
       setBotSpeaking(true);
-      playBotTurn(p.text, p.audio, p.mime, langRef.current, () => {
-        setBotSpeaking(false);
-        socket.emit('bot:done', { stepIndex: p.stepIndex });
-      });
+      setBotSpeakDeadline(Date.now() + speakSec * 1000);
+      playBotTurn(
+        p.text,
+        p.audio,
+        p.mime,
+        langRef.current,
+        () => {
+          setBotSpeaking(false);
+          setBotSpeakDeadline(null);
+          socket.emit('bot:done', { stepIndex: p.stepIndex });
+        },
+        speakSec * 1000,
+      );
     });
     socket.on('debate:aborted', ({ reason, vars }) => {
       stopTurn();
@@ -175,6 +198,7 @@ export default function App() {
       setLocalStream(null);
       setRemoteStream(null);
       setBotTurn(null);
+      setBotSpeakDeadline(null);
       setAbortInfo({ key: reason, vars });
     });
     socket.on('peer:connection', (p) =>
@@ -576,6 +600,7 @@ export default function App() {
         botOpponent={start.bot ?? null}
         botTurn={botTurn}
         botSpeaking={botSpeaking}
+        botSpeakDeadline={botSpeakDeadline}
         onPassMic={(stepIndex) => socket.emit('turn:done', { stepIndex })}
       />
     );

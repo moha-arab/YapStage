@@ -111,6 +111,11 @@ export interface PhaseUpdate {
   seconds: number; // full duration of this step
   deadline: number; // epoch ms, server clock
   serverNow: number; // epoch ms at send time — client derives clock offset
+  /** Bot steps only: the bot's SPEAKING allowance (same as a human turn of
+      this phase). The client starts a visible countdown when audio begins and
+      hard-cuts the voice when it expires. `seconds` on bot steps is the wider
+      server fallback window (thinking + speaking), not the visible clock. */
+  speakSeconds?: number;
 }
 
 export interface SpeechChunk {

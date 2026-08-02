@@ -2,7 +2,7 @@
 // IS a difficulty (you don't pick difficulty separately) — so it feels like
 // facing a specific opponent, not a slider. The public fields feed the pick
 // screen; `style`, `difficulty`, and `voiceId` shape generation + speech.
-import type { Difficulty } from './protocol.js';
+import type { Difficulty, Pace } from './protocol.js';
 
 export interface Bot {
   id: string;
@@ -131,8 +131,22 @@ export function difficultyDirective(d: Difficulty): string {
 }
 
 /** Per-difficulty length ceilings: easy bots must also LOOK small on the
-    transcript, not deliver a tidy paragraph. */
-export function lengthRule(d: Difficulty): { sentences: string; maxTokens: number } {
+    transcript, not deliver a tidy paragraph. Blitz halves everything — a bot
+    monologue must never dwarf the human's 30-second turns. */
+export function lengthRule(
+  d: Difficulty,
+  pace: Pace = 'standard',
+): { sentences: string; maxTokens: number } {
+  if (pace === 'blitz') {
+    switch (d) {
+      case 'easy':
+        return { sentences: 'one short sentence, under 20 words', maxTokens: 60 };
+      case 'hard':
+        return { sentences: 'two or three tight sentences, under 55 words total', maxTokens: 150 };
+      default:
+        return { sentences: 'one or two short sentences, under 35 words total', maxTokens: 90 };
+    }
+  }
   switch (d) {
     case 'easy':
       return { sentences: 'one or two short sentences, under 35 words total', maxTokens: 110 };

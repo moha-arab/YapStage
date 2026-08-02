@@ -152,10 +152,11 @@ export function advance(io: Io, lobby: Lobby, expectedStep: number): void {
   const step = steps[next];
   const now = Date.now();
   const isBotStep = Boolean(lobby.bot && step.speaker === lobby.bot.side);
-  // A human turn is the fixed shot clock. A bot turn runs as long as it needs
-  // to think + speak; the client signals bot:done to advance, and this longer
-  // window is the fallback if that signal never lands.
-  const windowSec = isBotStep ? (FAST ? 25 : 100) : step.seconds;
+  // A human turn is the fixed shot clock. A bot turn gets a thinking grace plus
+  // the SAME speaking time a human gets for this phase; the client signals
+  // bot:done when the voice finishes (or cuts it off at the allowance), and
+  // this window is only the fallback if that signal never lands.
+  const windowSec = isBotStep ? (FAST ? 25 : 30 + step.seconds) : step.seconds;
   const deadline = now + windowSec * 1000;
   lobby.stepStartedAt = now;
 
@@ -166,6 +167,7 @@ export function advance(io: Io, lobby: Lobby, expectedStep: number): void {
     seconds: isBotStep ? windowSec : step.seconds,
     deadline,
     serverNow: now,
+    ...(isBotStep ? { speakSeconds: step.seconds } : {}),
   });
 
   if (isBotStep) void runBotTurn(io, lobby, next);
@@ -274,7 +276,7 @@ async function generateBotArgument(lobby: Lobby, bot: Bot, stepIndex: number): P
   };
   const phaseInstr = phaseInstrBy[diff][phase];
 
-  const len = lengthRule(lobby.bot!.difficulty);
+  const len = lengthRule(lobby.bot!.difficulty, lobby.pace);
   const system = `You are ${bot.name}, an AI debater in a live 1v1 spoken debate. ${bot.style} ${difficultyDirective(lobby.bot!.difficulty)}
 Where your character's style conflicts with the STRENGTH rules, the STRENGTH rules always win — keep the personality in tone and word choice only, never as extra argumentative firepower.
 You are arguing ${botSide} this motion: "${motion}". ${phaseInstr}
@@ -406,6 +408,7 @@ export function resendState(io: Io, lobby: Lobby, participant: Participant): voi
   if (lobby.status === 'in_debate' && lobby.stepIndex >= 0) {
     emitStart();
     const step = scriptFor(lobby)[lobby.stepIndex];
+    const isBotStep = Boolean(lobby.bot && step.speaker === lobby.bot.side);
     io.to(socketId).emit('debate:phase', {
       stepIndex: lobby.stepIndex,
       phase: step.phase,
@@ -413,6 +416,7 @@ export function resendState(io: Io, lobby: Lobby, participant: Participant): voi
       seconds: step.seconds,
       deadline: lobby.stepStartedAt + step.seconds * 1000,
       serverNow: now,
+      ...(isBotStep ? { speakSeconds: step.seconds } : {}),
     });
     return;
   }
