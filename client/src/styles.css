@@ -1729,19 +1729,6 @@ html[dir='rtl'] .meter-hint {
   color: var(--muted);
 }
 
-/* crossfire: both mics live — everything goes gold */
-.speaker-chip.both {
-  border-color: var(--gold);
-  color: var(--gold);
-}
-.fill-both {
-  background: var(--gold);
-}
-.round-crossfire {
-  color: #1c1508;
-  background: var(--gold);
-}
-
 /* "pass the mic" sits under the clock track, only on your turn */
 .pass-row {
   display: flex;

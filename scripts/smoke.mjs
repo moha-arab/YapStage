@@ -483,8 +483,8 @@ async function runToVerdict(a, b, aId, bId, name, topic) {
   a.disconnect();
 }
 
-// ---------- Scenario 8 (runs before bots): long mode — real debate structure ----------
-console.log('\n=== Scenario 8: long mode (crossfire) ===');
+// ---------- Scenario 8 (runs before bots): long pace ----------
+console.log('\n=== Scenario 8: long pace ===');
 {
   const host = connect();
   const guest = connect();
@@ -496,34 +496,17 @@ console.log('\n=== Scenario 8: long mode (crossfire) ===');
   const paceSet = once(guest, 'lobby:update', 4000);
   host.emit('pick:pace', 'long');
   const lu = await paceSet;
-  check('long: host can set the tournament pace', lu.pace === 'long');
+  check('long: host can set the long pace', lu.pace === 'long');
 
   const phases = [];
-  host.on('debate:phase', (ph) => {
-    phases.push({ i: ph.stepIndex, phase: ph.phase, speaker: ph.activeSpeaker });
-    // Both sides talk during crossfire; on normal turns each speaks their own.
-    if (ph.phase === 'crossfire') {
-      host.emit('speech:chunk', { stepIndex: ph.stepIndex, text: 'answer me this: where is your evidence' });
-      guest.emit('speech:chunk', { stepIndex: ph.stepIndex, text: 'right here: lived experience and common sense' });
-    }
-  });
+  host.on('debate:phase', (ph) => phases.push(ph.phase));
   const started = once(host, 'debate:start', 8000);
   host.emit('pick:confirm');
   guest.emit('pick:confirm');
-  const ds = await started;
-  check('long: debate:start carries the pace', ds.pace === 'long');
+  await started;
   await once(host, 'debate:ended', 120000);
-  const v = await once(host, 'verdict:result', 120000);
-  check('long: 8 phases ran', phases.length === 8);
-  check(
-    'long: crossfire rounds at steps 2 and 5 with both mics',
-    phases[2]?.phase === 'crossfire' && phases[2]?.speaker === 'both' &&
-    phases[5]?.phase === 'crossfire' && phases[5]?.speaker === 'both',
-  );
-  check(
-    'long: crossfire speech from BOTH sides was accepted and judged',
-    v.verdict.scores.FOR.clash + v.verdict.scores.AGAINST.clash > 0,
-  );
+  await once(host, 'verdict:result', 120000);
+  check('long: same simple 6-phase format, start to verdict', phases.length === 6);
   host.disconnect();
   guest.disconnect();
 }

@@ -98,12 +98,10 @@ export default function Debate({
     );
   }
 
-  // Crossfire: both mics live, either side may speak and may end the round.
-  const shared = phase.activeSpeaker === 'both';
-  const myTurn = shared || phase.activeSpeaker === mySide;
-  // Hear the opponent ONLY on their turn (or in crossfire) — belt-and-
-  // suspenders with their own mic being disabled on our turn.
-  const remoteMuted = !(shared || phase.activeSpeaker === peerSide);
+  const myTurn = phase.activeSpeaker === mySide;
+  // Hear the opponent ONLY on their turn — belt-and-suspenders with their
+  // own mic being disabled on our turn.
+  const remoteMuted = phase.activeSpeaker !== peerSide;
   // The bot's argument for THIS turn (null while it's still generating).
   const botText = botTurn && botTurn.stepIndex === phase.stepIndex ? botTurn.text : null;
   const botThinking = isBot && !myTurn && !botText;
@@ -129,9 +127,6 @@ export default function Debate({
             {t(p.labelKey)}
           </span>
         ))}
-        {phase.phase === 'crossfire' ? (
-          <span className="round round-now round-crossfire">{t('crossfire')}</span>
-        ) : null}
         <span className="round-step">{t('turnOf', { n: phase.stepIndex + 1 })}</span>
       </div>
 
@@ -174,7 +169,7 @@ export default function Debate({
               label={start.names[peerSide]}
               sub={t(peerSide)}
               side={peerSide}
-              active={shared || !myTurn}
+              active={!myTurn}
               placeholder={t('theyFroze')}
               dead={remoteVideoDead}
             />
@@ -184,14 +179,9 @@ export default function Debate({
       </div>
 
       <div className="clock-row">
-        <div
-          className={`speaker-chip ${
-            shared ? 'both' : phase.activeSpeaker === 'FOR' ? 'for' : 'against'
-          }`}
-        >
-          {shared
-            ? t('crossfireGo')
-            : `${start.names[phase.activeSpeaker as Side]}${myTurn ? t('goSuffix') : t('hasTheMic')}`}
+        <div className={`speaker-chip ${phase.activeSpeaker === 'FOR' ? 'for' : 'against'}`}>
+          {start.names[phase.activeSpeaker]}
+          {myTurn ? t('goSuffix') : t('hasTheMic')}
         </div>
         <div className={`shot-clock ${danger ? 'clock-danger' : ''}`}>
           {botThinking
@@ -217,9 +207,7 @@ export default function Debate({
 
       <div className="clock-track">
         <div
-          className={`clock-fill ${
-            shared ? 'fill-both' : phase.activeSpeaker === 'FOR' ? 'fill-for' : 'fill-against'
-          }`}
+          className={`clock-fill ${phase.activeSpeaker === 'FOR' ? 'fill-for' : 'fill-against'}`}
           style={{
             // While the bot thinks there's no clock to drain — the bar waits
             // full until it starts talking, then ticks down like anyone else's.

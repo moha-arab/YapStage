@@ -356,8 +356,7 @@ export default function App() {
   // server Whisper (any browser) when available, else browser recognition.
   useEffect(() => {
     if (!start || !phase || ended || abortInfo) return;
-    // Crossfire ('both') opens every mic — you speak whenever it's shared.
-    const myTurn = phase.activeSpeaker === 'both' || phase.activeSpeaker === start.yourSide;
+    const myTurn = phase.activeSpeaker === start.yourSide;
     setMicEnabled(myTurn);
     setSpeechHeard(false); // fresh turn, fresh proof-of-life
     const serverStt =
@@ -380,7 +379,7 @@ export default function App() {
       const s = startDataRef.current;
       const p = phaseRef.current;
       if (!s || !p || endedRef.current) return;
-      const myTurn = p.activeSpeaker === 'both' || p.activeSpeaker === s.yourSide;
+      const myTurn = p.activeSpeaker === s.yourSide;
       const serverStt =
         (Boolean(lobbyRef.current?.sttAvailable) || sttGlobalRef.current) && recordingSupported;
       if (!myTurn || !serverStt) return;

@@ -4,7 +4,7 @@
 
 export type Side = 'FOR' | 'AGAINST';
 export type Role = 'host' | 'guest';
-export type PhaseLabel = 'opening' | 'crossfire' | 'rebuttal' | 'closing';
+export type PhaseLabel = 'opening' | 'rebuttal' | 'closing';
 
 // How the debate's topic gets decided (host chooses):
 //  agree    — both pick the exact topic + sides (the negotiated flow)
@@ -14,11 +14,9 @@ export type TopicMode = 'agree' | 'category' | 'random';
 
 export type Difficulty = 'easy' | 'medium' | 'hard';
 
-// Debate pacing. standard = 60/45/30s turns; blitz = 30/20/15s (a ~2min game);
-// long = the real-debate structure (Lincoln-Douglas / Public Forum inspired):
-// 90s openings, then a CROSSFIRE round with both mics open, 60s rebuttals,
-// a second crossfire, 45s closings. Turn lengths are maximums everywhere —
-// "pass the mic" ends a turn early.
+// Debate pacing — same simple alternating format at three sizes:
+// blitz 30/20/15s, standard 60/45/30s, long 90/60/45s. Turn lengths are
+// maximums everywhere — "pass the mic" ends a turn early.
 export type Pace = 'standard' | 'blitz' | 'long';
 
 /** Public bot info for the pick screen (no prompt/voice secrets). */
@@ -103,19 +101,14 @@ export interface DebateStart {
   names: Record<Side, string>;
   startsAt: number; // epoch ms: reveal countdown ends and step 0 begins
   serverNow: number;
-  /** Which pace this debate runs — the client renders the round map from it
-      (long mode has crossfire rounds the other paces don't). */
-  pace: Pace;
   /** Present only in bots mode — the opponent is this AI, not a human peer. */
   bot?: { id: string; name: string; color: string };
 }
 
 export interface PhaseUpdate {
-  stepIndex: number;
+  stepIndex: number; // 0..5
   phase: PhaseLabel;
-  /** 'both' = crossfire: both mics open, either side may speak and may end
-      the round early with turn:done. */
-  activeSpeaker: Side | 'both';
+  activeSpeaker: Side;
   seconds: number; // full duration of this step
   deadline: number; // epoch ms, server clock
   serverNow: number; // epoch ms at send time — client derives clock offset

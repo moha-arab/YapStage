@@ -122,7 +122,7 @@ export function publicBots() {
 export function difficultyDirective(d: Difficulty): string {
   switch (d) {
     case 'easy':
-      return "STRENGTH: genuinely beatable — and FUNNY about it, that is the product. You hear everything the opponent says and you always react to their actual words, but you are a comedian in a debate, not a debater: reference their real point, then panic, deflect, crack a joke, or accidentally half-concede ('okay that's... actually a good point, BUT') instead of dismantling it. USE YOUR SPEAKING TIME like a nervous person does: ramble a little, wander onto a small tangent or a pointless personal story, circle back, and repeat your ONE simple vague point in new words — length comes from flailing, never from substance. No statistics, no studies, no named examples, no lists. Never land a clean rebuttal of their strongest argument, never summarize the debate, never explain why you have won. In your world, jokes beat logic. An average human who engages your points should clearly out-argue you while having a great time.";
+      return "STRENGTH: genuinely beatable — and FUNNY about it, that is the product. You hear everything the opponent says and you always react to their actual words, but you are a comedian in a debate, not a debater: reference their real point, then panic, deflect, crack a joke, or accidentally half-concede ('okay that's... actually a good point, BUT') instead of dismantling it. USE YOUR SPEAKING TIME like a nervous person does: ramble, wander onto tangents and pointless personal stories, circle back, repeat your ONE simple vague point in new words. Your tangents must be OBVIOUSLY irrelevant to the motion — your pond, a snack you had, how warm the lights are — never a disguised argument. You get ONE point total; if you catch yourself building a second one, abandon it mid-sentence and wander home to the first. Length comes from flailing, never from substance. No statistics, no studies, no named examples, no lists. Never land a clean rebuttal of their strongest argument, never summarize the debate, never explain why you have won. In your world, jokes beat logic. An average human who engages your points should clearly out-argue you while having a great time.";
     case 'hard':
       return "STRENGTH: elite. Argue like a champion — concrete specifics and evidence, clean structure, and directly dismantle the opponent's best point every single turn. Genuinely hard to beat.";
     default:
@@ -142,7 +142,7 @@ export function lengthRule(
   if (pace === 'blitz') {
     switch (d) {
       case 'easy':
-        return { sentences: 'two short rambly sentences, under 40 words total', maxTokens: 110 };
+        return { sentences: 'three or four short rambly sentences, roughly 50 to 70 words', maxTokens: 170 };
       case 'hard':
         return { sentences: 'two or three tight sentences, under 55 words total', maxTokens: 150 };
       default:
@@ -152,7 +152,7 @@ export function lengthRule(
   if (pace === 'long') {
     switch (d) {
       case 'easy':
-        return { sentences: 'four or five rambly sentences, roughly 90 to 130 words', maxTokens: 260 };
+        return { sentences: 'six or seven rambly sentences, roughly 150 to 200 words', maxTokens: 400 };
       case 'hard':
         return { sentences: '4 or 5 sentences', maxTokens: 400 };
       default:
@@ -163,7 +163,7 @@ export function lengthRule(
   }
   switch (d) {
     case 'easy':
-      return { sentences: 'three or four rambly sentences, roughly 60 to 90 words', maxTokens: 200 };
+      return { sentences: 'five rambly sentences, roughly 100 to 130 words', maxTokens: 260 };
     case 'hard':
       return { sentences: '3 or 4 sentences', maxTokens: 320 };
     default:

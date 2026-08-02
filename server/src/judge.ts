@@ -5,15 +5,10 @@ import { destroyLobby, touch } from './lobby.js';
 import type { Io } from './debate.js';
 import { event } from './stats.js';
 
-// Step layout (phase/speaker per index). The classic 6-step script is the
-// default; long-mode debates pass their own layout (with crossfire rounds)
-// via opts.steps. Kept as data, not an import, so judge.ts has no runtime
-// dependency on debate.ts. Durations don't matter to the judge.
-export interface StepMeta {
-  phase: PhaseLabel;
-  speaker: Side | 'both';
-}
-const CLASSIC_STEPS: StepMeta[] = [
+// Local copy of the step layout (phase/speaker per index) so judge.ts has no
+// runtime dependency on debate.ts. Every pace shares this 6-step shape; only
+// the seconds differ, and durations don't matter to the judge.
+const STEP_META: { phase: PhaseLabel; speaker: Side }[] = [
   { phase: 'opening', speaker: 'FOR' },
   { phase: 'opening', speaker: 'AGAINST' },
   { phase: 'rebuttal', speaker: 'FOR' },
@@ -21,18 +16,6 @@ const CLASSIC_STEPS: StepMeta[] = [
   { phase: 'closing', speaker: 'FOR' },
   { phase: 'closing', speaker: 'AGAINST' },
 ];
-const LONG_STEPS: StepMeta[] = [
-  { phase: 'opening', speaker: 'FOR' },
-  { phase: 'opening', speaker: 'AGAINST' },
-  { phase: 'crossfire', speaker: 'both' },
-  { phase: 'rebuttal', speaker: 'FOR' },
-  { phase: 'rebuttal', speaker: 'AGAINST' },
-  { phase: 'crossfire', speaker: 'both' },
-  { phase: 'closing', speaker: 'FOR' },
-  { phase: 'closing', speaker: 'AGAINST' },
-];
-const stepsFor = (lobby: Lobby): StepMeta[] =>
-  lobby.pace === 'long' ? LONG_STEPS : CLASSIC_STEPS;
 
 let client: Anthropic | null = null;
 function getClient(): Anthropic {
@@ -55,30 +38,15 @@ function buildTranscriptXml(
   motion: { en?: string; ar?: string },
   transcript: Line[],
   composedSide?: Side,
-  steps: StepMeta[] = CLASSIC_STEPS,
 ): { xml: string; missingSides: Side[] } {
   const bySide: Record<Side, number> = { FOR: 0, AGAINST: 0 };
   for (const e of transcript) bySide[e.side] += 1;
 
-  const segments = steps.map((meta, i) => {
-    const entries = transcript
+  const segments = STEP_META.map((meta, i) => {
+    const texts = transcript
       .filter((e) => e.stepIndex === i)
-      .sort((a, b) => (a.at ?? 0) - (b.at ?? 0));
-    if (meta.speaker === 'both') {
-      // Crossfire: both sides may have spoken — one segment per side so the
-      // judge can attribute the exchange.
-      const parts = (['FOR', 'AGAINST'] as Side[])
-        .map((s) => ({ s, texts: entries.filter((e) => e.side === s).map((e) => e.text) }))
-        .filter((p) => p.texts.length > 0)
-        .map(
-          (p) =>
-            `  <segment step="${i}" phase="${meta.phase}" side="${p.s}">\n${escapeXml(p.texts.join(' '))}\n  </segment>`,
-        );
-      return parts.length > 0
-        ? parts.join('\n')
-        : `  <segment step="${i}" phase="${meta.phase}" side="BOTH" missing="true"/>`;
-    }
-    const texts = entries.map((e) => e.text);
+      .sort((a, b) => (a.at ?? 0) - (b.at ?? 0))
+      .map((e) => e.text);
     if (texts.length === 0) {
       return `  <segment step="${i}" phase="${meta.phase}" side="${meta.speaker}" missing="true"/>`;
     }
@@ -228,24 +196,14 @@ export function namesOf(lobby: Lobby): Record<Side, string> {
  * returned summary still holds the [WINNER] token (callers substitute a name).
  * Exported so the fairness eval can score synthetic transcripts directly.
  */
-const CROSSFIRE_NOTE = `
-
-CROSSFIRE — this debate includes open cross-examination rounds:
-- Segments with phase="crossfire" are live exchange: both debaters could speak. Sharp questions that expose a real weakness, and direct answers under pressure, are prime "fought back" material — weigh them accordingly.
-- Dodging a direct crossfire question, or asking nothing when the opponent's case begged for one, is a clash weakness.
-- A missing crossfire segment for one side means they stayed quiet there — that is a choice with a cost, not a technical fault.`;
-
 export async function scoreTranscript(
   motion: { en?: string; ar?: string },
   transcript: Line[],
-  opts?: { composedSide?: Side; steps?: StepMeta[] },
+  opts?: { composedSide?: Side },
 ): Promise<Verdict> {
-  const { xml } = buildTranscriptXml(motion, transcript, opts?.composedSide, opts?.steps);
-  const hasCrossfire = (opts?.steps ?? []).some((s) => s.phase === 'crossfire');
+  const { xml } = buildTranscriptXml(motion, transcript, opts?.composedSide);
   const system =
-    buildSystemPrompt() +
-    (hasCrossfire ? CROSSFIRE_NOTE : '') +
-    (opts?.composedSide ? channelNote(opts.composedSide) : '');
+    buildSystemPrompt() + (opts?.composedSide ? channelNote(opts.composedSide) : '');
 
   const response = await getClient().messages.create(
     {
@@ -298,7 +256,6 @@ async function callJudge(lobby: Lobby): Promise<Verdict> {
   const names = namesOf(lobby);
   const v = await scoreTranscript(lobby.topic ?? {}, lobby.transcript, {
     composedSide: lobby.bot?.side, // bots mode: the bot's lines are typed text
-    steps: stepsFor(lobby),
   });
   return { ...v, summary: v.summary.replaceAll('[WINNER]', names[v.winner]) };
 }
