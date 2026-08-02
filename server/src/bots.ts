@@ -149,6 +149,18 @@ export function lengthRule(
         return { sentences: 'one or two short sentences, under 35 words total', maxTokens: 90 };
     }
   }
+  if (pace === 'long') {
+    switch (d) {
+      case 'easy':
+        return { sentences: 'four or five rambly sentences, roughly 90 to 130 words', maxTokens: 260 };
+      case 'hard':
+        return { sentences: '4 or 5 sentences', maxTokens: 400 };
+      default:
+        // Medium's beatability lives in its brevity (measured three ways) —
+        // it yields its extra long-mode time rather than filling it.
+        return { sentences: 'two sentences, under 55 words total', maxTokens: 130 };
+    }
+  }
   switch (d) {
     case 'easy':
       return { sentences: 'three or four rambly sentences, roughly 60 to 90 words', maxTokens: 200 };

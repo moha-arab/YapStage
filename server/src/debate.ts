@@ -23,7 +23,8 @@ export type Io = Server<ClientToServer, ServerToClient, Record<string, never>, S
 
 export interface Step {
   phase: PhaseLabel;
-  speaker: Side;
+  /** 'both' = crossfire: open mics, either side may speak. */
+  speaker: Side | 'both';
   seconds: number;
 }
 
@@ -38,17 +39,35 @@ const script = (o: number, r: number, c: number): Step[] => [
   { phase: 'closing', speaker: 'AGAINST', seconds: c },
 ];
 
+// The real-debate structure (Lincoln-Douglas / Public Forum, scaled for the
+// web): constructives, then an open-mic CROSSFIRE, rebuttals, a second
+// crossfire, closings. Crossfire is where debates actually get fought.
+const longScript = (o: number, x: number, r: number, c: number): Step[] => [
+  { phase: 'opening', speaker: 'FOR', seconds: o },
+  { phase: 'opening', speaker: 'AGAINST', seconds: o },
+  { phase: 'crossfire', speaker: 'both', seconds: x },
+  { phase: 'rebuttal', speaker: 'FOR', seconds: r },
+  { phase: 'rebuttal', speaker: 'AGAINST', seconds: r },
+  { phase: 'crossfire', speaker: 'both', seconds: x },
+  { phase: 'closing', speaker: 'FOR', seconds: c },
+  { phase: 'closing', speaker: 'AGAINST', seconds: c },
+];
+
 // Turn lengths per pace. These are CEILINGS, not sentences — "pass the mic"
 // ends any turn early, so standard only feels long if you use all of it.
 const SCRIPTS: Record<Pace, Step[]> = {
   standard: script(60, 45, 30),
   blitz: script(30, 20, 15),
+  long: longScript(90, 60, 60, 45),
 };
 const FAST_SCRIPT = script(5, 4, 3);
+const FAST_LONG = longScript(4, 3, 3, 2);
 
-/** The step script this lobby runs (FAST test mode overrides pace). */
+/** The step script this lobby runs (FAST test mode shrinks the seconds but
+    keeps each pace's SHAPE, so crossfire is still exercised in tests). */
 export function scriptFor(lobby: Pick<Lobby, 'pace'>): Step[] {
-  return FAST ? FAST_SCRIPT : SCRIPTS[lobby.pace] ?? SCRIPTS.standard;
+  if (FAST) return lobby.pace === 'long' ? FAST_LONG : FAST_SCRIPT;
+  return SCRIPTS[lobby.pace] ?? SCRIPTS.standard;
 }
 
 /** Kept for callers that only need the universal 6-step SHAPE (phases,
@@ -122,6 +141,7 @@ export function startDebate(io: Io, lobby: Lobby): void {
     names,
     startsAt,
     serverNow: now,
+    pace: lobby.pace,
   });
   io.to(lobby.guest.socketId).emit('debate:start', {
     topic: lobby.topic,
@@ -129,6 +149,7 @@ export function startDebate(io: Io, lobby: Lobby): void {
     names,
     startsAt,
     serverNow: now,
+    pace: lobby.pace,
   });
 
   lobby.stepIndex = -1;
@@ -171,6 +192,9 @@ export function advance(io: Io, lobby: Lobby, expectedStep: number): void {
   });
 
   if (isBotStep) void runBotTurn(io, lobby, next);
+  // Crossfire vs a bot: the bot opens with one cross-examination question,
+  // then the floor (and the clock) belongs to the human.
+  if (lobby.bot && step.speaker === 'both') void runBotCrossfire(io, lobby, next);
   lobby.phaseTimer = setTimeout(() => advance(io, lobby, next), windowSec * 1000);
 }
 
@@ -199,6 +223,7 @@ export function startBotDebate(io: Io, lobby: Lobby, topic: TopicText, humanSide
     names,
     startsAt,
     serverNow: now,
+    pace: lobby.pace,
     bot: { id: lobby.bot.id, name: lobby.bot.name, color: meta?.color ?? 'gold' },
   });
   lobby.stepIndex = -1;
@@ -251,10 +276,13 @@ async function generateBotArgument(lobby: Lobby, bot: Bot, stepIndex: number): P
     .join('\n');
 
   // Weak ranks REACT to the opponent's real words but respond badly-on-purpose
-  // (in the fun way); only hard actually dismantles.
+  // (in the fun way); only hard actually dismantles. Crossfire entries are for
+  // the bot's opening cross-examination QUESTION (see runBotCrossfire).
   const phaseInstrBy: Record<Difficulty, Record<PhaseLabel, string>> = {
     easy: {
       opening: 'This is your OPENING. State your position and your one simple reason, in character.',
+      crossfire:
+        "This is CROSSFIRE. Ask the opponent ONE nervous, rambly question about something they actually said — the kind of question that accidentally admits you're worried they might be right. One question only, under 25 words.",
       rebuttal:
         "This is your REBUTTAL. React to something the opponent ACTUALLY said — reference their real point — then respond the only way you know how: panic, joke, deflect, or accidentally half-agree ('okay that's... actually a good point, BUT'). Never cleanly answer their strongest argument.",
       closing:
@@ -262,6 +290,8 @@ async function generateBotArgument(lobby: Lobby, bot: Bot, stepIndex: number): P
     },
     medium: {
       opening: 'This is your OPENING. State your position and your main reasons.',
+      crossfire:
+        'This is CROSSFIRE. Ask the opponent ONE pointed question about a real weak spot in what they actually said, with a little edge of personality. One question only, under 25 words.',
       rebuttal:
         "This is your REBUTTAL. Genuinely answer ONE thing the opponent actually said (never their strongest point) with a real reason and a jab of humor, then get back to your own case.",
       closing:
@@ -269,6 +299,8 @@ async function generateBotArgument(lobby: Lobby, bot: Bot, stepIndex: number): P
     },
     hard: {
       opening: 'This is your OPENING. State your position and your two or three strongest reasons.',
+      crossfire:
+        "This is CROSSFIRE. Ask the opponent ONE surgical cross-examination question that exposes the weakest link in their actual argument — the question a champion asks when they already know the answer hurts. One question only, under 25 words.",
       rebuttal:
         "This is your REBUTTAL. Directly answer the opponent's strongest point, then reinforce your own case.",
       closing: 'This is your CLOSING. Land your most decisive point and make it clear why you won.',
@@ -276,7 +308,12 @@ async function generateBotArgument(lobby: Lobby, bot: Bot, stepIndex: number): P
   };
   const phaseInstr = phaseInstrBy[diff][phase];
 
-  const len = lengthRule(lobby.bot!.difficulty, lobby.pace);
+  // A crossfire contribution is one question, not a speech — override the
+  // per-difficulty speech length for that phase.
+  const len =
+    phase === 'crossfire'
+      ? { sentences: 'ONE question, under 25 words', maxTokens: 60 }
+      : lengthRule(lobby.bot!.difficulty, lobby.pace);
   const system = `You are ${bot.name}, an AI debater in a live 1v1 spoken debate. ${bot.style} ${difficultyDirective(lobby.bot!.difficulty)}
 Where your character's style conflicts with the STRENGTH rules, the STRENGTH rules always win — keep the personality in tone and word choice only, never as extra argumentative firepower.
 You are arguing ${botSide} this motion: "${motion}". ${phaseInstr}
@@ -355,11 +392,40 @@ export function endTurnEarly(io: Io, lobby: Lobby, sender: Participant, stepInde
   const step = scriptFor(lobby)[stepIndex];
   if (!step) return;
   const side = sideOf(lobby, sender);
-  if (!side || step.speaker !== side) return;
+  // Crossfire belongs to both sides — either human may call it (ending early
+  // costs them their own remaining time too, so there's nothing to grief).
+  if (!side || (step.speaker !== 'both' && step.speaker !== side)) return;
   if (lobby.bot && step.speaker === lobby.bot.side) return; // bot turns end via bot:done
   event('turn_passed', { code: lobby.code, stepIndex });
   if (lobby.phaseTimer) clearTimeout(lobby.phaseTimer);
   advance(io, lobby, stepIndex);
+}
+
+/** Crossfire vs a bot: the bot fires ONE cross-examination question at the
+    start, spoken like any turn, then the mic and the clock are the human's.
+    The window advances on its timer (or the human's turn:done) — bot:done for
+    a 'both' step is ignored by the server, so the question can't cut the
+    human's answer time short. */
+async function runBotCrossfire(io: Io, lobby: Lobby, stepIndex: number): Promise<void> {
+  if (!lobby.bot || !lobby.host) return;
+  const bot = BOT_BY_ID.get(lobby.bot.id);
+  if (!bot) return;
+  const hostId = lobby.host.socketId;
+  try {
+    if (stepIndex > 0) await transcribeHumanUpto(lobby, stepIndex);
+    if (lobby.status !== 'in_debate' || lobby.stepIndex !== stepIndex) return;
+    const text = await generateBotArgument(lobby, bot, stepIndex);
+    if (lobby.status !== 'in_debate' || lobby.stepIndex !== stepIndex) return;
+    lobby.transcript.push({ stepIndex, side: lobby.bot.side, text, at: Date.now() });
+    const audio = await synthesize(text, bot.voiceId);
+    if (lobby.status !== 'in_debate' || lobby.stepIndex !== stepIndex) return;
+    const audioBuf = audio ? (audio.data as unknown as ArrayBuffer) : undefined;
+    io.to(hostId).emit('bot:turn', { stepIndex, text, mime: audio?.mime, audio: audioBuf });
+  } catch (err) {
+    console.error(`[bot] ${lobby.code} crossfire ${stepIndex} failed:`, err);
+    event('bot_turn_failed', { code: lobby.code });
+    // No question, no problem — the crossfire window is the human's anyway.
+  }
 }
 
 function finishDebate(io: Io, lobby: Lobby): void {
@@ -419,6 +485,7 @@ export function resendState(io: Io, lobby: Lobby, participant: Participant): voi
         names: namesOf(lobby),
         startsAt: lobby.stepStartedAt, // already in the past — no reveal replay
         serverNow: now,
+        pace: lobby.pace,
       });
     }
   };
@@ -471,7 +538,8 @@ function turnIsAcceptable(lobby: Lobby, sender: Participant, stepIndex: number):
   const steps = scriptFor(lobby);
   if (!Number.isInteger(stepIndex) || stepIndex < 0 || stepIndex >= steps.length) return false;
   const side = sideOf(lobby, sender);
-  if (!side || steps[stepIndex].speaker !== side) return false;
+  const speaker = steps[stepIndex].speaker;
+  if (!side || (speaker !== 'both' && speaker !== side)) return false;
   const now = Date.now();
   const isCurrent = lobby.status === 'in_debate' && stepIndex === lobby.stepIndex;
   const isTrailingPrev =

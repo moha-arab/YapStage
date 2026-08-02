@@ -152,7 +152,7 @@ export default function BotSelect({ localStream, mediaError, onRetryMedia, onSta
         <div className="setup-row pace-row">
           <span className="setup-label">{t('paceLabel')}</span>
           <div className="chip-row">
-            {(['standard', 'blitz'] as const).map((pc) => (
+            {(['standard', 'blitz', 'long'] as const).map((pc) => (
               <button
                 key={pc}
                 className={`cat-tab ${pace === pc ? 'cat-active' : ''}`}

@@ -384,7 +384,7 @@ io.on('connection', (socket) => {
     const lobby = socket.data.code ? getLobby(socket.data.code) : undefined;
     if (!lobby || lobby.status !== 'greenroom') return;
     if (participantOf(lobby, socket.id) !== lobby.host) return; // host-only
-    if (pace !== 'standard' && pace !== 'blitz') return;
+    if (pace !== 'standard' && pace !== 'blitz' && pace !== 'long') return;
     if (lobby.pace === pace) return;
     lobby.pace = pace;
     lobby.pick.hostConfirmed = false;
@@ -605,7 +605,7 @@ io.on('connection', (socket) => {
 
     const topicMode = p?.topicMode === 'agree' || p?.topicMode === 'category' ? p.topicMode : 'random';
     const lang = p?.lang === 'ar' ? 'ar' : 'en';
-    const pace = p?.pace === 'blitz' ? 'blitz' : 'standard';
+    const pace = p?.pace === 'blitz' || p?.pace === 'long' ? p.pace : 'standard';
 
     // Resolve the motion.
     let topic;
