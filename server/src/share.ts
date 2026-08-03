@@ -102,7 +102,7 @@ function esc(s: string): string {
 const CATS = ['made your case', 'backed it up', 'fought back', 'used your time'];
 const MAXES = [30, 20, 30, 20];
 
-export function renderCard(card: Card, origin: string): string {
+export function renderCard(card: Card, origin: string, stored: boolean): string {
   const totalA = card.s.slice(0, 4).reduce((n, v) => n + v, 0);
   const totalB = card.s.slice(4).reduce((n, v) => n + v, 0);
   const winner = card.w === 1 ? card.b : card.a;
@@ -187,6 +187,10 @@ export function renderCard(card: Card, origin: string): string {
  ${quote(card.a, card.qa)}
  ${quote(card.b, card.qb)}
  <a class="cta" href="${esc(origin)}/">think you'd do better?</a>
- <p class="foot">this whole result lives inside the link. we stored nothing.</p>
+ <p class="foot">${
+   stored
+     ? 'one of the debaters chose to share this. the video was never recorded.'
+     : 'this whole result lives inside the link. we stored nothing.'
+ }</p>
 </div></body></html>`;
 }

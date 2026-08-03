@@ -43,6 +43,7 @@ import { sttConfigured } from './stt.js';
 import { namesOf, runJudge, scoreTranscript } from './judge.js';
 import { coachReply } from './coach.js';
 import { cardFrom, decodeCard, encodeCard, renderCard } from './share.js';
+import { ID_RE, initStore, loadCard, saveCard, storeReady } from './store.js';
 import { TOPIC_BY_ID, TOPIC_CATEGORIES } from './topics.js';
 import { event, statsSnapshot } from './stats.js';
 import { allow } from './ratelimit.js';
@@ -67,6 +68,9 @@ process.on('unhandledRejection', (err) => console.error('[fatal-rejection]', err
 await refreshIceServers();
 setInterval(() => void refreshIceServers(), REFRESH_MS).unref();
 
+// Optional: without a database, share links just stay self-contained.
+await initStore();
+
 // Exactly one proxy hop (Railway's edge) — trusting the whole XFF chain would
 // let clients spoof their own rate-limit identity.
 // maxParamLength defaults to 100, which silently 404s every share card: the
@@ -85,7 +89,12 @@ if (fs.existsSync(clientDist)) {
 // reads nothing and stores nothing — it just renders what the link carries.
 // Registered before the static handler so /v/... never looks for a file.
 app.get<{ Params: { token: string } }>('/v/:token', async (req, reply) => {
-  const card = decodeCard(String(req.params.token ?? ''));
+  const token = String(req.params.token ?? '');
+  // Short id = stored card. Anything longer is a self-contained link, which
+  // stays readable forever so cards shared before the database existed (or
+  // while it was down) never rot.
+  const stored = ID_RE.test(token);
+  const card = stored ? await loadCard(token) : decodeCard(token);
   if (!card) {
     return reply.code(404).type('text/html').send(
       `<!doctype html><meta charset="utf-8"><title>YapStage</title>` +
@@ -96,7 +105,7 @@ app.get<{ Params: { token: string } }>('/v/:token', async (req, reply) => {
   const proto = (req.headers['x-forwarded-proto'] as string) || 'https';
   const origin = `${proto}://${req.headers.host ?? 'www.yapstage.com'}`;
   event('share_view');
-  return reply.type('text/html').send(renderCard(card, origin));
+  return reply.type('text/html').send(renderCard(card, origin, stored));
 });
 
 app.get('/healthz', async () => ({
@@ -105,6 +114,7 @@ app.get('/healthz', async () => ({
   turn: turnMode(),
   stt: sttConfigured() ? 'cloudflare' : 'browser',
   tts: process.env.ELEVENLABS_API_KEY ? 'elevenlabs' : 'browser',
+  share: storeReady() ? 'stored' : 'in-link',
   commit: process.env.RAILWAY_GIT_COMMIT_SHA?.slice(0, 7) ?? 'dev',
 }));
 
@@ -633,10 +643,13 @@ io.on('connection', (socket) => {
     if (!allow(`share:${socket.id}`, 20, 60_000)) return cb(null);
     const lobby = socket.data.code ? getLobby(socket.data.code) : undefined;
     if (!lobby?.verdict || !participantOf(lobby, socket.id)) return cb(null);
-    const motion = lobby.topic?.en ?? '';
-    const token = encodeCard(cardFrom(motion, namesOf(lobby), lobby.verdict));
-    event('share_created', { code: lobby.code });
-    cb({ url: `/v/${token}` });
+    const card = cardFrom(lobby.topic?.en ?? '', namesOf(lobby), lobby.verdict);
+    // Short link when the store is up, self-contained link when it isn't. The
+    // user never sees the difference except in the length of the URL.
+    void saveCard(card).then((id) => {
+      event('share_created', { code: lobby.code, stored: id ? 'yes' : 'no' });
+      cb({ url: `/v/${id ?? encodeCard(card)}` });
+    });
   });
 
   socket.on('bot:start', (p, cb) => {
