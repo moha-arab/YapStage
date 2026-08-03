@@ -236,14 +236,19 @@ export async function scoreTranscript(
   if (!block || block.type !== 'text') throw new Error('Judge returned no text block');
   const raw = JSON.parse(block.text) as Verdict;
 
-  // Observability: clamping can theoretically flip which side has the higher
-  // total vs. the declared winner. Log it if it ever happens.
+  // A scoreboard that contradicts the result ("85 vs 82, AGAINST wins") is the
+  // fastest way to lose a player's trust in the judge, so it is a hard failure,
+  // not a warning. Throwing lands in runJudge's existing retry path. Ties defer
+  // to the declared winner: the prompt's tiebreak (clash, then argument) is a
+  // judgement we don't want to re-derive here.
   const t = (s: CategoryScores) => s.argument + s.evidence + s.clash + s.delivery;
   const cf = clampScores(raw.scores.FOR);
   const ca = clampScores(raw.scores.AGAINST);
   const byTotal = t(cf) === t(ca) ? raw.winner : t(cf) > t(ca) ? 'FOR' : 'AGAINST';
   if (byTotal !== raw.winner) {
-    console.warn(`[judge] winner/total mismatch: declared ${raw.winner}, totals favor ${byTotal}`);
+    throw new Error(
+      `Judge winner/total mismatch: declared ${raw.winner}, totals favor ${byTotal} (FOR ${t(cf)}, AGAINST ${t(ca)})`,
+    );
   }
 
   const winnerSide: Side = raw.winner === 'AGAINST' ? 'AGAINST' : 'FOR';
