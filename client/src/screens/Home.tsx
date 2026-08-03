@@ -1,7 +1,15 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { NAME_RE, type JoinError, type LobbyUpdate } from '../../../server/src/protocol';
 import { session, socket } from '../socket';
-import { loadReceipts } from '../history';
+import { loadReceipts, readPattern, type Category } from '../history';
+
+/** Category -> the plain-English name the judge and the learn screen use. */
+const CAT_KEY: Record<Category, string> = {
+  argument: 'catArgument',
+  evidence: 'catEvidence',
+  clash: 'catClash',
+  delivery: 'catDelivery',
+};
 import { useI18n } from '../i18n';
 
 const ERROR_KEYS: Record<JoinError, string> = {
@@ -28,6 +36,7 @@ export default function Home({ notice, onEntered, onPlayBot, onLearn }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [receipts] = useState(loadReceipts);
+  const pattern = useMemo(() => readPattern(receipts), [receipts]);
   const [showMatches, setShowMatches] = useState(false);
 
   // With server-side transcription the chrome-only warning is a lie; only
@@ -136,6 +145,26 @@ export default function Home({ notice, onEntered, onPlayBot, onLearn }: Props) {
       >
         {receipts.length === 0 ? t('learnBtnFirst') : t('learnBtn')}
       </button>
+
+      {/* The judge's per-debate feedback is sharp but disposable. This is the
+          only place that reads ACROSS games, which is where "you are always
+          weak on evidence" can come from. Device-local, like the receipts. */}
+      {pattern ? (
+        <div className="coach-read">
+          <span className="coach-read-label">{t('patternTitle')}</span>
+          <p className="coach-read-line">
+            {t('patternWeak', {
+              cat: t(CAT_KEY[pattern.worst]),
+              avg: String(pattern.worstAvg),
+              max: String(pattern.worstMax),
+              n: String(pattern.counted),
+            })}
+          </p>
+          <p className="coach-read-sub">
+            {t('patternStrong', { cat: t(CAT_KEY[pattern.best]) })}
+          </p>
+        </div>
+      ) : null}
 
       {receipts.length > 0 ? (
         <div className="bouts">

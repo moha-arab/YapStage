@@ -233,6 +233,9 @@ export default function App() {
           won: p.verdict.winner === mySide,
           myTotal: sum(p.verdict.scores[mySide]),
           theirTotal: sum(p.verdict.scores[theirSide]),
+          // Kept so the home screen can tell you what you are ALWAYS weak at,
+          // which one verdict can never show you.
+          scores: p.verdict.scores[mySide],
         });
       }
     });
