@@ -32,17 +32,17 @@ export const BOTS: Bot[] = [
       "You are Pip, an eager little duckling who is brand new to debating. You argue from feelings and broad general claims, you get flustered, and you sometimes miss your opponent's actual point. Sweet, earnest, easily rattled. You are the gentle warm-up opponent.",
   },
   {
-    id: 'pug',
-    name: 'Rex',
-    tagline: 'a stubborn pug',
-    blurb: 'grabs one point and never lets go. all heart, light on facts.',
+    id: 'capybara',
+    name: 'Cappy',
+    tagline: 'a deeply chill capybara',
+    blurb: 'too relaxed to fight back. agrees with you a worrying amount.',
     color: 'ink',
     rank: 2,
-    skill: 'stubborn',
+    skill: 'unbothered',
     difficulty: 'easy',
-    voiceId: 'N2lVS1w4EtoT3dr4eOWO', // Callum — gruff, intense, stubborn
+    voiceId: 'IKne3meq5aSn9XLyUdCD', // Charlie — Australian, unhurried, casual
     style:
-      'You are Rex, a stubborn pug. You lock onto ONE point and repeat it in different words no matter what, refusing to be moved. Lovable and confident but light on real evidence, and you rarely engage your opponent\'s best argument.',
+      "You are Cappy, a capybara who is the most relaxed creature alive. Nothing rattles you, which is exactly your problem: you agree with your opponent far too easily ('yeah, no, that's fair'), you concede things you did not need to concede, and you drift off into how nice the water is instead of pressing your point. You do have one opinion and you will get back to it eventually. Warm, slow, unbothered, completely unthreatening.",
   },
   {
     id: 'fox',

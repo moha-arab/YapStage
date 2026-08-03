@@ -19,14 +19,18 @@ const ANIMALS: Record<string, string> = {
     <circle cx="40" cy="54" r="4" fill="${D}"/><circle cx="60" cy="54" r="4" fill="${D}"/>
     <ellipse class="bot-mouth" cx="50" cy="66" rx="10" ry="6" fill="#ff9a2e"/>
     <circle cx="28" cy="62" r="5" fill="#ff8a5a" opacity="0.45"/><circle cx="72" cy="62" r="5" fill="#ff8a5a" opacity="0.45"/>`,
-  pug: `
-    <ellipse cx="24" cy="46" rx="9" ry="16" fill="#6a5240"/><ellipse cx="76" cy="46" rx="9" ry="16" fill="#6a5240"/>
-    <ellipse cx="50" cy="54" rx="33" ry="30" fill="#d9b482"/>
-    <path d="M30 40 q20 -10 40 0" stroke="#b8946a" stroke-width="3" fill="none"/>
-    <circle cx="38" cy="50" r="9" fill="#fff"/><circle cx="62" cy="50" r="9" fill="#fff"/>
-    <circle cx="39" cy="51" r="5" fill="${D}"/><circle cx="61" cy="51" r="5" fill="${D}"/>
-    <ellipse cx="50" cy="66" rx="15" ry="12" fill="#2e2016"/>
-    <ellipse class="bot-mouth" cx="50" cy="62" rx="6" ry="4" fill="${D}"/>`,
+  // Capybara: the read is the blunt loaf head, tiny ears set high, and a big
+  // squared-off muzzle. Eyes sit high and half-lidded so it looks unbothered.
+  capybara: `
+    <ellipse cx="28" cy="31" rx="7.5" ry="6.5" fill="#6f4a2e"/><ellipse cx="72" cy="31" rx="7.5" ry="6.5" fill="#6f4a2e"/>
+    <ellipse cx="28" cy="32" rx="3.5" ry="3" fill="#4a3020"/><ellipse cx="72" cy="32" rx="3.5" ry="3" fill="#4a3020"/>
+    <rect x="18" y="30" width="64" height="56" rx="23" fill="#9c6b45"/>
+    <rect x="29" y="55" width="42" height="31" rx="15" fill="#b98a63"/>
+    <path d="M35 43 q6 -3 11 0 M54 43 q6 -3 11 0" stroke="#7d5233" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+    <circle cx="40" cy="48" r="4.5" fill="${D}"/><circle cx="60" cy="48" r="4.5" fill="${D}"/>
+    <circle cx="41.5" cy="46.5" r="1.6" fill="#fff"/><circle cx="61.5" cy="46.5" r="1.6" fill="#fff"/>
+    <ellipse cx="43" cy="63" rx="3" ry="2.2" fill="${D}"/><ellipse cx="57" cy="63" rx="3" ry="2.2" fill="${D}"/>
+    <path class="bot-mouth" d="M40 73 q10 7 20 0" stroke="${D}" stroke-width="3" fill="none" stroke-linecap="round"/>`,
   fox: `
     <polygon points="20,22 34,50 12,46" fill="#e8622e"/><polygon points="80,22 66,50 88,46" fill="#e8622e"/>
     <polygon points="22,26 32,46 17,43" fill="#3a2418"/><polygon points="78,26 68,46 83,43" fill="#3a2418"/>

@@ -595,7 +595,7 @@ console.log('\n=== Scenario 7: bots mode ===');
   const res = await emitP(h, 'bot:start', {
     sessionId: 'bot-h',
     name: 'botfighter',
-    botId: 'pug',
+    botId: 'capybara',
     topicMode: 'agree',
     topicId: 'money-happiness',
     side: 'FOR',
@@ -605,7 +605,7 @@ console.log('\n=== Scenario 7: bots mode ===');
   const start = await once(h, 'debate:start', 12000);
   check(
     'bot debate: opponent is the chosen character',
-    Boolean(start.bot) && start.bot.id === 'pug' && start.names.AGAINST === 'Rex',
+    Boolean(start.bot) && start.bot.id === 'capybara' && start.names.AGAINST === 'Cappy',
   );
   let botTurns = 0;
   let botPhaseHasSpeakClock = false;
@@ -634,7 +634,7 @@ console.log('\n=== Scenario 7: bots mode ===');
     botPhaseHasSpeakClock && humanPhaseClean,
   );
   check('bot was scored (it argued a real transcript)', v.verdict.scores.AGAINST.argument > 0);
-  check('verdict carries the bot name', v.names.AGAINST === 'Rex');
+  check('verdict carries the bot name', v.names.AGAINST === 'Cappy');
   h.disconnect();
 }
 
