@@ -221,14 +221,19 @@ export default function Debate({
         />
       </div>
 
-      {phase.phase === 'closing' ? (
-        <p className="phase-rule">
-          {t('closingRule')}
-          {/* AGAINST opens the closings so FOR gets the final word — flag it
-              the first time so the order doesn't read as a bug. */}
-          {phase.stepIndex === 6 ? ` ${t('closingOrderNote')}` : ''}
+      {/* What to actually SAY this round. A first-timer's hardest moment is a
+          live mic and a blank mind, so the shape of the turn goes on screen
+          while they speak. The defense line doubles as an early warning that
+          new arguments are about to stop being allowed. */}
+      {myTurn ? (
+        <p className={`phase-rule ${phase.phase === 'closing' ? 'phase-rule-live' : ''}`}>
+          {t(`howto_${phase.phase}`)}
         </p>
       ) : null}
+
+      {/* AGAINST opens the closings so FOR gets the final word — flag it once
+          so the order doesn't read as a bug. */}
+      {phase.stepIndex === 6 ? <p className="phase-rule">{t('closingOrderNote')}</p> : null}
 
       {myTurn ? (
         <div className="pass-row">

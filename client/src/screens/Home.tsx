@@ -128,8 +128,13 @@ export default function Home({ notice, onEntered, onPlayBot, onLearn }: Props) {
         {error ? <p className="error">{t(error)}</p> : null}
       </div>
 
-      <button className="btn btn-small learn-link" onClick={onLearn}>
-        {t('learnBtn')}
+      {/* Never played? The rules are the thing standing between you and a good
+          first match, so the door to them is loud instead of a footnote. */}
+      <button
+        className={`btn ${receipts.length === 0 ? 'btn-bot' : 'btn-small'} learn-link`}
+        onClick={onLearn}
+      >
+        {receipts.length === 0 ? t('learnBtnFirst') : t('learnBtn')}
       </button>
 
       {receipts.length > 0 ? (

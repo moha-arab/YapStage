@@ -1871,6 +1871,11 @@ html[dir='rtl'] .meter-hint {
   font-size: 13.5px;
   color: var(--muted);
 }
+/* on your own closing turn the rule is not a footnote, it's the instruction */
+.phase-rule-live {
+  color: var(--gold);
+  font-size: 15px;
+}
 
 /* "pass the mic" sits under the clock track, only on your turn */
 .pass-row {
