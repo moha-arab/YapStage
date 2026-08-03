@@ -24,14 +24,14 @@ const ANIMALS: Record<string, string> = {
   // brick-shaped head, tiny ears tucked at the SIDES, eyes shoved right up to
   // the top, and an enormous blunt snout with a broad dark nose pad.
   capybara: `
-    <rect x="19" y="22" width="62" height="66" rx="12" fill="#ac7847"/>
-    <ellipse cx="21.5" cy="33" rx="4.6" ry="3.8" fill="#6b4526"/><ellipse cx="78.5" cy="33" rx="4.6" ry="3.8" fill="#6b4526"/>
-    <rect x="30" y="52" width="40" height="36" rx="13" fill="#c99a72"/>
-    <rect x="37" y="54" width="26" height="14" rx="5" fill="#432c1b"/>
-    <ellipse cx="44" cy="61" rx="2.4" ry="1.9" fill="#17120d"/><ellipse cx="56" cy="61" rx="2.4" ry="1.9" fill="#17120d"/>
-    <circle cx="32.5" cy="40" r="3.8" fill="${D}"/><circle cx="67.5" cy="40" r="3.8" fill="${D}"/>
-    <path d="M28 38.3 h9 M63 38.3 h9" stroke="#ac7847" stroke-width="3.6" stroke-linecap="round"/>
-    <path class="bot-mouth" d="M42 79 q8 5 16 0" stroke="#6b4526" stroke-width="2.8" fill="none" stroke-linecap="round"/>`,
+    <rect x="20" y="21" width="60" height="67" rx="13" fill="#cf9a5c"/>
+    <ellipse cx="22" cy="33" rx="3.4" ry="2.9" fill="#8a5f33"/><ellipse cx="78" cy="33" rx="3.4" ry="2.9" fill="#8a5f33"/>
+    <rect x="29" y="50" width="42" height="38" rx="14" fill="#e8c193"/>
+    <rect x="35" y="52" width="30" height="16" rx="5.5" fill="#4a3120"/>
+    <ellipse cx="43" cy="60" rx="2.8" ry="2.1" fill="#17120d"/><ellipse cx="57" cy="60" rx="2.8" ry="2.1" fill="#17120d"/>
+    <circle cx="32" cy="38" r="4" fill="${D}"/><circle cx="68" cy="38" r="4" fill="${D}"/>
+    <circle cx="33.3" cy="36.7" r="1.4" fill="#fff"/><circle cx="69.3" cy="36.7" r="1.4" fill="#fff"/>
+    <path class="bot-mouth" d="M42 79 q8 5 16 0" stroke="#8a5f33" stroke-width="3" fill="none" stroke-linecap="round"/>`,
   fox: `
     <polygon points="20,22 34,50 12,46" fill="#e8622e"/><polygon points="80,22 66,50 88,46" fill="#e8622e"/>
     <polygon points="22,26 32,46 17,43" fill="#3a2418"/><polygon points="78,26 68,46 83,43" fill="#3a2418"/>
