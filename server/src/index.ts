@@ -576,8 +576,6 @@ io.on('connection', (socket) => {
     if (!side) return;
     const question = String(p.question ?? '').trim().slice(0, 300);
     if (!question) return;
-    const mode = p.mode === 'appeal' ? 'appeal' : 'ask';
-
     const sid = socket.id;
     if (lobby.coachAsks >= 8) {
       io.to(sid).emit('coach:reply', { text: '', done: true });
@@ -585,15 +583,15 @@ io.on('connection', (socket) => {
     }
     lobby.coachAsks += 1;
     touch(lobby);
-    event(mode === 'appeal' ? 'coach_appeal' : 'coach_ask', { code: lobby.code });
-    // Only THIS side's exchange, and only the recent stretch of it: an appeal
+    event('coach_ask', { code: lobby.code });
+    // Only THIS side's exchange, and only the recent stretch of it: a follow-up
     // that builds on the last answer is the point, a full replay is not.
     const history = lobby.coachLog
       .filter((m) => m.side === side)
       .slice(-8)
       .map((m) => ({ role: m.role, content: m.content }));
-    lobby.coachLog.push({ side, role: 'user', content: `The debater ${mode}s: ${question}` });
-    void coachReply(lobby, side, question, mode, history)
+    lobby.coachLog.push({ side, role: 'user', content: `The debater says: ${question}` });
+    void coachReply(lobby, side, question, history)
       .then((text) => {
         lobby.coachLog.push({ side, role: 'assistant', content: text });
         io.to(sid).emit('coach:reply', { text });
