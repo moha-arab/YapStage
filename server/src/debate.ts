@@ -38,12 +38,14 @@ const script = (o: number, r: number, c: number): Step[] => [
   { phase: 'closing', speaker: 'AGAINST', seconds: c },
 ];
 
-// Turn lengths per pace. These are CEILINGS, not sentences — "pass the mic"
-// ends any turn early, so a bigger pace only feels long if you use all of it.
+// Turn lengths per pace, on the real-format ratio (Public Forum gives
+// rebuttals EQUAL time to constructives — answering takes as long as
+// building — and closings half, because a closing is a summary). These are
+// CEILINGS, not sentences: "pass the mic" ends any turn early.
 const SCRIPTS: Record<Pace, Step[]> = {
-  standard: script(60, 45, 30),
-  blitz: script(30, 20, 15),
-  long: script(90, 60, 45),
+  standard: script(60, 60, 30),
+  blitz: script(30, 30, 15),
+  long: script(90, 90, 45),
 };
 const FAST_SCRIPT = script(5, 4, 3);
 
