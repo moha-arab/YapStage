@@ -145,6 +145,7 @@ export default function VerdictScreen({
   const [coachThinking, setCoachThinking] = useState(false);
   const [coachAsks, setCoachAsks] = useState(0);
   const [coachInput, setCoachInput] = useState('');
+  const [shareState, setShareState] = useState<'idle' | 'working' | 'copied' | 'failed'>('idle');
 
   useEffect(() => {
     const onReply = (p: { text: string; error?: boolean; done?: boolean }) => {
@@ -218,6 +219,33 @@ export default function VerdictScreen({
       timers.forEach(clearTimeout);
     };
   }, [info]);
+
+  // Ask the server for a link, then hand it to the OS share sheet on mobile or
+  // the clipboard on desktop. The share sheet can be dismissed, which is not a
+  // failure, so a cancel just resets quietly.
+  function share() {
+    if (shareState === 'working') return;
+    setShareState('working');
+    socket.emit('share:link', (res) => {
+      if (!res?.url) {
+        setShareState('failed');
+        return;
+      }
+      const url = new URL(res.url, window.location.origin).toString();
+      const title = info ? `${info.names[info.verdict.winner]} won on YapStage` : 'YapStage';
+      if (navigator.share) {
+        navigator
+          .share({ title, url })
+          .then(() => setShareState('idle'))
+          .catch(() => setShareState('idle'));
+        return;
+      }
+      navigator.clipboard
+        ?.writeText(url)
+        .then(() => setShareState('copied'))
+        .catch(() => setShareState('failed'));
+    });
+  }
 
   function toggleMute() {
     const next = !muted;
@@ -455,6 +483,17 @@ export default function VerdictScreen({
               )}
             </div>
           ) : null}
+
+          {/* Opt-in per debate. Nothing leaves until you press it, and even
+              then the result rides inside the link rather than a database. */}
+          <div className="share-row">
+            <button className="btn btn-small" disabled={shareState === 'working'} onClick={share}>
+              {shareState === 'copied' ? t('shareCopied') : t('shareBtn')}
+            </button>
+            <p className="share-note">
+              {shareState === 'failed' ? t('shareFailed') : t('shareNote')}
+            </p>
+          </div>
 
           <div className="verdict-actions">
             {botOpponent ? (

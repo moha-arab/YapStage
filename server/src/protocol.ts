@@ -173,6 +173,9 @@ export interface ClientToServer {
   'audio:turn': (p: { stepIndex: number; mime: string; data: ArrayBuffer }) => void;
   'verdict:retry': () => void;
   'rematch': () => void; // want to run it back with the same person
+  /** Ask for a shareable link to this verdict. The whole card is encoded in
+      the returned URL — nothing is stored server-side. */
+  'share:link': (cb: (res: { url: string } | null) => void) => void;
   /** Say anything to the YapMaster about YOUR debate. It coaches when asked and
       defends its ruling when challenged; the score never moves either way. */
   'coach:ask': (p: { question: string }) => void;

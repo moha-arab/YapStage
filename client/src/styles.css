@@ -489,6 +489,18 @@ html[dir='rtl'] .meter-hint {
   transform: rotate(-1deg);
 }
 
+/* share the ruling (opt-in, nothing stored) */
+.share-row {
+  margin: 18px auto 0;
+  text-align: center;
+}
+.share-note {
+  margin: 6px 0 0;
+  font-family: var(--marker);
+  font-size: 11.5px;
+  color: var(--muted);
+}
+
 /* the cross-game read: what you are ALWAYS weak at */
 .coach-read {
   margin: 16px auto 0;

@@ -40,8 +40,9 @@ import {
 } from './debate.js';
 import { BOT_BY_ID, publicBots } from './bots.js';
 import { sttConfigured } from './stt.js';
-import { runJudge, scoreTranscript } from './judge.js';
+import { namesOf, runJudge, scoreTranscript } from './judge.js';
 import { coachReply } from './coach.js';
+import { cardFrom, decodeCard, encodeCard, renderCard } from './share.js';
 import { TOPIC_BY_ID, TOPIC_CATEGORIES } from './topics.js';
 import { event, statsSnapshot } from './stats.js';
 import { allow } from './ratelimit.js';
@@ -68,7 +69,10 @@ setInterval(() => void refreshIceServers(), REFRESH_MS).unref();
 
 // Exactly one proxy hop (Railway's edge) — trusting the whole XFF chain would
 // let clients spoof their own rate-limit identity.
-const app = Fastify({ logger: false, trustProxy: 1 });
+// maxParamLength defaults to 100, which silently 404s every share card: the
+// whole verdict is encoded into the /v/:token param and runs ~500 chars in
+// English, ~700 in Arabic.
+const app = Fastify({ logger: false, trustProxy: 1, maxParamLength: 4200 });
 
 const clientDist = path.resolve(here, '../../client/dist');
 if (fs.existsSync(clientDist)) {
@@ -76,6 +80,24 @@ if (fs.existsSync(clientDist)) {
 } else {
   console.warn(`[server] client build not found at ${clientDist} — API/socket only`);
 }
+
+// Shareable verdict card. The result is encoded in the path, so this route
+// reads nothing and stores nothing — it just renders what the link carries.
+// Registered before the static handler so /v/... never looks for a file.
+app.get<{ Params: { token: string } }>('/v/:token', async (req, reply) => {
+  const card = decodeCard(String(req.params.token ?? ''));
+  if (!card) {
+    return reply.code(404).type('text/html').send(
+      `<!doctype html><meta charset="utf-8"><title>YapStage</title>` +
+        `<body style="background:#151210;color:#f2e8d5;font-family:system-ui;text-align:center;padding:60px">` +
+        `<p>that link is not a verdict.</p><p><a style="color:#d4af37" href="/">go to YapStage</a></p>`,
+    );
+  }
+  const proto = (req.headers['x-forwarded-proto'] as string) || 'https';
+  const origin = `${proto}://${req.headers.host ?? 'www.yapstage.com'}`;
+  event('share_view');
+  return reply.type('text/html').send(renderCard(card, origin));
+});
 
 app.get('/healthz', async () => ({
   ok: true,
@@ -601,6 +623,20 @@ io.on('connection', (socket) => {
         lobby.coachLog.pop(); // no answer means that question never happened
         io.to(sid).emit('coach:reply', { text: '', error: true });
       });
+  });
+
+  // Build a share link for the verdict you just received. The server signs it
+  // (when SHARE_SECRET is set) so a card rendering on our domain is one the
+  // judge really produced, then forgets it — the link carries the whole thing.
+  socket.on('share:link', (cb) => {
+    if (typeof cb !== 'function') return;
+    if (!allow(`share:${socket.id}`, 20, 60_000)) return cb(null);
+    const lobby = socket.data.code ? getLobby(socket.data.code) : undefined;
+    if (!lobby?.verdict || !participantOf(lobby, socket.id)) return cb(null);
+    const motion = lobby.topic?.en ?? '';
+    const token = encodeCard(cardFrom(motion, namesOf(lobby), lobby.verdict));
+    event('share_created', { code: lobby.code });
+    cb({ url: `/v/${token}` });
   });
 
   socket.on('bot:start', (p, cb) => {
