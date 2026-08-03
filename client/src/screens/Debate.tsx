@@ -225,11 +225,13 @@ export default function Debate({
           live mic and a blank mind, so the shape of the turn goes on screen
           while they speak. The defense line doubles as an early warning that
           new arguments are about to stop being allowed. */}
-      {myTurn ? (
-        <p className={`phase-rule ${phase.phase === 'closing' ? 'phase-rule-live' : ''}`}>
-          {t(`howto_${phase.phase}`)}
-        </p>
-      ) : null}
+      {/* Always on screen, never only on your turn: when the opponent takes two
+          turns in a row (their rebuttal, then their defense) a beginner has no
+          idea what they're watching. On their turn it describes the round; on
+          yours it tells you what to do. */}
+      <p className={`phase-rule ${myTurn && phase.phase === 'closing' ? 'phase-rule-live' : ''}`}>
+        {t(myTurn ? `howto_${phase.phase}` : `whatis_${phase.phase}`)}
+      </p>
 
       {/* AGAINST opens the closings so FOR gets the final word — flag it once
           so the order doesn't read as a bug. */}

@@ -54,6 +54,13 @@ const en: Dict = {
   howto_defense:
     'repair what they hit. closings come next, and no new arguments are allowed there.',
   howto_closing: 'no new arguments. say why your points beat theirs.',
+  // Shown while the OPPONENT speaks: the same rounds explained as what is
+  // happening, not as an instruction. Back-to-back opponent turns (their
+  // rebuttal then their defense) are exactly where a beginner gets lost.
+  whatis_opening: 'openings: each side states their position and their best reasons.',
+  whatis_rebuttal: 'rebuttals: each side attacks the other case. yours is coming.',
+  whatis_defense: 'defenses: each side repairs their own case after it was attacked.',
+  whatis_closing: 'closings: no new arguments allowed. each side says why they won.',
   closingRule: 'closings: no new arguments. tell the judge why you won.',
   closingOrderNote: 'against closes first, for gets the last word.',
   prevMatches: 'previous matches',
@@ -289,6 +296,10 @@ const ar: Dict = {
   howto_rebuttal: 'خذ أقوى نقطة عندهم وأظهر لماذا لا تصمد.',
   howto_defense: 'أصلح ما ضربوه. الختام قادم، وممنوع طرح حجج جديدة فيه.',
   howto_closing: 'ممنوع طرح حجج جديدة. قل لماذا نقاطك تتفوق على نقاطهم.',
+  whatis_opening: 'الافتتاح: كل طرف يذكر موقفه وأفضل أسبابه.',
+  whatis_rebuttal: 'الرد: كل طرف يهاجم حجج الآخر. دورك قادم.',
+  whatis_defense: 'الدفاع: كل طرف يصلح حججه بعد أن هوجمت.',
+  whatis_closing: 'الختام: ممنوع طرح حجج جديدة. كل طرف يقول لماذا فاز.',
   closingRule: 'الختام: ممنوع طرح حجج جديدة. اشرح للحكم لماذا فزت.',
   closingOrderNote: 'الضد يختم أولاً، ومع يحصل على الكلمة الأخيرة.',
   prevMatches: 'المباريات السابقة',
