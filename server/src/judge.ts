@@ -4,6 +4,7 @@ import type { Lobby } from './lobby.js';
 import { destroyLobby, touch } from './lobby.js';
 import type { Io } from './debate.js';
 import { event } from './stats.js';
+import { synthesize } from './tts.js';
 
 // Local copy of the step layout (phase/speaker per index) so judge.ts has no
 // runtime dependency on debate.ts. Every pace shares this 6-step shape; only
@@ -119,8 +120,9 @@ CRITICAL RULES:
 5. NEW ARGUMENTS IN A CLOSING DO NOT COUNT. A closing is for weighing what was already argued. If a debater raises a brand-new argument in their closing — one with no foundation in any earlier speech of theirs — DISREGARD it entirely: score neither for nor against it. This protects the debate, because the opponent may have had no chance to answer it. Do not confuse a new argument with new PHRASING, a fresh example illustrating an existing point, or an answer to something the opponent just said — those are all legitimate. A closing that only repeats the case without weighing it against the opponent's is weak; a closing that explains why the surviving arguments favor them is strong. TEACH IT: if you disregarded a new argument in someone's closing, fold a plain-English note into that debater's weakness bullet — tell them a closing cannot introduce new material and that those seconds bought them nothing. Most of our players have never debated formally and will not know this rule until someone tells them.
 6. bestQuote must be a verbatim (or near-verbatim) excerpt from that debater's OWN transcript. If a side has no transcript, use an empty string.
 7. feedback: exactly 2 bullets per debater. Bullet 1: their STRONGEST category, named in plain English ("made your case" / "backed it up" / "fought back" / "used your time"), plus the specific moment that earned it. Bullet 2: their WEAKEST category, named the same way, plus the specific fix. Address the debater as "you".
-8. summary: ONE punchy sentence announcing the result, hype-commentator style. Refer to the winner ONLY with the exact token [WINNER] — we substitute the real name after you answer. Do not invent names, do not guess gender, do not use "he" or "she" anywhere. Example energy: "Ladies and gentlemen, with rebuttals that left nothing standing, your YapMaster is [WINNER]!"
-9. LANGUAGE: the motion is given in English and Arabic; debaters may speak either or both. Judge argumentation quality identically regardless of language. Write each debater's feedback in the language that debater primarily spoke. Write the summary in the language the WINNER primarily spoke (keep the [WINNER] token as-is). bestQuote stays verbatim in whatever language it was said.`;
+8. VOICE: write like a person talking, not like a document. Do NOT use em dashes ("—") or en dashes ("–") anywhere in summary, feedback, or any other text you produce; use periods, commas, or a colon instead. No corporate filler.
+9. summary: ONE punchy sentence announcing the result, hype-commentator style. Refer to the winner ONLY with the exact token [WINNER] — we substitute the real name after you answer. Do not invent names, do not guess gender, do not use "he" or "she" anywhere. Example energy: "Ladies and gentlemen, with rebuttals that left nothing standing, your YapMaster is [WINNER]!"
+10. LANGUAGE: the motion is given in English and Arabic; debaters may speak either or both. Judge argumentation quality identically regardless of language. Write each debater's feedback in the language that debater primarily spoke. Write the summary in the language the WINNER primarily spoke (keep the [WINNER] token as-is). bestQuote stays verbatim in whatever language it was said.`;
 }
 
 const scoreProp = (max: number) => ({
@@ -173,6 +175,12 @@ const VERDICT_SCHEMA = {
 };
 
 const CATEGORY_MAX: CategoryScores = { argument: 30, evidence: 20, clash: 30, delivery: 20 };
+
+/** The site's voice has no dashes in it. The prompt asks; this guarantees.
+    Not applied to bestQuote, which must stay a verbatim excerpt. */
+function noDashes(s: string): string {
+  return s.replace(/\s*[—–]\s*/g, ', ').replace(/,\s*,/g, ',');
+}
 
 function clampScores(scores: CategoryScores): CategoryScores {
   const clamp = (v: unknown, max: number) =>
@@ -254,18 +262,36 @@ export async function scoreTranscript(
   const winnerSide: Side = raw.winner === 'AGAINST' ? 'AGAINST' : 'FOR';
   return {
     winner: winnerSide,
-    summary: String(raw.summary ?? '').slice(0, 400),
+    summary: noDashes(String(raw.summary ?? '')).slice(0, 400),
     scores: { FOR: cf, AGAINST: ca },
     bestQuote: {
       FOR: String(raw.bestQuote?.FOR ?? '').slice(0, 300),
       AGAINST: String(raw.bestQuote?.AGAINST ?? '').slice(0, 300),
     },
     feedback: {
-      FOR: (raw.feedback?.FOR ?? []).slice(0, 2).map((s) => String(s).slice(0, 300)),
-      AGAINST: (raw.feedback?.AGAINST ?? []).slice(0, 2).map((s) => String(s).slice(0, 300)),
+      FOR: (raw.feedback?.FOR ?? []).slice(0, 2).map((s) => noDashes(String(s)).slice(0, 300)),
+      AGAINST: (raw.feedback?.AGAINST ?? []).slice(0, 2).map((s) => noDashes(String(s)).slice(0, 300)),
     },
     injectionDetected: Boolean(raw.injectionDetected),
   };
+}
+
+// The YapMaster's own voice, deliberately not on the bot roster so the judge
+// never sounds like one of the debaters. Before this, the ruling was read by
+// whatever voice the browser happened to ship, which made the one moment the
+// judge actually speaks sound like a screen reader.
+const YAPMASTER_VOICE = 'pqHfZKP75CvOlQylNhV4'; // Bill
+
+/** Send the ruling, with the YapMaster's voice attached when we have it. */
+function emitVerdict(io: Io, lobby: Lobby, to: string): void {
+  io.to(to).emit('verdict:result', {
+    verdict: lobby.verdict!,
+    names: namesOf(lobby),
+    mime: lobby.verdictAudio?.mime,
+    audio: lobby.verdictAudio
+      ? (lobby.verdictAudio.data as unknown as ArrayBuffer)
+      : undefined,
+  });
 }
 
 async function callJudge(lobby: Lobby): Promise<Verdict> {
@@ -282,10 +308,7 @@ export async function runJudge(io: Io, lobby: Lobby, requesterSocketId?: string)
   if (lobby.judgeState === 'done' && lobby.verdict) {
     // Re-fetch, not re-announce: send only to the requester so the opponent's
     // finished verdict screen isn't yanked back through the reveal.
-    io.to(requesterSocketId ?? lobby.code).emit('verdict:result', {
-      verdict: lobby.verdict,
-      names: namesOf(lobby),
-    });
+    emitVerdict(io, lobby, requesterSocketId ?? lobby.code);
     return;
   }
 
@@ -319,8 +342,12 @@ export async function runJudge(io: Io, lobby: Lobby, requesterSocketId?: string)
     lobby.judgeState = 'done';
     lobby.verdict = verdict;
     lobby.status = 'verdict';
+    // The reveal runs a drum roll before the summary is read, so synthesizing
+    // here costs no visible wait. A failure just means the browser voice reads
+    // it instead, which is what happened for every debate before this.
+    lobby.verdictAudio = (await synthesize(verdict.summary, YAPMASTER_VOICE)) ?? undefined;
     touch(lobby);
-    io.to(lobby.code).emit('verdict:result', { verdict, names: namesOf(lobby) });
+    emitVerdict(io, lobby, lobby.code);
     // Keep the lobby around briefly so a reconnecting client can re-fetch,
     // then let it go. Transcripts die with the lobby — nothing is persisted.
     setTimeout(() => {

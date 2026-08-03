@@ -191,8 +191,6 @@ export interface ClientToServer {
     cb: (res: { ok: boolean; error?: JoinError }) => void,
   ) => void;
   'bot:done': (p: { stepIndex: number }) => void; // the bot finished speaking its turn
-  /** The YapMaster's round-break line finished playing — start the next round. */
-  'interlude:done': (p: { afterStep: number }) => void;
 }
 
 export interface ServerToClient {
@@ -206,7 +204,15 @@ export interface ServerToClient {
   'debate:aborted': (p: { reason: string; vars?: Record<string, string> }) => void;
   'peer:connection': (p: { state: 'lost' | 'restored'; graceDeadline?: number }) => void;
   'verdict:status': (p: { state: 'pending' | 'failed'; message?: string; terminal?: boolean }) => void;
-  'verdict:result': (p: { verdict: Verdict; names: Record<Side, string> }) => void;
+  /** The ruling. `audio` is the YapMaster reading `verdict.summary` in their
+      own voice; absent when TTS is off or failed, and the client falls back to
+      the browser's built-in speech. */
+  'verdict:result': (p: {
+    verdict: Verdict;
+    names: Record<Side, string>;
+    mime?: string;
+    audio?: ArrayBuffer;
+  }) => void;
   /** Rematch handshake state (per recipient's own view). */
   'rematch:update': (p: { youWant: boolean; peerWant: boolean; peerLeft: boolean }) => void;
   /** Both agreed — reset to the green room for a fresh debate. */
@@ -215,13 +221,6 @@ export interface ServerToClient {
   'coach:reply': (p: { text: string; error?: boolean; done?: boolean }) => void;
   /** The bot's spoken turn: its argument text + optional synthesized audio. */
   'bot:turn': (p: { stepIndex: number; text: string; mime?: string; audio?: ArrayBuffer }) => void;
-  /** The YapMaster's between-round remark: spoken over a short pause. */
-  'judge:interlude': (p: {
-    afterStep: number; // the step that just finished — echoed back in interlude:done
-    text: string;
-    mime?: string;
-    audio?: ArrayBuffer;
-  }) => void;
 }
 
 export interface SocketData {

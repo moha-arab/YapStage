@@ -4,6 +4,7 @@ import { isSoundMuted, playCrash, playDrumRoll, playHit, setSoundMuted, speak } 
 import { socket } from '../socket';
 import { useI18n } from '../i18n';
 import VideoTile from '../VideoTile';
+import { playBotTurn, stopBotVoice } from '../botvoice';
 
 const COACH_LIMIT = 6;
 interface CoachMsg {
@@ -13,7 +14,12 @@ interface CoachMsg {
 }
 
 interface Props {
-  info: { verdict: VerdictData; names: Record<Side, string> } | null;
+  info: {
+    verdict: VerdictData;
+    names: Record<Side, string>;
+    mime?: string;
+    audio?: ArrayBuffer;
+  } | null;
   status: { state: 'pending' | 'failed'; message?: string; terminal?: boolean } | null;
   mySide: Side | undefined;
   topic: TopicText | null;
@@ -191,7 +197,13 @@ export default function VerdictScreen({
       setTimeout(() => {
         if (!alive) return;
         playCrash();
-        speak(info.verdict.summary);
+        // The YapMaster reads their own ruling. Falls back to the browser voice
+        // when the server had no TTS, which is what this always used to be.
+        if (info.audio && !isSoundMuted()) {
+          playBotTurn(info.verdict.summary, info.audio, info.mime, lang, () => {});
+        } else {
+          speak(info.verdict.summary);
+        }
         setStage('reveal');
       }, drumAt + 3200),
     );
@@ -211,6 +223,9 @@ export default function VerdictScreen({
     const next = !muted;
     setMuted(next);
     setSoundMuted(next);
+    // setSoundMuted cancels browser speech but knows nothing about the
+    // YapMaster's audio element, so silence that here too.
+    if (next) stopBotVoice();
   }
 
   if (!info) {

@@ -24,8 +24,6 @@ interface Props {
   botTurn?: { stepIndex: number; text: string } | null;
   botSpeaking?: boolean;
   botSpeakDeadline?: number | null;
-  /** The YapMaster's line during a round break (null while a turn is live). */
-  interlude?: string | null;
   onPassMic: (stepIndex: number) => void;
 }
 
@@ -53,7 +51,6 @@ export default function Debate({
   botTurn,
   botSpeaking,
   botSpeakDeadline,
-  interlude,
   onPassMic,
 }: Props) {
   const { lang, t } = useI18n();
@@ -228,16 +225,7 @@ export default function Debate({
           live mic and a blank mind, so the shape of the turn goes on screen
           while they speak. The defense line doubles as an early warning that
           new arguments are about to stop being allowed. */}
-      {/* Round break: the YapMaster has the floor, so nothing else competes
-          for attention and the mic controls stay out of the way. */}
-      {interlude ? (
-        <div className="interlude">
-          <span className="interlude-who">{t('yapmaster')}</span>
-          <p className="interlude-line">{interlude}</p>
-        </div>
-      ) : null}
-
-      {myTurn && !interlude ? (
+      {myTurn ? (
         <p className={`phase-rule ${phase.phase === 'closing' ? 'phase-rule-live' : ''}`}>
           {t(`howto_${phase.phase}`)}
         </p>
@@ -245,11 +233,9 @@ export default function Debate({
 
       {/* AGAINST opens the closings so FOR gets the final word — flag it once
           so the order doesn't read as a bug. */}
-      {phase.stepIndex === 6 && !interlude ? (
-        <p className="phase-rule">{t('closingOrderNote')}</p>
-      ) : null}
+      {phase.stepIndex === 6 ? <p className="phase-rule">{t('closingOrderNote')}</p> : null}
 
-      {myTurn && !interlude ? (
+      {myTurn ? (
         <div className="pass-row">
           <button
             className="btn btn-small pass-mic"
