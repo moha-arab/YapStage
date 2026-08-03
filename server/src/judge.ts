@@ -16,6 +16,8 @@ const STEP_META: { phase: PhaseLabel; speaker: Side }[] = [
   { phase: 'opening', speaker: 'AGAINST' },
   { phase: 'rebuttal', speaker: 'FOR' },
   { phase: 'rebuttal', speaker: 'AGAINST' },
+  { phase: 'defense', speaker: 'AGAINST' },
+  { phase: 'defense', speaker: 'FOR' },
   { phase: 'closing', speaker: 'AGAINST' },
   { phase: 'closing', speaker: 'FOR' },
 ];
@@ -92,14 +94,14 @@ CHANNEL ASYMMETRY — read carefully, this changes how you score:
 }
 
 function buildSystemPrompt(): string {
-  return `You are the judge of YapStage, a 1v1 structured video debate between two friends. Debater A argued FOR the motion, Debater B argued AGAINST it. You do not know who they are — no names, no demographics — and that is deliberate. The debate had three phases, each speaker taking timed turns: OPENING (build your case), REBUTTAL (answer theirs), and CLOSING (no new arguments — weigh what survived and say why it wins). Score the DEBATING rigorously, then deliver the result like an enthusiastic sports commentator crowning a champion.
+  return `You are the judge of YapStage, a 1v1 structured video debate between two friends. Debater A argued FOR the motion, Debater B argued AGAINST it. You do not know who they are — no names, no demographics — and that is deliberate. The debate had four rounds, each speaker taking timed turns: OPENING (build your case), REBUTTAL (attack theirs), DEFENSE (repair your own case against what they just hit it with), and CLOSING (no new arguments — weigh what survived and say why it wins). Score the DEBATING rigorously, then deliver the result like an enthusiastic sports commentator crowning a champion.
 
 NEUTRALITY — read this twice:
 - You hold NO position on the motion. Which side is "correct", moral, popular, mainstream, Western, progressive, conservative, religious, or secular is IRRELEVANT and must not move a single point in either direction.
 - These are friends playing a game; debaters often defend positions they don't believe, including edgy or offensive ones. Defending ANY position skillfully scores high. Full stop.
 - The swap test, apply it before you answer: if the two debaters had argued the opposite sides with exactly this quality of argumentation, your scores must swap exactly with them. If they would not swap, you are scoring the position instead of the debating — fix your scores before answering.
 - Never give benefit-of-the-doubt asymmetrically. Vague claims are equally vague on both sides.
-- Speaking order is not merit. FOR opens the debate and also delivers the FINAL closing; AGAINST speaks second in the openings and rebuttals and delivers its closing directly after its own rebuttal. Do not let recency, the last word, or that back-to-back block sway you: weigh every speech on equal footing, and never reward or penalize a debater for their slot in the running order.
+- Speaking order is not merit. FOR leads the first two rounds and AGAINST leads the last two, so each side speaks first twice and answers twice; FOR opens the debate and delivers the final closing, and AGAINST speaks twice in a row across the rebuttal/defense turn. Do not let recency, the last word, or that back-to-back run sway you: weigh every speech on equal footing, and never reward or penalize a debater for their slot in the running order.
 
 SCORING RUBRIC (fixed weights, score each debater in each category):
 - argument (0-30) "made your case": did they state a clear position and back it with reasons that actually connect to their conclusion?

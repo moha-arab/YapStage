@@ -16,9 +16,10 @@ interface Props {
   notice: string | null;
   onEntered: (u: LobbyUpdate) => void;
   onPlayBot: (name: string) => void;
+  onLearn: () => void;
 }
 
-export default function Home({ notice, onEntered, onPlayBot }: Props) {
+export default function Home({ notice, onEntered, onPlayBot, onLearn }: Props) {
   const { lang, t } = useI18n();
   const [name, setName] = useState('');
   const [code, setCode] = useState(
@@ -126,6 +127,10 @@ export default function Home({ notice, onEntered, onPlayBot }: Props) {
 
         {error ? <p className="error">{t(error)}</p> : null}
       </div>
+
+      <button className="btn btn-small learn-link" onClick={onLearn}>
+        {t('learnBtn')}
+      </button>
 
       {receipts.length > 0 ? (
         <div className="bouts">

@@ -29,19 +29,24 @@ export interface Step {
 
 const FAST = process.env.DEBATE_SPEED === 'fast';
 
-// Closings run in REVERSE order (AGAINST then FOR). Strict alternation would
-// hand AGAINST the last word three times over — end of openings, end of
-// rebuttals, end of round — while FOR pays the cost of opening blind and gets
-// nothing back. Every real format refuses that: Lincoln-Douglas gives the
-// burden-carrying side both the first and last speech, and World Schools
-// reverses its reply order for exactly this reason. The price is that AGAINST
-// speaks twice in a row (its rebuttal into its closing) — that uninterrupted
-// block IS the payment for surrendering the final word.
-const script = (o: number, r: number, c: number): Step[] => [
+// Four rounds — build, attack, defend, decide — with the speaking order
+// MIRRORED at the halfway point: FOR leads the first two rounds, AGAINST leads
+// the last two. That makes the format symmetric rather than merely patched:
+// each side leads twice and answers twice, and FOR still opens the debate and
+// closes it (Lincoln-Douglas's rule that the side carrying the burden of proof
+// gets both bookends). The single back-to-back run — AGAINST's rebuttal into
+// its defense — is what AGAINST is paid for surrendering the final word.
+//
+// The DEFENSE round is the one real debate has that a build/attack/close
+// format lacks: a slot to repair your own case after it has been hit. Without
+// it, damage done in the rebuttal can never be answered.
+const script = (o: number, r: number, d: number, c: number): Step[] => [
   { phase: 'opening', speaker: 'FOR', seconds: o },
   { phase: 'opening', speaker: 'AGAINST', seconds: o },
   { phase: 'rebuttal', speaker: 'FOR', seconds: r },
   { phase: 'rebuttal', speaker: 'AGAINST', seconds: r },
+  { phase: 'defense', speaker: 'AGAINST', seconds: d },
+  { phase: 'defense', speaker: 'FOR', seconds: d },
   { phase: 'closing', speaker: 'AGAINST', seconds: c },
   { phase: 'closing', speaker: 'FOR', seconds: c },
 ];
@@ -50,16 +55,17 @@ const script = (o: number, r: number, c: number): Step[] => [
 // rebuttals EQUAL time to constructives — answering takes as long as
 // building — and closings half, because a closing is a summary). These are
 // CEILINGS, not sentences: "pass the mic" ends any turn early.
-// Closings get more room than a pure summary would suggest: every documented
-// real-world reform to the summary slot moved its time UP, never down, because
-// weighing needs space. 75% of a rebuttal, between World Schools' reply ratio
-// and Big Questions' consolidation ratio.
+// Openings and rebuttals get equal time (Public Forum's rule: answering an
+// argument takes as long as making it). Defense is shorter — it repairs rather
+// than builds — and the closing is shortest because it adds no new material.
+// Four shorter turns beat three long ones for casual players: 45 seconds is a
+// far less intimidating ask than 90, and you get more chances to land.
 const SCRIPTS: Record<Pace, Step[]> = {
-  standard: script(60, 60, 45),
-  blitz: script(30, 30, 20),
-  long: script(90, 90, 60),
+  standard: script(45, 45, 35, 25), // ~5:00
+  blitz: script(25, 25, 20, 15), // ~2:50
+  long: script(75, 75, 55, 40), // ~8:10
 };
-const FAST_SCRIPT = script(5, 4, 3);
+const FAST_SCRIPT = script(5, 4, 3, 3);
 
 /** The step script this lobby runs (FAST test mode overrides pace). */
 export function scriptFor(lobby: Pick<Lobby, 'pace'>): Step[] {
@@ -272,6 +278,8 @@ async function generateBotArgument(lobby: Lobby, bot: Bot, stepIndex: number): P
       opening: 'This is your OPENING. State your position and your one simple reason, in character.',
       rebuttal:
         "This is your REBUTTAL. React to something the opponent ACTUALLY said — reference their real point — then respond the only way you know how: panic, joke, deflect, or accidentally half-agree ('okay that's... actually a good point, BUT'). Never cleanly answer their strongest argument.",
+      defense:
+        "This is your DEFENSE — the opponent attacked YOUR case and this is your chance to repair it. Keep it shorter than your other turns. You are not good at this: get flustered by the attack, defend the wrong part of your case, or admit the hit landed and then insist your point still stands anyway because you feel it does.",
       closing:
         'This is your CLOSING — no brand-new arguments allowed, only what already came up. One last heartfelt, slightly chaotic push for the one point you have been making all along. React to the debate that actually happened, but never weigh it up like a lawyer — you would not know where to start.',
     },
@@ -279,6 +287,8 @@ async function generateBotArgument(lobby: Lobby, bot: Bot, stepIndex: number): P
       opening: 'This is your OPENING. State your position and your main reasons.',
       rebuttal:
         "This is your REBUTTAL. Genuinely answer ONE thing the opponent actually said (never their strongest point) with a real reason and a jab of humor, then get back to your own case.",
+      defense:
+        "This is your DEFENSE — they attacked your case, now repair it. Keep it shorter than your other turns. Rebuild ONE thing they knocked down with a real reason, but leave their best attack standing without ever acknowledging it.",
       closing:
         'This is your CLOSING — no brand-new arguments, only what already came up. Land your main point one more time, with personality. Do NOT compare your case against theirs or explain which argument outweighs which; you just restate and hope.',
     },
@@ -286,13 +296,19 @@ async function generateBotArgument(lobby: Lobby, bot: Bot, stepIndex: number): P
       opening: 'This is your OPENING. State your position and your two or three strongest reasons.',
       rebuttal:
         "This is your REBUTTAL. Directly answer the opponent's strongest point, then reinforce your own case.",
+      defense:
+        "This is your DEFENSE — they attacked your case, now repair it. Keep it shorter than your other turns. Take their sharpest attack on YOUR argument, show precisely why it fails, and leave your case standing stronger than before it was hit.",
       closing:
         "This is your CLOSING — no brand-new arguments, only what was already argued. Narrow to the one or two issues that decide this debate and WEIGH them: say explicitly why your argument outweighs theirs (it affects more people, it's more likely, it comes first, it matters more), and name what they never answered. Write the judge's ballot for them.",
     },
   };
   const phaseInstr = phaseInstrBy[diff][phase];
 
-  const len = lengthRule(lobby.bot!.difficulty, lobby.pace);
+  // Shorter rounds get shorter speeches, so the shot clock rarely has to cut
+  // a bot off mid-sentence. The prompts above also ask for brevity in words.
+  const base = lengthRule(lobby.bot!.difficulty, lobby.pace);
+  const trim = phase === 'closing' ? 0.6 : phase === 'defense' ? 0.8 : 1;
+  const len = { ...base, maxTokens: Math.round(base.maxTokens * trim) };
   const system = `You are ${bot.name}, an AI debater in a live 1v1 spoken debate. ${bot.style} ${difficultyDirective(lobby.bot!.difficulty)}
 Where your character's style conflicts with the STRENGTH rules, the STRENGTH rules always win — keep the personality in tone and word choice only, never as extra argumentative firepower.
 You are arguing ${botSide} this motion: "${motion}". ${phaseInstr}

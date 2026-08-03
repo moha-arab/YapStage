@@ -4,7 +4,7 @@
 
 export type Side = 'FOR' | 'AGAINST';
 export type Role = 'host' | 'guest';
-export type PhaseLabel = 'opening' | 'rebuttal' | 'closing';
+export type PhaseLabel = 'opening' | 'rebuttal' | 'defense' | 'closing';
 
 // How the debate's topic gets decided (host chooses):
 //  agree    — both pick the exact topic + sides (the negotiated flow)
@@ -14,9 +14,8 @@ export type TopicMode = 'agree' | 'category' | 'random';
 
 export type Difficulty = 'easy' | 'medium' | 'hard';
 
-// Debate pacing — same simple alternating format at three sizes:
-// blitz 30/20/15s, standard 60/45/30s, long 90/60/45s. Turn lengths are
-// maximums everywhere — "pass the mic" ends a turn early.
+// Debate pacing — the same four-round format at three sizes. Turn lengths are
+// maximums everywhere: "pass the mic" ends a turn early.
 export type Pace = 'standard' | 'blitz' | 'long';
 
 /** Public bot info for the pick screen (no prompt/voice secrets). */

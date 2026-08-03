@@ -30,6 +30,7 @@ interface Props {
 const PHASES: { key: string; labelKey: string }[] = [
   { key: 'opening', labelKey: 'openings' },
   { key: 'rebuttal', labelKey: 'rebuttals' },
+  { key: 'defense', labelKey: 'defenses' },
   { key: 'closing', labelKey: 'closings' },
 ];
 
@@ -223,9 +224,9 @@ export default function Debate({
       {phase.phase === 'closing' ? (
         <p className="phase-rule">
           {t('closingRule')}
-          {/* AGAINST closes first, straight after its own rebuttal — flag it so
-              the repeated speaker doesn't read as a bug. */}
-          {phase.stepIndex === 4 ? ` ${t('closingOrderNote')}` : ''}
+          {/* AGAINST opens the closings so FOR gets the final word — flag it
+              the first time so the order doesn't read as a bug. */}
+          {phase.stepIndex === 6 ? ` ${t('closingOrderNote')}` : ''}
         </p>
       ) : null}
 

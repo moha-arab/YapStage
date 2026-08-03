@@ -1729,6 +1729,139 @@ html[dir='rtl'] .meter-hint {
   color: var(--muted);
 }
 
+/* debate school */
+.learn-link {
+  margin-top: 2px;
+}
+.learn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  padding-bottom: 48px;
+}
+.learn .topbar {
+  align-self: stretch;
+  margin-bottom: 4px;
+}
+.learn-title {
+  font-size: clamp(26px, 5vw, 44px);
+  text-align: center;
+  transform: rotate(-1deg);
+  margin: 8px 0 0;
+}
+.learn-lede {
+  max-width: 620px;
+  text-align: center;
+  color: var(--muted);
+  font-size: 15px;
+  margin: 0;
+}
+.learn-block {
+  width: min(760px, 94vw);
+  background: var(--panel);
+  border: 3px solid var(--line);
+  box-shadow: 4px 4px 0 rgba(0, 0, 0, 0.4);
+  padding: 22px 18px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.learn-rounds {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+@media (max-width: 620px) {
+  .learn-rounds {
+    grid-template-columns: 1fr;
+  }
+}
+.learn-round {
+  border-inline-start: 3px solid var(--gold);
+  padding-inline-start: 10px;
+}
+.learn-round-num {
+  font-family: var(--marker);
+  font-size: 13px;
+  color: var(--gold);
+}
+.learn-round-name {
+  font-family: 'Ultra', serif;
+  font-size: 17px;
+  margin: 2px 0 6px;
+}
+.learn-round-job {
+  font-size: 13.5px;
+  margin: 0 0 6px;
+  line-height: 1.45;
+}
+.learn-round-tip {
+  font-family: var(--marker);
+  font-size: 12.5px;
+  color: var(--muted);
+  margin: 0;
+  line-height: 1.4;
+}
+.learn-scores {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+@media (max-width: 620px) {
+  .learn-scores {
+    grid-template-columns: 1fr;
+  }
+}
+.learn-score {
+  border: 2px solid var(--line);
+  padding: 10px 12px;
+}
+.learn-score-name {
+  font-weight: 700;
+  font-size: 14px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.learn-score-max {
+  font-family: var(--marker);
+  color: var(--gold);
+  font-size: 13px;
+  margin-inline-start: 8px;
+}
+.learn-score-desc {
+  font-size: 13px;
+  color: var(--muted);
+  margin: 6px 0 0;
+  line-height: 1.45;
+}
+.learn-rule-name {
+  font-family: 'Ultra', serif;
+  font-size: 15px;
+  margin: 0 0 4px;
+  color: var(--gold);
+}
+.learn-rule-body {
+  font-size: 13.5px;
+  margin: 0;
+  line-height: 1.5;
+}
+.learn-rule + .learn-rule {
+  margin-top: 4px;
+}
+.learn-tips {
+  margin: 0;
+  padding-inline-start: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 13.5px;
+  line-height: 1.45;
+}
+.learn-go {
+  width: min(760px, 94vw);
+}
+
 /* phase rule line (e.g. the closing's no-new-arguments reminder) */
 .phase-rule {
   margin: 10px auto 0;

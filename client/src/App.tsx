@@ -28,6 +28,7 @@ import GreenRoom from './screens/GreenRoom';
 import Debate from './screens/Debate';
 import VerdictScreen from './screens/Verdict';
 import BotSelect, { type BotStartConfig } from './screens/BotSelect';
+import Learn from './screens/Learn';
 import { playBotTurn, stopBotVoice } from './botvoice';
 
 interface VerdictInfo {
@@ -85,6 +86,7 @@ export default function App() {
   const [rtcState, setRtcState] = useState<RTCPeerConnectionState | null>(null);
   const [speechHeard, setSpeechHeard] = useState(false);
   const [botPicking, setBotPicking] = useState(false);
+  const [learning, setLearning] = useState(false);
   const [botName, setBotName] = useState('');
   const [botTurn, setBotTurn] = useState<{ stepIndex: number; text: string } | null>(null);
   const [botSpeaking, setBotSpeaking] = useState(false);
@@ -630,8 +632,17 @@ export default function App() {
         onRetryMedia={retryMedia}
       />
     );
+  } else if (learning) {
+    content = <Learn onBack={() => setLearning(false)} />;
   } else {
-    content = <Home notice={notice} onEntered={handleEntered} onPlayBot={onPlayBot} />;
+    content = (
+      <Home
+        notice={notice}
+        onEntered={handleEntered}
+        onPlayBot={onPlayBot}
+        onLearn={() => setLearning(true)}
+      />
+    );
   }
 
   return (
