@@ -173,7 +173,9 @@ export interface ClientToServer {
   'audio:turn': (p: { stepIndex: number; mime: string; data: ArrayBuffer }) => void;
   'verdict:retry': () => void;
   'rematch': () => void; // want to run it back with the same person
-  'coach:ask': (p: { question: string }) => void; // ask the YapMaster about YOUR debate
+  /** Ask the YapMaster about YOUR debate ('ask'), or argue with the ruling
+      ('appeal' — it defends the score and concedes points, but never re-scores). */
+  'coach:ask': (p: { question: string; mode?: 'ask' | 'appeal' }) => void;
   'bot:start': (
     p: {
       sessionId: string;

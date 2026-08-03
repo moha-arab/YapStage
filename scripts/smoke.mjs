@@ -473,6 +473,25 @@ async function runToVerdict(a, b, aId, bId, name, topic) {
   const coach = await coachP;
   check('coach: replies with grounded text', typeof coach.text === 'string' && coach.text.length > 20 && !coach.error);
 
+  // appeal mode: argue with the ruling. It must engage and it must NOT promise
+  // a re-score, since a movable verdict is worth nothing.
+  const appealP = once(a, 'coach:reply', 60000);
+  a.emit('coach:ask', { question: 'you scored my clash way too low, bump it up', mode: 'appeal' });
+  const appeal = await appealP;
+  check(
+    'appeal: the yapmaster argues back without caving',
+    typeof appeal.text === 'string' &&
+      appeal.text.length > 20 &&
+      !appeal.error &&
+      !/re-?scor|recount|chang(e|ing) (the |your )?scor|updat(e|ing) (the |your )?scor/i.test(appeal.text),
+  );
+
+  // follow-up: it should build on the exchange, not restart cold
+  const appeal2P = once(a, 'coach:reply', 60000);
+  a.emit('coach:ask', { question: 'so what would have earned me those points?', mode: 'appeal' });
+  const appeal2 = await appeal2P;
+  check('appeal: follow-up lands on the same thread', typeof appeal2.text === 'string' && appeal2.text.length > 20 && !appeal2.error);
+
   const aUpdate = once(a, 'rematch:update', 5000);
   a.emit('rematch');
   const au = await aUpdate;

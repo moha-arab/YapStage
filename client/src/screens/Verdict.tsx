@@ -139,6 +139,9 @@ export default function VerdictScreen({
   const [coachThinking, setCoachThinking] = useState(false);
   const [coachAsks, setCoachAsks] = useState(0);
   const [coachInput, setCoachInput] = useState('');
+  // 'ask' = coach me. 'appeal' = argue with the ruling. Same thread either way,
+  // so switching mid-conversation reads as one argument with the judge.
+  const [coachMode, setCoachMode] = useState<'ask' | 'appeal'>('ask');
 
   useEffect(() => {
     const onReply = (p: { text: string; error?: boolean; done?: boolean }) => {
@@ -159,7 +162,7 @@ export default function VerdictScreen({
     setCoachThinking(true);
     setCoachAsks((n) => n + 1);
     setCoachInput('');
-    socket.emit('coach:ask', { question });
+    socket.emit('coach:ask', { question, mode: coachMode });
   }
 
   useEffect(() => {
@@ -380,7 +383,26 @@ export default function VerdictScreen({
 
           {mySide !== undefined ? (
             <div className="coach-card card">
-              <h3 className="coach-title">{t('coachTitle')}</h3>
+              <h3 className="coach-title">
+                {coachMode === 'appeal' ? t('appealTitle') : t('coachTitle')}
+              </h3>
+              {/* the ruling never moves, so say that up front and let them
+                  swing at it anyway */}
+              <div className="coach-tabs">
+                <button
+                  className={`coach-tab ${coachMode === 'ask' ? 'on' : ''}`}
+                  onClick={() => setCoachMode('ask')}
+                >
+                  {t('coachTabAsk')}
+                </button>
+                <button
+                  className={`coach-tab ${coachMode === 'appeal' ? 'on' : ''}`}
+                  onClick={() => setCoachMode('appeal')}
+                >
+                  {t('coachTabAppeal')}
+                </button>
+              </div>
+              {coachMode === 'appeal' ? <p className="coach-note">{t('appealNote')}</p> : null}
               {coachLog.length > 0 || coachThinking ? (
                 <div className="coach-log">
                   {coachLog.map((m, i) => (
@@ -397,26 +419,27 @@ export default function VerdictScreen({
               {coachAsks < COACH_LIMIT ? (
                 <>
                   <div className="coach-presets">
-                    <button
-                      className="btn btn-small"
-                      disabled={coachThinking}
-                      onClick={() => askCoach(youWon ? t('coachHowWon') : t('coachWhyLost'))}
-                    >
-                      {youWon ? t('coachHowWon') : t('coachWhyLost')}
-                    </button>
-                    <button
-                      className="btn btn-small"
-                      disabled={coachThinking}
-                      onClick={() => askCoach(t('coachImprove'))}
-                    >
-                      {t('coachImprove')}
-                    </button>
+                    {(coachMode === 'appeal'
+                      ? ['appealPreset1', 'appealPreset2']
+                      : [youWon ? 'coachHowWon' : 'coachWhyLost', 'coachImprove']
+                    ).map((key) => (
+                      <button
+                        key={key}
+                        className="btn btn-small"
+                        disabled={coachThinking}
+                        onClick={() => askCoach(t(key))}
+                      >
+                        {t(key)}
+                      </button>
+                    ))}
                   </div>
                   <div className="coach-input-row">
                     <input
                       className="input"
                       value={coachInput}
-                      placeholder={t('coachPlaceholder')}
+                      placeholder={
+                        coachMode === 'appeal' ? t('appealPlaceholder') : t('coachPlaceholder')
+                      }
                       maxLength={300}
                       onChange={(e) => setCoachInput(e.target.value)}
                       onKeyDown={(e) => {

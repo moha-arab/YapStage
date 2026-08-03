@@ -235,6 +235,7 @@ function resetForRematch(lobby: Lobby): void {
   lobby.finishedAt = undefined;
   lobby.rematch = { host: false, guest: false };
   lobby.coachAsks = 0;
+  lobby.coachLog = [];
   // Keep topicMode + categoryKey (they land back on the same setup). Clear the
   // per-player picks + confirms so they choose fresh.
   lobby.pick.hostTopicId = null;
@@ -575,6 +576,7 @@ io.on('connection', (socket) => {
     if (!side) return;
     const question = String(p.question ?? '').trim().slice(0, 300);
     if (!question) return;
+    const mode = p.mode === 'appeal' ? 'appeal' : 'ask';
 
     const sid = socket.id;
     if (lobby.coachAsks >= 8) {
@@ -583,12 +585,23 @@ io.on('connection', (socket) => {
     }
     lobby.coachAsks += 1;
     touch(lobby);
-    event('coach_ask', { code: lobby.code });
-    void coachReply(lobby, side, question)
-      .then((text) => io.to(sid).emit('coach:reply', { text }))
+    event(mode === 'appeal' ? 'coach_appeal' : 'coach_ask', { code: lobby.code });
+    // Only THIS side's exchange, and only the recent stretch of it: an appeal
+    // that builds on the last answer is the point, a full replay is not.
+    const history = lobby.coachLog
+      .filter((m) => m.side === side)
+      .slice(-8)
+      .map((m) => ({ role: m.role, content: m.content }));
+    lobby.coachLog.push({ side, role: 'user', content: `The debater ${mode}s: ${question}` });
+    void coachReply(lobby, side, question, mode, history)
+      .then((text) => {
+        lobby.coachLog.push({ side, role: 'assistant', content: text });
+        io.to(sid).emit('coach:reply', { text });
+      })
       .catch((err) => {
         console.error(`[coach] lobby ${lobby.code} failed:`, err);
         event('coach_failed', { code: lobby.code });
+        lobby.coachLog.pop(); // no answer means that question never happened
         io.to(sid).emit('coach:reply', { text: '', error: true });
       });
   });

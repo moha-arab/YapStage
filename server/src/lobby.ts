@@ -71,6 +71,9 @@ export interface Lobby {
   lastJudgeAt: number;
   rematch: { host: boolean; guest: boolean }; // who tapped "run it back"
   coachAsks: number; // "ask the YapMaster" count this debate (cost/abuse cap)
+  /** Post-verdict exchange with the YapMaster, per side, so follow-ups and
+      appeals build on each other instead of starting cold every time. */
+  coachLog: { side: Side; role: 'user' | 'assistant'; content: string }[];
   verdict?: Verdict;
   abortInfo?: { reason: string; vars?: Record<string, string> };
   createdAt: number;
@@ -121,6 +124,7 @@ export function createLobby(socketId: string, sessionId: string, name: string): 
     lastJudgeAt: 0,
     rematch: { host: false, guest: false },
     coachAsks: 0,
+    coachLog: [],
     createdAt: now,
     touchedAt: now,
   };
