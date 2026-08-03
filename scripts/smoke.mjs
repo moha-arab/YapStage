@@ -100,6 +100,11 @@ const LINES = {
   7: 'to close my opponent never rebutted the evidence and then literally tried to cheat you heard it yourselves',
 };
 const phases = [];
+// The yapmaster's round breaks: one after each of rounds 1-3, never after the
+// last round (the verdict takes that slot). Recorded as "which step had just
+// finished when the line landed".
+const breaks = [];
+a.on('judge:interlude', () => breaks.push(phases.length - 1));
 a.on('debate:phase', (p) => {
   phases.push(p);
   const speaker = p.activeSpeaker === 'FOR' ? forSock : againstSock;
@@ -122,6 +127,10 @@ check(
     'FOR,AGAINST,FOR,AGAINST,AGAINST,FOR,AGAINST,FOR',
 );
 check('phase payload sane', phases.every((p) => p.deadline > p.serverNow && p.seconds > 0));
+check(
+  'yapmaster speaks at each of the three round breaks, never after the last',
+  breaks.join(',') === '1,3,5',
+);
 
 const status1 = await once(a, 'verdict:status', 30000);
 check('judge goes pending', status1.state === 'pending');

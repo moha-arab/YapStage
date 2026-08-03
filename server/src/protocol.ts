@@ -189,6 +189,8 @@ export interface ClientToServer {
     cb: (res: { ok: boolean; error?: JoinError }) => void,
   ) => void;
   'bot:done': (p: { stepIndex: number }) => void; // the bot finished speaking its turn
+  /** The YapMaster's round-break line finished playing — start the next round. */
+  'interlude:done': (p: { afterStep: number }) => void;
 }
 
 export interface ServerToClient {
@@ -211,6 +213,13 @@ export interface ServerToClient {
   'coach:reply': (p: { text: string; error?: boolean; done?: boolean }) => void;
   /** The bot's spoken turn: its argument text + optional synthesized audio. */
   'bot:turn': (p: { stepIndex: number; text: string; mime?: string; audio?: ArrayBuffer }) => void;
+  /** The YapMaster's between-round remark: spoken over a short pause. */
+  'judge:interlude': (p: {
+    afterStep: number; // the step that just finished — echoed back in interlude:done
+    text: string;
+    mime?: string;
+    audio?: ArrayBuffer;
+  }) => void;
 }
 
 export interface SocketData {

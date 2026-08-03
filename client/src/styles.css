@@ -1877,6 +1877,43 @@ html[dir='rtl'] .meter-hint {
   font-size: 15px;
 }
 
+/* the yapmaster's round-break line: it takes the floor, so it reads loud */
+.interlude {
+  margin: 12px auto 0;
+  max-width: 760px;
+  padding: 12px 18px;
+  text-align: center;
+  border: 1px solid rgba(212, 175, 55, 0.45);
+  border-radius: 12px;
+  background: rgba(212, 175, 55, 0.07);
+  animation: interlude-in 220ms ease-out;
+}
+.interlude-who {
+  font-family: var(--marker);
+  font-size: 11px;
+  letter-spacing: 0.18em;
+  color: var(--gold);
+  opacity: 0.85;
+}
+.interlude-line {
+  margin: 4px 0 0;
+  font-family: var(--marker);
+  font-size: 18px;
+  line-height: 1.35;
+  color: var(--ink);
+}
+@keyframes interlude-in {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+}
+@media (max-width: 640px) {
+  .interlude-line {
+    font-size: 15.5px;
+  }
+}
+
 /* "pass the mic" sits under the clock track, only on your turn */
 .pass-row {
   display: flex;

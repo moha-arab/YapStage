@@ -56,6 +56,10 @@ export interface Lobby {
   sides?: { host: Side; guest: Side };
   stepIndex: number; // -1 before step 0
   stepStartedAt: number; // epoch ms of the last phase transition
+  /** Step whose round-end interlude is currently playing (guards re-entry). */
+  interludeStep?: number;
+  /** The YapMaster's between-round remarks, in order. */
+  interludes: string[];
   finishedAt?: number; // epoch ms when step 5 ended
   phaseTimer?: NodeJS.Timeout;
   judgeTimer?: NodeJS.Timeout;
@@ -108,6 +112,7 @@ export function createLobby(socketId: string, sessionId: string, name: string): 
     },
     stepIndex: -1,
     stepStartedAt: 0,
+    interludes: [],
     transcript: [],
     audioTurns: [],
     debateCompleted: false,

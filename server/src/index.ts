@@ -32,6 +32,7 @@ import {
   acceptChunk,
   advance,
   endTurnEarly,
+  endInterludeEarly,
   resendState,
   scriptFor,
   startBotDebate,
@@ -644,6 +645,13 @@ io.on('connection', (socket) => {
       if (lobby.phaseTimer) clearTimeout(lobby.phaseTimer);
       advance(io, lobby, idx);
     }
+  });
+
+  socket.on('interlude:done', (p) => {
+    if (!allow(`pick:${socket.id}`, 60, 10_000)) return;
+    const lobby = socket.data.code ? getLobby(socket.data.code) : undefined;
+    if (!lobby || !participantOf(lobby, socket.id)) return;
+    endInterludeEarly(io, lobby, Number(p?.afterStep));
   });
 
   socket.on('disconnect', () => {

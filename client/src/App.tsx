@@ -92,6 +92,8 @@ export default function App() {
   const [botSpeaking, setBotSpeaking] = useState(false);
   // Epoch ms when the bot must yield the mic — drives its visible shot clock.
   const [botSpeakDeadline, setBotSpeakDeadline] = useState<number | null>(null);
+  // The YapMaster's line during a round break (null whenever a turn is live).
+  const [interlude, setInterlude] = useState<string | null>(null);
 
   // Server-STT availability (for bot mode, which has no LobbyUpdate to carry it).
   const sttGlobalRef = useRef(false);
@@ -150,7 +152,26 @@ export default function App() {
     socket.on('rtc:go', () => void beginOffer());
     socket.on('rtc:signal', (p) => void handleSignal(p));
     socket.on('debate:start', (p) => setStart(p));
-    socket.on('debate:phase', (p) => setPhase(p));
+    socket.on('debate:phase', (p) => {
+      setInterlude(null); // the round break is over the moment a turn starts
+      setPhase(p);
+    });
+    socket.on('judge:interlude', (p) => {
+      // The YapMaster's round-break line. No callback and no clock: the server
+      // already owns the pause, and the voice is capped so it cannot run into
+      // the next turn.
+      // The server holds the round open until we say the line finished, so the
+      // pause is exactly as long as the line instead of a fixed guess.
+      setInterlude(p.text);
+      playBotTurn(
+        p.text,
+        p.audio,
+        p.mime,
+        langRef.current,
+        () => socket.emit('interlude:done', { afterStep: p.afterStep }),
+        10_000,
+      );
+    });
     socket.on('debate:ended', () => {
       setEnded(true);
       stopTurn();
@@ -159,6 +180,7 @@ export default function App() {
       setBotTurn(null);
       setBotSpeaking(false);
       setBotSpeakDeadline(null);
+      setInterlude(null);
       if (startDataRef.current?.bot) {
         // Bot debates: no peer to stay live for — camera and mic OFF at the
         // verdict. (An active camera with no self-view on screen is exactly
@@ -292,6 +314,7 @@ export default function App() {
       socket.off('rematch:update');
       socket.off('rematch:go');
       socket.off('bot:turn');
+      socket.off('judge:interlude');
       socket.off('connect');
     };
   }, [resetToHome]);
@@ -603,6 +626,7 @@ export default function App() {
         botTurn={botTurn}
         botSpeaking={botSpeaking}
         botSpeakDeadline={botSpeakDeadline}
+        interlude={interlude}
         onPassMic={(stepIndex) => socket.emit('turn:done', { stepIndex })}
       />
     );
