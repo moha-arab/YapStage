@@ -220,6 +220,15 @@ export default function Debate({
         />
       </div>
 
+      {phase.phase === 'closing' ? (
+        <p className="phase-rule">
+          {t('closingRule')}
+          {/* AGAINST closes first, straight after its own rebuttal — flag it so
+              the repeated speaker doesn't read as a bug. */}
+          {phase.stepIndex === 4 ? ` ${t('closingOrderNote')}` : ''}
+        </p>
+      ) : null}
+
       {myTurn ? (
         <div className="pass-row">
           <button

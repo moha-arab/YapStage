@@ -29,23 +29,35 @@ export interface Step {
 
 const FAST = process.env.DEBATE_SPEED === 'fast';
 
+// Closings run in REVERSE order (AGAINST then FOR). Strict alternation would
+// hand AGAINST the last word three times over — end of openings, end of
+// rebuttals, end of round — while FOR pays the cost of opening blind and gets
+// nothing back. Every real format refuses that: Lincoln-Douglas gives the
+// burden-carrying side both the first and last speech, and World Schools
+// reverses its reply order for exactly this reason. The price is that AGAINST
+// speaks twice in a row (its rebuttal into its closing) — that uninterrupted
+// block IS the payment for surrendering the final word.
 const script = (o: number, r: number, c: number): Step[] => [
   { phase: 'opening', speaker: 'FOR', seconds: o },
   { phase: 'opening', speaker: 'AGAINST', seconds: o },
   { phase: 'rebuttal', speaker: 'FOR', seconds: r },
   { phase: 'rebuttal', speaker: 'AGAINST', seconds: r },
-  { phase: 'closing', speaker: 'FOR', seconds: c },
   { phase: 'closing', speaker: 'AGAINST', seconds: c },
+  { phase: 'closing', speaker: 'FOR', seconds: c },
 ];
 
 // Turn lengths per pace, on the real-format ratio (Public Forum gives
 // rebuttals EQUAL time to constructives — answering takes as long as
 // building — and closings half, because a closing is a summary). These are
 // CEILINGS, not sentences: "pass the mic" ends any turn early.
+// Closings get more room than a pure summary would suggest: every documented
+// real-world reform to the summary slot moved its time UP, never down, because
+// weighing needs space. 75% of a rebuttal, between World Schools' reply ratio
+// and Big Questions' consolidation ratio.
 const SCRIPTS: Record<Pace, Step[]> = {
-  standard: script(60, 60, 30),
-  blitz: script(30, 30, 15),
-  long: script(90, 90, 45),
+  standard: script(60, 60, 45),
+  blitz: script(30, 30, 20),
+  long: script(90, 90, 60),
 };
 const FAST_SCRIPT = script(5, 4, 3);
 
@@ -261,20 +273,21 @@ async function generateBotArgument(lobby: Lobby, bot: Bot, stepIndex: number): P
       rebuttal:
         "This is your REBUTTAL. React to something the opponent ACTUALLY said — reference their real point — then respond the only way you know how: panic, joke, deflect, or accidentally half-agree ('okay that's... actually a good point, BUT'). Never cleanly answer their strongest argument.",
       closing:
-        'This is your CLOSING. One last heartfelt, slightly chaotic push for your side. React to the debate that actually happened, but never summarize it like a lawyer.',
+        'This is your CLOSING — no brand-new arguments allowed, only what already came up. One last heartfelt, slightly chaotic push for the one point you have been making all along. React to the debate that actually happened, but never weigh it up like a lawyer — you would not know where to start.',
     },
     medium: {
       opening: 'This is your OPENING. State your position and your main reasons.',
       rebuttal:
         "This is your REBUTTAL. Genuinely answer ONE thing the opponent actually said (never their strongest point) with a real reason and a jab of humor, then get back to your own case.",
       closing:
-        'This is your CLOSING. Land your main point one more time, with personality. No tidy summary of why you won.',
+        'This is your CLOSING — no brand-new arguments, only what already came up. Land your main point one more time, with personality. Do NOT compare your case against theirs or explain which argument outweighs which; you just restate and hope.',
     },
     hard: {
       opening: 'This is your OPENING. State your position and your two or three strongest reasons.',
       rebuttal:
         "This is your REBUTTAL. Directly answer the opponent's strongest point, then reinforce your own case.",
-      closing: 'This is your CLOSING. Land your most decisive point and make it clear why you won.',
+      closing:
+        "This is your CLOSING — no brand-new arguments, only what was already argued. Narrow to the one or two issues that decide this debate and WEIGH them: say explicitly why your argument outweighs theirs (it affects more people, it's more likely, it comes first, it matters more), and name what they never answered. Write the judge's ballot for them.",
     },
   };
   const phaseInstr = phaseInstrBy[diff][phase];

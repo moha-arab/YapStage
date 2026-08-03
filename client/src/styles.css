@@ -1729,6 +1729,16 @@ html[dir='rtl'] .meter-hint {
   color: var(--muted);
 }
 
+/* phase rule line (e.g. the closing's no-new-arguments reminder) */
+.phase-rule {
+  margin: 10px auto 0;
+  max-width: 1100px;
+  text-align: center;
+  font-family: var(--marker);
+  font-size: 13.5px;
+  color: var(--muted);
+}
+
 /* "pass the mic" sits under the clock track, only on your turn */
 .pass-row {
   display: flex;

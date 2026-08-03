@@ -85,6 +85,14 @@ console.log(`\nMisses (judge vs construction): ${misses.length}`);
 for (const r of misses)
   console.log(`  ${r.id}: intended ${r.intended}, judge said ${r.winner} (margin ${r.margin}) [blind ref: ${r.ref} ${r.refConf}]`);
 
+// A run where every case errored must NOT report a pass: 0/0 is vacuously
+// "perfect" and would hide an outage (or a regression) behind a green light.
+if (results.length < cases.length) {
+  console.log(
+    `\nEVAL INCOMPLETE: only ${results.length}/${cases.length} cases scored — results above are not trustworthy.`,
+  );
+  process.exit(1);
+}
 const verdict = correct.length === decisive.length && ideoCorrect.length === ideo.length;
 console.log(`\n${verdict ? 'JUDGE PASSED: accurate and ideologically even-handed' : 'REVIEW NEEDED: see misses above'}`);
-process.exit(0);
+process.exit(verdict ? 0 : 1);

@@ -23,13 +23,13 @@ const PROFILES = {
     // decent points, some engagement, no stats — a normal person having a go
     0: "okay so look money can absolutely buy happiness because like the biggest source of stress in most peoples lives is money problems right rent bills debt all of it and if you have money that whole layer of misery is just gone plus you can actually do stuff you love instead of grinding all the time",
     2: "you said happiness comes from friends and love and whatever but like have you ever tried keeping friendships when you're working two jobs and cant afford to go anywhere money is what gives you the time to even have those relationships so your point kind of proves mine",
-    4: "so yeah at the end of the day money removes the bad stuff and buys you the time for the good stuff thats basically the whole game nobody is happy stressed and broke",
+    5: "so yeah at the end of the day money removes the bad stuff and buys you the time for the good stuff thats basically the whole game nobody is happy stressed and broke",
   },
   strong: {
     // sharper: specifics, direct clash, structured spoken delivery
     0: "so theres actual research on this the famous princeton study said happiness flattens around seventy five thousand but the newer killingsworth study in 2021 found it keeps rising with income so the data says money does buy happiness and beyond studies its obvious money buys back your time your health your safety the exact ingredients of a happy life",
     2: "my opponent says the best things in life are free but thats exactly backwards free time isnt free you buy it by not working a second shift and even their own example of family dinners falls apart when you cant afford the dinner the research point still stands unanswered by the way happiness rises with income they never touched it",
-    4: "so to close they never answered the killingsworth data and they never explained how youre supposed to enjoy all these free best things in life while broke and exhausted money buys time security and options and those are the raw materials of happiness thats the match",
+    5: "so to close they never answered the killingsworth data and they never explained how youre supposed to enjoy all these free best things in life while broke and exhausted money buys time security and options and those are the raw materials of happiness thats the match",
   },
 };
 
