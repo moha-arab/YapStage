@@ -382,9 +382,17 @@ async function runBotTurn(io: Io, lobby: Lobby, stepIndex: number): Promise<void
     io.to(hostId).emit('bot:turn', { stepIndex, text, mime: audio?.mime, audio: audioBuf });
   } catch (err) {
     console.error(`[bot] ${lobby.code} turn ${stepIndex} failed:`, err);
-    event('bot_turn_failed', { code: lobby.code });
-    // Say it out loud rather than passing an empty turn: a silent bot reads as
-    // a broken game, and the debate still has to move on either way.
+    lobby.botFailures += 1;
+    event('bot_turn_failed', { code: lobby.code, n: String(lobby.botFailures) });
+    // Twice is not bad luck, it's an outage — and the judge runs on the same
+    // API, so carrying on would spend the human's remaining turns to arrive at
+    // no verdict. Stop and say so instead.
+    if (lobby.botFailures >= 2) {
+      abort(io, lobby, 'botOutage', { x: lobby.bot?.name ?? '' });
+      return;
+    }
+    // A single failure can be a blip. Say it out loud rather than passing an
+    // empty turn, and let the rest of the debate stand.
     io.to(hostId).emit('bot:turn', { stepIndex, text: '', failed: true });
   }
 }

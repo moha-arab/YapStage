@@ -66,6 +66,10 @@ export interface Lobby {
   judgeAttempts: number;
   lastJudgeAt: number;
   rematch: { host: boolean; guest: boolean }; // who tapped "run it back"
+  /** Bot turns that failed to generate this debate. One is survivable; two
+      means the API is down, and the judge runs on the same API, so finishing
+      would cost the human three minutes and produce no verdict. */
+  botFailures: number;
   coachAsks: number; // "ask the YapMaster" count this debate (cost/abuse cap)
   /** Post-verdict exchange with the YapMaster, per side, so follow-ups and
       appeals build on each other instead of starting cold every time. */
@@ -121,6 +125,7 @@ export function createLobby(socketId: string, sessionId: string, name: string): 
     judgeAttempts: 0,
     lastJudgeAt: 0,
     rematch: { host: false, guest: false },
+    botFailures: 0,
     coachAsks: 0,
     coachLog: [],
     createdAt: now,
