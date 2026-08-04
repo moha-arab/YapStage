@@ -12,7 +12,12 @@ COPY client/package.json ./client/
 COPY server/package.json ./server/
 RUN npm ci
 
-# Build client (-> client/dist) then server (-> server/dist)
+# Build client (-> client/dist) then server (-> server/dist).
+# The client bundle stamps its own commit so a phone can report which build it
+# is running. git isn't in this image, so Railway's SHA has to be handed in as
+# a build arg — at runtime the server reads the same variable directly.
+ARG RAILWAY_GIT_COMMIT_SHA
+ENV RAILWAY_GIT_COMMIT_SHA=$RAILWAY_GIT_COMMIT_SHA
 COPY . .
 RUN npm run build
 

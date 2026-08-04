@@ -6,6 +6,10 @@ import { execSync } from 'node:child_process';
 // Once the app is installable, "did my fix reach you?" stops being answerable
 // by /healthz, which only reports the SERVER commit.
 function buildStamp(): string {
+  // On Railway the build runs in a container with no git binary, so the SHA has
+  // to arrive as an environment variable (see the ARG in the Dockerfile).
+  const fromCi = process.env.RAILWAY_GIT_COMMIT_SHA;
+  if (fromCi) return fromCi.slice(0, 7);
   try {
     return execSync('git rev-parse --short HEAD', { encoding: 'utf8' }).trim();
   } catch {
