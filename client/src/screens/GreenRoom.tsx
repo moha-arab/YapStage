@@ -1,6 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import type { LobbyUpdate, Side } from '../../../server/src/protocol';
 import { socket } from '../socket';
+
+/** Mirrors DISPUTE_MAX on the server. */
+const DISPUTE_MAX = 400;
 import { initAudio } from '../sound';
 import { unlockBotVoice } from '../botvoice';
 import { useAudioLevel } from '../useAudioLevel';
@@ -31,6 +34,7 @@ export default function GreenRoom({
   const [consent, setConsent] = useState(false);
   const [copied, setCopied] = useState(false);
   const [cat, setCat] = useState(0);
+  const [draft, setDraft] = useState('');
   const waiting = lobby.participantCount === 1;
   const link = `${window.location.origin}/?code=${lobby.code}`;
   const connected = rtcState === 'connected';
@@ -58,6 +62,12 @@ export default function GreenRoom({
     });
   }
 
+  function sendDispute() {
+    const text = draft.trim();
+    if (!text || text === pick.yourDispute) return;
+    socket.emit('pick:dispute', text);
+  }
+
   function confirm() {
     initAudio(); // user gesture: unlocks the drum roll for the verdict later
     unlockBotVoice(); // and the element that reads the ruling aloud
@@ -70,8 +80,15 @@ export default function GreenRoom({
   const sidesOk =
     pick.yourSide !== null && pick.peerSide !== null && pick.yourSide !== pick.peerSide;
   const agreed = topicsMatch && sidesOk;
+  const bothDescribed = Boolean(pick.yourDispute && pick.peerDisputeReady);
   const ready =
-    mode === 'agree' ? agreed : mode === 'category' ? lobby.categoryKey !== null : true;
+    mode === 'agree'
+      ? agreed
+      : mode === 'category'
+        ? lobby.categoryKey !== null
+        : mode === 'dispute'
+          ? bothDescribed
+          : true;
   const canConfirm = consent && !!localStream && connected && ready && !pick.youConfirmed;
 
   const confirmLabel = pick.youConfirmed
@@ -92,11 +109,17 @@ export default function GreenRoom({
                 : !sidesOk
                   ? t('sameSide', { x: t(pick.yourSide!) })
                   : t('confirm')
-        : mode === 'category' && !lobby.categoryKey
-          ? isHost
-            ? t('pickCategory')
-            : t('waitCategory', { x: peer })
-          : t('startRandomDebate');
+        : mode === 'dispute'
+          ? !pick.yourDispute
+            ? t('describeFirst')
+            : !pick.peerDisputeReady
+              ? t('waitTheirSide', { x: peer })
+              : t('settleIt')
+          : mode === 'category' && !lobby.categoryKey
+            ? isHost
+              ? t('pickCategory')
+              : t('waitCategory', { x: peer })
+            : t('startRandomDebate');
 
   const selfTile = (
     <div className={`tile-stack ${waiting ? 'tile-solo' : ''}`}>
@@ -162,7 +185,7 @@ export default function GreenRoom({
 
           <div className="picker card">
             <div className="mode-row">
-              {(['agree', 'category', 'random'] as const).map((m) => (
+              {(['agree', 'category', 'random', 'dispute'] as const).map((m) => (
                 <button
                   key={m}
                   className={`cat-tab ${mode === m ? 'cat-active' : ''}`}
@@ -259,6 +282,44 @@ export default function GreenRoom({
                   ))}
                 </div>
                 <p className="mode-desc">{t('categoryDesc')}</p>
+              </>
+            ) : mode === 'dispute' ? (
+              <>
+                {/* You describe the argument in your own words and never see
+                    theirs first: reading their version would turn an honest
+                    account into a rebuttal. */}
+                <p className="mode-desc">{t('disputeDesc')}</p>
+                <textarea
+                  className="input dispute-box"
+                  rows={3}
+                  maxLength={DISPUTE_MAX}
+                  placeholder={t('disputePlaceholder')}
+                  value={draft}
+                  onChange={(e) => setDraft(e.target.value)}
+                  onBlur={sendDispute}
+                />
+                <div className="dispute-row">
+                  <span className="dispute-count">
+                    {draft.length}/{DISPUTE_MAX}
+                  </span>
+                  <button
+                    className="btn btn-small"
+                    disabled={!draft.trim() || draft.trim() === (pick.yourDispute ?? '')}
+                    onClick={sendDispute}
+                  >
+                    {pick.yourDispute ? t('disputeSaved') : t('disputeSave')}
+                  </button>
+                </div>
+                <p className="mode-hint">
+                  {pick.peerDisputeReady
+                    ? t('theirSideIn', { x: peer })
+                    : t('theirSideWaiting', { x: peer })}
+                </p>
+                {pick.disputeProblem ? (
+                  <div className={`banner ${pick.disputeProblem === 'too_serious' ? 'banner-serious' : 'banner-error'}`}>
+                    {t(`dispute_${pick.disputeProblem}`)}
+                  </div>
+                ) : null}
               </>
             ) : (
               <p className="mode-desc">{t('randomDesc')}</p>

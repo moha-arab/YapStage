@@ -1958,6 +1958,34 @@ html[dir='rtl'] .meter-hint {
   font-size: 13.5px;
   color: var(--muted);
 }
+/* settle-it: your own account of the argument */
+.dispute-box {
+  width: 100%;
+  margin-top: 10px;
+  resize: vertical;
+  min-height: 76px;
+  font-size: 15px;
+  line-height: 1.45;
+}
+.dispute-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 8px;
+}
+.dispute-count {
+  font-family: var(--marker);
+  font-size: 11.5px;
+  color: var(--muted);
+}
+/* refusing a serious dispute is not an error, so it must not look like one */
+.banner-serious {
+  border-color: rgba(212, 175, 55, 0.55);
+  background: rgba(212, 175, 55, 0.08);
+  color: var(--ink);
+}
+
 /* the judge has actually received words from you (not merely "mic is capturing") */
 .mic-chip.mic-heard {
   border-color: rgba(120, 200, 130, 0.7);

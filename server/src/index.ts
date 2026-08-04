@@ -430,10 +430,15 @@ io.on('connection', (socket) => {
     const lobby = socket.data.code ? getLobby(socket.data.code) : undefined;
     if (!lobby || lobby.status !== 'greenroom') return;
     if (participantOf(lobby, socket.id) !== lobby.host) return; // host-only
-    if (mode !== 'agree' && mode !== 'category' && mode !== 'random') return;
+    if (mode !== 'agree' && mode !== 'category' && mode !== 'random' && mode !== 'dispute') return;
     if (lobby.topicMode === mode) return;
     lobby.topicMode = mode;
     lobby.categoryKey = null; // a mode switch clears the pending category
+    // Leaving settle-it drops what they wrote: a dispute is not a topic to be
+    // carried into another mode, and it should not outlive the mode either.
+    lobby.pick.hostDispute = null;
+    lobby.pick.guestDispute = null;
+    lobby.pick.disputeProblem = null;
     lobby.pick.hostConfirmed = false;
     lobby.pick.guestConfirmed = false;
     touch(lobby);
