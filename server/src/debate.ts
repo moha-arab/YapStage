@@ -256,6 +256,14 @@ async function transcribeHumanUpto(lobby: Lobby, beforeStep: number): Promise<vo
   await Promise.all(
     pending.map(async (turn) => {
       const text = await transcribe(turn.data);
+      // The per-turn record that makes "the judge never heard me" answerable:
+      // how big the upload was, and how many words came back out of it.
+      event('stt_turn', {
+        code: lobby.code,
+        step: turn.stepIndex,
+        bytes: turn.data.length,
+        words: text ? (text.match(/\S+/g) ?? []).length : 0,
+      });
       if (!text) return;
       lobby.transcript = lobby.transcript.filter((e) => e.stepIndex !== turn.stepIndex);
       lobby.transcript.push({ stepIndex: turn.stepIndex, side: turn.side, text, at: Date.now() });
@@ -548,12 +556,17 @@ export function acceptAudioTurn(
   mime: string,
   data: Buffer,
 ): void {
-  if (!lobby.debateCompleted && lobby.status !== 'in_debate') return;
-  if (!turnIsAcceptable(lobby, sender, stepIndex)) return;
+  // Every rejection below used to be a silent return, which is how a lost turn
+  // became invisible. Say which gate closed.
+  const drop = (why: string) =>
+    event('audio_dropped', { code: lobby.code, step: stepIndex, bytes: data.length, why });
+  if (!lobby.debateCompleted && lobby.status !== 'in_debate') return drop('lobby_not_live');
+  if (!turnIsAcceptable(lobby, sender, stepIndex)) return drop('wrong_step_or_speaker');
   const side = sideOf(lobby, sender)!;
   const forStep = lobby.audioTurns.filter((a) => a.stepIndex === stepIndex && a.side === side);
-  if (forStep.length >= 3 || lobby.audioTurns.length >= 18) return;
+  if (forStep.length >= 3 || lobby.audioTurns.length >= 18) return drop('too_many_turns');
   lobby.audioTurns.push({ stepIndex, side, mime, data });
+  event('audio_ok', { code: lobby.code, step: stepIndex, bytes: data.length });
   touch(lobby);
 }
 

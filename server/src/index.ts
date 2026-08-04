@@ -17,6 +17,7 @@ import {
   createLobby,
   destroyLobby,
   getLobby,
+  allLobbies,
   lobbyCount,
   participantOf,
   peerOf,
@@ -45,7 +46,7 @@ import { coachReply } from './coach.js';
 import { cardFrom, renderCard } from './share.js';
 import { initStore, loadCard, saveCard, storeReady } from './store.js';
 import { TOPIC_BY_ID, TOPIC_CATEGORIES } from './topics.js';
-import { event, statsSnapshot } from './stats.js';
+import { event, recentEvents, statsSnapshot } from './stats.js';
 import { allow } from './ratelimit.js';
 
 // Deployed on Railway via Dockerfile (see railway.json). Fastify serves the
@@ -123,6 +124,20 @@ app.get<{ Querystring: { key?: string } }>('/stats', async (req, reply) => {
   }
   return { ...statsSnapshot(), lobbies: lobbyCount() };
 });
+
+// The event trail behind the counters. `?code=ABC123` follows one debate end to
+// end, which is the question that actually gets asked when something breaks:
+// did their audio arrive, how big was it, and how many words came back.
+app.get<{ Querystring: { key?: string; code?: string; limit?: string } }>(
+  '/stats/events',
+  async (req, reply) => {
+    if (process.env.STATS_KEY && req.query.key !== process.env.STATS_KEY) {
+      return reply.code(404).send({ error: 'Not Found' });
+    }
+    const limit = Math.min(400, Math.max(1, Number(req.query.limit) || 100));
+    return { events: recentEvents(limit, req.query.code?.toUpperCase()) };
+  },
+);
 
 // Uncaught client errors phone home here so breakage on someone's device is
 // visible in the logs without them having to report it.
@@ -548,7 +563,9 @@ io.on('connection', (socket) => {
   });
 
   socket.on('audio:turn', (p) => {
-    if (!sttConfigured()) return;
+    // If STT were ever misconfigured in prod, every turn would vanish here
+    // without a trace. Cheap insurance against a silent, total outage.
+    if (!sttConfigured()) return void event('audio_rejected', { why: 'stt_not_configured' });
     if (!p || typeof p !== 'object') return;
     const lobby = socket.data.code ? getLobby(socket.data.code) : undefined;
     if (!lobby) return;
@@ -556,7 +573,17 @@ io.on('connection', (socket) => {
     if (!me) return;
     const raw = p.data as unknown;
     const buf = Buffer.isBuffer(raw) ? raw : raw instanceof ArrayBuffer ? Buffer.from(raw) : null;
-    if (!buf || buf.length < 1000 || buf.length > 3_000_000) return;
+    // Size rejections are the likeliest cause of a turn vanishing between the
+    // browser and the judge, so they are logged rather than dropped in silence.
+    if (!buf || buf.length < 1000 || buf.length > 3_000_000) {
+      event('audio_rejected', {
+        code: lobby.code,
+        step: Number(p.stepIndex),
+        bytes: buf?.length ?? 0,
+        why: !buf ? 'not_binary' : buf.length < 1000 ? 'too_small' : 'too_big',
+      });
+      return;
+    }
     acceptAudioTurn(lobby, me, Number(p.stepIndex), String(p.mime ?? '').slice(0, 80), buf);
   });
 
@@ -785,6 +812,33 @@ startSweep((code) => {
   io.socketsLeave(code);
   console.log(`[sweep] destroyed stale lobby ${code}`);
 });
+
+// Lobbies live in memory, so a deploy ends every debate in progress. That is
+// acceptable; doing it silently is not. Railway sends SIGTERM before the kill,
+// which is enough time to tell everyone why their debate just stopped instead
+// of leaving them staring at a frozen clock.
+let shuttingDown = false;
+async function shutdown(signal: string): Promise<void> {
+  if (shuttingDown) return;
+  shuttingDown = true;
+  const live = allLobbies().filter((l) => l.status === 'in_debate' || l.status === 'greenroom');
+  event('shutdown', { signal, liveLobbies: live.length });
+  for (const lobby of live) {
+    // Not abort(): that keeps the lobby around for a re-fetch that this process
+    // will not be alive to serve. Say it plainly and let the client reset.
+    io.to(lobby.code).emit('debate:aborted', { reason: 'serverRestart' });
+  }
+  // Give Socket.IO a moment to flush those frames before the process dies.
+  await new Promise((r) => setTimeout(r, 400));
+  try {
+    await app.close();
+  } catch {
+    // closing is best-effort; we're leaving either way
+  }
+  process.exit(0);
+}
+process.on('SIGTERM', () => void shutdown('SIGTERM'));
+process.on('SIGINT', () => void shutdown('SIGINT'));
 
 await app.listen({ port: PORT, host: '0.0.0.0' });
 console.log(`[server] YapStage listening on :${PORT}`);

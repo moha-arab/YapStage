@@ -187,3 +187,9 @@ export function startSweep(onDestroy?: (code: string) => void): void {
 export function lobbyCount(): number {
   return lobbies.size;
 }
+
+/** Every live lobby. Used at shutdown so a deploy can tell people what happened
+    instead of dropping their sockets mid-sentence. */
+export function allLobbies(): Lobby[] {
+  return [...lobbies.values()];
+}
