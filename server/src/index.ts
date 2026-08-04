@@ -42,8 +42,8 @@ import { BOT_BY_ID, publicBots } from './bots.js';
 import { sttConfigured } from './stt.js';
 import { namesOf, runJudge, scoreTranscript } from './judge.js';
 import { coachReply } from './coach.js';
-import { cardFrom, decodeCard, encodeCard, renderCard } from './share.js';
-import { ID_RE, initStore, loadCard, saveCard, storeReady } from './store.js';
+import { cardFrom, renderCard } from './share.js';
+import { initStore, loadCard, saveCard, storeReady } from './store.js';
 import { TOPIC_BY_ID, TOPIC_CATEGORIES } from './topics.js';
 import { event, statsSnapshot } from './stats.js';
 import { allow } from './ratelimit.js';
@@ -89,12 +89,7 @@ if (fs.existsSync(clientDist)) {
 // reads nothing and stores nothing — it just renders what the link carries.
 // Registered before the static handler so /v/... never looks for a file.
 app.get<{ Params: { token: string } }>('/v/:token', async (req, reply) => {
-  const token = String(req.params.token ?? '');
-  // Short id = stored card. Anything longer is a self-contained link, which
-  // stays readable forever so cards shared before the database existed (or
-  // while it was down) never rot.
-  const stored = ID_RE.test(token);
-  const card = stored ? await loadCard(token) : decodeCard(token);
+  const card = await loadCard(String(req.params.token ?? ''));
   if (!card) {
     return reply.code(404).type('text/html').send(
       `<!doctype html><meta charset="utf-8"><title>YapStage</title>` +
@@ -105,7 +100,7 @@ app.get<{ Params: { token: string } }>('/v/:token', async (req, reply) => {
   const proto = (req.headers['x-forwarded-proto'] as string) || 'https';
   const origin = `${proto}://${req.headers.host ?? 'www.yapstage.com'}`;
   event('share_view');
-  return reply.type('text/html').send(renderCard(card, origin, stored));
+  return reply.type('text/html').send(renderCard(card, origin));
 });
 
 app.get('/healthz', async () => ({
@@ -644,11 +639,11 @@ io.on('connection', (socket) => {
     const lobby = socket.data.code ? getLobby(socket.data.code) : undefined;
     if (!lobby?.verdict || !participantOf(lobby, socket.id)) return cb(null);
     const card = cardFrom(lobby.topic?.en ?? '', namesOf(lobby), lobby.verdict);
-    // Short link when the store is up, self-contained link when it isn't. The
-    // user never sees the difference except in the length of the URL.
     void saveCard(card).then((id) => {
-      event('share_created', { code: lobby.code, stored: id ? 'yes' : 'no' });
-      cb({ url: `/v/${id ?? encodeCard(card)}` });
+      // No fallback: if the store is down, sharing is unavailable rather than
+      // silently producing a link of a different shape.
+      event('share_created', { code: lobby.code, ok: id ? 'yes' : 'no' });
+      cb(id ? { url: `/v/${id}` } : null);
     });
   });
 

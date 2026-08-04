@@ -383,7 +383,9 @@ async function runBotTurn(io: Io, lobby: Lobby, stepIndex: number): Promise<void
   } catch (err) {
     console.error(`[bot] ${lobby.code} turn ${stepIndex} failed:`, err);
     event('bot_turn_failed', { code: lobby.code });
-    io.to(hostId).emit('bot:turn', { stepIndex, text: '' }); // let the client advance
+    // Say it out loud rather than passing an empty turn: a silent bot reads as
+    // a broken game, and the debate still has to move on either way.
+    io.to(hostId).emit('bot:turn', { stepIndex, text: '', failed: true });
   }
 }
 

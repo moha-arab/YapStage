@@ -7,7 +7,7 @@
 // downtime. Every function here fails soft: a dead database costs you a short
 // link, never a debate.
 import pg from 'pg';
-import type { Card } from './share.js';
+import { sanitizeCard, type Card } from './share.js';
 import { event } from './stats.js';
 
 let pool: pg.Pool | null = null;
@@ -93,7 +93,7 @@ export async function loadCard(id: string): Promise<Card | null> {
   try {
     const res = await pool.query('SELECT payload FROM cards WHERE id = $1', [id]);
     if (res.rowCount !== 1) return null;
-    return res.rows[0].payload as Card;
+    return sanitizeCard(res.rows[0].payload);
   } catch (err) {
     console.error('[store] loadCard failed:', err);
     event('store_read_failed');

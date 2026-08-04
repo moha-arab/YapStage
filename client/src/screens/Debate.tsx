@@ -24,6 +24,8 @@ interface Props {
   botTurn?: { stepIndex: number; text: string } | null;
   botSpeaking?: boolean;
   botSpeakDeadline?: number | null;
+  /** The bot's turn failed to generate: our outage, not its silence. */
+  botFailed?: boolean;
   onPassMic: (stepIndex: number) => void;
 }
 
@@ -51,6 +53,7 @@ export default function Debate({
   botTurn,
   botSpeaking,
   botSpeakDeadline,
+  botFailed,
   onPassMic,
 }: Props) {
   const { lang, t } = useI18n();
@@ -105,7 +108,7 @@ export default function Debate({
   const remoteMuted = phase.activeSpeaker !== peerSide;
   // The bot's argument for THIS turn (null while it's still generating).
   const botText = botTurn && botTurn.stepIndex === phase.stepIndex ? botTurn.text : null;
-  const botThinking = isBot && !myTurn && !botText;
+  const botThinking = isBot && !myTurn && !botText && !botFailed;
   // While the bot SPEAKS it runs the same visible shot clock a human gets.
   const botOnClock = isBot && !myTurn && Boolean(botSpeakDeadline) && !botThinking;
   const clockMs = botOnClock ? botMsLeft : msLeft;
@@ -184,8 +187,10 @@ export default function Debate({
           {start.names[phase.activeSpeaker]}
           {myTurn ? t('goSuffix') : t('hasTheMic')}
         </div>
-        <div className={`shot-clock ${danger ? 'clock-danger' : ''}`}>
-          {botThinking
+        <div className={`shot-clock ${botFailed ? 'clock-failed' : danger ? 'clock-danger' : ''}`}>
+          {botFailed
+            ? t('botFailedShort')
+            : botThinking
             ? t('botThinking')
             : isBot && !myTurn && !botOnClock
               ? formatClock(0) // bot just yielded; next turn lands in a beat
@@ -229,9 +234,15 @@ export default function Debate({
           turns in a row (their rebuttal, then their defense) a beginner has no
           idea what they're watching. On their turn it describes the round; on
           yours it tells you what to do. */}
-      <p className={`phase-rule ${myTurn && phase.phase === 'closing' ? 'phase-rule-live' : ''}`}>
-        {t(myTurn ? `howto_${phase.phase}` : `whatis_${phase.phase}`)}
-      </p>
+      {botFailed ? (
+        <p className="phase-rule phase-rule-failed">
+          {t('botFailed', { x: botOpponent?.name ?? '' })}
+        </p>
+      ) : (
+        <p className={`phase-rule ${myTurn && phase.phase === 'closing' ? 'phase-rule-live' : ''}`}>
+          {t(myTurn ? `howto_${phase.phase}` : `whatis_${phase.phase}`)}
+        </p>
+      )}
 
       {/* AGAINST opens the closings so FOR gets the final word — flag it once
           so the order doesn't read as a bug. */}

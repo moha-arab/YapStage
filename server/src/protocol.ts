@@ -222,8 +222,17 @@ export interface ServerToClient {
   'rematch:go': () => void;
   /** The YapMaster's coaching answer (sent only to the asker). */
   'coach:reply': (p: { text: string; error?: boolean; done?: boolean }) => void;
-  /** The bot's spoken turn: its argument text + optional synthesized audio. */
-  'bot:turn': (p: { stepIndex: number; text: string; mime?: string; audio?: ArrayBuffer }) => void;
+  /** The bot's spoken turn: its argument text + optional synthesized audio.
+      `failed` means generation broke on our side (API down, out of credits).
+      Without it an empty text is indistinguishable from a bot that chose to
+      say nothing, which is how an outage once looked like "the bot is mute". */
+  'bot:turn': (p: {
+    stepIndex: number;
+    text: string;
+    mime?: string;
+    audio?: ArrayBuffer;
+    failed?: boolean;
+  }) => void;
 }
 
 export interface SocketData {

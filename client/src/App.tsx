@@ -95,6 +95,8 @@ export default function App() {
   const [botSpeaking, setBotSpeaking] = useState(false);
   // Epoch ms when the bot must yield the mic — drives its visible shot clock.
   const [botSpeakDeadline, setBotSpeakDeadline] = useState<number | null>(null);
+  // The bot's turn failed to generate (our outage, not its silence).
+  const [botFailed, setBotFailed] = useState(false);
 
   // Server-STT availability (for bot mode, which has no LobbyUpdate to carry it).
   const sttGlobalRef = useRef(false);
@@ -153,7 +155,10 @@ export default function App() {
     socket.on('rtc:go', () => void beginOffer());
     socket.on('rtc:signal', (p) => void handleSignal(p));
     socket.on('debate:start', (p) => setStart(p));
-    socket.on('debate:phase', (p) => setPhase(p));
+    socket.on('debate:phase', (p) => {
+      setBotFailed(false); // a new turn clears the last one's error
+      setPhase(p);
+    });
     socket.on('debate:ended', () => {
       setEnded(true);
       stopTurn();
@@ -174,6 +179,15 @@ export default function App() {
       storeResume(lobbyRef.current?.code); // a refresh may now safely resume
     });
     socket.on('bot:turn', (p) => {
+      // Generation broke on our side. Say so on screen and move on after a beat
+      // rather than passing a silent turn that looks like the bot is mute.
+      if (p.failed) {
+        setBotFailed(true);
+        setBotSpeaking(false);
+        setBotSpeakDeadline(null);
+        setTimeout(() => socket.emit('bot:done', { stepIndex: p.stepIndex }), 2600);
+        return;
+      }
       // The bot's spoken turn: show its text, animate the avatar, and speak it.
       // It gets the same shot clock a human gets for this phase (speakSeconds):
       // finish early and the turn passes early; run over and the voice is cut.
@@ -609,6 +623,7 @@ export default function App() {
         botTurn={botTurn}
         botSpeaking={botSpeaking}
         botSpeakDeadline={botSpeakDeadline}
+        botFailed={botFailed}
         onPassMic={(stepIndex) => socket.emit('turn:done', { stepIndex })}
       />
     );

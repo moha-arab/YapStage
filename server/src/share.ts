@@ -1,12 +1,12 @@
-// Shareable verdict cards. The whole result is encoded INTO the link, so the
-// server still stores nothing: no database, no eviction, no expiry, and the
-// privacy promise ("transcripts die with the lobby") survives intact. The cost
-// is a long URL, which nobody reads because it unfurls into a card.
+// Shareable verdict cards. The card is a row in the database and the link is an
+// opaque id, which is how this normally works: nothing about the result is
+// carried in, or recoverable from, the URL.
 //
-// The payload is signed when SHARE_SECRET is set, so a link that renders on
-// yapstage.com is one the judge actually produced. Without the secret the page
-// still works, it just cannot tell a real verdict from a crafted one.
-import { createHmac, timingSafeEqual } from 'node:crypto';
+// An earlier version encoded the whole card into the link so it needed no
+// database, and signed it so it could not be forged. Once real storage landed
+// that became two code paths and a secret to manage, for a feature that a
+// lookup does better. Ids are unguessable and only the server writes rows, so
+// forgery is structurally impossible rather than cryptographically discouraged.
 import type { Side, Verdict } from './protocol.js';
 
 /** Compact on purpose: every character here lands in the URL. */
@@ -43,49 +43,23 @@ export function cardFrom(
   };
 }
 
-function sign(body: string): string {
-  const secret = process.env.SHARE_SECRET;
-  if (!secret) return '';
-  return createHmac('sha256', secret).update(body).digest('base64url').slice(0, 22);
-}
-
-/** `<base64url payload>.<sig>` — the sig half is absent when unsigned. */
-export function encodeCard(card: Card): string {
-  const body = Buffer.from(JSON.stringify(card), 'utf8').toString('base64url');
-  const sig = sign(body);
-  return sig ? `${body}.${sig}` : body;
-}
-
-export function decodeCard(token: string): Card | null {
-  const [body, sig] = token.split('.');
-  if (!body || body.length > 4000) return null;
-  // Only enforce the signature when we have a secret AND the link carries one.
-  // Unsigned links stay readable so turning the secret on later doesn't break
-  // every link already sent.
-  if (process.env.SHARE_SECRET && sig) {
-    const want = Buffer.from(sign(body));
-    const got = Buffer.from(sig);
-    if (want.length !== got.length || !timingSafeEqual(want, got)) return null;
-  }
-  try {
-    const raw = JSON.parse(Buffer.from(body, 'base64url').toString('utf8')) as Card;
-    if (!raw || typeof raw !== 'object') return null;
-    if (!Array.isArray(raw.s) || raw.s.length !== 8) return null;
-    const MAXES = [30, 20, 30, 20, 30, 20, 30, 20];
-    const s = raw.s.map((v, i) => Math.max(0, Math.min(MAXES[i], Math.round(Number(v) || 0))));
-    return {
-      m: clip(raw.m, CAP.m),
-      a: clip(raw.a, CAP.name) || 'FOR',
-      b: clip(raw.b, CAP.name) || 'AGAINST',
-      s,
-      w: raw.w === 1 ? 1 : 0,
-      r: clip(raw.r, CAP.r),
-      qa: raw.qa ? clip(raw.qa, CAP.q) : undefined,
-      qb: raw.qb ? clip(raw.qb, CAP.q) : undefined,
-    };
-  } catch {
-    return null;
-  }
+/** Rows are written by us, but they are still read back into HTML, so a stored
+    card gets the same clamping a foreign one would. */
+export function sanitizeCard(raw: unknown): Card | null {
+  const c = raw as Card | null;
+  if (!c || typeof c !== 'object') return null;
+  if (!Array.isArray(c.s) || c.s.length !== 8) return null;
+  const MAXES = [30, 20, 30, 20, 30, 20, 30, 20];
+  return {
+    m: clip(c.m, CAP.m),
+    a: clip(c.a, CAP.name) || 'FOR',
+    b: clip(c.b, CAP.name) || 'AGAINST',
+    s: c.s.map((v, i) => Math.max(0, Math.min(MAXES[i], Math.round(Number(v) || 0)))),
+    w: c.w === 1 ? 1 : 0,
+    r: clip(c.r, CAP.r),
+    qa: c.qa ? clip(c.qa, CAP.q) : undefined,
+    qb: c.qb ? clip(c.qb, CAP.q) : undefined,
+  };
 }
 
 // Everything below is rendered into HTML from a URL a stranger controls, so
@@ -102,7 +76,7 @@ function esc(s: string): string {
 const CATS = ['made your case', 'backed it up', 'fought back', 'used your time'];
 const MAXES = [30, 20, 30, 20];
 
-export function renderCard(card: Card, origin: string, stored: boolean): string {
+export function renderCard(card: Card, origin: string): string {
   const totalA = card.s.slice(0, 4).reduce((n, v) => n + v, 0);
   const totalB = card.s.slice(4).reduce((n, v) => n + v, 0);
   const winner = card.w === 1 ? card.b : card.a;
@@ -187,10 +161,6 @@ export function renderCard(card: Card, origin: string, stored: boolean): string 
  ${quote(card.a, card.qa)}
  ${quote(card.b, card.qb)}
  <a class="cta" href="${esc(origin)}/">think you'd do better?</a>
- <p class="foot">${
-   stored
-     ? 'one of the debaters chose to share this. the video was never recorded.'
-     : 'this whole result lives inside the link. we stored nothing.'
- }</p>
+ <p class="foot">one of the debaters chose to share this. the video was never recorded.</p>
 </div></body></html>`;
 }

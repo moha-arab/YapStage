@@ -1923,6 +1923,16 @@ html[dir='rtl'] .meter-hint {
   font-size: 13.5px;
   color: var(--muted);
 }
+/* the bot's turn broke on our side: say it plainly, don't hide it */
+.phase-rule-failed {
+  color: var(--for);
+  font-size: 15px;
+}
+.clock-failed {
+  color: var(--for);
+  opacity: 0.85;
+}
+
 /* on your own closing turn the rule is not a footnote, it's the instruction */
 .phase-rule-live {
   color: var(--gold);
