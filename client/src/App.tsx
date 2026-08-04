@@ -277,6 +277,22 @@ export default function App() {
       setRematch(null);
       clearResume();
     });
+    // Losing the socket mid-debate is the honest place to handle a server that
+    // went away, and it covers every cause: a deploy, a crash, or bad wifi. The
+    // server cannot be relied on to say goodbye — Railway kills the container
+    // without a shutdown signal, which was verified rather than assumed.
+    socket.on('disconnect', () => {
+      if (!startedRef.current || endedRef.current || settledRef.current) return;
+      // Bot debates live only in the old server's memory, so there is nothing
+      // to come back to. Friend debates get one reconnect attempt first, which
+      // the 'connect' handler below resolves.
+      if (startDataRef.current?.bot) {
+        stopTurn();
+        stopTurnRecording();
+        stopBotVoice();
+        setAbortInfo({ key: 'debateStopped' });
+      }
+    });
     socket.on('connect', () => {
       // Transient reconnect at ANY stage: try to reclaim our seat. A refreshed
       // page has a new sessionId so this only fires for true network blips.
