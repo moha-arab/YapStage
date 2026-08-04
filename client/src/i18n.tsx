@@ -234,6 +234,10 @@ const en: Dict = {
   botSpeaking: 'speaking...',
   micHeard: 'judge hears you ✓',
   mode_dispute: 'settle it',
+  settleItBtn: 'settle a real argument',
+  theRuling: 'THE YAPMASTER HAS RULED',
+  theArgument: 'THE ARGUMENT',
+  theOrders: 'THE ORDERS',
   disputeDesc:
     "you two are actually arguing about something. describe it in your own words. they can't see what you wrote, and they're writing theirs at the same time.",
   disputePlaceholder: "what's the argument? say it how you'd say it to a friend...",
@@ -500,6 +504,10 @@ const ar: Dict = {
   botSpeaking: 'يتحدّث...',
   micHeard: 'الحكم يسمعك ✓',
   mode_dispute: 'احسمها',
+  settleItBtn: 'احسم خلافاً حقيقياً',
+  theRuling: 'صدر حكم الياب ماستر',
+  theArgument: 'الخلاف',
+  theOrders: 'الأوامر',
   disputeDesc:
     'بينكما خلاف حقيقي. اوصفه بكلماتك أنت. لا يستطيع الطرف الآخر رؤية ما كتبت، وهو يكتب نسخته في نفس الوقت.',
   disputePlaceholder: 'ما هو الخلاف؟ اكتبه كما تقوله لصديق...',

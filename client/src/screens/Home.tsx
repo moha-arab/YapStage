@@ -52,14 +52,17 @@ export default function Home({ notice, onEntered, onPlayBot, onLearn }: Props) {
   const validName = NAME_RE.test(name);
   const wins = receipts.filter((r) => r.won).length;
 
-  function create() {
+  function create(mode?: 'dispute') {
     if (busy) return;
     if (!validName) return setError('errBadName');
     setBusy(true);
     socket.emit('lobby:create', { sessionId: session.id, name }, (res) => {
       setBusy(false);
-      if (res.ok) onEntered(res.update);
-      else setError(ERROR_KEYS[res.error]);
+      if (!res.ok) return setError(ERROR_KEYS[res.error]);
+      // Settle-it is the same lobby with the mode pre-set, so the green room
+      // opens straight onto "describe the argument" instead of a topic list.
+      if (mode) socket.emit('pick:mode', mode);
+      onEntered(mode ? { ...res.update, topicMode: mode } : res.update);
     });
   }
 
@@ -103,7 +106,7 @@ export default function Home({ notice, onEntered, onPlayBot, onLearn }: Props) {
         {name && !validName ? <p className="field-hint">{t('errBadName')}</p> : null}
 
         <div className="home-actions">
-          <button className="btn btn-primary" disabled={busy || !validName} onClick={create}>
+          <button className="btn btn-primary" disabled={busy || !validName} onClick={() => create()}>
             {t('startDebate')}
           </button>
           <div className="join-row">
@@ -124,6 +127,15 @@ export default function Home({ notice, onEntered, onPlayBot, onLearn }: Props) {
               {t('joinOne')}
             </button>
           </div>
+          {/* Settle-it creates a normal lobby; the mode is set on arrival so
+              the green room opens straight onto "describe the argument". */}
+          <button
+            className="btn btn-settle btn-wide"
+            disabled={busy || !validName}
+            onClick={() => create('dispute')}
+          >
+            {t('settleItBtn')}
+          </button>
           <div className="home-or">{t('orWord')}</div>
           <button
             className="btn btn-bot btn-wide"

@@ -64,6 +64,8 @@ export default function Debate({
   const { lang, t } = useI18n();
   const isBot = Boolean(botOpponent);
   const mySide = start.yourSide;
+  // Settle-it replaces FOR/AGAINST with what each person is actually arguing.
+  const label = (side: Side) => start.framing?.positions[side] ?? t(side);
   const peerSide: Side = mySide === 'FOR' ? 'AGAINST' : 'FOR';
   const revealMs = useCountdown(start.startsAt, start.serverNow);
   const msLeft = useCountdown(phase?.deadline, phase?.serverNow);
@@ -98,7 +100,7 @@ export default function Debate({
           <span className="fighter against">{start.names.AGAINST}</span>
         </div>
         <div className={`side-badge ${mySide === 'FOR' ? 'for' : 'against'}`}>
-          {t('youArgue', { x: t(mySide) })}
+          {t('youArgue', { x: label(mySide) })}
         </div>
         <p className="subtitle">
           {t('noTakebacks', { x: start.names.FOR, n: Math.max(1, Math.ceil(revealMs / 1000)) })}
@@ -146,7 +148,7 @@ export default function Debate({
             muted
             mirror
             label={start.names[mySide]}
-            sub={`${t('you')} · ${t(mySide)}`}
+            sub={`${t('you')} · ${label(mySide)}`}
             side={mySide}
             active={myTurn}
           />
@@ -163,7 +165,7 @@ export default function Debate({
               />
               <div className="tag">
                 <span className="tag-name">{botOpponent.name}</span>
-                <span className="tag-sub">{t(peerSide)}</span>
+                <span className="tag-sub">{label(peerSide)}</span>
               </div>
               {!myTurn ? (
                 <div className="live-pill">{botThinking ? t('botThinking') : t('onTheMic')}</div>
@@ -176,7 +178,7 @@ export default function Debate({
               stream={remoteStream}
               muted={remoteMuted}
               label={start.names[peerSide]}
-              sub={t(peerSide)}
+              sub={label(peerSide)}
               side={peerSide}
               active={!myTurn}
               placeholder={t('theyFroze')}

@@ -19,6 +19,8 @@ export interface Card {
   r: string; // the one-line ruling
   qa?: string; // best quote, FOR
   qb?: string; // best quote, AGAINST
+  /** Settle-it only: the split, the decree, the orders, and what each said. */
+  rl?: { pf: number; pa: number; d: string; o: string[]; sa: string; sb: string };
 }
 
 const CAP = { m: 140, name: 24, r: 260, q: 180 };
@@ -28,6 +30,7 @@ export function cardFrom(
   motion: string,
   names: Record<Side, string>,
   verdict: Verdict,
+  said?: Record<Side, string>,
 ): Card {
   const f = verdict.scores.FOR;
   const g = verdict.scores.AGAINST;
@@ -40,6 +43,16 @@ export function cardFrom(
     r: clip(verdict.summary, CAP.r),
     qa: clip(verdict.bestQuote.FOR, CAP.q) || undefined,
     qb: clip(verdict.bestQuote.AGAINST, CAP.q) || undefined,
+    rl: verdict.ruling
+      ? {
+          pf: verdict.ruling.split.FOR,
+          pa: verdict.ruling.split.AGAINST,
+          d: clip(verdict.ruling.decree, 260),
+          o: verdict.ruling.orders.map((o) => clip(o, 160)).slice(0, 3),
+          sa: clip(said?.FOR ?? '', 300),
+          sb: clip(said?.AGAINST ?? '', 300),
+        }
+      : undefined,
   };
 }
 
@@ -59,6 +72,16 @@ export function sanitizeCard(raw: unknown): Card | null {
     r: clip(c.r, CAP.r),
     qa: c.qa ? clip(c.qa, CAP.q) : undefined,
     qb: c.qb ? clip(c.qb, CAP.q) : undefined,
+    rl: c.rl
+      ? {
+          pf: Math.max(0, Math.min(100, Math.round(Number(c.rl.pf) || 0))),
+          pa: Math.max(0, Math.min(100, Math.round(Number(c.rl.pa) || 0))),
+          d: clip(c.rl.d, 260),
+          o: (Array.isArray(c.rl.o) ? c.rl.o : []).slice(0, 3).map((x) => clip(x, 160)),
+          sa: clip(c.rl.sa, 300),
+          sb: clip(c.rl.sb, 300),
+        }
+      : undefined,
   };
 }
 
@@ -84,8 +107,15 @@ export function renderCard(card: Card, origin: string): string {
   const wTotal = card.w === 1 ? totalB : totalA;
   const lTotal = card.w === 1 ? totalA : totalB;
 
-  const title = `${winner} beat ${loser} ${wTotal}-${lTotal} on YapStage`;
-  const desc = card.r || `"${card.m}" — settled on camera.`;
+  const rl = card.rl;
+  const wPct = rl ? (card.w === 1 ? rl.pa : rl.pf) : 0;
+  const lPct = rl ? (card.w === 1 ? rl.pf : rl.pa) : 0;
+  // A settled argument unfurls as a ruling, not a scoreboard: the percentage
+  // and the decree are the shareable part, not four category bars.
+  const title = rl
+    ? `${winner} was ${wPct}% right. settled on YapStage.`
+    : `${winner} beat ${loser} ${wTotal}-${lTotal} on YapStage`;
+  const desc = (rl ? rl.d : card.r) || `"${card.m}", settled on camera.`;
 
   const rows = CATS.map((label, i) => {
     const av = card.s[i];
@@ -150,16 +180,26 @@ export function renderCard(card: Card, origin: string): string {
       border:2px solid var(--gold);border-radius:10px;color:var(--gold);text-decoration:none;
       font-size:15px;letter-spacing:.04em}
  .foot{text-align:center;color:var(--muted);font-size:11px;margin-top:18px;line-height:1.6}
+ .orders{margin:18px 0 0;padding:12px 16px;border:1px solid rgba(212,175,55,.4);
+         border-radius:10px;background:rgba(212,175,55,.06)}
+ .order{margin:4px 0 0;font-size:14px;line-height:1.45}
 </style>
 </head><body><div class="wrap">
  <p class="kick">THE YAPMASTER RULED</p>
- <h1>${esc(winner)} ${wTotal} &middot; ${lTotal} ${esc(loser)}</h1>
+ <h1>${rl ? `${esc(winner)} ${wPct}% &middot; ${lPct}% ${esc(loser)}` : `${esc(winner)} ${wTotal} &middot; ${lTotal} ${esc(loser)}`}</h1>
  <p class="motion">&ldquo;${esc(card.m)}&rdquo;</p>
- ${card.r ? `<p class="rule">${esc(card.r)}</p>` : ''}
- <div class="names"><span class="f">${esc(card.a)} &middot; FOR</span><span class="g">AGAINST &middot; ${esc(card.b)}</span></div>
- <table>${rows}</table>
- ${quote(card.a, card.qa)}
- ${quote(card.b, card.qb)}
+ ${rl ? `<p class="rule">${esc(rl.d)}</p>` : card.r ? `<p class="rule">${esc(card.r)}</p>` : ''}
+ ${
+   rl
+     ? // What each of them said the fight was about. The most human part of the
+       // card, and the reason neither account gets erased by the merged version.
+       `<p class="kick" style="margin:22px 0 8px">WHAT EACH OF THEM SAID IT WAS ABOUT</p>
+        ${quote(card.a, rl.sa)}${quote(card.b, rl.sb)}
+        ${rl.o.length ? `<div class="orders"><p class="kick" style="margin:0 0 6px">THE ORDERS</p>${rl.o.map((o) => `<p class="order">${esc(o)}</p>`).join('')}</div>` : ''}`
+     : `<div class="names"><span class="f">${esc(card.a)} &middot; FOR</span><span class="g">AGAINST &middot; ${esc(card.b)}</span></div>
+        <table>${rows}</table>
+        ${quote(card.a, card.qa)}${quote(card.b, card.qb)}`
+ }
  <a class="cta" href="${esc(origin)}/">think you'd do better?</a>
  <p class="foot">one of the debaters chose to share this. the video was never recorded.</p>
 </div></body></html>`;

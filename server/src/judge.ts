@@ -99,7 +99,7 @@ CHANNEL ASYMMETRY — read carefully, this changes how you score:
     the motion, and this mode's core job is to decide who is actually right.
     Those two stances cannot share a prompt without one leaking into the other,
     and the debate prompt is the part with an eval harness protecting it. */
-function buildDisputePrompt(framing: Framing, names: Record<Side, string>): string {
+function buildDisputePrompt(framing: Framing): string {
   return `You are the YapMaster, presiding over a light-hearted "settle it" show. Two people brought a REAL argument and each argued their own side on camera. You rule on it like a TV-court judge: warm, funny, decisive, no legalese.
 
 THE ARGUMENT: ${framing.argument}
@@ -121,8 +121,8 @@ FAIRNESS:
 
 THE RULING:
 - split: two percentages summing to EXACTLY 100, how right each one is. Use the full range. A genuinely close call is 55/45; a rout is 85/15. Never 50/50 — you were asked to settle it, so settle it.
-- decree: ONE sentence, said out loud, that lands the ruling. Court-show voice, a little funny, quotable. Name the winner by their real name. This is the line people screenshot.
-- orders: one or two SHORT, concrete, actually-doable things, naming who does what. Real-life instructions ("${names.FOR} takes the dishes Tuesdays and Thursdays"), never vague advice ("communicate better"). End the last order with "Case closed."
+- decree: ONE sentence, said out loud, that lands the ruling. Court-show voice, a little funny, quotable. This is the line people screenshot. Refer to them ONLY as the exact tokens [WINNER] and [LOSER]; we substitute their real names afterwards. Never write "FOR", "AGAINST", "Debater A" or "Debater B" in anything a player reads.
+- orders: one or two SHORT, concrete, actually-doable things, saying who does what using the same [WINNER] and [LOSER] tokens. Real-life instructions ("[LOSER] takes the dishes Tuesdays and Thursdays"), never vague advice ("communicate better"). End the last order with "Case closed."
 - Also score both debaters on the usual rubric, SEPARATELY from the ruling, so the coaching underneath still works: argument (0-30) made your case, evidence (0-20) backed it up, clash (0-30) answered them, delivery (0-20) used your time. These describe how well they argued and MUST NOT move the percentages. It is entirely correct for the person with the lower rubric total to win the ruling.
 - winner: whoever has the higher percentage.
 - feedback: exactly 2 bullets each, addressed as "you". Bullet 1 their strongest thing, bullet 2 the thing that cost them. Where it is true, say plainly that they were right but nearly threw it away by arguing badly, or that they argued well but were defending the weaker position. Those are different problems and they deserve to know which one they had.
@@ -287,12 +287,12 @@ export function namesOf(lobby: Lobby): Record<Side, string> {
 export async function scoreTranscript(
   motion: { en?: string; ar?: string },
   transcript: Line[],
-  opts?: { composedSide?: Side; framing?: Framing; names?: Record<Side, string> },
+  opts?: { composedSide?: Side; framing?: Framing },
 ): Promise<Verdict> {
   const { xml } = buildTranscriptXml(motion, transcript, opts?.composedSide);
   const dispute = opts?.framing;
   const system = dispute
-    ? buildDisputePrompt(dispute, opts.names ?? { FOR: 'Debater A', AGAINST: 'Debater B' })
+    ? buildDisputePrompt(dispute)
     : buildSystemPrompt() + (opts?.composedSide ? channelNote(opts.composedSide) : '');
 
   const response = await getClient().messages.create(
@@ -413,9 +413,27 @@ async function callJudge(lobby: Lobby): Promise<Verdict> {
   const v = await scoreTranscript(lobby.topic ?? {}, lobby.transcript, {
     composedSide: lobby.bot?.side, // bots mode: the bot's lines are typed text
     framing: lobby.framing,
-    names,
   });
-  return { ...v, summary: v.summary.replaceAll('[WINNER]', names[v.winner]) };
+  // The judge never learns who is who, so it writes tokens and we put the real
+  // names in afterwards. Settle-it's decree and orders go through the same
+  // substitution, which is also what keeps "FOR"/"AGAINST" out of a court
+  // ruling that two friends are about to screenshot.
+  const loserSide: Side = v.winner === 'FOR' ? 'AGAINST' : 'FOR';
+  const fill = (s: string) =>
+    s.replaceAll('[WINNER]', names[v.winner]).replaceAll('[LOSER]', names[loserSide]);
+  return {
+    ...v,
+    summary: fill(v.summary),
+    ...(v.ruling
+      ? {
+          ruling: {
+            ...v.ruling,
+            decree: fill(v.ruling.decree),
+            orders: v.ruling.orders.map(fill),
+          },
+        }
+      : {}),
+  };
 }
 
 export async function runJudge(io: Io, lobby: Lobby, requesterSocketId?: string): Promise<void> {
@@ -461,7 +479,9 @@ export async function runJudge(io: Io, lobby: Lobby, requesterSocketId?: string)
     // The reveal runs a drum roll before the summary is read, so synthesizing
     // here costs no visible wait. A failure just means the browser voice reads
     // it instead, which is what happened for every debate before this.
-    lobby.verdictAudio = (await synthesize(verdict.summary, YAPMASTER_VOICE)) ?? undefined;
+    // Settle-it speaks the decree; debate mode speaks the hype summary.
+    const spoken = verdict.ruling?.decree || verdict.summary;
+    lobby.verdictAudio = (await synthesize(spoken, YAPMASTER_VOICE)) ?? undefined;
     touch(lobby);
     emitVerdict(io, lobby, lobby.code);
     // Keep the lobby around briefly so a reconnecting client can re-fetch,

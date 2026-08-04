@@ -615,6 +615,7 @@ export default function App() {
         status={judgeStatus}
         mySide={start?.yourSide}
         topic={start?.topic ?? null}
+        framing={start?.framing ?? null}
         localStream={localStream}
         remoteStream={remoteStream}
         rtcConnected={rtcState === 'connected'}

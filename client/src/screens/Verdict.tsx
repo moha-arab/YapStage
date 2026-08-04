@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import type { CategoryScores, Side, TopicText, Verdict as VerdictData } from '../../../server/src/protocol';
+import type { CategoryScores, Framing, Side, TopicText, Verdict as VerdictData } from '../../../server/src/protocol';
 import { isSoundMuted, playCrash, playDrumRoll, playHit, setSoundMuted, speak } from '../sound';
 import { socket } from '../socket';
 import { useI18n } from '../i18n';
@@ -21,6 +21,8 @@ interface Props {
     audio?: ArrayBuffer;
     heard?: Record<Side, number>;
   } | null;
+  /** Settle-it: the argument and both accounts, for the ruling screen. */
+  framing?: Framing | null;
   status: { state: 'pending' | 'failed'; message?: string; terminal?: boolean } | null;
   mySide: Side | undefined;
   topic: TopicText | null;
@@ -126,6 +128,7 @@ export default function VerdictScreen({
   onRematch,
   rematch,
   botOpponent,
+  framing,
 }: Props) {
   const { lang, t } = useI18n();
   // No shared call to keep visible when the opponent is a bot.
@@ -201,10 +204,13 @@ export default function VerdictScreen({
         playCrash();
         // The YapMaster reads their own ruling. Falls back to the browser voice
         // when the server had no TTS, which is what this always used to be.
+        // In settle-it the decree is the sentencing line, so that is what gets
+        // read aloud rather than the hype summary.
+        const spoken = info.verdict.ruling?.decree || info.verdict.summary;
         if (info.audio && !isSoundMuted()) {
-          playBotTurn(info.verdict.summary, info.audio, info.mime, lang, () => {});
+          playBotTurn(spoken, info.audio, info.mime, lang, () => {});
         } else {
-          speak(info.verdict.summary);
+          speak(spoken);
         }
         setStage('reveal');
       }, drumAt + 3200),
@@ -341,32 +347,9 @@ export default function VerdictScreen({
     );
   }
 
-  return (
-    <div className="stage center-col verdict">
-      <p className="kicker">{topic?.[lang] ?? ''}</p>
-      <div className={`stamp ${winner === 'FOR' ? 'for' : 'against'}`}>
-        <span className="stamp-label">{t('yapmaster')}</span>
-        <span className="stamp-name display">{names[winner]}</span>
-        <span className="stamp-side">{t(winner)}</span>
-      </div>
-      <p className="summary">{verdict.summary}</p>
-      {/* Zero words from you means the mic never reached the judge. Say that
-          plainly — otherwise it reads as a defeat you earned, and the only way
-          to find out is to ask the coach afterwards and be told "I heard
-          nothing", which is how this surfaced in the first place. */}
-      {mySide !== undefined && info.heard && info.heard[mySide] === 0 ? (
-        <div className="not-heard">
-          <p className="not-heard-line">{t('notHeard')}</p>
-          <p className="not-heard-fix">{t('notHeardFix')}</p>
-        </div>
-      ) : mySide !== undefined ? (
-        <p className={`you-result ${youWon ? 'won' : 'lost'}`}>
-          {youWon ? t('youWon') : t('youLost')}
-        </p>
-      ) : null}
-      {strip}
-
-      {stage === 'details' ? (
+  // The scoreboard, coaching, coach chat and actions: identical in both modes,
+  // so it is built once and dropped into whichever ruling screen renders.
+  const details = (
         <div className="verdict-details">
           {verdict.injectionDetected ? (
             <div className="banner banner-warn">{t('injection')}</div>
@@ -532,7 +515,96 @@ export default function VerdictScreen({
           </div>
           <p className="footnote">{t('condolences', { x: names[loser] })}</p>
         </div>
+  );
+
+  // Settle-it lands as a court ruling, not a scoreboard: what each of them said
+  // the fight was about, then the split, then the decree, then the orders.
+  const ruling = verdict.ruling;
+  if (ruling) {
+    const other: Side = winner === 'FOR' ? 'AGAINST' : 'FOR';
+    return (
+      <div className="stage center-col verdict">
+        <p className="kicker">{t('theRuling')}</p>
+
+        {framing ? (
+          <div className="said-pair">
+            <div className="said">
+              <span className="said-who for">{names.FOR}</span>
+              <p className="said-text">&ldquo;{framing.said.FOR}&rdquo;</p>
+            </div>
+            <div className="said">
+              <span className="said-who against">{names.AGAINST}</span>
+              <p className="said-text">&ldquo;{framing.said.AGAINST}&rdquo;</p>
+            </div>
+          </div>
+        ) : null}
+
+        <p className="kicker">{t('theArgument')}</p>
+        <h1 className="display motion">{topic?.[lang] ?? ''}</h1>
+
+        <div className="split">
+          <div className={`split-half ${winner === 'FOR' ? 'for' : 'against'} split-win`}>
+            <span className="split-pct">{ruling.split[winner]}</span>
+            <span className="split-name">{names[winner]}</span>
+          </div>
+          <span className="split-slash">/</span>
+          <div className={`split-half ${other === 'FOR' ? 'for' : 'against'}`}>
+            <span className="split-pct">{ruling.split[other]}</span>
+            <span className="split-name">{names[other]}</span>
+          </div>
+        </div>
+
+        <p className="decree">{ruling.decree}</p>
+
+        {ruling.orders.length > 0 ? (
+          <div className="orders card">
+            <span className="orders-label">{t('theOrders')}</span>
+            {ruling.orders.map((o, i) => (
+              <p key={i} className="order">
+                {o}
+              </p>
+            ))}
+          </div>
+        ) : null}
+
+        {mySide !== undefined && info.heard && info.heard[mySide] === 0 ? (
+          <div className="not-heard">
+            <p className="not-heard-line">{t('notHeard')}</p>
+            <p className="not-heard-fix">{t('notHeardFix')}</p>
+          </div>
+        ) : null}
+        {strip}
+        {stage === 'details' ? details : null}
+      </div>
+    );
+  }
+
+  return (
+    <div className="stage center-col verdict">
+      <p className="kicker">{topic?.[lang] ?? ''}</p>
+      <div className={`stamp ${winner === 'FOR' ? 'for' : 'against'}`}>
+        <span className="stamp-label">{t('yapmaster')}</span>
+        <span className="stamp-name display">{names[winner]}</span>
+        <span className="stamp-side">{t(winner)}</span>
+      </div>
+      <p className="summary">{verdict.summary}</p>
+      {/* Zero words from you means the mic never reached the judge. Say that
+          plainly — otherwise it reads as a defeat you earned, and the only way
+          to find out is to ask the coach afterwards and be told "I heard
+          nothing", which is how this surfaced in the first place. */}
+      {mySide !== undefined && info.heard && info.heard[mySide] === 0 ? (
+        <div className="not-heard">
+          <p className="not-heard-line">{t('notHeard')}</p>
+          <p className="not-heard-fix">{t('notHeardFix')}</p>
+        </div>
+      ) : mySide !== undefined ? (
+        <p className={`you-result ${youWon ? 'won' : 'lost'}`}>
+          {youWon ? t('youWon') : t('youLost')}
+        </p>
       ) : null}
+      {strip}
+
+      {stage === 'details' ? details : null}
     </div>
   );
 }

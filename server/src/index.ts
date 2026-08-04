@@ -723,7 +723,7 @@ io.on('connection', (socket) => {
     if (!allow(`share:${socket.id}`, 20, 60_000)) return cb(null);
     const lobby = socket.data.code ? getLobby(socket.data.code) : undefined;
     if (!lobby?.verdict || !participantOf(lobby, socket.id)) return cb(null);
-    const card = cardFrom(lobby.topic?.en ?? '', namesOf(lobby), lobby.verdict);
+    const card = cardFrom(lobby.topic?.en ?? '', namesOf(lobby), lobby.verdict, lobby.framing?.said);
     void saveCard(card).then((id) => {
       // No fallback: if the store is down, sharing is unavailable rather than
       // silently producing a link of a different shape.
