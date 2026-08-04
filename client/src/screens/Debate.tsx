@@ -26,8 +26,10 @@ interface Props {
   botSpeakDeadline?: number | null;
   /** The bot's turn failed to generate: our outage, not its silence. */
   botFailed?: boolean;
-  /** What the judge has transcribed of your current turn so far. */
-  caption?: string;
+  /** How many of YOUR words the judge has actually transcribed this turn. Not
+      shown as text on purpose: a debate is not a dictation app, and subtitles
+      running seconds behind your own mouth pull your eyes off the fight. */
+  heardWords?: number;
   onPassMic: (stepIndex: number) => void;
 }
 
@@ -56,7 +58,7 @@ export default function Debate({
   botSpeaking,
   botSpeakDeadline,
   botFailed,
-  caption,
+  heardWords = 0,
   onPassMic,
 }: Props) {
   const { lang, t } = useI18n();
@@ -199,12 +201,18 @@ export default function Debate({
               ? formatClock(0) // bot just yielded; next turn lands in a beat
               : formatClock(clockMs)}
         </div>
-        <div className={`mic-chip ${myTurn ? 'mic-live' : 'mic-off'}`}>
+        {/* "recording" only ever meant audio was being captured, which is what
+            made a dead pipeline look healthy: the level bar bounced, the chip
+            said recording, and the judge received nothing. This now flips only
+            once real words have come back from transcription. */}
+        <div className={`mic-chip ${myTurn ? (heardWords > 0 ? 'mic-heard' : 'mic-live') : 'mic-off'}`}>
           {myTurn
             ? sttServer
-              ? speechHeard
-                ? t('micRecording')
-                : t('micLive')
+              ? heardWords > 0
+                ? t('micHeard')
+                : speechHeard
+                  ? t('micRecording')
+                  : t('micLive')
               : speechSupported
                 ? speechHeard
                   ? t('micHears')
@@ -237,16 +245,6 @@ export default function Debate({
           turns in a row (their rebuttal, then their defense) a beginner has no
           idea what they're watching. On their turn it describes the round; on
           yours it tells you what to do. */}
-      {/* The judge's ear, on screen, while you speak. Trailing a few seconds
-          behind by design (segments are transcribed as they land), but its real
-          job is proof: if this stays empty you are not being heard, and you can
-          fix it during the debate instead of finding out from the verdict. */}
-      {myTurn && caption ? (
-        <p className="caption" aria-live="polite">
-          {caption}
-        </p>
-      ) : null}
-
       {botFailed ? (
         <p className="phase-rule phase-rule-failed">
           {t('botFailed', { x: botOpponent?.name ?? '' })}

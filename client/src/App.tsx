@@ -99,8 +99,9 @@ export default function App() {
   const [botSpeakDeadline, setBotSpeakDeadline] = useState<number | null>(null);
   // The bot's turn failed to generate (our outage, not its silence).
   const [botFailed, setBotFailed] = useState(false);
-  // Running transcript of YOUR current turn, straight from the judge's ear.
-  const [caption, setCaption] = useState('');
+  // How many of your words the judge has actually received this turn. Kept as a
+  // COUNT, not text: captions turned a debate into a dictation app.
+  const [heardWords, setHeardWords] = useState(0);
 
   // Server-STT availability (for bot mode, which has no LobbyUpdate to carry it).
   const sttGlobalRef = useRef(false);
@@ -161,13 +162,13 @@ export default function App() {
     socket.on('debate:start', (p) => setStart(p));
     socket.on('debate:phase', (p) => {
       setBotFailed(false); // a new turn clears the last one's error
-      setCaption('');
+      setHeardWords(0);
       setPhase(p);
     });
-    // What the judge has actually received from you, so far, this turn.
+    // Proof the judge is receiving you, reduced to a count.
     socket.on('caption', (p) => {
       if (phaseRef.current && p.stepIndex !== phaseRef.current.stepIndex) return;
-      setCaption(p.text);
+      setHeardWords((p.text.match(/\S+/g) ?? []).length);
     });
     socket.on('debate:ended', () => {
       setEnded(true);
@@ -635,7 +636,7 @@ export default function App() {
         botSpeaking={botSpeaking}
         botSpeakDeadline={botSpeakDeadline}
         botFailed={botFailed}
-        caption={caption}
+        heardWords={heardWords}
         onPassMic={(stepIndex) => socket.emit('turn:done', { stepIndex })}
       />
     );
