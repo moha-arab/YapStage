@@ -26,6 +26,8 @@ interface Props {
   botSpeakDeadline?: number | null;
   /** The bot's turn failed to generate: our outage, not its silence. */
   botFailed?: boolean;
+  /** What the judge has transcribed of your current turn so far. */
+  caption?: string;
   onPassMic: (stepIndex: number) => void;
 }
 
@@ -54,6 +56,7 @@ export default function Debate({
   botSpeaking,
   botSpeakDeadline,
   botFailed,
+  caption,
   onPassMic,
 }: Props) {
   const { lang, t } = useI18n();
@@ -234,6 +237,16 @@ export default function Debate({
           turns in a row (their rebuttal, then their defense) a beginner has no
           idea what they're watching. On their turn it describes the round; on
           yours it tells you what to do. */}
+      {/* The judge's ear, on screen, while you speak. Trailing a few seconds
+          behind by design (segments are transcribed as they land), but its real
+          job is proof: if this stays empty you are not being heard, and you can
+          fix it during the debate instead of finding out from the verdict. */}
+      {myTurn && caption ? (
+        <p className="caption" aria-live="polite">
+          {caption}
+        </p>
+      ) : null}
+
       {botFailed ? (
         <p className="phase-rule phase-rule-failed">
           {t('botFailed', { x: botOpponent?.name ?? '' })}

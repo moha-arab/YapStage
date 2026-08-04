@@ -99,6 +99,8 @@ export default function App() {
   const [botSpeakDeadline, setBotSpeakDeadline] = useState<number | null>(null);
   // The bot's turn failed to generate (our outage, not its silence).
   const [botFailed, setBotFailed] = useState(false);
+  // Running transcript of YOUR current turn, straight from the judge's ear.
+  const [caption, setCaption] = useState('');
 
   // Server-STT availability (for bot mode, which has no LobbyUpdate to carry it).
   const sttGlobalRef = useRef(false);
@@ -159,7 +161,13 @@ export default function App() {
     socket.on('debate:start', (p) => setStart(p));
     socket.on('debate:phase', (p) => {
       setBotFailed(false); // a new turn clears the last one's error
+      setCaption('');
       setPhase(p);
+    });
+    // What the judge has actually received from you, so far, this turn.
+    socket.on('caption', (p) => {
+      if (phaseRef.current && p.stepIndex !== phaseRef.current.stepIndex) return;
+      setCaption(p.text);
     });
     socket.on('debate:ended', () => {
       setEnded(true);
@@ -314,6 +322,7 @@ export default function App() {
       socket.off('rematch:update');
       socket.off('rematch:go');
       socket.off('bot:turn');
+      socket.off('caption');
       socket.off('connect');
     };
   }, [resetToHome]);
@@ -626,6 +635,7 @@ export default function App() {
         botSpeaking={botSpeaking}
         botSpeakDeadline={botSpeakDeadline}
         botFailed={botFailed}
+        caption={caption}
         onPassMic={(stepIndex) => socket.emit('turn:done', { stepIndex })}
       />
     );

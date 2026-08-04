@@ -31,6 +31,11 @@ export interface AudioTurn {
   side: Side;
   mime: string;
   data: Buffer;
+  /** Order within the turn. Segments arrive while the speaker is still talking. */
+  seq: number;
+  /** Set once this segment has been through Whisper, so the end-of-turn sweep
+      only picks up whatever the live pass missed. */
+  transcribed?: boolean;
 }
 
 export type LobbyStatus =
@@ -61,6 +66,9 @@ export interface Lobby {
   judgeTimer?: NodeJS.Timeout;
   transcript: TranscriptEntry[];
   audioTurns: AudioTurn[];
+  /** Per-segment transcription results, kept so a step's line can be rebuilt in
+      order as later segments land (and after a retry fills a gap). */
+  segmentText: { stepIndex: number; side: Side; seq: number; text: string }[];
   debateCompleted: boolean;
   judgeState: 'idle' | 'pending' | 'done' | 'failed';
   judgeAttempts: number;
@@ -120,6 +128,7 @@ export function createLobby(socketId: string, sessionId: string, name: string): 
     stepStartedAt: 0,
     transcript: [],
     audioTurns: [],
+    segmentText: [],
     debateCompleted: false,
     judgeState: 'idle',
     judgeAttempts: 0,

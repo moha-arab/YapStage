@@ -10,7 +10,14 @@ import type {
   SpeechChunk,
 } from './protocol.js';
 import type { TopicText } from './protocol.js';
-import { type Lobby, type Participant, destroyLobby, sideOf, touch } from './lobby.js';
+import {
+  type AudioTurn,
+  type Lobby,
+  type Participant,
+  destroyLobby,
+  sideOf,
+  touch,
+} from './lobby.js';
 import { namesOf, runJudge } from './judge.js';
 import { TOPIC_BY_ID, TOPIC_CATEGORIES } from './topics.js';
 import { transcribe } from './stt.js';
@@ -245,28 +252,78 @@ function getBotClient(): Anthropic {
 // Transcribe the human's recorded turns (server-STT mode) up to `beforeStep`
 // so the bot can actually respond to what was said. Browser-STT users already
 // have live chunks in the transcript, so this is a no-op for them.
+/** Rebuild one step's transcript line from every segment transcribed so far,
+    in order. Segments are independent files, so the text simply concatenates. */
+function rebuildStep(lobby: Lobby, stepIndex: number, side: Side): string {
+  return lobby.segmentText
+    .filter((s) => s.stepIndex === stepIndex && s.side === side)
+    .sort((a, b) => a.seq - b.seq)
+    .map((s) => s.text)
+    .join(' ')
+    .trim();
+}
+
+/** Transcribe a single segment as it lands, update the running transcript for
+    that step, and send the speaker their captions. Failures are silent by
+    design: the end-of-turn sweep retries anything still untranscribed. */
+async function transcribeSegment(
+  io: Io,
+  lobby: Lobby,
+  turn: AudioTurn,
+  socketId: string,
+): Promise<void> {
+  const text = await transcribe(turn.data);
+  turn.transcribed = true;
+  event('stt_segment', {
+    code: lobby.code,
+    step: turn.stepIndex,
+    seq: turn.seq,
+    bytes: turn.data.length,
+    words: text ? (text.match(/\S+/g) ?? []).length : 0,
+  });
+  if (!text) return;
+  lobby.segmentText.push({ stepIndex: turn.stepIndex, side: turn.side, seq: turn.seq, text });
+  const full = rebuildStep(lobby, turn.stepIndex, turn.side);
+  lobby.transcript = lobby.transcript.filter((e) => e.stepIndex !== turn.stepIndex);
+  lobby.transcript.push({ stepIndex: turn.stepIndex, side: turn.side, text: full, at: Date.now() });
+  io.to(socketId).emit('caption', { stepIndex: turn.stepIndex, text: full });
+}
+
 async function transcribeHumanUpto(lobby: Lobby, beforeStep: number): Promise<void> {
   if (!lobby.bot) return;
   const humanSide: Side = lobby.bot.side === 'FOR' ? 'AGAINST' : 'FOR';
-  const pending = lobby.audioTurns.filter((a) => a.side === humanSide && a.stepIndex < beforeStep);
-  if (pending.length === 0) return;
-  lobby.audioTurns = lobby.audioTurns.filter(
-    (a) => !(a.side === humanSide && a.stepIndex < beforeStep),
+  // Segments are transcribed as they arrive now, so this is a retry pass for
+  // whatever the live attempt missed (in flight, or Whisper failed).
+  const pending = lobby.audioTurns.filter(
+    (a) => a.side === humanSide && a.stepIndex < beforeStep && !a.transcribed,
   );
+  if (pending.length === 0) return;
   await Promise.all(
     pending.map(async (turn) => {
       const text = await transcribe(turn.data);
-      // The per-turn record that makes "the judge never heard me" answerable:
-      // how big the upload was, and how many words came back out of it.
-      event('stt_turn', {
+      turn.transcribed = true;
+      event('stt_retry', {
         code: lobby.code,
         step: turn.stepIndex,
+        seq: turn.seq,
         bytes: turn.data.length,
         words: text ? (text.match(/\S+/g) ?? []).length : 0,
       });
       if (!text) return;
+      lobby.segmentText.push({
+        stepIndex: turn.stepIndex,
+        side: turn.side,
+        seq: turn.seq,
+        text,
+      });
+      const full = rebuildStep(lobby, turn.stepIndex, turn.side);
       lobby.transcript = lobby.transcript.filter((e) => e.stepIndex !== turn.stepIndex);
-      lobby.transcript.push({ stepIndex: turn.stepIndex, side: turn.side, text, at: Date.now() });
+      lobby.transcript.push({
+        stepIndex: turn.stepIndex,
+        side: turn.side,
+        text: full,
+        at: Date.now(),
+      });
     }),
   );
 }
@@ -550,11 +607,13 @@ function turnIsAcceptable(lobby: Lobby, sender: Participant, stepIndex: number):
     a fresh one on return — so blobs APPEND (bounded) and each is transcribed;
     their texts join for that step. */
 export function acceptAudioTurn(
+  io: Io,
   lobby: Lobby,
   sender: Participant,
   stepIndex: number,
   mime: string,
   data: Buffer,
+  seq: number,
 ): void {
   // Every rejection below used to be a silent return, which is how a lost turn
   // became invisible. Say which gate closed.
@@ -563,34 +622,50 @@ export function acceptAudioTurn(
   if (!lobby.debateCompleted && lobby.status !== 'in_debate') return drop('lobby_not_live');
   if (!turnIsAcceptable(lobby, sender, stepIndex)) return drop('wrong_step_or_speaker');
   const side = sideOf(lobby, sender)!;
+  // A turn is now several segments, so these ceilings are per-turn segment
+  // counts rather than "how many times did you upload".
   const forStep = lobby.audioTurns.filter((a) => a.stepIndex === stepIndex && a.side === side);
-  if (forStep.length >= 3 || lobby.audioTurns.length >= 18) return drop('too_many_turns');
-  lobby.audioTurns.push({ stepIndex, side, mime, data });
-  event('audio_ok', { code: lobby.code, step: stepIndex, bytes: data.length });
+  if (forStep.length >= 24 || lobby.audioTurns.length >= 140) return drop('too_many_segments');
+  const turn: AudioTurn = { stepIndex, side, mime, data, seq };
+  lobby.audioTurns.push(turn);
+  event('audio_ok', { code: lobby.code, step: stepIndex, seq, bytes: data.length });
   touch(lobby);
+  // Transcribe NOW rather than at turn end: the words are ready when the bot
+  // needs them, and the speaker gets captions proving they were heard.
+  void transcribeSegment(io, lobby, turn, sender.socketId);
 }
 
 /** Whisper the recorded turns; where transcription succeeds it REPLACES any
     browser speech chunks for that step (higher quality, esp. Arabic). */
 async function applyServerTranscription(lobby: Lobby): Promise<void> {
-  if (lobby.audioTurns.length === 0) return;
-  const turns = lobby.audioTurns;
-  lobby.audioTurns = []; // free the buffers regardless of outcome
+  // Most segments were transcribed the moment they arrived; this is the final
+  // sweep for the ones still outstanding (last segment of the last turn, plus
+  // anything Whisper failed on). Re-running the whole debate here would double
+  // the STT bill and duplicate text.
+  const pending = lobby.audioTurns.filter((a) => !a.transcribed);
   const results = await Promise.all(
-    turns.map(async (turn) => ({ turn, text: await transcribe(turn.data) })),
+    pending.map(async (turn) => ({ turn, text: await transcribe(turn.data) })),
   );
-  // Group by step, keep upload order, join partial recordings into one text.
-  const bySteps = new Map<number, { side: Side; texts: string[] }>();
   for (const { turn, text } of results) {
+    turn.transcribed = true;
     if (!text) continue; // keep whatever browser chunks exist for this step
-    const entry = bySteps.get(turn.stepIndex) ?? { side: turn.side, texts: [] };
-    entry.texts.push(text);
-    bySteps.set(turn.stepIndex, entry);
+    lobby.segmentText.push({
+      stepIndex: turn.stepIndex,
+      side: turn.side,
+      seq: turn.seq,
+      text,
+    });
   }
-  for (const [stepIndex, { side, texts }] of bySteps) {
+  // Rebuild every step that has any transcribed segment, in segment order.
+  const steps = new Map<number, Side>();
+  for (const s of lobby.segmentText) steps.set(s.stepIndex, s.side);
+  for (const [stepIndex, side] of steps) {
+    const full = rebuildStep(lobby, stepIndex, side);
+    if (!full) continue;
     lobby.transcript = lobby.transcript.filter((e) => e.stepIndex !== stepIndex);
-    lobby.transcript.push({ stepIndex, side, text: texts.join(' '), at: Date.now() });
+    lobby.transcript.push({ stepIndex, side, text: full, at: Date.now() });
   }
+  lobby.audioTurns = []; // free the buffers
 }
 
 export function acceptChunk(lobby: Lobby, sender: Participant, chunk: SpeechChunk): void {

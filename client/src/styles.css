@@ -1958,6 +1958,21 @@ html[dir='rtl'] .meter-hint {
   font-size: 13.5px;
   color: var(--muted);
 }
+/* what the judge has heard from you so far, this turn */
+.caption {
+  margin: 10px auto 0;
+  max-width: 900px;
+  padding: 8px 14px;
+  text-align: center;
+  font-size: 14.5px;
+  line-height: 1.45;
+  color: var(--ink);
+  background: rgba(242, 232, 213, 0.06);
+  border-radius: 10px;
+  max-height: 4.4em;
+  overflow: hidden;
+}
+
 /* the bot's turn broke on our side: say it plainly, don't hide it */
 .phase-rule-failed {
   color: var(--for);

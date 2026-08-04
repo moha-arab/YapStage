@@ -584,7 +584,15 @@ io.on('connection', (socket) => {
       });
       return;
     }
-    acceptAudioTurn(lobby, me, Number(p.stepIndex), String(p.mime ?? '').slice(0, 80), buf);
+    acceptAudioTurn(
+      io,
+      lobby,
+      me,
+      Number(p.stepIndex),
+      String(p.mime ?? '').slice(0, 80),
+      buf,
+      Number.isFinite(Number(p.seq)) ? Number(p.seq) : 0,
+    );
   });
 
   socket.on('verdict:retry', () => {

@@ -169,8 +169,15 @@ export interface ClientToServer {
   'speech:chunk': (p: SpeechChunk) => void;
   /** End YOUR OWN current turn early — the mic passes immediately. */
   'turn:done': (p: { stepIndex: number }) => void;
-  /** One recorded audio blob per completed speaking turn (server-STT mode). */
-  'audio:turn': (p: { stepIndex: number; mime: string; data: ArrayBuffer }) => void;
+  /** One self-contained audio SEGMENT of a speaking turn (server-STT mode).
+      `seq` orders segments within the turn; a turn is several of these, sent
+      while you speak rather than one blob at the end. */
+  'audio:turn': (p: {
+    stepIndex: number;
+    mime: string;
+    data: ArrayBuffer;
+    seq?: number;
+  }) => void;
   'verdict:retry': () => void;
   'rematch': () => void; // want to run it back with the same person
   /** Ask for a shareable link to this verdict. The whole card is encoded in
@@ -226,6 +233,9 @@ export interface ServerToClient {
   'rematch:go': () => void;
   /** The YapMaster's coaching answer (sent only to the asker). */
   'coach:reply': (p: { text: string; error?: boolean; done?: boolean }) => void;
+  /** What we have transcribed of YOUR current turn so far. Sent only to the
+      speaker. Proof, while you talk, that the judge is receiving you. */
+  'caption': (p: { stepIndex: number; text: string }) => void;
   /** The bot's spoken turn: its argument text + optional synthesized audio.
       `failed` means generation broke on our side (API down, out of credits).
       Without it an empty text is indistinguishable from a bot that chose to
