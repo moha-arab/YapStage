@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { LobbyUpdate, Side } from '../../../server/src/protocol';
 import { socket } from '../socket';
 import { initAudio } from '../sound';
+import { unlockBotVoice } from '../botvoice';
 import { useAudioLevel } from '../useAudioLevel';
 import { useI18n } from '../i18n';
 import MicMeter from '../MicMeter';
@@ -59,6 +60,7 @@ export default function GreenRoom({
 
   function confirm() {
     initAudio(); // user gesture: unlocks the drum roll for the verdict later
+    unlockBotVoice(); // and the element that reads the ruling aloud
     socket.emit('pick:confirm');
   }
 

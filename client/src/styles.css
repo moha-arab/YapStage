@@ -489,6 +489,17 @@ html[dir='rtl'] .meter-hint {
   transform: rotate(-1deg);
 }
 
+/* which client bundle this device is running (diagnostics, deliberately dim) */
+.build-stamp {
+  margin: 6px 0 0;
+  text-align: center;
+  font-family: var(--marker);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  color: var(--muted);
+  opacity: 0.4;
+}
+
 /* share the ruling (opt-in, nothing stored) */
 .share-row {
   margin: 18px auto 0;

@@ -202,6 +202,9 @@ export default function Home({ notice, onEntered, onPlayBot, onLearn }: Props) {
 
       <p className="footnote">{t(serverStt ? 'footAny' : 'footChrome')}</p>
       <p className="small-print">{t('smallPrint')}</p>
+      {/* Which bundle is this phone actually running? Once the app installs to
+          a home screen, that stops being answerable any other way. */}
+      <p className="build-stamp">build {__BUILD__}</p>
 
       <div className="marquee" aria-hidden="true">
         <span className="marquee-track">

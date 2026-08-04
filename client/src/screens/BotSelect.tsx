@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import type { BotInfo, Pace, Side, TopicCategory, TopicMode } from '../../../server/src/protocol';
 import { useI18n } from '../i18n';
 import { initAudio } from '../sound';
+import { unlockBotVoice } from '../botvoice';
 import BotAvatar from '../BotAvatar';
 import VideoTile from '../VideoTile';
 
@@ -49,7 +50,11 @@ export default function BotSelect({ localStream, mediaError, onRetryMedia, onSta
 
   function start() {
     if (!ready || !botId) return;
-    initAudio(); // user gesture: unlocks the bot's voice + the verdict drum roll
+    // Both must happen INSIDE this tap. initAudio unlocks the AudioContext and
+    // speech synthesis; unlockBotVoice unlocks the <audio> element that plays
+    // the bot's real voice, which iOS permits per-element, not per-page.
+    initAudio();
+    unlockBotVoice();
     onStart({
       botId,
       topicMode: mode,
