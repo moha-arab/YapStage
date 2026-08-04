@@ -57,6 +57,14 @@ export async function initStore(): Promise<void> {
         created_at timestamptz NOT NULL DEFAULT now()
       )
     `);
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS shutdowns (
+        id           bigserial PRIMARY KEY,
+        signal       text NOT NULL,
+        live_lobbies integer NOT NULL DEFAULT 0,
+        at           timestamptz NOT NULL DEFAULT now()
+      )
+    `);
     ready = true;
     console.log('[store] postgres ready — share links are short');
   } catch (err) {
@@ -86,6 +94,33 @@ export async function saveCard(card: Card): Promise<string | null> {
     }
   }
   return null;
+}
+
+// Whether the shutdown handler ran at all is otherwise unknowable: the event
+// ring dies with the process, and Railway's log stream isn't readable from
+// here. A row survives the restart, so the next boot can report it.
+export async function recordShutdown(signal: string, liveLobbies: number): Promise<void> {
+  if (!pool || !ready) return;
+  try {
+    await pool.query(
+      `INSERT INTO shutdowns (signal, live_lobbies) VALUES ($1, $2)`,
+      [signal.slice(0, 20), liveLobbies],
+    );
+  } catch (err) {
+    console.error('[store] recordShutdown failed:', err);
+  }
+}
+
+export async function lastShutdown(): Promise<Record<string, unknown> | null> {
+  if (!pool || !ready) return null;
+  try {
+    const res = await pool.query(
+      `SELECT signal, live_lobbies, at FROM shutdowns ORDER BY at DESC LIMIT 1`,
+    );
+    return res.rowCount === 1 ? (res.rows[0] as Record<string, unknown>) : null;
+  } catch {
+    return null;
+  }
 }
 
 export async function loadCard(id: string): Promise<Card | null> {

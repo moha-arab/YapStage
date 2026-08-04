@@ -44,7 +44,14 @@ import { sttConfigured } from './stt.js';
 import { namesOf, runJudge, scoreTranscript } from './judge.js';
 import { coachReply } from './coach.js';
 import { cardFrom, renderCard } from './share.js';
-import { initStore, loadCard, saveCard, storeReady } from './store.js';
+import {
+  initStore,
+  lastShutdown,
+  loadCard,
+  recordShutdown,
+  saveCard,
+  storeReady,
+} from './store.js';
 import { TOPIC_BY_ID, TOPIC_CATEGORIES } from './topics.js';
 import { event, recentEvents, statsSnapshot } from './stats.js';
 import { allow } from './ratelimit.js';
@@ -135,7 +142,11 @@ app.get<{ Querystring: { key?: string; code?: string; limit?: string } }>(
       return reply.code(404).send({ error: 'Not Found' });
     }
     const limit = Math.min(400, Math.max(1, Number(req.query.limit) || 100));
-    return { events: recentEvents(limit, req.query.code?.toUpperCase()) };
+    return {
+      // How the PREVIOUS instance died. Present means the shutdown handler ran.
+      previousShutdown: await lastShutdown(),
+      events: recentEvents(limit, req.query.code?.toUpperCase()),
+    };
   },
 );
 
@@ -840,6 +851,8 @@ async function shutdown(signal: string): Promise<void> {
     // will not be alive to serve. Say it plainly and let the client reset.
     io.to(lobby.code).emit('debate:aborted', { reason: 'serverRestart' });
   }
+  // Durable proof this handler ran, readable after the restart.
+  await recordShutdown(signal, live.length);
   // Let Socket.IO actually put those frames on the wire. Nothing is waiting on
   // us for this long, and a dropped goodbye is the whole bug.
   await new Promise((r) => setTimeout(r, 700));
