@@ -22,4 +22,9 @@ COPY . .
 RUN npm run build
 
 ENV NODE_ENV=production
-CMD ["npm", "start"]
+
+# Run node DIRECTLY, not via `npm start`. Under npm, npm is process 1 and node
+# is its child, so Railway's shutdown signal goes to npm and npm does not pass
+# it on — the server never learns it is about to die and everyone mid-debate
+# just loses their connection. As process 1, node receives the signal itself.
+CMD ["node", "server/dist/index.js"]

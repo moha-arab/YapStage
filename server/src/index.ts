@@ -830,23 +830,36 @@ async function shutdown(signal: string): Promise<void> {
   if (shuttingDown) return;
   shuttingDown = true;
   const live = allLobbies().filter((l) => l.status === 'in_debate' || l.status === 'greenroom');
+  // console.log directly as well as event(): the ring buffer dies with this
+  // process, so Railway's log stream is the only durable record that the
+  // handler ran at all.
+  console.log(`[shutdown] ${signal} received, notifying ${live.length} live lobbies`);
   event('shutdown', { signal, liveLobbies: live.length });
   for (const lobby of live) {
     // Not abort(): that keeps the lobby around for a re-fetch that this process
     // will not be alive to serve. Say it plainly and let the client reset.
     io.to(lobby.code).emit('debate:aborted', { reason: 'serverRestart' });
   }
-  // Give Socket.IO a moment to flush those frames before the process dies.
-  await new Promise((r) => setTimeout(r, 400));
+  // Let Socket.IO actually put those frames on the wire. Nothing is waiting on
+  // us for this long, and a dropped goodbye is the whole bug.
+  await new Promise((r) => setTimeout(r, 700));
   try {
     await app.close();
   } catch {
     // closing is best-effort; we're leaving either way
   }
+  console.log('[shutdown] done');
   process.exit(0);
 }
-process.on('SIGTERM', () => void shutdown('SIGTERM'));
-process.on('SIGINT', () => void shutdown('SIGINT'));
+// Never let a slow close hold the container open past the platform's patience.
+function arm(signal: NodeJS.Signals): void {
+  process.on(signal, () => {
+    setTimeout(() => process.exit(0), 4000).unref();
+    void shutdown(signal);
+  });
+}
+arm('SIGTERM');
+arm('SIGINT');
 
 await app.listen({ port: PORT, host: '0.0.0.0' });
 console.log(`[server] YapStage listening on :${PORT}`);
