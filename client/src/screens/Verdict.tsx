@@ -19,6 +19,7 @@ interface Props {
     names: Record<Side, string>;
     mime?: string;
     audio?: ArrayBuffer;
+    heard?: Record<Side, number>;
   } | null;
   status: { state: 'pending' | 'failed'; message?: string; terminal?: boolean } | null;
   mySide: Side | undefined;
@@ -349,7 +350,16 @@ export default function VerdictScreen({
         <span className="stamp-side">{t(winner)}</span>
       </div>
       <p className="summary">{verdict.summary}</p>
-      {mySide !== undefined ? (
+      {/* Zero words from you means the mic never reached the judge. Say that
+          plainly — otherwise it reads as a defeat you earned, and the only way
+          to find out is to ask the coach afterwards and be told "I heard
+          nothing", which is how this surfaced in the first place. */}
+      {mySide !== undefined && info.heard && info.heard[mySide] === 0 ? (
+        <div className="not-heard">
+          <p className="not-heard-line">{t('notHeard')}</p>
+          <p className="not-heard-fix">{t('notHeardFix')}</p>
+        </div>
+      ) : mySide !== undefined ? (
         <p className={`you-result ${youWon ? 'won' : 'lost'}`}>
           {youWon ? t('youWon') : t('youLost')}
         </p>

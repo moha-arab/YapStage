@@ -34,6 +34,9 @@ const en: Dict = {
   marquee: 'tonight · yapstage · settle it on camera · loser buys shawarma · ',
   receipts: 'receipts',
   receiptsNote: 'saved on this device only. we keep nothing.',
+  notHeard: 'the judge never heard a word from you. this score is not on you.',
+  notHeardFix:
+    'your mic reached us as silence. check the mic chip says "recording" during your turn, and that nothing else on the phone grabbed the mic first.',
   shareBtn: 'share this ruling',
   shareCopied: 'link copied',
   shareNote: 'scores and quotes only. the video was never recorded.',
@@ -287,6 +290,9 @@ const ar: Dict = {
   marquee: 'الليلة · يابستيج · احسمها على الكاميرا · الخسران يدفع الشاورما · ',
   receipts: 'السجل',
   receiptsNote: 'محفوظ على هذا الجهاز فقط. نحن لا نحفظ شيئاً.',
+  notHeard: 'الحكم لم يسمع منك أي كلمة. هذه النتيجة ليست غلطتك.',
+  notHeardFix:
+    'وصلنا صوتك صامتاً. تأكد أن مؤشر المايك يقول "يسجّل" أثناء دورك، وأن لا تطبيق آخر أخذ المايك قبلنا.',
   shareBtn: 'شارك الحكم',
   shareCopied: 'تم نسخ الرابط',
   shareNote: 'النتائج والاقتباسات فقط. الفيديو لم يُسجَّل أبداً.',

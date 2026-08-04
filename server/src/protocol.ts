@@ -215,6 +215,10 @@ export interface ServerToClient {
     names: Record<Side, string>;
     mime?: string;
     audio?: ArrayBuffer;
+    /** Words the judge actually received from each side. Zero means we never
+        heard them — which must be said out loud, not left to look like a
+        crushing defeat they earned. */
+    heard?: Record<Side, number>;
   }) => void;
   /** Rematch handshake state (per recipient's own view). */
   'rematch:update': (p: { youWant: boolean; peerWant: boolean; peerLeft: boolean }) => void;

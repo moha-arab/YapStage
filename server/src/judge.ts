@@ -282,6 +282,17 @@ export async function scoreTranscript(
 // judge actually speaks sound like a screen reader.
 const YAPMASTER_VOICE = 'pqHfZKP75CvOlQylNhV4'; // Bill
 
+/** How many words each side actually got into the transcript. A zero here is
+    the difference between "you argued badly" and "your mic never reached us",
+    and the debater deserves to know which one happened. */
+function heardCounts(lobby: Lobby): Record<Side, number> {
+  const out: Record<Side, number> = { FOR: 0, AGAINST: 0 };
+  for (const e of lobby.transcript) {
+    out[e.side] += (e.text.match(/\S+/g) ?? []).length;
+  }
+  return out;
+}
+
 /** Send the ruling, with the YapMaster's voice attached when we have it. */
 function emitVerdict(io: Io, lobby: Lobby, to: string): void {
   io.to(to).emit('verdict:result', {
@@ -291,6 +302,7 @@ function emitVerdict(io: Io, lobby: Lobby, to: string): void {
     audio: lobby.verdictAudio
       ? (lobby.verdictAudio.data as unknown as ArrayBuffer)
       : undefined,
+    heard: heardCounts(lobby),
   });
 }
 

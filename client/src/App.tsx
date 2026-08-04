@@ -37,6 +37,8 @@ interface VerdictInfo {
   /** The YapMaster reading the ruling. Absent when TTS is off or failed. */
   mime?: string;
   audio?: ArrayBuffer;
+  /** Words the judge actually received from each side. */
+  heard?: Record<Side, number>;
 }
 
 interface AbortInfo {

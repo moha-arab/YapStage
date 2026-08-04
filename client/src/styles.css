@@ -489,6 +489,30 @@ html[dir='rtl'] .meter-hint {
   transform: rotate(-1deg);
 }
 
+/* the judge got nothing from you: a diagnosis, not a taunt */
+.not-heard {
+  margin: 14px auto 0;
+  max-width: 520px;
+  padding: 12px 16px;
+  border: 1px solid rgba(226, 87, 76, 0.5);
+  border-radius: 10px;
+  background: rgba(226, 87, 76, 0.08);
+  text-align: center;
+}
+.not-heard-line {
+  margin: 0;
+  font-family: var(--marker);
+  font-size: 15px;
+  color: var(--for);
+}
+.not-heard-fix {
+  margin: 6px 0 0;
+  font-family: var(--marker);
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--muted);
+}
+
 /* which client bundle this device is running (diagnostics, deliberately dim) */
 .build-stamp {
   margin: 6px 0 0;
