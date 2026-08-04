@@ -46,3 +46,5 @@ export function statsSnapshot(): Record<string, unknown> {
 // (restart-notice test marker)
 
 // (shutdown-record test marker)
+
+// (client disconnect-notice verification marker)
