@@ -37,6 +37,7 @@ import {
   scriptFor,
   startBotDebate,
   startDebate,
+  startDispute,
   type Io,
 } from './debate.js';
 import { BOT_BY_ID, publicBots } from './bots.js';
@@ -44,6 +45,7 @@ import { sttConfigured } from './stt.js';
 import { namesOf, runJudge, scoreTranscript } from './judge.js';
 import { coachReply } from './coach.js';
 import { cardFrom, renderCard } from './share.js';
+import { DISPUTE_MAX } from './dispute.js';
 import {
   initStore,
   lastShutdown,
@@ -232,6 +234,12 @@ function updateFor(lobby: Lobby, receiver: Participant): LobbyUpdate {
       peerSide: isHost ? pick.guestSide : pick.hostSide,
       youConfirmed: isHost ? pick.hostConfirmed : pick.guestConfirmed,
       peerConfirmed: isHost ? pick.guestConfirmed : pick.hostConfirmed,
+      // You get YOUR OWN account back, and only whether theirs has landed.
+      // Seeing what the other person wrote before you write yours would turn
+      // an honest description into a rebuttal.
+      yourDispute: isHost ? pick.hostDispute : pick.guestDispute,
+      peerDisputeReady: Boolean(isHost ? pick.guestDispute : pick.hostDispute),
+      disputeProblem: pick.disputeProblem,
     },
     iceServers: getIceServers(),
     sttAvailable: sttConfigured(),
@@ -498,6 +506,25 @@ io.on('connection', (socket) => {
     broadcastLobbyUpdate(lobby);
   });
 
+  // Dispute mode: your own account of the argument, in your own words. Writing
+  // it clears any previous refusal so a re-word gets a fresh read.
+  socket.on('pick:dispute', (text) => {
+    if (!allow(`pick:${socket.id}`, 60, 10_000)) return;
+    const lobby = socket.data.code ? getLobby(socket.data.code) : undefined;
+    if (!lobby || lobby.status !== 'greenroom' || lobby.topicMode !== 'dispute') return;
+    const me = participantOf(lobby, socket.id);
+    if (!me) return;
+    const clean = String(text ?? '').trim().slice(0, DISPUTE_MAX);
+    if (me === lobby.host) lobby.pick.hostDispute = clean || null;
+    else lobby.pick.guestDispute = clean || null;
+    // Any change invalidates both confirmations, same as changing a topic.
+    lobby.pick.hostConfirmed = false;
+    lobby.pick.guestConfirmed = false;
+    lobby.pick.disputeProblem = null;
+    touch(lobby);
+    broadcastLobbyUpdate(lobby);
+  });
+
   socket.on('pick:confirm', () => {
     const lobby = socket.data.code ? getLobby(socket.data.code) : undefined;
     if (!lobby || lobby.status !== 'greenroom') return;
@@ -516,13 +543,20 @@ io.on('connection', (socket) => {
         ? agreed
         : lobby.topicMode === 'category'
           ? lobby.categoryKey !== null
-          : true; // random: nothing to pick
+          : lobby.topicMode === 'dispute'
+            ? Boolean(pick.hostDispute && pick.guestDispute)
+            : true; // random: nothing to pick
     if (!ready) return;
     if (me === lobby.host) pick.hostConfirmed = true;
     else pick.guestConfirmed = true;
     touch(lobby);
     broadcastLobbyUpdate(lobby);
-    if (pick.hostConfirmed && pick.guestConfirmed) startDebate(io, lobby);
+    if (!pick.hostConfirmed || !pick.guestConfirmed) return;
+    if (lobby.topicMode === 'dispute') {
+      void startDispute(io, lobby, broadcastLobbyUpdate);
+      return;
+    }
+    startDebate(io, lobby);
   });
 
   socket.on('rtc:ready', () => {

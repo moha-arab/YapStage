@@ -1,4 +1,12 @@
-import type { Difficulty, Pace, Side, TopicMode, TopicText, Verdict } from './protocol.js';
+import type {
+  Difficulty,
+  Framing,
+  Pace,
+  Side,
+  TopicMode,
+  TopicText,
+  Verdict,
+} from './protocol.js';
 
 export interface Participant {
   socketId: string;
@@ -17,6 +25,12 @@ export interface Pick {
   guestSide: Side | null;
   hostConfirmed: boolean;
   guestConfirmed: boolean;
+  /** Dispute mode: each player's own account of the argument. Private to its
+      author until the debate starts — nobody describes anybody else. */
+  hostDispute: string | null;
+  guestDispute: string | null;
+  /** Why we refused to run this one, if we did. */
+  disputeProblem: 'no_clash' | 'too_serious' | 'failed' | null;
 }
 
 export interface TranscriptEntry {
@@ -58,6 +72,8 @@ export interface Lobby {
   bot?: { id: string; name: string; difficulty: Difficulty; side: Side; lang: 'en' | 'ar' };
   pick: Pick;
   topic?: TopicText;
+  /** Dispute mode: what the AI made of the two accounts. */
+  framing?: Framing;
   sides?: { host: Side; guest: Side };
   stepIndex: number; // -1 before step 0
   stepStartedAt: number; // epoch ms of the last phase transition
@@ -123,6 +139,9 @@ export function createLobby(socketId: string, sessionId: string, name: string): 
       guestSide: null,
       hostConfirmed: false,
       guestConfirmed: false,
+      hostDispute: null,
+      guestDispute: null,
+      disputeProblem: null,
     },
     stepIndex: -1,
     stepStartedAt: 0,

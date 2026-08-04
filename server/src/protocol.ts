@@ -10,7 +10,10 @@ export type PhaseLabel = 'opening' | 'rebuttal' | 'defense' | 'closing';
 //  agree    — both pick the exact topic + sides (the negotiated flow)
 //  category — host picks a category; server rolls a random topic + sides from it
 //  random   — server rolls category, topic, and sides
-export type TopicMode = 'agree' | 'category' | 'random';
+//  dispute  — settle-it mode: you both describe a REAL argument you're having
+//             in your own words, and the judge rules who's right, not who
+//             argued a motion better.
+export type TopicMode = 'agree' | 'category' | 'random' | 'dispute';
 
 export type Difficulty = 'easy' | 'medium' | 'hard';
 
@@ -74,6 +77,25 @@ export interface PickState {
   peerSide: Side | null;
   youConfirmed: boolean;
   peerConfirmed: boolean;
+  /** Dispute mode: your own account of the argument, in your own words. You
+      never see or edit theirs — nobody describes anybody else. */
+  yourDispute: string | null;
+  /** Whether the other person has written theirs yet (not the text itself). */
+  peerDisputeReady: boolean;
+  /** Set when their two accounts don't actually disagree, so the debate would
+      be two people talking past each other. The only place we block. */
+  disputeProblem: 'no_clash' | 'too_serious' | 'failed' | null;
+}
+
+/** What the AI made of the two accounts: one statement of the argument, and a
+    position for each side. Generated, never self-written — people write
+    grievances, not positions, and a single author keeps both sides phrased at
+    the same level of charity. */
+export interface Framing {
+  argument: string;
+  positions: Record<Side, string>;
+  /** Each person's own words, kept so the merged version never erases them. */
+  said: Record<Side, string>;
 }
 
 export interface LobbyUpdate {
@@ -102,6 +124,9 @@ export interface DebateStart {
   serverNow: number;
   /** Present only in bots mode — the opponent is this AI, not a human peer. */
   bot?: { id: string; name: string; color: string };
+  /** Dispute mode only: the argument and each side's position, shown instead of
+      FOR/AGAINST. Written during the reveal countdown, so it costs no waiting. */
+  framing?: Framing;
 }
 
 export interface PhaseUpdate {
@@ -130,6 +155,17 @@ export interface CategoryScores {
   delivery: number; // 0-20
 }
 
+/** Dispute mode's verdict: a court-show ruling rather than a scorecard. The
+    category scores still exist underneath so the coaching survives. */
+export interface Ruling {
+  /** Percentages of who is right, clamped to sum to 100. */
+  split: Record<Side, number>;
+  /** One line, spoken aloud: the sentencing moment. */
+  decree: string;
+  /** What each of them actually has to do now. */
+  orders: string[];
+}
+
 export interface Verdict {
   winner: Side;
   summary: string; // one-line hype ruling, read aloud at the reveal
@@ -137,6 +173,8 @@ export interface Verdict {
   bestQuote: Record<Side, string>;
   feedback: Record<Side, string[]>; // 2 bullets each
   injectionDetected: boolean;
+  /** Dispute mode only. */
+  ruling?: Ruling;
 }
 
 export type JoinError = 'not_found' | 'full' | 'in_progress' | 'bad_name' | 'rate_limited';
@@ -162,6 +200,8 @@ export interface ClientToServer {
   'pick:category': (key: string) => void; // host only: category for 'category' mode
   'pick:pace': (pace: Pace) => void; // host only: turn lengths
   'pick:topic': (topicId: string) => void; // set YOUR topic choice (by id)
+  /** Dispute mode: describe the argument in YOUR own words (≤400 chars). */
+  'pick:dispute': (text: string) => void;
   'pick:side': (side: Side) => void; // set YOUR side
   'pick:confirm': () => void; // second confirm (with matching picks) starts the debate
   'rtc:ready': () => void;

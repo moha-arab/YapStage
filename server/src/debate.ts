@@ -21,6 +21,7 @@ import {
 import { namesOf, runJudge } from './judge.js';
 import { TOPIC_BY_ID, TOPIC_CATEGORIES } from './topics.js';
 import { transcribe } from './stt.js';
+import { frameDispute } from './dispute.js';
 import { event } from './stats.js';
 import Anthropic from '@anthropic-ai/sdk';
 import { BOT_BY_ID, difficultyDirective, lengthRule, type Bot } from './bots.js';
@@ -95,6 +96,84 @@ const MAX_CHUNK_CHARS = 600;
 const MAX_TRANSCRIPT_ENTRIES = 400;
 
 const randomOf = <T>(arr: readonly T[]): T => arr[Math.floor(Math.random() * arr.length)];
+
+/** Settle-it: read both accounts, write the framing, then run a normal debate.
+    The framing call happens BEFORE the reveal rather than during it, because a
+    refusal has to be able to stop the debate from starting at all. It is a
+    small fast model, so the pause is roughly one beat. */
+export async function startDispute(
+  io: Io,
+  lobby: Lobby,
+  broadcast: (lobby: Lobby) => void,
+): Promise<void> {
+  if (lobby.status !== 'greenroom' || !lobby.host || !lobby.guest) return;
+  const { pick } = lobby;
+  if (!pick.hostDispute || !pick.guestDispute) return;
+
+  // Coin-flip which seat is FOR: nothing about the argument should depend on
+  // who happened to create the lobby.
+  const [hostSide, guestSide]: [Side, Side] =
+    Math.random() < 0.5 ? ['FOR', 'AGAINST'] : ['AGAINST', 'FOR'];
+  const said: Record<Side, string> = {
+    [hostSide]: pick.hostDispute,
+    [guestSide]: pick.guestDispute,
+  } as Record<Side, string>;
+
+  let result;
+  try {
+    result = await frameDispute(said, lobby.bot?.lang ?? 'en');
+  } catch (err) {
+    console.error(`[dispute] ${lobby.code} framing failed:`, err);
+    event('dispute_framing_failed', { code: lobby.code });
+    result = { ok: false, problem: 'no_clash' } as const;
+  }
+  // The lobby may have moved on while we were waiting on the model.
+  if (lobby.status !== 'greenroom' || !lobby.host || !lobby.guest) return;
+
+  if (!result.ok) {
+    // The one place we block: an argument nobody is having, or one that should
+    // not be a game show, is worse than a moment of friction.
+    pick.disputeProblem = result.problem;
+    pick.hostConfirmed = false;
+    pick.guestConfirmed = false;
+    touch(lobby);
+    broadcast(lobby);
+    return;
+  }
+
+  lobby.framing = result.framing;
+  // The judge and every existing screen key off `topic`, so the argument
+  // statement becomes the motion. Dispute text is player-written and dies with
+  // the lobby, exactly like a transcript.
+  lobby.topic = { id: 'dispute', en: result.framing.argument, ar: result.framing.argument };
+  lobby.sides = { host: hostSide, guest: guestSide };
+  lobby.status = 'in_debate';
+  touch(lobby);
+  event('dispute_started', { code: lobby.code });
+
+  const names: Record<Side, string> = {
+    FOR: hostSide === 'FOR' ? lobby.host.name : lobby.guest.name,
+    AGAINST: hostSide === 'AGAINST' ? lobby.host.name : lobby.guest.name,
+  };
+  const now = Date.now();
+  const reveal = revealMs(lobby);
+  const startsAt = now + reveal;
+  for (const [p, side] of [
+    [lobby.host, hostSide],
+    [lobby.guest, guestSide],
+  ] as const) {
+    io.to(p.socketId).emit('debate:start', {
+      topic: lobby.topic,
+      yourSide: side,
+      names,
+      startsAt,
+      serverNow: now,
+      framing: result.framing,
+    });
+  }
+  lobby.stepIndex = -1;
+  lobby.phaseTimer = setTimeout(() => advance(io, lobby, -1), reveal);
+}
 
 export function startDebate(io: Io, lobby: Lobby): void {
   if (lobby.status !== 'greenroom' || !lobby.host || !lobby.guest) return;
