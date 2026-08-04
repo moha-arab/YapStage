@@ -42,3 +42,5 @@ export function statsSnapshot(): Record<string, unknown> {
 
 // Restart-notice verification: a live debate was held open on prod while this
 // deployed, to prove SIGTERM reaches the shutdown handler on Railway.
+
+// (restart-notice test marker)
