@@ -44,3 +44,5 @@ export function statsSnapshot(): Record<string, unknown> {
 // deployed, to prove SIGTERM reaches the shutdown handler on Railway.
 
 // (restart-notice test marker)
+
+// (shutdown-record test marker)
