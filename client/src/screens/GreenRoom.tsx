@@ -184,36 +184,47 @@ export default function GreenRoom({
           </div>
 
           <div className="picker card">
-            <div className="mode-row">
-              {(['agree', 'category', 'random', 'dispute'] as const).map((m) => (
-                <button
-                  key={m}
-                  className={`cat-tab ${mode === m ? 'cat-active' : ''}`}
-                  disabled={!isHost}
-                  onClick={() => socket.emit('pick:mode', m)}
-                >
-                  {t(`mode_${m}`)}
-                </button>
-              ))}
-            </div>
-            {!isHost ? <p className="mode-hint">{t('modeHostControls', { x: peer })}</p> : null}
-
-            <div className="setup-row pace-row">
-              <span className="setup-label">{t('paceLabel')}</span>
-              <div className="chip-row">
-                {(['standard', 'blitz', 'long'] as const).map((pc) => (
+            {/* Settle-it arrivals should never face three debate-topic tabs
+                they didn't ask for: in dispute mode the whole tab row becomes
+                one tape header, with a single quiet exit for the host. */}
+            {mode === 'dispute' ? (
+              <div className="mode-row mode-row-dispute">
+                <span className="tape">{t('disputeHeader')}</span>
+                {isHost ? (
+                  <button className="mode-link" onClick={() => socket.emit('pick:mode', 'agree')}>
+                    {t('makeItDebate')}
+                  </button>
+                ) : null}
+              </div>
+            ) : isHost ? (
+              <div className="mode-row">
+                {(['agree', 'category', 'random'] as const).map((m) => (
                   <button
-                    key={pc}
-                    className={`cat-tab ${lobby.pace === pc ? 'cat-active' : ''}`}
-                    disabled={!isHost}
-                    onClick={() => socket.emit('pick:pace', pc)}
+                    key={m}
+                    className={`cat-tab ${mode === m ? 'cat-active' : ''}`}
+                    onClick={() => socket.emit('pick:mode', m)}
                   >
-                    {t(`pace_${pc}`)}
+                    {t(`mode_${m}`)}
                   </button>
                 ))}
               </div>
-              <span className="pace-hint">{t(`paceHint_${lobby.pace}`)}</span>
-            </div>
+            ) : null}
+
+            {/* Guests see the host's choices as facts, not as rows of greyed
+                buttons pretending to be options. */}
+            {!isHost ? (
+              <div className="host-choices">
+                {mode !== 'dispute' ? (
+                  <span className="tape tape-static">
+                    {t('modeWord')}: {t(`mode_${mode}`)}
+                  </span>
+                ) : null}
+                <span className="tape tape-static">
+                  {t('paceLabel')}: {t(`pace_${lobby.pace}`)}
+                </span>
+                <p className="mode-hint">{t('modeHostControls', { x: peer })}</p>
+              </div>
+            ) : null}
 
             {mode === 'agree' ? (
               <>
@@ -324,6 +335,38 @@ export default function GreenRoom({
             ) : (
               <p className="mode-desc">{t('randomDesc')}</p>
             )}
+
+            {/* The mirror of the home page's grudge-match door: settle-it is
+                reachable from any debate mode, but as its own red note, never
+                as a fourth topic tab. */}
+            {isHost && mode !== 'dispute' ? (
+              <button
+                className="mode-link mode-link-settle"
+                onClick={() => socket.emit('pick:mode', 'dispute')}
+              >
+                {t('settleInstead')}
+              </button>
+            ) : null}
+
+            {/* Pace sits with the other "how we play" facts, just above the
+                point of commitment, host-only like every other lobby setting. */}
+            {isHost ? (
+              <div className="setup-row pace-row">
+                <span className="setup-label">{t('paceLabel')}</span>
+                <div className="chip-row">
+                  {(['standard', 'blitz', 'long'] as const).map((pc) => (
+                    <button
+                      key={pc}
+                      className={`cat-tab ${lobby.pace === pc ? 'cat-active' : ''}`}
+                      onClick={() => socket.emit('pick:pace', pc)}
+                    >
+                      {t(`pace_${pc}`)}
+                    </button>
+                  ))}
+                </div>
+                <span className="pace-hint">{t(`paceHint_${lobby.pace}`)}</span>
+              </div>
+            ) : null}
 
             <label className="consent-row">
               <input

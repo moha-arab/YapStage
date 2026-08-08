@@ -308,7 +308,7 @@ html[dir='rtl'] .meter-hint {
 }
 
 .home .card {
-  width: min(440px, 92vw);
+  width: min(520px, 94vw);
   text-align: start;
   /* no tilt on this card: rotated text inputs blur the caret into invisibility */
   box-shadow: 6px 6px 0 rgba(0, 0, 0, 0.5);
@@ -339,6 +339,233 @@ html[dir='rtl'] .meter-hint {
   flex: 1;
 }
 
+/* ============ home: the three doors ============ */
+/* Tighter vertical rhythm than the default stage so the first door is visible
+   on a short phone viewport. */
+.home {
+  gap: 14px;
+}
+
+.doors {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-top: 18px;
+}
+
+.doors > .field-label {
+  margin-bottom: 0;
+}
+
+/* A door is a mode you can walk through: title, one-line description, and a
+   billing tape in the corner saying who it needs. Full color even before a
+   name is typed; a wall of grey buttons reads as broken, not as "name first". */
+.door {
+  position: relative;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  text-align: start;
+  gap: 3px;
+  padding: 15px 16px 13px;
+}
+
+.door:disabled {
+  opacity: 0.7;
+  filter: none;
+}
+
+.door-title {
+  font-size: 17px;
+  font-weight: 800;
+  letter-spacing: 0.01em;
+}
+
+.door-desc {
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--muted);
+  line-height: 1.4;
+}
+
+.door-tape {
+  position: absolute;
+  top: -10px;
+  inset-inline-end: 10px;
+  font-family: var(--marker);
+  font-size: 11px;
+  color: #241d10;
+  background: var(--ink);
+  padding: 1px 9px;
+  transform: rotate(3deg);
+  clip-path: polygon(2% 0, 98% 4%, 100% 96%, 1% 100%);
+}
+
+.door-primary {
+  background: var(--gold);
+  border-color: var(--gold);
+  color: #1c1508;
+  box-shadow: 4px 4px 0 var(--ink);
+}
+
+.door-primary .door-desc {
+  color: #52431c;
+}
+
+.door-settle {
+  border-color: var(--for);
+}
+
+.door-settle .door-title {
+  color: var(--for);
+}
+
+.door-bot {
+  border-color: var(--gold);
+}
+
+.door-bot .door-title {
+  color: var(--gold);
+}
+
+/* first-timer nudge on the solo door */
+.door-sticker {
+  position: absolute;
+  top: -13px;
+  inset-inline-start: 10px;
+  font-family: var(--marker);
+  font-size: 11px;
+  color: var(--gold);
+  background: var(--bg);
+  border: 2px solid var(--gold);
+  padding: 1px 8px;
+  transform: rotate(-2deg);
+}
+
+/* ============ home: the ticket window (join by code) ============ */
+.join-ticket {
+  position: relative;
+  margin-top: 18px;
+  /* --line vanishes against the panel; the window has to actually read */
+  border: 3px dashed rgba(151, 144, 126, 0.55);
+  background: var(--panel-2);
+  padding: 12px 14px;
+  transform: rotate(0.4deg);
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+
+.join-ticket .ticket-head {
+  margin: 0;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.join-ticket .ticket-head strong {
+  color: var(--ink);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 12px;
+  margin-inline-end: 6px;
+}
+
+.join-ticket .join-row {
+  margin: 0;
+}
+
+.join-ticket .input-code {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Invite-link arrival: the ticket becomes the main event. */
+.join-ticket-hero {
+  border-style: solid;
+  border-color: var(--gold);
+  transform: rotate(-0.4deg);
+  padding-top: 16px;
+}
+
+.join-ticket .ticket-head-hero {
+  color: var(--ink);
+  font-size: 15px;
+}
+
+.reveal-doors {
+  margin-top: 12px;
+}
+
+/* first-timer path to debate school: a marker note, never a fourth door */
+.learn-callout {
+  font-family: var(--marker);
+  font-size: 16px;
+  color: var(--gold);
+  background: none;
+  border: none;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 4px;
+  padding: 2px 8px;
+}
+
+.learn-callout:hover {
+  color: var(--ink);
+}
+
+/* ============ home: your corner ============ */
+/* Everything personal in one quiet section: pattern, record, matches, school. */
+.corner {
+  width: min(520px, 94vw);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  margin-top: 26px;
+}
+
+.corner .coach-read {
+  margin: 0;
+  border-radius: 2px;
+  width: 100%;
+}
+
+/* the W-L sticker IS the toggle: hover lifts it so it reads as clickable */
+.record-toggle {
+  border: none;
+  cursor: pointer;
+  transition: transform 0.07s ease;
+}
+
+.record-toggle:hover {
+  transform: rotate(-2deg) translateY(-2px);
+  text-decoration: underline;
+}
+
+.corner .bouts {
+  margin-top: 0;
+  width: 100%;
+}
+
+/* ============ home: fine print ============ */
+.fine-print {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  margin-top: 26px;
+}
+
+.fine-print .footnote,
+.fine-print .small-print {
+  margin: 0;
+}
+
+.fine-print .build-stamp {
+  margin: 2px 0 0;
+}
+
 /* topic picker */
 .picker {
   max-width: 720px;
@@ -349,8 +576,61 @@ html[dir='rtl'] .meter-hint {
   transform: rotate(0.3deg);
 }
 
-/* mode selector: the three big top buttons get a heavier weight than the
-   category tabs so it reads as the primary choice. */
+/* dispute mode replaces the tab row with one tape header + the host's exit */
+.mode-row-dispute {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.mode-link {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-family: var(--marker);
+  font-size: 13px;
+  color: var(--muted);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  padding: 2px 4px;
+  align-self: flex-start;
+}
+
+.mode-link:hover {
+  color: var(--ink);
+}
+
+.mode-link-settle {
+  color: var(--for);
+}
+
+.mode-link-settle:hover {
+  color: var(--ink);
+}
+
+/* guests see the host's choices as stickers, not disabled buttons */
+.host-choices {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.host-choices .tape-static {
+  font-size: 13px;
+  transform: rotate(-1deg);
+}
+
+.host-choices .mode-hint {
+  margin: 0;
+  flex-basis: 100%;
+}
+
+/* mode selector: the debate-topic tabs get a heavier weight than the category
+   tabs so they read as the primary choice. Settle-it is deliberately NOT one
+   of these tabs; it enters as its own red note below the content. */
 .mode-row {
   display: flex;
   flex-wrap: wrap;
@@ -635,11 +915,11 @@ html[dir='rtl'] .meter-hint {
 }
 
 /* marquee ticker */
+/* Rendered as a full-bleed SIBLING of .stage, not a negative-margin hack
+   coupled to the stage padding. */
 .marquee {
-  width: 100vw;
-  margin: 26px calc(-1 * clamp(16px, 4vw, 48px)) -48px;
+  width: 100%;
   border-top: 3px solid var(--gold);
-  border-bottom: 3px solid var(--gold);
   background: #0d0c0a;
   overflow: hidden;
   white-space: nowrap;
@@ -648,12 +928,18 @@ html[dir='rtl'] .meter-hint {
 
 .marquee-track {
   display: inline-block;
-  animation: marquee 22s linear infinite;
+  animation: marquee 30s linear infinite;
   font-family: 'Ultra', serif;
   font-size: 14px;
   letter-spacing: 0.18em;
   color: var(--gold);
   text-transform: uppercase;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .marquee-track {
+    animation: none;
+  }
 }
 
 @keyframes marquee {
@@ -1649,14 +1935,6 @@ html[dir='rtl'] .meter-hint {
 .btn-bot:hover:not(:disabled) {
   background: var(--gold);
   color: #1c1508;
-}
-
-.home-or {
-  text-align: center;
-  font-family: var(--marker);
-  color: var(--muted);
-  font-size: 13px;
-  margin: 4px 0;
 }
 
 .bot-select {

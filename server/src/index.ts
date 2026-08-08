@@ -428,7 +428,11 @@ io.on('connection', (socket) => {
   socket.on('pick:mode', (mode) => {
     if (!allow(`pick:${socket.id}`, 60, 10_000)) return;
     const lobby = socket.data.code ? getLobby(socket.data.code) : undefined;
-    if (!lobby || lobby.status !== 'greenroom') return;
+    // 'waiting' is allowed: the home page's settle-it door sets the mode right
+    // after creating the lobby, before the friend has joined. Rejecting that
+    // silently dropped the door's whole purpose and the green room opened on
+    // topic tabs anyway.
+    if (!lobby || (lobby.status !== 'greenroom' && lobby.status !== 'waiting')) return;
     if (participantOf(lobby, socket.id) !== lobby.host) return; // host-only
     if (mode !== 'agree' && mode !== 'category' && mode !== 'random' && mode !== 'dispute') return;
     if (lobby.topicMode === mode) return;
