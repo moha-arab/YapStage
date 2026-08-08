@@ -522,3 +522,105 @@ export async function runJudge(io: Io, lobby: Lobby, requesterSocketId?: string)
     });
   }
 }
+
+// ---------------------------------------------------------------------------
+// Tutorial debrief: no winner, no scoreboard. The YapMaster closes its lesson
+// with exactly three things — what the student did well, the one fix that
+// matters most, and a send-off toward their first real bot match.
+
+const DEBRIEF_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['praise', 'fix', 'next'],
+  properties: {
+    praise: { type: 'string', description: 'One specific thing the student genuinely did well, referencing their actual words. 1-2 sentences.' },
+    fix: { type: 'string', description: 'The single most valuable improvement for next time, concrete and doable. 1-2 sentences.' },
+    next: { type: 'string', description: 'A warm one-sentence send-off telling them they are ready to face Pip the duckling in training mode.' },
+  },
+} as const;
+
+async function callDebrief(lobby: Lobby): Promise<{ praise: string; fix: string; next: string }> {
+  const studentSide: Side = lobby.bot!.side === 'FOR' ? 'AGAINST' : 'FOR';
+  const lang = lobby.bot!.lang;
+  const motion = (lang === 'ar' && lobby.topic?.ar ? lobby.topic.ar : lobby.topic?.en) ?? '';
+  const lines = lobby.transcript
+    .slice()
+    .sort((a, b) => a.stepIndex - b.stepIndex)
+    .map((e) => {
+      const phase = STEP_META[e.stepIndex]?.phase ?? 'turn';
+      return `${e.side === studentSide ? 'STUDENT' : 'YAPMASTER'} (${phase}): ${e.text}`;
+    })
+    .join('\n');
+  const heard = lobby.transcript
+    .filter((e) => e.side === studentSide)
+    .reduce((n, e) => n + (e.text.match(/\S+/g) ?? []).length, 0);
+
+  const system = `You are the YapMaster, the warm and funny judge of YapStage, wrapping up your debate TUTORIAL. The student just practiced all four rounds (opening, rebuttal, defense, closing) against you on the practice motion "${motion}". This is a lesson, not a match: there is NO winner. Write your debrief. Be specific to what the STUDENT actually said, never generic. Encouraging but honest: the fix must be a real one. ${heard < 10 ? 'IMPORTANT: the transcript shows almost nothing from the student, which means their microphone likely never reached us. Say that plainly and kindly in the praise field (praise them for showing up), make the fix about checking their mic and trying the tutorial again, and still send them off warmly.' : ''} No markdown, no emojis. ${lang === 'ar' ? 'Write in Arabic.' : 'Write in English.'}`;
+
+  const response = await getClient().messages.create(
+    {
+      model: 'claude-opus-4-8',
+      max_tokens: 600,
+      system,
+      messages: [{ role: 'user', content: `The tutorial transcript:\n${lines || '(empty)'}\n\nDeliver your debrief.` }],
+      output_config: { format: { type: 'json_schema', schema: DEBRIEF_SCHEMA } },
+    },
+    { timeout: 60_000, maxRetries: 1 },
+  );
+  if (response.stop_reason === 'max_tokens') throw new Error('Debrief truncated at max_tokens');
+  const block = response.content.find((b) => b.type === 'text');
+  if (!block || block.type !== 'text') throw new Error('Debrief returned no text block');
+  const raw = JSON.parse(block.text) as { praise: string; fix: string; next: string };
+  return {
+    praise: noDashes(String(raw.praise ?? '')).slice(0, 400),
+    fix: noDashes(String(raw.fix ?? '')).slice(0, 400),
+    next: noDashes(String(raw.next ?? '')).slice(0, 300),
+  };
+}
+
+/** End of the tutorial. Fail-soft: a dead model API costs the personalized
+    notes, never the ending — the student always gets a debrief screen. */
+export async function runTutorialDebrief(io: Io, lobby: Lobby): Promise<void> {
+  if (!lobby.debateCompleted || lobby.judgeState !== 'idle') return;
+  lobby.judgeState = 'pending';
+  touch(lobby);
+  io.to(lobby.code).emit('verdict:status', { state: 'pending' });
+
+  const lang = lobby.bot?.lang ?? 'en';
+  let debrief: { praise: string; fix: string; next: string };
+  try {
+    debrief = await callDebrief(lobby);
+  } catch (err) {
+    console.error(`[tutorial] ${lobby.code} debrief failed:`, err);
+    event('tutorial_debrief_failed', { code: lobby.code });
+    debrief =
+      lang === 'ar'
+        ? {
+            praise: 'أكملت الجولات الأربع كلها، وهذا بحد ذاته إنجاز.',
+            fix: 'استمر بالتدريب: في كل جولة، رد على أقوى نقطة عند خصمك بدل تكرار نقطتك.',
+            next: 'أنت جاهز لمواجهة بيب في وضع التدريب. انطلق.',
+          }
+        : {
+            praise: 'You made it through all four rounds, and that alone puts you ahead of most people.',
+            fix: 'Keep practicing one habit: every turn, answer your opponent\'s strongest point instead of repeating your own.',
+            next: 'You are ready to face Pip in training mode. Go get them.',
+          };
+  }
+
+  lobby.judgeState = 'done';
+  lobby.status = 'verdict';
+  event('tutorial_completed', { code: lobby.code });
+  // One spoken paragraph, same voice that reads verdicts.
+  const spoken = `${debrief.praise} ${debrief.fix} ${debrief.next}`;
+  const audio = (await synthesize(spoken, YAPMASTER_VOICE)) ?? undefined;
+  touch(lobby);
+  io.to(lobby.code).emit('tutorial:debrief', {
+    ...debrief,
+    mime: audio?.mime,
+    audio: audio ? (audio.data as unknown as ArrayBuffer) : undefined,
+  });
+  setTimeout(() => {
+    destroyLobby(lobby.code);
+    io.socketsLeave(lobby.code);
+  }, 10 * 60 * 1000).unref();
+}

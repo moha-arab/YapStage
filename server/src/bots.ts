@@ -15,6 +15,8 @@ export interface Bot {
   difficulty: Difficulty; // drives how rigorously it argues
   voiceId: string;
   style: string;
+  /** Not on the pick screen: special opponents like the tutorial's YapMaster. */
+  hidden?: boolean;
 }
 
 export const BOTS: Bot[] = [
@@ -98,11 +100,28 @@ export const BOTS: Bot[] = [
   },
 ];
 
+/** The tutorial's teacher: the YapMaster itself steps onto the stage. Hidden
+    from the ladder — it demos rather than competes, in its own courtroom voice. */
+const TUTOR: Bot = {
+  id: 'tutor',
+  name: 'YapMaster',
+  tagline: 'the judge, moonlighting as your coach',
+  blurb: 'walks you through all four rounds, one at a time.',
+  color: 'gold',
+  rank: 0,
+  skill: 'the teacher',
+  difficulty: 'hard', // unused: the tutor has its own generation path
+  voiceId: 'pqHfZKP75CvOlQylNhV4', // Bill — the same voice that reads verdicts
+  style: 'You are the YapMaster: warm, funny, endlessly encouraging, never condescending.',
+  hidden: true,
+};
+BOTS.push(TUTOR);
+
 export const BOT_BY_ID = new Map(BOTS.map((b) => [b.id, b]));
 
 /** Fields safe to send to the client for the pick screen. */
 export function publicBots() {
-  return BOTS.slice()
+  return BOTS.filter((b) => !b.hidden)
     .sort((a, b) => a.rank - b.rank)
     .map(({ id, name, tagline, blurb, color, rank, skill }) => ({
       id,

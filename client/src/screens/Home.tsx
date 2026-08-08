@@ -26,10 +26,10 @@ const ERROR_KEYS: Record<JoinError, string> = {
     bad_name always routes to the name field. */
 type ErrorZone = 'name' | 'panel' | 'ticket';
 
-/** The four things you can do here. One selector, uniform tiles — no mode is
+/** The five things you can do here. One selector, uniform tiles — no mode is
     "the yellow one" anymore. */
-type Mode = 'custom' | 'ranked' | 'training' | 'spectate';
-const MODES: Mode[] = ['custom', 'ranked', 'training', 'spectate'];
+type Mode = 'custom' | 'ranked' | 'training' | 'spectate' | 'tutorial';
+const MODES: Mode[] = ['custom', 'ranked', 'training', 'spectate', 'tutorial'];
 
 interface Props {
   notice: string | null;
@@ -37,9 +37,10 @@ interface Props {
   onPlayBot: (name: string) => void;
   onSpectate: (code: string) => void;
   onLearn: () => void;
+  onTutorial: (name: string) => void;
 }
 
-export default function Home({ notice, onEntered, onPlayBot, onSpectate, onLearn }: Props) {
+export default function Home({ notice, onEntered, onPlayBot, onSpectate, onLearn, onTutorial }: Props) {
   const { lang, t } = useI18n();
   const [name, setName] = useState('');
   const [mode, setMode] = useState<Mode>('custom');
@@ -263,6 +264,19 @@ export default function Home({ notice, onEntered, onPlayBot, onSpectate, onLearn
           <p className="mode-panel-desc">{t('panelTrainingDesc')}</p>
           <button className="btn btn-primary btn-wide" onClick={handleBot}>
             {t('chooseOpponent')}
+          </button>
+          {zoneError('panel')}
+        </>
+      ) : mode === 'tutorial' ? (
+        <>
+          <p className="mode-panel-desc">{t('panelTutorialDesc')}</p>
+          <button
+            className="btn btn-primary btn-wide"
+            onClick={() => {
+              if (requireName()) onTutorial(name);
+            }}
+          >
+            {t('startTutorial')}
           </button>
           {zoneError('panel')}
         </>

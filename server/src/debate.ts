@@ -18,7 +18,7 @@ import {
   sideOf,
   touch,
 } from './lobby.js';
-import { namesOf, runJudge } from './judge.js';
+import { namesOf, runJudge, runTutorialDebrief } from './judge.js';
 import { TOPIC_BY_ID, TOPIC_CATEGORIES } from './topics.js';
 import { transcribe } from './stt.js';
 import { frameDispute } from './dispute.js';
@@ -82,9 +82,27 @@ const SCRIPTS: Record<Pace, Step[]> = {
 };
 const FAST_SCRIPT = script(5, 4, 3, 3);
 
+// The tutorial runs the same 8-step shape, but the clock is asymmetric: the
+// YapMaster's turns (FOR) get extra seconds because each one carries three
+// jobs — react to the student, explain the round, demo it — while the
+// student's turns stay at friendly standard-ish lengths. The shot clock
+// hard-cuts audio that runs over, so teaching time must exist ON the clock.
+const TUTORIAL_SCRIPT: Step[] = [
+  { phase: 'opening', speaker: 'FOR', seconds: 60 },
+  { phase: 'opening', speaker: 'AGAINST', seconds: 45 },
+  { phase: 'rebuttal', speaker: 'FOR', seconds: 60 },
+  { phase: 'rebuttal', speaker: 'AGAINST', seconds: 45 },
+  { phase: 'defense', speaker: 'AGAINST', seconds: 35 },
+  { phase: 'defense', speaker: 'FOR', seconds: 50 },
+  { phase: 'closing', speaker: 'AGAINST', seconds: 30 },
+  { phase: 'closing', speaker: 'FOR', seconds: 45 },
+];
+
 /** The step script this lobby runs (FAST test mode overrides pace). */
-export function scriptFor(lobby: Pick<Lobby, 'pace'>): Step[] {
-  return FAST ? FAST_SCRIPT : SCRIPTS[lobby.pace] ?? SCRIPTS.standard;
+export function scriptFor(lobby: Pick<Lobby, 'pace' | 'tutorial'>): Step[] {
+  if (FAST) return FAST_SCRIPT;
+  if (lobby.tutorial) return TUTORIAL_SCRIPT;
+  return SCRIPTS[lobby.pace] ?? SCRIPTS.standard;
 }
 
 /** Kept for callers that only need the universal 6-step SHAPE (phases,
@@ -420,7 +438,69 @@ async function transcribeHumanUpto(lobby: Lobby, beforeStep: number): Promise<vo
   );
 }
 
+/** The tutorial's teacher turn. Not a competitor: every YapMaster turn does
+    three jobs — react to what the student ACTUALLY said, explain the current
+    round in one plain sentence, demo it briefly — then hands the mic back with
+    a concrete tip for the student's next turn. Word budgets are tuned to the
+    TUTORIAL_SCRIPT clock (the client hard-cuts audio that runs over). */
+async function generateTutorTurn(lobby: Lobby, bot: Bot, stepIndex: number): Promise<string> {
+  const lang = lobby.bot!.lang;
+  const motion = (lang === 'ar' && lobby.topic?.ar ? lobby.topic.ar : lobby.topic?.en) ?? '';
+  const prior = lobby.transcript
+    .filter((e) => e.stepIndex < stepIndex)
+    .sort((a, b) => a.stepIndex - b.stepIndex)
+    .map((e) => `${e.side === 'FOR' ? 'YOU (the YapMaster, FOR)' : 'STUDENT (AGAINST)'}: ${e.text}`)
+    .join('\n');
+
+  // Keyed by the tutor's own steps in TUTORIAL_SCRIPT: 0, 2, 5, 7.
+  const lessons: Record<number, { job: string; words: string; maxTokens: number }> = {
+    0: {
+      job: `Welcome the student to the stage in one warm line. Explain in ONE plain sentence what an OPENING is: say which side you are on, then give your reasons. Then say "watch me do one" and DEMO a short model opening arguing FOR the motion, with two clear reasons. End by handing over the mic: it is their turn to give an opening AGAINST the motion. Give them one concrete tip: state your side in your first sentence, then give two reasons why.`,
+      words: 'about 120 words',
+      maxTokens: 340,
+    },
+    2: {
+      job: `First, react to the student's ACTUAL opening: praise ONE specific real thing they said (reference their real words) and give ONE gentle nudge if something was missing. If the transcript shows nothing from them (mic trouble), say warmly that you could not hear them and carry on teaching, never invent what they said. Then explain in ONE sentence what a REBUTTAL is: attack THEIR argument instead of repeating your own. Demo it: take ONE thing the student actually argued (or, if you heard nothing, one obvious AGAINST argument) and rebut it cleanly, flagged as a demo. Then hand over: their turn to rebut YOUR opening. Tip: pick my weakest reason and tell everyone why it fails. Warn them in one short line that right after their rebuttal comes their DEFENSE, where they rebuild their own case after my attack, so they should listen to what I just hit.`,
+      words: 'about 130 words',
+      maxTokens: 360,
+    },
+    5: {
+      job: `React to the student's rebuttal AND defense: praise ONE specific real thing from those turns, plus ONE gentle nudge. Then explain in ONE sentence what a DEFENSE is: repair your own case where it got hit, instead of attacking. Demo a very short model defense repairing whatever their rebuttal actually hit in your case. Then tee up the final round: next is their CLOSING. Tip: no new arguments, just say in a sentence or two why your side won the arguments that actually happened.`,
+      words: 'about 100 words',
+      maxTokens: 300,
+    },
+    7: {
+      job: `React to the student's closing with ONE specific piece of praise. Deliver a tiny model closing of your own (one or two sentences) so they hear what weighing sounds like. Then end the lesson: congratulate them on finishing all four rounds by name (opening, rebuttal, defense, closing) and tell them to stay put, because you are about to give them your final notes.`,
+      words: 'about 90 words',
+      maxTokens: 280,
+    },
+  };
+  const lesson = lessons[stepIndex] ?? lessons[0];
+
+  const system = `You are the YapMaster, the legendary judge of YapStage, running your debate school: a live spoken TUTORIAL, not a real match. ${bot.style} The student is learning the four rounds of a debate for the first time. You argue FOR this practice motion purely as a teaching demo: "${motion}". You WANT the student to argue back well; you are on their side even while you play the opponent.
+YOUR TURN RIGHT NOW: ${lesson.job}
+Speak in the first person, out loud, in ${lesson.words}. This is read aloud by a voice, so it must sound like a real person talking, not an essay: contractions, short punchy sentences, natural spoken rhythm. Address the student as "you". Only ever reference words the transcript actually shows. No markdown, no stage directions, no emojis, no lists, and never narrate yourself. ${lang === 'ar' ? 'Reply in Arabic.' : 'Reply in English, unless the student clearly spoke Arabic, in which case reply in Arabic.'}`;
+
+  const user = prior
+    ? `The tutorial so far:\n${prior}\n\nNow deliver your turn.`
+    : `The tutorial is just starting. Deliver your turn.`;
+
+  const maxTokens = lang === 'ar' ? Math.round(lesson.maxTokens * 2.5) : lesson.maxTokens;
+  const response = await getBotClient().messages.create(
+    { model: 'claude-opus-4-8', max_tokens: maxTokens, system, messages: [{ role: 'user', content: user }] },
+    { timeout: 40_000, maxRetries: 1 },
+  );
+  const block = response.content.find((b) => b.type === 'text');
+  let text = block && block.type === 'text' ? block.text.trim() : '';
+  if (response.stop_reason === 'max_tokens') {
+    const lastEnd = Math.max(...['.', '!', '?', '؟', '۔'].map((p) => text.lastIndexOf(p)));
+    if (lastEnd > 20) text = text.slice(0, lastEnd + 1);
+  }
+  return text.slice(0, 1200) || 'Alright, your turn. Take the mic.';
+}
+
 async function generateBotArgument(lobby: Lobby, bot: Bot, stepIndex: number): Promise<string> {
+  if (lobby.tutorial) return generateTutorTurn(lobby, bot, stepIndex);
   const botSide = lobby.bot!.side;
   const phase = scriptFor(lobby)[stepIndex].phase;
   const lang = lobby.bot!.lang;
@@ -595,7 +675,9 @@ function finishDebate(io: Io, lobby: Lobby): void {
   lobby.judgeTimer = setTimeout(() => {
     void (async () => {
       await applyServerTranscription(lobby);
-      void runJudge(io, lobby);
+      // The tutorial has no winner: the YapMaster debriefs instead of judging.
+      if (lobby.tutorial) void runTutorialDebrief(io, lobby);
+      else void runJudge(io, lobby);
     })();
   }, JUDGE_DELAY_MS);
 }

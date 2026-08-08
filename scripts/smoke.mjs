@@ -701,5 +701,51 @@ console.log('\n=== Scenario 9: ranked + spectate ===');
   spec.disconnect();
 }
 
+// ---------- Scenario 10: the tutorial ----------
+console.log('\n=== Scenario 10: tutorial ===');
+{
+  const h = connect();
+  const STUDENT = {
+    // student is always AGAINST: opens (1), rebuts (3), defends (4), closes (6)
+    1: 'i am against this because it just tastes wrong and most people agree with me',
+    3: 'you said it adds sweetness but sweetness does not belong on a savory dish',
+    4: 'my taste point still stands because taste is the whole reason we eat pizza',
+    6: 'in closing, taste rules pizza and this topping fails the taste test',
+  };
+  let sawVerdict = false;
+  h.on('verdict:result', () => {
+    sawVerdict = true;
+  });
+  const res = await emitP(h, 'tutorial:start', { sessionId: 'tut-h', name: 'student', lang: 'en' });
+  check('tutorial:start accepted', res.ok === true);
+  const start = await once(h, 'debate:start', 12000);
+  check(
+    'tutorial: teacher is the YapMaster, arguing FOR',
+    Boolean(start.bot) && start.bot.id === 'tutor' && start.names.FOR === 'YapMaster',
+  );
+  check('tutorial: student is always AGAINST', start.yourSide === 'AGAINST');
+  let tutorTurns = 0;
+  h.on('debate:phase', (ph) => {
+    if (ph.activeSpeaker === 'AGAINST' && STUDENT[ph.stepIndex]) {
+      h.emit('speech:chunk', { stepIndex: ph.stepIndex, text: STUDENT[ph.stepIndex] });
+    }
+  });
+  h.on('bot:turn', (bt) => {
+    tutorTurns += 1;
+    h.emit('bot:done', { stepIndex: bt.stepIndex });
+  });
+  await once(h, 'debate:ended', 300000);
+  const d = await once(h, 'tutorial:debrief', 120000);
+  check('tutorial: teacher took all four demo turns', tutorTurns === 4);
+  check(
+    'tutorial: debrief has praise, fix, and next',
+    typeof d.praise === 'string' && d.praise.length > 0 &&
+      typeof d.fix === 'string' && d.fix.length > 0 &&
+      typeof d.next === 'string' && d.next.length > 0,
+  );
+  check('tutorial: no verdict is ever issued', sawVerdict === false);
+  h.disconnect();
+}
+
 console.log(`\n${failures === 0 ? 'ALL CHECKS PASSED' : failures + ' CHECK(S) FAILED'}`);
 process.exit(failures === 0 ? 0 : 1);

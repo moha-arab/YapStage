@@ -31,6 +31,8 @@ import VerdictScreen from './screens/Verdict';
 import BotSelect, { type BotStartConfig } from './screens/BotSelect';
 import Learn from './screens/Learn';
 import Spectate from './screens/Spectate';
+import TutorialIntro from './screens/TutorialIntro';
+import TutorialDone, { type DebriefInfo } from './screens/TutorialDone';
 import { playBotTurn, stopBotVoice } from './botvoice';
 
 interface VerdictInfo {
@@ -96,6 +98,9 @@ export default function App() {
   const [speechHeard, setSpeechHeard] = useState(false);
   const [botPicking, setBotPicking] = useState(false);
   const [learning, setLearning] = useState(false);
+  // Tutorial: the intro screen, then (after the lesson) the YapMaster's notes.
+  const [tutoring, setTutoring] = useState(false);
+  const [debrief, setDebrief] = useState<DebriefInfo | null>(null);
   // Spectating a lobby by code (state + the latest server snapshot for it).
   const [spectating, setSpectating] = useState<string | null>(null);
   const [specState, setSpecState] = useState<SpectateState | null>(null);
@@ -135,8 +140,8 @@ export default function App() {
   endedRef.current = ended;
   const localStreamRef = useRef<MediaStream | null>(null);
   localStreamRef.current = localStream;
-  const settledRef = useRef(false); // verdict shown or aborted — nothing to resume
-  settledRef.current = Boolean(verdictInfo) || Boolean(abortInfo);
+  const settledRef = useRef(false); // verdict/debrief shown or aborted — nothing to resume
+  settledRef.current = Boolean(verdictInfo) || Boolean(abortInfo) || Boolean(debrief);
 
   const resetToHome = useCallback((message: string | null) => {
     releaseMedia();
@@ -157,6 +162,8 @@ export default function App() {
     setRemoteVideoDead(false);
     setMediaError(null);
     setBotPicking(false);
+    setTutoring(false);
+    setDebrief(null);
     setBotTurn(null);
     setBotSpeaking(false);
     setBotSpeakDeadline(null);
@@ -278,6 +285,13 @@ export default function App() {
         });
       }
     });
+    // End of the tutorial: the YapMaster's notes instead of a verdict.
+    socket.on('tutorial:debrief', (p) => {
+      stopTurn();
+      clearResume();
+      setJudgeStatus(null);
+      setDebrief(p);
+    });
     socket.on('rematch:update', (p) => setRematch(p));
     socket.on('rematch:go', () => {
       // Both agreed: drop the finished-debate state and fall back to the green
@@ -353,6 +367,7 @@ export default function App() {
       socket.off('rematch:update');
       socket.off('rematch:go');
       socket.off('bot:turn');
+      socket.off('tutorial:debrief');
       socket.off('spectate:state');
       socket.off('spectate:count');
       socket.off('caption');
@@ -522,7 +537,7 @@ export default function App() {
   // room / bot picker is a mirror check, not a dead black rectangle. Also
   // surfaces permission problems before the debate.
   useEffect(() => {
-    if (!lobby && !botPicking && !start?.bot) return;
+    if (!lobby && !botPicking && !tutoring && !start?.bot) return;
     let cancelled = false;
     void (async () => {
       try {
@@ -538,7 +553,7 @@ export default function App() {
     return () => {
       cancelled = true;
     };
-  }, [lobby?.code, botPicking, Boolean(start?.bot), mediaRetry]);
+  }, [lobby?.code, botPicking, tutoring, Boolean(start?.bot), mediaRetry]);
 
   // Peer link only when both corners are occupied.
   useEffect(() => {
@@ -576,6 +591,41 @@ export default function App() {
   const onPlayBot = useCallback((name: string) => {
     setNotice(null);
     setBotName(name);
+    setBotPicking(true);
+  }, []);
+
+  const onTutorial = useCallback((name: string) => {
+    setNotice(null);
+    setBotName(name);
+    setTutoring(true);
+  }, []);
+
+  const startTutorial = useCallback(() => {
+    socket.emit(
+      'tutorial:start',
+      { sessionId: session.id, name: botName, lang: langRef.current },
+      (res) => {
+        if (res.ok) return; // debate:start arrives next and renders the lesson
+        const map: Record<string, string> = {
+          rate_limited: 'errRateLimited',
+          bad_name: 'errBadName',
+        };
+        resetToHome(map[res.error ?? ''] ?? 'lostLobby');
+      },
+    );
+  }, [botName, resetToHome]);
+
+  // "Go fight Pip": from the debrief straight into the training picker, same
+  // name, fresh camera (the media effect reacquires off botPicking).
+  const trainAfterTutorial = useCallback(() => {
+    stopBotVoice();
+    clearResume();
+    setStart(null);
+    setPhase(null);
+    setEnded(false);
+    setDebrief(null);
+    setJudgeStatus(null);
+    setTutoring(false);
     setBotPicking(true);
   }, []);
 
@@ -634,6 +684,14 @@ export default function App() {
           {t('backHome')}
         </button>
       </div>
+    );
+  } else if (debrief) {
+    content = (
+      <TutorialDone
+        debrief={debrief}
+        onTrain={trainAfterTutorial}
+        onHome={() => window.location.assign('/')}
+      />
     );
   } else if (ended || verdictInfo) {
     content = (
@@ -699,6 +757,20 @@ export default function App() {
         }}
       />
     );
+  } else if (tutoring) {
+    content = (
+      <TutorialIntro
+        localStream={localStream}
+        mediaError={mediaError}
+        onRetryMedia={retryMedia}
+        onStart={startTutorial}
+        onBack={() => {
+          setTutoring(false);
+          releaseMedia();
+          setLocalStream(null);
+        }}
+      />
+    );
   } else if (lobby) {
     content = (
       <GreenRoom
@@ -721,6 +793,7 @@ export default function App() {
         onPlayBot={onPlayBot}
         onSpectate={(code) => setSpectating(code)}
         onLearn={() => setLearning(true)}
+        onTutorial={onTutorial}
       />
     );
   }

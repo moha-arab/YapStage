@@ -11,6 +11,7 @@ import {
   type LobbyUpdate,
   type ServerToClient,
   type SocketData,
+  type TopicText,
 } from './protocol.js';
 import { REFRESH_MS, getIceServers, refreshIceServers, turnMode } from './turn.js';
 import {
@@ -68,6 +69,15 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT) || 3000;
 const GRACE_MS = 15_000;
 const MAX_LOBBIES = 500;
+
+// Tutorial motions: deliberately light and universally arguable — the student
+// is learning the FORMAT, so the topic must never be the hard part.
+const TUTORIAL_TOPICS: TopicText[] = [
+  { id: 'tut1', en: 'Pineapple belongs on pizza', ar: 'الأناناس مكانه على البيتزا' },
+  { id: 'tut2', en: 'Cats are better than dogs', ar: 'القطط أفضل من الكلاب' },
+  { id: 'tut3', en: 'Breakfast is the most important meal of the day', ar: 'الفطور هو أهم وجبة في اليوم' },
+  { id: 'tut4', en: 'Summer is better than winter', ar: 'الصيف أفضل من الشتاء' },
+];
 // Fast mode is test-only (never set in production). The smoke test creates many
 // lobbies from one IP, so the create/join limiter is off in fast mode.
 const FAST = process.env.DEBATE_SPEED === 'fast';
@@ -763,7 +773,7 @@ io.on('connection', (socket) => {
 
   socket.on('verdict:retry', () => {
     const lobby = socket.data.code ? getLobby(socket.data.code) : undefined;
-    if (!lobby) return;
+    if (!lobby || lobby.tutorial) return; // tutorials debrief; they never judge
     if (!participantOf(lobby, socket.id)) return;
     if (!lobby.debateCompleted) return;
     if (lobby.judgeState !== 'failed' && lobby.judgeState !== 'done') return;
@@ -956,6 +966,33 @@ io.on('connection', (socket) => {
     void socket.join(lobby.code);
     cb({ ok: true });
     startBotDebate(io, lobby, topic, humanSide);
+  });
+
+  // The tutorial: a bots-mode debate against the hidden YapMaster teacher.
+  // Fixed shape on purpose — student is always AGAINST (so the tutor demos
+  // every round first), light practice motion, no judge at the end.
+  socket.on('tutorial:start', (p, cb) => {
+    if (typeof cb !== 'function') return;
+    if (!FAST && !allow(`create:${ipOf(socket)}`, 10, 5 * 60_000)) {
+      return cb({ ok: false, error: 'rate_limited' });
+    }
+    const name = String(p?.name ?? '').trim();
+    if (!NAME_RE.test(name)) return cb({ ok: false, error: 'bad_name' });
+    const tutor = BOT_BY_ID.get('tutor');
+    if (!tutor) return cb({ ok: false, error: 'not_found' });
+    if (lobbyCount() >= MAX_LOBBIES) return cb({ ok: false, error: 'rate_limited' });
+    const lang = p?.lang === 'ar' ? 'ar' : 'en';
+    const topic = TUTORIAL_TOPICS[Math.floor(Math.random() * TUTORIAL_TOPICS.length)];
+
+    releasePreviousSeat(socket);
+    const lobby = createLobby(socket.id, String(p?.sessionId ?? '').slice(0, 64), name);
+    lobby.tutorial = true;
+    lobby.bot = { id: tutor.id, name: tutor.name, difficulty: tutor.difficulty, side: 'FOR', lang };
+    socket.data.code = lobby.code;
+    socket.data.role = 'host';
+    void socket.join(lobby.code);
+    cb({ ok: true });
+    startBotDebate(io, lobby, topic, 'AGAINST');
   });
 
   socket.on('bot:done', (p) => {

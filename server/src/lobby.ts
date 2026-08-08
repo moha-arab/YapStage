@@ -76,6 +76,8 @@ export interface Lobby {
   framing?: Framing;
   /** Ranked match: the persistent playerIds whose ratings ride on the result. */
   ranked?: { host: string; guest: string };
+  /** Tutorial: the YapMaster teaches instead of competes — no judge, a debrief. */
+  tutorial?: boolean;
   /** Rating movement after a ranked verdict, kept so a re-fetch replays it. */
   eloResult?: Record<Side, { before: number; after: number }>;
   /** The last debate:phase payload sent, so a mid-debate spectator (or a

@@ -59,6 +59,24 @@ const ANIMALS: Record<string, string> = {
     <line x1="66" y1="46" x2="54" y2="52" stroke="${D}" stroke-width="5" stroke-linecap="round"/>
     <circle cx="42" cy="54" r="3.5" fill="${D}"/><circle cx="58" cy="54" r="3.5" fill="${D}"/>
     <path class="bot-mouth" d="M42 76 q8 5 16 0" stroke="${D}" stroke-width="3" fill="none" stroke-linecap="round"/>`,
+  // The YapMaster itself: judicial wig, tiny spectacles, gavel. Tutorial only.
+  tutor: `
+    <path d="M26 90 Q50 76 74 90 L74 98 L26 98Z" fill="#2a2015"/>
+    <path d="M44 82 L56 82 L53 92 L47 92Z" fill="#ffc72e"/>
+    <circle cx="50" cy="50" r="25" fill="#e8c193"/>
+    <circle cx="31" cy="37" r="8.5" fill="#f2ede2"/><circle cx="40" cy="30" r="9" fill="#f2ede2"/>
+    <circle cx="51" cy="27" r="9.5" fill="#f2ede2"/><circle cx="62" cy="30" r="9" fill="#f2ede2"/>
+    <circle cx="70" cy="37" r="8.5" fill="#f2ede2"/>
+    <circle cx="26" cy="48" r="6.5" fill="#f2ede2"/><circle cx="74" cy="48" r="6.5" fill="#f2ede2"/>
+    <circle cx="26" cy="59" r="5.5" fill="#f2ede2"/><circle cx="74" cy="59" r="5.5" fill="#f2ede2"/>
+    <circle cx="42" cy="52" r="7" fill="none" stroke="#ffc72e" stroke-width="2.5"/>
+    <circle cx="60" cy="52" r="7" fill="none" stroke="#ffc72e" stroke-width="2.5"/>
+    <line x1="49" y1="52" x2="53" y2="52" stroke="#ffc72e" stroke-width="2.5"/>
+    <circle cx="42" cy="52" r="3.2" fill="${D}"/><circle cx="60" cy="52" r="3.2" fill="${D}"/>
+    <path d="M36 43 q6 -4 11 -1 M66 43 q-6 -4 -11 -1" stroke="#8a6a4a" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+    <path class="bot-mouth" d="M43 65 q7 5 14 0" stroke="#8a5f33" stroke-width="3" fill="none" stroke-linecap="round"/>
+    <line x1="76" y1="80" x2="88" y2="68" stroke="#8a5a2a" stroke-width="4" stroke-linecap="round"/>
+    <rect x="82" y="58" width="14" height="9" rx="2.5" fill="#a8702a" transform="rotate(45 89 62.5)"/>`,
   giraffe: `
     <rect x="42" y="52" width="16" height="42" rx="6" fill="#e0a94a"/>
     <circle cx="47" cy="64" r="3.5" fill="#a8702a"/><circle cx="53" cy="78" r="3.5" fill="#a8702a"/><circle cx="46" cy="88" r="3" fill="#a8702a"/>

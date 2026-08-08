@@ -271,6 +271,12 @@ export interface ClientToServer {
     cb: (res: { ok: boolean; error?: JoinError }) => void,
   ) => void;
   'bot:done': (p: { stepIndex: number }) => void; // the bot finished speaking its turn
+  /** Start the interactive tutorial: the YapMaster demos each round, then the
+      student tries it. No judge at the end — a debrief instead. */
+  'tutorial:start': (
+    p: { sessionId: string; name: string; lang?: 'en' | 'ar' },
+    cb: (res: { ok: boolean; error?: JoinError }) => void,
+  ) => void;
 }
 
 export interface ServerToClient {
@@ -337,6 +343,16 @@ export interface ServerToClient {
     mime?: string;
     audio?: ArrayBuffer;
     failed?: boolean;
+  }) => void;
+  /** End of the tutorial: no winner, a debrief. One thing the student did
+      well, the one fix that matters most, and a send-off. `audio` is the
+      YapMaster speaking it. */
+  'tutorial:debrief': (p: {
+    praise: string;
+    fix: string;
+    next: string;
+    mime?: string;
+    audio?: ArrayBuffer;
   }) => void;
 }
 

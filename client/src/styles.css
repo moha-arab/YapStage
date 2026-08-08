@@ -388,6 +388,12 @@ html[dir='rtl'] .meter-hint {
   color: var(--gold);
 }
 
+/* Five tiles on a two-column grid: the odd one out (the tutorial) goes full
+   width on the bottom row, reading as "and if you're new, start here". */
+.mode-grid .mode-tile:nth-child(5) {
+  grid-column: 1 / -1;
+}
+
 .mode-panel {
   margin-top: 14px;
   display: flex;
@@ -2606,4 +2612,54 @@ html[dir='rtl'] .meter-hint {
   color: var(--muted);
   font-style: italic;
   animation: botpulse 1.1s ease-in-out infinite;
+}
+
+/* Tutorial: the intro brief and the debrief notes */
+.tutorial-intro .bot-avatar,
+.tutorial-done .bot-avatar {
+  margin-bottom: 8px;
+}
+
+.tutorial-brief {
+  max-width: 460px;
+}
+
+.tutorial-intro .btn-wide {
+  max-width: 460px;
+}
+
+.tutorial-line {
+  margin: 6px 0;
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+.tutorial-notes {
+  max-width: 500px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  text-align: start;
+}
+
+.note-block .tape {
+  margin-bottom: 4px;
+}
+
+.tape-gold {
+  background: var(--gold);
+}
+
+.note-text {
+  margin: 4px 0 0;
+  font-size: 16px;
+  line-height: 1.55;
+}
+
+.tutorial-done-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 16px;
+  flex-wrap: wrap;
+  justify-content: center;
 }
