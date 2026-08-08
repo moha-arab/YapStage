@@ -114,6 +114,22 @@ export interface LobbyUpdate {
   iceServers: IceServer[];
   /** Server-side Whisper transcription available: any browser works. */
   sttAvailable: boolean;
+  /** Ranked match: paired from the queue, random topic, fixed pace, no picks,
+      ratings on the line. */
+  ranked?: boolean;
+}
+
+/** Everything a spectator needs to watch a debate they are not in. */
+export interface SpectateState {
+  code: string;
+  status: 'waiting' | 'greenroom' | 'in_debate' | 'judging' | 'verdict';
+  topic?: TopicText;
+  names?: Record<Side, string>;
+  /** Present when one side is a bot (spectating a training bout). */
+  bot?: { id: string; name: string; color: string; side: Side };
+  /** The current phase, so a mid-debate joiner lands on a live clock. */
+  phase?: PhaseUpdate;
+  watchers: number;
 }
 
 export interface DebateStart {
@@ -220,6 +236,20 @@ export interface ClientToServer {
   }) => void;
   'verdict:retry': () => void;
   'rematch': () => void; // want to run it back with the same person
+  /** Ranked: enter the matchmaking queue. playerId is a persistent per-device
+      identity (localStorage), which is what the rating is keyed to. */
+  'queue:join': (
+    p: { sessionId: string; playerId: string; name: string },
+    cb: (res: { ok: boolean; error?: JoinError }) => void,
+  ) => void;
+  'queue:leave': () => void;
+  /** Watch a live lobby by its code. Spectators are not participants: no
+      camera, no mic, no seat — they receive state and audio only. */
+  'spectate:join': (
+    p: { code: string },
+    cb: (res: { ok: boolean; error?: 'not_found' | 'full' | 'rate_limited' }) => void,
+  ) => void;
+  'spectate:leave': () => void;
   /** Ask for a shareable link to this verdict. The whole card is encoded in
       the returned URL — nothing is stored server-side. */
   'share:link': (cb: (res: { url: string } | null) => void) => void;
@@ -266,6 +296,8 @@ export interface ServerToClient {
         heard them — which must be said out loud, not left to look like a
         crushing defeat they earned. */
     heard?: Record<Side, number>;
+    /** Ranked only: what the match did to each side's rating. */
+    elo?: Record<Side, { before: number; after: number }>;
   }) => void;
   /** Rematch handshake state (per recipient's own view). */
   'rematch:update': (p: { youWant: boolean; peerWant: boolean; peerLeft: boolean }) => void;
@@ -276,6 +308,25 @@ export interface ServerToClient {
   /** What we have transcribed of YOUR current turn so far. Sent only to the
       speaker. Proof, while you talk, that the judge is receiving you. */
   'caption': (p: { stepIndex: number; text: string }) => void;
+  /** Ranked queue heartbeat: how many are waiting, and your current rating. */
+  'queue:update': (p: { waiting: number; rating: number }) => void;
+  /** Paired: both players land in a ranked green room together. */
+  'queue:matched': (p: { update: LobbyUpdate }) => void;
+  /** Snapshot for a spectator (sent on join and on debate start). Live updates
+      after this arrive through the normal room events (debate:phase, verdicts). */
+  'spectate:state': (p: SpectateState) => void;
+  /** One chunk of live debate audio for spectators: the bot's whole turn, or a
+      ~5s segment of a human turn (the same segments Whisper transcribes). */
+  'spectate:audio': (p: {
+    side: Side;
+    stepIndex: number;
+    seq: number;
+    mime: string;
+    data: ArrayBuffer;
+  }) => void;
+  /** Watcher count, sent to debaters AND spectators whenever it changes.
+      Debaters must always know they have an audience. */
+  'spectate:count': (p: { n: number }) => void;
   /** The bot's spoken turn: its argument text + optional synthesized audio.
       `failed` means generation broke on our side (API down, out of credits).
       Without it an empty text is indistinguishable from a bot that chose to

@@ -27,6 +27,13 @@ import Anthropic from '@anthropic-ai/sdk';
 import { BOT_BY_ID, difficultyDirective, lengthRule, type Bot } from './bots.js';
 import { synthesize } from './tts.js';
 
+/** Set by index.ts: refresh spectators' snapshot when a debate starts, since
+    debate:start goes to participant sockets, not rooms. */
+export let onDebateStarted: ((lobby: Lobby) => void) | null = null;
+export function setOnDebateStarted(fn: (lobby: Lobby) => void): void {
+  onDebateStarted = fn;
+}
+
 export type Io = Server<ClientToServer, ServerToClient, Record<string, never>, SocketData>;
 
 export interface Step {
@@ -173,6 +180,7 @@ export async function startDispute(
   }
   lobby.stepIndex = -1;
   lobby.phaseTimer = setTimeout(() => advance(io, lobby, -1), reveal);
+  onDebateStarted?.(lobby);
 }
 
 export function startDebate(io: Io, lobby: Lobby): void {
@@ -240,6 +248,7 @@ export function startDebate(io: Io, lobby: Lobby): void {
 
   lobby.stepIndex = -1;
   lobby.phaseTimer = setTimeout(() => advance(io, lobby, -1), reveal);
+  onDebateStarted?.(lobby);
 }
 
 export function advance(io: Io, lobby: Lobby, expectedStep: number): void {
@@ -276,7 +285,7 @@ function emitStep(io: Io, lobby: Lobby, next: number): void {
   const deadline = now + windowSec * 1000;
   lobby.stepStartedAt = now;
 
-  io.to(lobby.code).emit('debate:phase', {
+  const payload = {
     stepIndex: next,
     phase: step.phase,
     activeSpeaker: step.speaker,
@@ -284,7 +293,10 @@ function emitStep(io: Io, lobby: Lobby, next: number): void {
     deadline,
     serverNow: now,
     ...(isBotStep ? { speakSeconds: step.seconds } : {}),
-  });
+  };
+  // Kept so a mid-debate spectator (or resumed socket) lands on a live clock.
+  lobby.lastPhase = payload;
+  io.to(lobby.code).emit('debate:phase', payload);
 
   if (isBotStep) void runBotTurn(io, lobby, next);
   lobby.phaseTimer = setTimeout(() => advance(io, lobby, next), windowSec * 1000);
@@ -319,6 +331,7 @@ export function startBotDebate(io: Io, lobby: Lobby, topic: TopicText, humanSide
   });
   lobby.stepIndex = -1;
   lobby.phaseTimer = setTimeout(() => advance(io, lobby, -1), reveal);
+  onDebateStarted?.(lobby);
   return true;
 }
 
@@ -524,6 +537,16 @@ async function runBotTurn(io: Io, lobby: Lobby, stepIndex: number): Promise<void
     // Socket.IO ships the Buffer as binary; the client receives an ArrayBuffer.
     const audioBuf = audio ? (audio.data as unknown as ArrayBuffer) : undefined;
     io.to(hostId).emit('bot:turn', { stepIndex, text, mime: audio?.mime, audio: audioBuf });
+    // Spectators hear the bot too: its whole turn is one synthesized clip.
+    if (audio) {
+      io.to(`spec:${lobby.code}`).emit('spectate:audio', {
+        side: lobby.bot.side,
+        stepIndex,
+        seq: 0,
+        mime: audio.mime,
+        data: audioBuf as ArrayBuffer,
+      });
+    }
   } catch (err) {
     console.error(`[bot] ${lobby.code} turn ${stepIndex} failed:`, err);
     lobby.botFailures += 1;
@@ -708,6 +731,16 @@ export function acceptAudioTurn(
   const turn: AudioTurn = { stepIndex, side, mime, data, seq };
   lobby.audioTurns.push(turn);
   event('audio_ok', { code: lobby.code, step: stepIndex, seq, bytes: data.length });
+  // The same ~5s segments Whisper transcribes double as the spectators' feed:
+  // live human audio, a few seconds behind the mouth, no extra upload from
+  // anyone. This is what makes spectating watchable without an SFU.
+  io.to(`spec:${lobby.code}`).emit('spectate:audio', {
+    side,
+    stepIndex,
+    seq,
+    mime,
+    data: data as unknown as ArrayBuffer,
+  });
   touch(lobby);
   // Transcribe NOW rather than at turn end: the words are ready when the bot
   // needs them, and the speaker gets captions proving they were heard.

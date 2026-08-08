@@ -30,6 +30,8 @@ interface Props {
       shown as text on purpose: a debate is not a dictation app, and subtitles
       running seconds behind your own mouth pull your eyes off the fight. */
   heardWords?: number;
+  /** People spectating this debate. Debaters must always know. */
+  watchers?: number;
   onPassMic: (stepIndex: number) => void;
 }
 
@@ -59,6 +61,7 @@ export default function Debate({
   botSpeakDeadline,
   botFailed,
   heardWords = 0,
+  watchers = 0,
   onPassMic,
 }: Props) {
   const { lang, t } = useI18n();
@@ -139,6 +142,7 @@ export default function Debate({
           </span>
         ))}
         <span className="round-step">{t('turnOf', { n: phase.stepIndex + 1 })}</span>
+        {watchers > 0 ? <span className="watch-pill">{t('specWatching', { n: watchers })}</span> : null}
       </div>
 
       <div className="tiles">

@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from 'react';
 import { NAME_RE, type JoinError, type LobbyUpdate } from '../../../server/src/protocol';
 import { session, socket } from '../socket';
 import { loadReceipts, readPattern, type Category } from '../history';
+import { playerId } from '../player';
+import { unlockSpectateAudio } from '../specaudio';
 import { useI18n } from '../i18n';
 
 /** Category -> the plain-English name the judge and the learn screen use. */
@@ -20,31 +22,41 @@ const ERROR_KEYS: Record<JoinError, string> = {
   rate_limited: 'errRateLimited',
 };
 
-/** Errors render next to the thing that caused them, not in a shared pile at
-    the bottom of the card. bad_name always routes to the name field. */
-type ErrorZone = 'name' | 'doors' | 'ticket';
+/** Errors render next to the thing that caused them, not in a shared pile.
+    bad_name always routes to the name field. */
+type ErrorZone = 'name' | 'panel' | 'ticket';
+
+/** The four things you can do here. One selector, uniform tiles — no mode is
+    "the yellow one" anymore. */
+type Mode = 'custom' | 'ranked' | 'training' | 'spectate';
+const MODES: Mode[] = ['custom', 'ranked', 'training', 'spectate'];
 
 interface Props {
   notice: string | null;
   onEntered: (u: LobbyUpdate) => void;
   onPlayBot: (name: string) => void;
+  onSpectate: (code: string) => void;
   onLearn: () => void;
 }
 
-export default function Home({ notice, onEntered, onPlayBot, onLearn }: Props) {
+export default function Home({ notice, onEntered, onPlayBot, onSpectate, onLearn }: Props) {
   const { lang, t } = useI18n();
   const [name, setName] = useState('');
+  const [mode, setMode] = useState<Mode>('custom');
   const [code, setCode] = useState(
     () => new URLSearchParams(window.location.search).get('code')?.toUpperCase() ?? '',
   );
+  const [watchCode, setWatchCode] = useState('');
   // Arriving via an invite link is a different visitor: they were sent here to
-  // JOIN, so the ticket takes over and the three doors step aside.
+  // JOIN, so the ticket takes over and the mode selector steps aside.
   const [invited] = useState(
     () => new URLSearchParams(window.location.search).get('code') !== null,
   );
   const [doorsRevealed, setDoorsRevealed] = useState(false);
   const [error, setError] = useState<{ key: string; zone: ErrorZone } | null>(null);
   const [busy, setBusy] = useState(false);
+  const [queueing, setQueueing] = useState(false);
+  const [queueInfo, setQueueInfo] = useState<{ waiting: number; rating: number } | null>(null);
   const [receipts] = useState(loadReceipts);
   const pattern = useMemo(() => readPattern(receipts), [receipts]);
   const [showMatches, setShowMatches] = useState(false);
@@ -59,12 +71,26 @@ export default function Home({ notice, onEntered, onPlayBot, onLearn }: Props) {
       .catch(() => {});
   }, []);
 
+  // Ranked queue lifecycle: matched means both players land in a green room;
+  // leaving this screen for any reason gives the seat back.
+  useEffect(() => {
+    const onUpdate = (p: { waiting: number; rating: number }) => setQueueInfo(p);
+    const onMatched = (p: { update: LobbyUpdate }) => {
+      setQueueing(false);
+      onEntered(p.update);
+    };
+    socket.on('queue:update', onUpdate);
+    socket.on('queue:matched', onMatched);
+    return () => {
+      socket.off('queue:update', onUpdate);
+      socket.off('queue:matched', onMatched);
+      socket.emit('queue:leave');
+    };
+  }, [onEntered]);
+
   const validName = NAME_RE.test(name);
   const wins = receipts.filter((r) => r.won).length;
 
-  // Doors stay full-color instead of greying out on an empty name: a wall of
-  // disabled buttons reads as "broken", not "type your name". Clicking without
-  // a name nudges you to the field instead.
   function requireName(): boolean {
     if (validName) return true;
     setError({ key: 'nameFirst', zone: 'name' });
@@ -72,7 +98,7 @@ export default function Home({ notice, onEntered, onPlayBot, onLearn }: Props) {
     return false;
   }
 
-  function create(mode?: 'dispute') {
+  function create() {
     if (busy || !requireName()) return;
     setBusy(true);
     socket.emit('lobby:create', { sessionId: session.id, name }, (res) => {
@@ -80,13 +106,10 @@ export default function Home({ notice, onEntered, onPlayBot, onLearn }: Props) {
       if (!res.ok) {
         return setError({
           key: ERROR_KEYS[res.error],
-          zone: res.error === 'bad_name' ? 'name' : 'doors',
+          zone: res.error === 'bad_name' ? 'name' : 'panel',
         });
       }
-      // Settle-it is the same lobby with the mode pre-set, so the green room
-      // opens straight onto "describe the argument" instead of a topic list.
-      if (mode) socket.emit('pick:mode', mode);
-      onEntered(mode ? { ...res.update, topicMode: mode } : res.update);
+      onEntered(res.update);
     });
   }
 
@@ -104,16 +127,60 @@ export default function Home({ notice, onEntered, onPlayBot, onLearn }: Props) {
           key: ERROR_KEYS[res.error],
           zone: res.error === 'bad_name' ? 'name' : 'ticket',
         });
-        // A dead invite code must never strand a deep-linked visitor on one
-        // broken action: give them the doors too.
+        // A dead invite code must never strand a deep-linked visitor.
         setDoorsRevealed(true);
       },
     );
   }
 
+  function joinQueue() {
+    if (queueing || !requireName()) return;
+    socket.emit(
+      'queue:join',
+      { sessionId: session.id, playerId: playerId(), name },
+      (res) => {
+        if (!res.ok) {
+          return setError({
+            key: ERROR_KEYS[res.error ?? 'rate_limited'],
+            zone: res.error === 'bad_name' ? 'name' : 'panel',
+          });
+        }
+        setQueueing(true);
+      },
+    );
+  }
+
+  function leaveQueue() {
+    socket.emit('queue:leave');
+    setQueueing(false);
+    setQueueInfo(null);
+  }
+
+  function pick(next: Mode) {
+    if (queueing && next !== 'ranked') leaveQueue();
+    setError(null);
+    setMode(next);
+  }
+
   function handleBot() {
     if (!requireName()) return;
     onPlayBot(name);
+  }
+
+  function watch() {
+    const c = watchCode.trim().toUpperCase();
+    if (c.length !== 6) return setError({ key: 'errCodeLen', zone: 'panel' });
+    // The click that starts watching is the gesture that unlocks live audio.
+    unlockSpectateAudio();
+    socket.emit('spectate:join', { code: c }, (res) => {
+      if (!res.ok) {
+        return setError({
+          key: res.error === 'full' ? 'specFull' : 'specNotFound',
+          zone: 'panel',
+        });
+      }
+      onSpectate(c);
+    });
   }
 
   const zoneError = (zone: ErrorZone) =>
@@ -122,27 +189,6 @@ export default function Home({ notice, onEntered, onPlayBot, onLearn }: Props) {
         {t(error.key)}
       </p>
     ) : null;
-
-  const doors = (
-    <div className="doors">
-      <span className="field-label">{t('startSomething')}</span>
-      <button className="btn door door-primary" disabled={busy} onClick={() => create()}>
-        <span className="door-tape">{t('tapeMainEvent')}</span>
-        <span className="door-title">{t('debateFriend')}</span>
-        <span className="door-desc">{t('debateFriendDesc')}</span>
-      </button>
-      {/* Settle-it's grudge-match door is PARKED, not deleted: the full flow
-          (create('dispute'), framing, ruling) still works behind the server's
-          DISPUTE_MODE gate. See the PRD before restoring this. */}
-      <button className="btn door door-bot" onClick={handleBot}>
-        {receipts.length === 0 ? <span className="door-sticker">{t('botSticker')}</span> : null}
-        <span className="door-tape">{t('tapeTraining')}</span>
-        <span className="door-title">{t('playBot')}</span>
-        <span className="door-desc">{t('botDesc')}</span>
-      </button>
-      {zoneError('doors')}
-    </div>
-  );
 
   const ticket = (hero: boolean) => (
     <div className={`join-ticket ${hero ? 'join-ticket-hero' : ''}`}>
@@ -178,6 +224,96 @@ export default function Home({ notice, onEntered, onPlayBot, onLearn }: Props) {
     </div>
   );
 
+  const panel = (
+    <div className="mode-panel">
+      {mode === 'custom' ? (
+        <>
+          <p className="mode-panel-desc">{t('panelCustomDesc')}</p>
+          <button className="btn btn-primary btn-wide" disabled={busy} onClick={create}>
+            {t('createLobby')}
+          </button>
+          {zoneError('panel')}
+          {ticket(false)}
+        </>
+      ) : mode === 'ranked' ? (
+        <>
+          <p className="mode-panel-desc">{t('panelRankedDesc')}</p>
+          {queueing ? (
+            <div className="queue-box">
+              <span className="queue-pulse" aria-hidden="true" />
+              <p className="queue-line">
+                {t('queueWaiting', { n: Math.max(0, (queueInfo?.waiting ?? 1) - 1) })}
+              </p>
+              {queueInfo ? (
+                <p className="queue-rating">{t('queueRating', { r: queueInfo.rating })}</p>
+              ) : null}
+              <button className="btn btn-small" onClick={leaveQueue}>
+                {t('queueCancel')}
+              </button>
+            </div>
+          ) : (
+            <button className="btn btn-primary btn-wide" onClick={joinQueue}>
+              {t('findOpponent')}
+            </button>
+          )}
+          {zoneError('panel')}
+        </>
+      ) : mode === 'training' ? (
+        <>
+          <p className="mode-panel-desc">{t('panelTrainingDesc')}</p>
+          <button className="btn btn-primary btn-wide" onClick={handleBot}>
+            {t('chooseOpponent')}
+          </button>
+          {zoneError('panel')}
+        </>
+      ) : (
+        <>
+          <p className="mode-panel-desc">{t('panelSpectateDesc')}</p>
+          <div className="join-row">
+            <input
+              className="input input-code"
+              placeholder={t('codePlaceholder')}
+              maxLength={6}
+              value={watchCode}
+              onChange={(e) => {
+                setWatchCode(e.target.value.toUpperCase());
+                setError(null);
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') watch();
+              }}
+            />
+            <button className="btn" onClick={watch}>
+              {t('watchBtn')}
+            </button>
+          </div>
+          {zoneError('panel')}
+        </>
+      )}
+    </div>
+  );
+
+  const selector = (
+    <>
+      <span className="field-label modes-label">{t('startSomething')}</span>
+      <div className="mode-grid" role="tablist">
+        {MODES.map((m) => (
+          <button
+            key={m}
+            role="tab"
+            aria-selected={mode === m}
+            className={`btn mode-tile ${mode === m ? 'mode-tile-on' : ''}`}
+            onClick={() => pick(m)}
+          >
+            <span className="mode-tile-title">{t(`tile_${m}`)}</span>
+            <span className="mode-tile-sub">{t(`tileSub_${m}`)}</span>
+          </button>
+        ))}
+      </div>
+      {panel}
+    </>
+  );
+
   return (
     <>
       <div className="stage center-col home">
@@ -211,7 +347,7 @@ export default function Home({ notice, onEntered, onPlayBot, onLearn }: Props) {
           </div>
 
           {invited && !doorsRevealed ? (
-            // Invite-link arrival: the ticket IS the page. The doors wait
+            // Invite-link arrival: the ticket IS the page. The selector waits
             // behind one quiet link so the invited person is never lost.
             <>
               {ticket(true)}
@@ -223,24 +359,16 @@ export default function Home({ notice, onEntered, onPlayBot, onLearn }: Props) {
               </button>
             </>
           ) : (
-            <>
-              {doors}
-              {ticket(false)}
-            </>
+            selector
           )}
         </div>
 
-        {/* Never played? The rules stand between you and a good first match,
-            so the door to them is a loud marker note, not a fourth button
-            cosplaying as a game mode. */}
         {receipts.length === 0 ? (
           <button className="learn-callout" onClick={onLearn}>
             {t('learnBtnFirst')}
           </button>
         ) : null}
 
-        {/* Everything personal lives in one corner: your pattern, your record,
-            your matches, the way back to debate school. One section, one tape. */}
         {receipts.length > 0 ? (
           <div className="corner">
             <span className="tape">{t('yourCorner')}</span>
@@ -262,8 +390,6 @@ export default function Home({ notice, onEntered, onPlayBot, onLearn }: Props) {
               </div>
             ) : null}
 
-            {/* The W-L tape IS the toggle: one control instead of a decorative
-                sticker plus a separate button saying almost the same thing. */}
             <button
               className="tape record-toggle"
               aria-expanded={showMatches}
@@ -305,13 +431,10 @@ export default function Home({ notice, onEntered, onPlayBot, onLearn }: Props) {
         <div className="fine-print">
           <p className="footnote">{t(serverStt ? 'footAny' : 'footChrome')}</p>
           <p className="small-print">{t('smallPrint')}</p>
-          {/* Which bundle is this phone actually running? Once the app installs
-              to a home screen, that stops being answerable any other way. */}
           <p className="build-stamp">build {__BUILD__}</p>
         </div>
       </div>
 
-      {/* Full-bleed sibling of the stage, not a negative-margin hack inside it. */}
       <div className="marquee" aria-hidden="true">
         <span className="marquee-track">
           {t('marquee').repeat(4)}

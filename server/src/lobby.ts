@@ -74,6 +74,13 @@ export interface Lobby {
   topic?: TopicText;
   /** Dispute mode: what the AI made of the two accounts. */
   framing?: Framing;
+  /** Ranked match: the persistent playerIds whose ratings ride on the result. */
+  ranked?: { host: string; guest: string };
+  /** Rating movement after a ranked verdict, kept so a re-fetch replays it. */
+  eloResult?: Record<Side, { before: number; after: number }>;
+  /** The last debate:phase payload sent, so a mid-debate spectator (or a
+      resumed socket) can land on a live clock instead of a blank screen. */
+  lastPhase?: import('./protocol.js').PhaseUpdate;
   sides?: { host: Side; guest: Side };
   stepIndex: number; // -1 before step 0
   stepStartedAt: number; // epoch ms of the last phase transition

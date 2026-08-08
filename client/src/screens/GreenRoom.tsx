@@ -187,7 +187,14 @@ export default function GreenRoom({
             {/* Settle-it arrivals should never face three debate-topic tabs
                 they didn't ask for: in dispute mode the whole tab row becomes
                 one tape header, with a single quiet exit for the host. */}
-            {mode === 'dispute' ? (
+            {lobby.ranked ? (
+              // Ranked: strangers on fixed terms. Nothing to pick, nothing to
+              // negotiate, just consent and confirm.
+              <div className="mode-row mode-row-dispute">
+                <span className="tape">{t('rankedTape')}</span>
+                <span className="mode-hint">{t('rankedNote')}</span>
+              </div>
+            ) : mode === 'dispute' ? (
               <div className="mode-row mode-row-dispute">
                 <span className="tape">{t('disputeHeader')}</span>
                 {isHost ? (
@@ -212,7 +219,7 @@ export default function GreenRoom({
 
             {/* Guests see the host's choices as facts, not as rows of greyed
                 buttons pretending to be options. */}
-            {!isHost ? (
+            {!isHost && !lobby.ranked ? (
               <div className="host-choices">
                 {mode !== 'dispute' ? (
                   <span className="tape tape-static">
@@ -341,8 +348,9 @@ export default function GreenRoom({
                 pick:mode('dispute') behind DISPUTE_MODE=on. */}
 
             {/* Pace sits with the other "how we play" facts, just above the
-                point of commitment, host-only like every other lobby setting. */}
-            {isHost ? (
+                point of commitment, host-only like every other lobby setting.
+                Ranked is fixed-format: no knobs for either stranger. */}
+            {isHost && !lobby.ranked ? (
               <div className="setup-row pace-row">
                 <span className="setup-label">{t('paceLabel')}</span>
                 <div className="chip-row">

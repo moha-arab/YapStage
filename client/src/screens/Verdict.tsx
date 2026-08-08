@@ -20,6 +20,8 @@ interface Props {
     mime?: string;
     audio?: ArrayBuffer;
     heard?: Record<Side, number>;
+    /** Ranked only: what the match did to each side's rating. */
+    elo?: Record<Side, { before: number; after: number }>;
   } | null;
   /** Settle-it: the argument and both accounts, for the ruling screen. */
   framing?: Framing | null;
@@ -598,9 +600,16 @@ export default function VerdictScreen({
           <p className="not-heard-fix">{t('notHeardFix')}</p>
         </div>
       ) : mySide !== undefined ? (
-        <p className={`you-result ${youWon ? 'won' : 'lost'}`}>
-          {youWon ? t('youWon') : t('youLost')}
-        </p>
+        <>
+          <p className={`you-result ${youWon ? 'won' : 'lost'}`}>
+            {youWon ? t('youWon') : t('youLost')}
+          </p>
+          {info.elo?.[mySide] ? (
+            <p className={`elo-line ${youWon ? 'won' : 'lost'}`}>
+              {t('eloLine', { a: info.elo[mySide].before, b: info.elo[mySide].after })}
+            </p>
+          ) : null}
+        </>
       ) : null}
       {strip}
 

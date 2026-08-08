@@ -339,6 +339,216 @@ html[dir='rtl'] .meter-hint {
   flex: 1;
 }
 
+/* ============ home: the four-mode selector ============ */
+/* Uniform tiles on purpose: no mode is "the yellow one". Selection carries the
+   gold, not any single game. */
+.modes-label {
+  margin-top: 16px;
+  margin-bottom: 0;
+}
+
+.mode-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-top: 8px;
+}
+
+.mode-tile {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  text-align: start;
+  gap: 1px;
+  padding: 12px 14px;
+  border-color: var(--line);
+  box-shadow: 3px 3px 0 rgba(0, 0, 0, 0.4);
+}
+
+.mode-tile-title {
+  font-size: 16px;
+  font-weight: 800;
+  letter-spacing: 0.01em;
+}
+
+.mode-tile-sub {
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--muted);
+}
+
+.mode-tile-on {
+  border-color: var(--gold);
+  background: rgba(255, 199, 46, 0.08);
+  transform: translate(-1px, -1px);
+  box-shadow: 4px 4px 0 var(--line);
+}
+
+.mode-tile-on .mode-tile-title {
+  color: var(--gold);
+}
+
+.mode-panel {
+  margin-top: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.mode-panel-desc {
+  margin: 0;
+  font-size: 13.5px;
+  line-height: 1.45;
+  color: var(--muted);
+}
+
+/* ranked queue: waiting is a state, not a spinner page */
+.queue-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 14px;
+  border: 3px solid var(--gold);
+  border-radius: 2px;
+}
+
+.queue-pulse {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--gold);
+  animation: queue-pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes queue-pulse {
+  0%,
+  100% {
+    opacity: 0.35;
+    transform: scale(0.8);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.15);
+  }
+}
+
+.queue-line {
+  margin: 0;
+  font-family: var(--marker);
+  font-size: 15px;
+}
+
+.queue-rating {
+  margin: 0;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+/* debaters always know they have an audience */
+.watch-pill {
+  font-family: var(--marker);
+  font-size: 12px;
+  color: var(--gold);
+  border: 2px solid var(--gold);
+  padding: 1px 8px;
+  transform: rotate(-1deg);
+}
+
+/* rating movement on a ranked verdict */
+.elo-line {
+  margin: 2px 0 0;
+  font-family: var(--marker);
+  font-size: 15px;
+}
+
+.elo-line.won {
+  color: var(--gold);
+}
+
+.elo-line.lost {
+  color: var(--muted);
+}
+
+/* ============ spectate ============ */
+.spec-topbar {
+  align-items: center;
+  gap: 12px;
+}
+
+.spec-live-tape {
+  font-size: 13px;
+  background: var(--for);
+  color: #fff;
+}
+
+.spec-watchers {
+  margin-inline-start: auto;
+  font-family: var(--marker);
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.spec-fighters {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 22px;
+  flex-wrap: wrap;
+}
+
+.spec-fighter {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  min-width: 180px;
+  padding: 18px 16px 14px;
+  border: 3px solid var(--line);
+  border-radius: 2px;
+  background: var(--panel);
+  position: relative;
+}
+
+.spec-fighter.for {
+  border-color: var(--for);
+}
+
+.spec-fighter.against {
+  border-color: var(--against);
+}
+
+.spec-fighter.spec-live {
+  box-shadow: 0 0 0 3px rgba(255, 199, 46, 0.35);
+}
+
+.spec-fighter-glyph {
+  font-size: 42px;
+  line-height: 1;
+}
+
+.spec-fighter-name {
+  font-family: 'Ultra', serif;
+  font-size: 20px;
+}
+
+.spec-fighter-side {
+  font-size: 11px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.spec-score {
+  font-family: var(--marker);
+  font-size: 18px;
+  margin: 0;
+}
+
+.spec-deliberating {
+  font-size: 24px;
+}
+
 /* ============ home: the three doors ============ */
 /* Tighter vertical rhythm than the default stage so the first door is visible
    on a short phone viewport. */

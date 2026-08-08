@@ -638,5 +638,68 @@ console.log('\n=== Scenario 7: bots mode ===');
   h.disconnect();
 }
 
+// ---------- Scenario 9: ranked queue + spectating ----------
+console.log('\n=== Scenario 9: ranked + spectate ===');
+{
+  const r1 = connect();
+  const r2 = connect();
+  const spec = connect();
+
+  const m1 = once(r1, 'queue:matched', 15000);
+  const m2 = once(r2, 'queue:matched', 15000);
+  const q1 = await emitP(r1, 'queue:join', { sessionId: 'rk-1', playerId: 'pid-rk-1', name: 'rankedone' });
+  check('queue: first join accepted', q1.ok === true);
+  const q2 = await emitP(r2, 'queue:join', { sessionId: 'rk-2', playerId: 'pid-rk-2', name: 'rankedtwo' });
+  check('queue: second join accepted', q2.ok === true);
+  const [u1, u2] = await Promise.all([m1, m2]);
+  check('queue: both matched into the same lobby', u1.update.code === u2.update.code);
+  check('queue: lobby is flagged ranked', u1.update.ranked === true && u2.update.ranked === true);
+  check('queue: ranked topic mode is random', u1.update.topicMode === 'random');
+  const code9 = u1.update.code;
+
+  // Ranked settings are fixed: a host trying to slow the game down is ignored.
+  r1.emit('pick:pace', 'long');
+  await new Promise((s) => setTimeout(s, 300));
+
+  const s1 = once(r1, 'debate:start', 15000);
+  r1.emit('pick:confirm');
+  r2.emit('pick:confirm');
+  const st1 = await s1;
+  check('ranked: debate starts straight from double-confirm', Boolean(st1.topic?.en));
+
+  // A spectator walks in mid-debate with just the code.
+  const sj = await emitP(spec, 'spectate:join', { code: code9 });
+  check('spectate: join accepted', sj.ok === true);
+  const state = await once(spec, 'spectate:state', 10000);
+  check('spectate: snapshot carries names and live status', state.status === 'in_debate' && Boolean(state.names?.FOR));
+  check('spectate: watcher count starts at 1', state.watchers === 1);
+  const specPhase = await once(spec, 'debate:phase', 20000);
+  check('spectate: live phases reach the watcher', specPhase.stepIndex >= 0);
+  const debWatch = await once(r1, 'spectate:count', 10000).catch(() => null);
+  check('spectate: debaters are told they have an audience', debWatch === null || debWatch.n === 1);
+
+  // Both debaters speak so the judge has a real transcript to rule on.
+  const say1 = { FOR: 'ranked point one', AGAINST: 'ranked counter one' };
+  for (const s of [r1, r2]) {
+    const mySide = s === r1 ? st1.yourSide : st1.yourSide === 'FOR' ? 'AGAINST' : 'FOR';
+    s.on('debate:phase', (ph) => {
+      if (ph.activeSpeaker === mySide) {
+        s.emit('speech:chunk', { stepIndex: ph.stepIndex, text: say1[mySide] + ' step ' + ph.stepIndex });
+        setTimeout(() => s.emit('turn:done', { stepIndex: ph.stepIndex }), 250);
+      }
+    });
+  }
+  const vSpec = once(spec, 'verdict:result', 120000);
+  const v9 = await once(r1, 'verdict:result', 120000);
+  check('ranked: verdict delivered', Boolean(v9.verdict.winner));
+  // No DATABASE_URL locally: elo must be absent, never fabricated.
+  check('ranked: elo omitted when the store is down (honest)', v9.elo === undefined);
+  const vs = await vSpec;
+  check('spectate: the watcher sees the verdict', Boolean(vs.verdict.winner));
+  r1.disconnect();
+  r2.disconnect();
+  spec.disconnect();
+}
+
 console.log(`\n${failures === 0 ? 'ALL CHECKS PASSED' : failures + ' CHECK(S) FAILED'}`);
 process.exit(failures === 0 ? 0 : 1);

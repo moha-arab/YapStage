@@ -4,6 +4,7 @@ import type {
   LobbyUpdate,
   PhaseUpdate,
   Side,
+  SpectateState,
   Verdict as VerdictData,
 } from '../../server/src/protocol';
 import { session, socket } from './socket';
@@ -29,6 +30,7 @@ import Debate from './screens/Debate';
 import VerdictScreen from './screens/Verdict';
 import BotSelect, { type BotStartConfig } from './screens/BotSelect';
 import Learn from './screens/Learn';
+import Spectate from './screens/Spectate';
 import { playBotTurn, stopBotVoice } from './botvoice';
 
 interface VerdictInfo {
@@ -39,6 +41,8 @@ interface VerdictInfo {
   audio?: ArrayBuffer;
   /** Words the judge actually received from each side. */
   heard?: Record<Side, number>;
+  /** Ranked only: what the match did to each side's rating. */
+  elo?: Record<Side, { before: number; after: number }>;
 }
 
 interface AbortInfo {
@@ -92,6 +96,11 @@ export default function App() {
   const [speechHeard, setSpeechHeard] = useState(false);
   const [botPicking, setBotPicking] = useState(false);
   const [learning, setLearning] = useState(false);
+  // Spectating a lobby by code (state + the latest server snapshot for it).
+  const [spectating, setSpectating] = useState<string | null>(null);
+  const [specState, setSpecState] = useState<SpectateState | null>(null);
+  // How many people are watching MY debate (shown to debaters).
+  const [watchers, setWatchers] = useState(0);
   const [botName, setBotName] = useState('');
   const [botTurn, setBotTurn] = useState<{ stepIndex: number; text: string } | null>(null);
   const [botSpeaking, setBotSpeaking] = useState(false);
@@ -156,6 +165,11 @@ export default function App() {
 
   useEffect(() => {
     socket.on('lobby:update', (u) => setLobby(u));
+    // Spectator plumbing: the snapshot (kept here so the Spectate screen can
+    // mount with it instead of racing the event) and the watcher count that
+    // debaters must always see.
+    socket.on('spectate:state', (s) => setSpecState(s));
+    socket.on('spectate:count', (p) => setWatchers(p.n));
     socket.on('lobby:closed', ({ reason }) => resetToHome(reason));
     socket.on('rtc:go', () => void beginOffer());
     socket.on('rtc:signal', (p) => void handleSignal(p));
@@ -339,6 +353,8 @@ export default function App() {
       socket.off('rematch:update');
       socket.off('rematch:go');
       socket.off('bot:turn');
+      socket.off('spectate:state');
+      socket.off('spectate:count');
       socket.off('caption');
       socket.off('connect');
     };
@@ -598,7 +614,18 @@ export default function App() {
   }, []);
 
   let content;
-  if (abortInfo) {
+  if (spectating) {
+    content = (
+      <Spectate
+        code={spectating}
+        initial={specState}
+        onLeave={() => {
+          setSpectating(null);
+          setSpecState(null);
+        }}
+      />
+    );
+  } else if (abortInfo) {
     content = (
       <div className="stage center-col">
         <p className="kicker">{t('cancelled')}</p>
@@ -654,6 +681,7 @@ export default function App() {
         botSpeakDeadline={botSpeakDeadline}
         botFailed={botFailed}
         heardWords={heardWords}
+        watchers={watchers}
         onPassMic={(stepIndex) => socket.emit('turn:done', { stepIndex })}
       />
     );
@@ -691,6 +719,7 @@ export default function App() {
         notice={notice}
         onEntered={handleEntered}
         onPlayBot={onPlayBot}
+        onSpectate={(code) => setSpectating(code)}
         onLearn={() => setLearning(true)}
       />
     );

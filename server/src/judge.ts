@@ -5,6 +5,7 @@ import { destroyLobby, touch } from './lobby.js';
 import type { Io } from './debate.js';
 import { event } from './stats.js';
 import { synthesize } from './tts.js';
+import { applyRankedResult } from './store.js';
 
 // Local copy of the step layout (phase/speaker per index) so judge.ts has no
 // runtime dependency on debate.ts. Every pace shares this 6-step shape; only
@@ -405,7 +406,25 @@ function emitVerdict(io: Io, lobby: Lobby, to: string): void {
       ? (lobby.verdictAudio.data as unknown as ArrayBuffer)
       : undefined,
     heard: heardCounts(lobby),
+    elo: lobby.eloResult,
   });
+}
+
+/** Ranked: move both ratings on the result. Fail-soft — a dead database costs
+    the rating update, never the verdict. */
+async function applyElo(lobby: Lobby): Promise<void> {
+  if (!lobby.ranked || !lobby.sides || !lobby.verdict) return;
+  const winnerIsHost = lobby.sides.host === lobby.verdict.winner;
+  const winnerId = winnerIsHost ? lobby.ranked.host : lobby.ranked.guest;
+  const loserId = winnerIsHost ? lobby.ranked.guest : lobby.ranked.host;
+  const moved = await applyRankedResult(winnerId, loserId);
+  if (!moved) return;
+  const loserSide: Side = lobby.verdict.winner === 'FOR' ? 'AGAINST' : 'FOR';
+  lobby.eloResult = {
+    [lobby.verdict.winner]: moved.winner,
+    [loserSide]: moved.loser,
+  } as Record<Side, { before: number; after: number }>;
+  event('elo_applied', { code: lobby.code, delta: moved.winner.after - moved.winner.before });
 }
 
 async function callJudge(lobby: Lobby): Promise<Verdict> {
@@ -482,6 +501,7 @@ export async function runJudge(io: Io, lobby: Lobby, requesterSocketId?: string)
     // Settle-it speaks the decree; debate mode speaks the hype summary.
     const spoken = verdict.ruling?.decree || verdict.summary;
     lobby.verdictAudio = (await synthesize(spoken, YAPMASTER_VOICE)) ?? undefined;
+    await applyElo(lobby); // ranked only; before the emit so the reveal has it
     touch(lobby);
     emitVerdict(io, lobby, lobby.code);
     // Keep the lobby around briefly so a reconnecting client can re-fetch,

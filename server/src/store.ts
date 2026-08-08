@@ -58,6 +58,16 @@ export async function initStore(): Promise<void> {
       )
     `);
     await pool.query(`
+      CREATE TABLE IF NOT EXISTS players (
+        id         text PRIMARY KEY,
+        name       text NOT NULL,
+        rating     integer NOT NULL DEFAULT 1000,
+        wins       integer NOT NULL DEFAULT 0,
+        losses     integer NOT NULL DEFAULT 0,
+        updated_at timestamptz NOT NULL DEFAULT now()
+      )
+    `);
+    await pool.query(`
       CREATE TABLE IF NOT EXISTS shutdowns (
         id           bigserial PRIMARY KEY,
         signal       text NOT NULL,
@@ -119,6 +129,69 @@ export async function lastShutdown(): Promise<Record<string, unknown> | null> {
     );
     return res.rowCount === 1 ? (res.rows[0] as Record<string, unknown>) : null;
   } catch {
+    return null;
+  }
+}
+
+// ---- ranked ladder ----
+// Identity is a persistent per-device id (localStorage), not an account: the
+// same no-login promise as everything else, and it migrates cleanly if real
+// accounts ever land. All calls fail soft — a dead database costs a rating
+// update, never a debate.
+
+export interface PlayerRow {
+  rating: number;
+  wins: number;
+  losses: number;
+}
+
+/** Fetch (creating if new) a player's ladder row, refreshing their name. */
+export async function getPlayer(id: string, name: string): Promise<PlayerRow | null> {
+  if (!pool || !ready) return null;
+  try {
+    const res = await pool.query(
+      `INSERT INTO players (id, name) VALUES ($1, $2)
+       ON CONFLICT (id) DO UPDATE SET name = $2, updated_at = now()
+       RETURNING rating, wins, losses`,
+      [id.slice(0, 64), name.slice(0, 24)],
+    );
+    return res.rows[0] as PlayerRow;
+  } catch (err) {
+    console.error('[store] getPlayer failed:', err);
+    return null;
+  }
+}
+
+/** Standard ELO, K=32. Returns both movements, or null if the store is down. */
+export async function applyRankedResult(
+  winnerId: string,
+  loserId: string,
+): Promise<{ winner: { before: number; after: number }; loser: { before: number; after: number } } | null> {
+  if (!pool || !ready) return null;
+  try {
+    const res = await pool.query(`SELECT id, rating FROM players WHERE id = ANY($1)`, [
+      [winnerId, loserId],
+    ]);
+    const ratings = new Map(res.rows.map((r: { id: string; rating: number }) => [r.id, r.rating]));
+    const rw = ratings.get(winnerId) ?? 1000;
+    const rl = ratings.get(loserId) ?? 1000;
+    const expected = 1 / (1 + Math.pow(10, (rl - rw) / 400));
+    const delta = Math.max(1, Math.round(32 * (1 - expected)));
+    const after = { winner: rw + delta, loser: Math.max(0, rl - delta) };
+    await pool.query(
+      `UPDATE players SET rating = $2, wins = wins + 1, updated_at = now() WHERE id = $1`,
+      [winnerId, after.winner],
+    );
+    await pool.query(
+      `UPDATE players SET rating = $2, losses = losses + 1, updated_at = now() WHERE id = $1`,
+      [loserId, after.loser],
+    );
+    return {
+      winner: { before: rw, after: after.winner },
+      loser: { before: rl, after: after.loser },
+    };
+  } catch (err) {
+    console.error('[store] applyRankedResult failed:', err);
     return null;
   }
 }

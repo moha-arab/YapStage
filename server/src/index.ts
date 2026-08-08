@@ -35,6 +35,7 @@ import {
   endTurnEarly,
   resendState,
   scriptFor,
+  setOnDebateStarted,
   startBotDebate,
   startDebate,
   startDispute,
@@ -47,6 +48,7 @@ import { coachReply } from './coach.js';
 import { cardFrom, renderCard } from './share.js';
 import { DISPUTE_MAX } from './dispute.js';
 import {
+  getPlayer,
   initStore,
   lastShutdown,
   loadCard,
@@ -212,6 +214,108 @@ const io: Io = new Server<ClientToServer, ServerToClient, Record<string, never>,
   { serveClient: false, maxHttpBufferSize: 4_000_000 },
 );
 
+// ---- ranked matchmaking queue ----
+// In-memory like the lobbies. An entry is one waiting socket; pairing is
+// strictly first-come-first-served (rating-window matchmaking is pointless
+// until there are enough concurrent players for a window to select from).
+interface QueueEntry {
+  socketId: string;
+  sessionId: string;
+  playerId: string;
+  name: string;
+  rating: number;
+}
+const rankedQueue: QueueEntry[] = [];
+
+function dropFromQueue(socketId: string): void {
+  const i = rankedQueue.findIndex((q) => q.socketId === socketId);
+  if (i >= 0) rankedQueue.splice(i, 1);
+}
+
+function broadcastQueue(): void {
+  for (const q of rankedQueue) {
+    io.to(q.socketId).emit('queue:update', { waiting: rankedQueue.length, rating: q.rating });
+  }
+}
+
+/** Pair the two longest-waiting players into a ranked green room. */
+function tryMatch(): void {
+  while (rankedQueue.length >= 2) {
+    const a = rankedQueue.shift()!;
+    const b = rankedQueue.shift()!;
+    const sa = io.sockets.sockets.get(a.socketId);
+    const sb = io.sockets.sockets.get(b.socketId);
+    // A ghost entry (socket died between heartbeats) must not eat a real one.
+    if (!sa || !sb) {
+      if (sa) rankedQueue.unshift(a);
+      if (sb) rankedQueue.unshift(b);
+      if (!sa && !sb) continue;
+      break;
+    }
+    const lobby = createLobby(a.socketId, a.sessionId, a.name);
+    lobby.guest = { socketId: b.socketId, sessionId: b.sessionId, name: b.name, rtcReady: false };
+    lobby.status = 'greenroom';
+    lobby.topicMode = 'random'; // strangers never negotiate a topic
+    lobby.ranked = { host: a.playerId, guest: b.playerId };
+    sa.data.code = lobby.code;
+    sa.data.role = 'host';
+    sb.data.code = lobby.code;
+    sb.data.role = 'guest';
+    void sa.join(lobby.code);
+    void sb.join(lobby.code);
+    event('ranked_matched', { code: lobby.code });
+    io.to(a.socketId).emit('queue:matched', { update: updateFor(lobby, lobby.host!) });
+    io.to(b.socketId).emit('queue:matched', { update: updateFor(lobby, lobby.guest!) });
+  }
+  broadcastQueue();
+}
+
+// ---- spectators ----
+// Not participants: no seat, no camera, no mic. They sit in BOTH the lobby's
+// socket room (free live state: phases, verdicts, aborts) and a spec room
+// (audio relays). Debaters always see the watcher count.
+const spectators = new Map<string, Set<string>>(); // code -> socketIds
+const SPECTATOR_CAP = 20;
+
+function spectatorCount(code: string): number {
+  return spectators.get(code)?.size ?? 0;
+}
+
+function broadcastWatchers(code: string): void {
+  const n = spectatorCount(code);
+  io.to(code).emit('spectate:count', { n });
+  io.to(`spec:${code}`).emit('spectate:count', { n });
+}
+
+function dropSpectator(socketId: string, code: string): void {
+  const set = spectators.get(code);
+  if (!set?.delete(socketId)) return;
+  if (set.size === 0) spectators.delete(code);
+  broadcastWatchers(code);
+}
+
+function spectateStateFor(lobby: Lobby): import('./protocol.js').SpectateState {
+  return {
+    code: lobby.code,
+    status:
+      lobby.status === 'aborted'
+        ? 'verdict'
+        : (lobby.status as 'waiting' | 'greenroom' | 'in_debate' | 'judging' | 'verdict'),
+    topic: lobby.topic,
+    names: lobby.sides ? namesOf(lobby) : undefined,
+    bot: lobby.bot
+      ? {
+          id: lobby.bot.id,
+          name: lobby.bot.name,
+          color: BOT_BY_ID.get(lobby.bot.id)?.color ?? 'gold',
+          side: lobby.bot.side,
+        }
+      : undefined,
+    phase: lobby.status === 'in_debate' ? lobby.lastPhase : undefined,
+    watchers: spectatorCount(lobby.code),
+  };
+}
+
 function updateFor(lobby: Lobby, receiver: Participant): LobbyUpdate {
   const isHost = receiver === lobby.host;
   const peer = isHost ? lobby.guest : lobby.host;
@@ -243,6 +347,7 @@ function updateFor(lobby: Lobby, receiver: Participant): LobbyUpdate {
     },
     iceServers: getIceServers(),
     sttAvailable: sttConfigured(),
+    ranked: Boolean(lobby.ranked),
   };
 }
 
@@ -433,6 +538,7 @@ io.on('connection', (socket) => {
     // silently dropped the door's whole purpose and the green room opened on
     // topic tabs anyway.
     if (!lobby || (lobby.status !== 'greenroom' && lobby.status !== 'waiting')) return;
+    if (lobby.ranked) return; // ranked is fixed-format
     // Settle-it is PARKED (2026-08-05): fully built, deliberately unreachable.
     // The app's identity is the four sport modes; this is the show. Flip
     // DISPUTE_MODE=on in the environment to bring it back — everything behind
@@ -459,6 +565,7 @@ io.on('connection', (socket) => {
     if (!allow(`pick:${socket.id}`, 60, 10_000)) return;
     const lobby = socket.data.code ? getLobby(socket.data.code) : undefined;
     if (!lobby || lobby.status !== 'greenroom') return;
+    if (lobby.ranked) return; // ranked is fixed-format: strangers, fair terms
     if (participantOf(lobby, socket.id) !== lobby.host) return; // host-only
     if (pace !== 'standard' && pace !== 'blitz' && pace !== 'long') return;
     if (lobby.pace === pace) return;
@@ -741,6 +848,73 @@ io.on('connection', (socket) => {
     });
   });
 
+  // Ranked: enter the queue. Rating is looked up (or created at 1000) so the
+  // waiting screen can show it; pairing is first-come-first-served.
+  socket.on('queue:join', (p, cb) => {
+    if (typeof cb !== 'function') return;
+    if (!FAST && !allow(`join:${ipOf(socket)}`, 30, 5 * 60_000)) {
+      return cb({ ok: false, error: 'rate_limited' });
+    }
+    const name = String(p?.name ?? '').trim();
+    if (!NAME_RE.test(name)) return cb({ ok: false, error: 'bad_name' });
+    const playerId = String(p?.playerId ?? '').slice(0, 64);
+    if (!playerId) return cb({ ok: false, error: 'bad_name' });
+    if (rankedQueue.some((q) => q.socketId === socket.id)) return cb({ ok: true });
+    releasePreviousSeat(socket);
+    dropFromQueue(socket.id);
+    void getPlayer(playerId, name).then((row) => {
+      // The socket may have left the queue (or died) while we read the rating.
+      if (!io.sockets.sockets.get(socket.id)) return;
+      rankedQueue.push({
+        socketId: socket.id,
+        sessionId: String(p?.sessionId ?? '').slice(0, 64),
+        playerId,
+        name,
+        rating: row?.rating ?? 1000,
+      });
+      event('queue_joined', { waiting: rankedQueue.length });
+      cb({ ok: true });
+      tryMatch();
+    });
+  });
+
+  socket.on('queue:leave', () => {
+    dropFromQueue(socket.id);
+    broadcastQueue();
+  });
+
+  // Watch a live lobby by code. The code IS the invitation: whoever has it was
+  // given it by someone in the room. Debaters always see the watcher count.
+  socket.on('spectate:join', (p, cb) => {
+    if (typeof cb !== 'function') return;
+    if (!FAST && !allow(`join:${ipOf(socket)}`, 30, 5 * 60_000)) {
+      return cb({ ok: false, error: 'rate_limited' });
+    }
+    const lobby = getLobby(String(p?.code ?? '').slice(0, 8));
+    if (!lobby) return cb({ ok: false, error: 'not_found' });
+    if (participantOf(lobby, socket.id)) return cb({ ok: false, error: 'not_found' });
+    if (spectatorCount(lobby.code) >= SPECTATOR_CAP) return cb({ ok: false, error: 'full' });
+    const set = spectators.get(lobby.code) ?? new Set<string>();
+    set.add(socket.id);
+    spectators.set(lobby.code, set);
+    void socket.join(lobby.code); // live state: phases, verdicts, aborts
+    void socket.join(`spec:${lobby.code}`); // audio relays
+    socket.data.code = lobby.code; // for cleanup on disconnect
+    event('spectate_joined', { code: lobby.code, n: set.size });
+    cb({ ok: true });
+    socket.emit('spectate:state', spectateStateFor(lobby));
+    broadcastWatchers(lobby.code);
+  });
+
+  socket.on('spectate:leave', () => {
+    const code = socket.data.code;
+    if (!code) return;
+    void socket.leave(code);
+    void socket.leave(`spec:${code}`);
+    dropSpectator(socket.id, code);
+    socket.data.code = undefined;
+  });
+
   socket.on('bot:start', (p, cb) => {
     if (typeof cb !== 'function') return;
     if (!FAST && !allow(`create:${ipOf(socket)}`, 10, 5 * 60_000)) {
@@ -796,7 +970,10 @@ io.on('connection', (socket) => {
   });
 
   socket.on('disconnect', () => {
+    dropFromQueue(socket.id);
+    broadcastQueue();
     const lobby = socket.data.code ? getLobby(socket.data.code) : undefined;
+    if (socket.data.code) dropSpectator(socket.id, socket.data.code);
     if (!lobby) return;
     const me = participantOf(lobby, socket.id);
     if (!me) return;
@@ -877,7 +1054,17 @@ startSweep((code) => {
   // even after the lobby record is gone — the sockets are still joined).
   io.to(code).emit('lobby:closed', { reason: 'closedExpired' });
   io.socketsLeave(code);
+  io.socketsLeave(`spec:${code}`);
+  spectators.delete(code);
   console.log(`[sweep] destroyed stale lobby ${code}`);
+});
+
+// Spectators join mid-lifecycle, but debate:start goes to participant sockets,
+// not rooms — so when a debate actually begins, everyone watching gets a fresh
+// snapshot with the topic, names and first clock.
+setOnDebateStarted((lobby) => {
+  if (spectatorCount(lobby.code) === 0) return;
+  io.to(`spec:${lobby.code}`).emit('spectate:state', spectateStateFor(lobby));
 });
 
 // Lobbies live in memory, so a deploy ends every debate in progress. That is
