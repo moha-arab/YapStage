@@ -16,7 +16,7 @@ type Dict = Record<string, string>;
 
 const en: Dict = {
   kicker: '1v1 video debates · ai judge · no accounts',
-  homeSubtitle: 'call out a friend, settle a real fight, or spar the bots. the judge hears everything and crowns a yapmaster.',
+  homeSubtitle: 'call out a friend or spar the bots. the judge hears everything and crowns a yapmaster.',
   nameFirst: 'name first, champ',
   startSomething: 'start something',
   debateFriend: 'debate a friend',
@@ -317,7 +317,7 @@ const en: Dict = {
 
 const ar: Dict = {
   kicker: 'مناظرات فيديو ١ ضد ١ · حَكَم ذكاء اصطناعي · بدون حسابات',
-  homeSubtitle: 'تحدَّ صديقاً، أو احسم خلافاً حقيقياً، أو تدرّب ضد البوتات. الحكم يسمع كل شيء ويتوّج الياب ماستر.',
+  homeSubtitle: 'تحدَّ صديقاً أو تدرّب ضد البوتات. الحكم يسمع كل شيء ويتوّج الياب ماستر.',
   nameFirst: 'الاسم أولاً يا بطل',
   startSomething: 'ابدأ شيئاً',
   debateFriend: 'ناظِر صديقاً',

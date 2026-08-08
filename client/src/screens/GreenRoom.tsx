@@ -336,17 +336,9 @@ export default function GreenRoom({
               <p className="mode-desc">{t('randomDesc')}</p>
             )}
 
-            {/* The mirror of the home page's grudge-match door: settle-it is
-                reachable from any debate mode, but as its own red note, never
-                as a fourth topic tab. */}
-            {isHost && mode !== 'dispute' ? (
-              <button
-                className="mode-link mode-link-settle"
-                onClick={() => socket.emit('pick:mode', 'dispute')}
-              >
-                {t('settleInstead')}
-              </button>
-            ) : null}
+            {/* Settle-it entry PARKED (see PRD): the dispute flow below this
+                point still works, it just has no doors. The server also gates
+                pick:mode('dispute') behind DISPUTE_MODE=on. */}
 
             {/* Pace sits with the other "how we play" facts, just above the
                 point of commitment, host-only like every other lobby setting. */}

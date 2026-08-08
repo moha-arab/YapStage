@@ -433,6 +433,11 @@ io.on('connection', (socket) => {
     // silently dropped the door's whole purpose and the green room opened on
     // topic tabs anyway.
     if (!lobby || (lobby.status !== 'greenroom' && lobby.status !== 'waiting')) return;
+    // Settle-it is PARKED (2026-08-05): fully built, deliberately unreachable.
+    // The app's identity is the four sport modes; this is the show. Flip
+    // DISPUTE_MODE=on in the environment to bring it back — everything behind
+    // this gate (framing, dispute judge, ruling screen, share card) still works.
+    if (mode === 'dispute' && process.env.DISPUTE_MODE !== 'on') return;
     if (participantOf(lobby, socket.id) !== lobby.host) return; // host-only
     if (mode !== 'agree' && mode !== 'category' && mode !== 'random' && mode !== 'dispute') return;
     if (lobby.topicMode === mode) return;

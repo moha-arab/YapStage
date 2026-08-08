@@ -131,11 +131,9 @@ export default function Home({ notice, onEntered, onPlayBot, onLearn }: Props) {
         <span className="door-title">{t('debateFriend')}</span>
         <span className="door-desc">{t('debateFriendDesc')}</span>
       </button>
-      <button className="btn door door-settle" disabled={busy} onClick={() => create('dispute')}>
-        <span className="door-tape">{t('tapeGrudge')}</span>
-        <span className="door-title">{t('settleItBtn')}</span>
-        <span className="door-desc">{t('settleDesc')}</span>
-      </button>
+      {/* Settle-it's grudge-match door is PARKED, not deleted: the full flow
+          (create('dispute'), framing, ruling) still works behind the server's
+          DISPUTE_MODE gate. See the PRD before restoring this. */}
       <button className="btn door door-bot" onClick={handleBot}>
         {receipts.length === 0 ? <span className="door-sticker">{t('botSticker')}</span> : null}
         <span className="door-tape">{t('tapeTraining')}</span>
