@@ -37,11 +37,10 @@ interface Props {
   onEntered: (u: LobbyUpdate) => void;
   onPlayBot: (name: string) => void;
   onSpectate: (code: string) => void;
-  onLearn: () => void;
   onTutorial: (name: string) => void;
 }
 
-export default function Home({ notice, onEntered, onPlayBot, onSpectate, onLearn, onTutorial }: Props) {
+export default function Home({ notice, onEntered, onPlayBot, onSpectate, onTutorial }: Props) {
   const { lang, t } = useI18n();
   const [name, setName] = useState('');
   const [mode, setMode] = useState<Mode>('custom');
@@ -378,12 +377,6 @@ export default function Home({ notice, onEntered, onPlayBot, onSpectate, onLearn
           )}
         </div>
 
-        {receipts.length === 0 ? (
-          <button className="learn-callout" onClick={onLearn}>
-            {t('learnBtnFirst')}
-          </button>
-        ) : null}
-
         {receipts.length > 0 ? (
           <div className="corner">
             <span className="tape">{t('yourCorner')}</span>
@@ -437,9 +430,6 @@ export default function Home({ notice, onEntered, onPlayBot, onSpectate, onLearn
               </div>
             ) : null}
 
-            <button className="btn btn-small" onClick={onLearn}>
-              {t('learnBtn')}
-            </button>
           </div>
         ) : null}
 

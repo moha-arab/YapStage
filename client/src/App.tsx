@@ -30,7 +30,6 @@ import GreenRoom from './screens/GreenRoom';
 import Debate from './screens/Debate';
 import VerdictScreen from './screens/Verdict';
 import BotSelect, { type BotStartConfig } from './screens/BotSelect';
-import Learn from './screens/Learn';
 import Spectate from './screens/Spectate';
 import TutorialIntro from './screens/TutorialIntro';
 import TutorialDone, { type DebriefInfo } from './screens/TutorialDone';
@@ -98,7 +97,6 @@ export default function App() {
   const [rtcState, setRtcState] = useState<RTCPeerConnectionState | null>(null);
   const [speechHeard, setSpeechHeard] = useState(false);
   const [botPicking, setBotPicking] = useState(false);
-  const [learning, setLearning] = useState(false);
   // Tutorial: the intro screen, then (after the lesson) the YapMaster's notes.
   const [tutoring, setTutoring] = useState(false);
   const [debrief, setDebrief] = useState<DebriefInfo | null>(null);
@@ -806,8 +804,6 @@ export default function App() {
         onRetryMedia={retryMedia}
       />
     );
-  } else if (learning) {
-    content = <Learn onBack={() => setLearning(false)} />;
   } else {
     content = (
       <Home
@@ -815,7 +811,6 @@ export default function App() {
         onEntered={handleEntered}
         onPlayBot={onPlayBot}
         onSpectate={(code) => setSpectating(code)}
-        onLearn={() => setLearning(true)}
         onTutorial={onTutorial}
       />
     );

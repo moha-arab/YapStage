@@ -38,6 +38,7 @@ const en: Dict = {
   tutorialHow1: 'a debate has four rounds: opening, rebuttal, defense, closing.',
   tutorialHow2: 'the yapmaster demos each round first, then hands you the mic to try it yourself.',
   tutorialHow3: 'nobody wins or loses. at the end you get the yapmaster\'s notes and your next step.',
+  tutorialHow4: 'done talking early? pass the mic. rambling costs points, and ducking their best point costs more.',
   tutorialGo: 'step on stage',
   tutorialLore:
     'they say he never lost a debate. out-yapped a hurricane, argued a mirror into agreeing. then he got bored of winning and picked up the gavel.',
@@ -408,6 +409,7 @@ const ar: Dict = {
   tutorialHow1: 'للمناظرة أربع جولات: الافتتاح، الرد، الدفاع، الختام.',
   tutorialHow2: 'الياب ماستر يعرض كل جولة أولاً، ثم يسلّمك المايك لتجرّبها بنفسك.',
   tutorialHow3: 'لا أحد يفوز أو يخسر. في النهاية تحصل على ملاحظات الياب ماستر وخطوتك التالية.',
+  tutorialHow4: 'انتهيت مبكراً؟ مرّر المايك. الثرثرة تخسرك نقاطاً، وتجاهل أقوى نقطة عند خصمك يخسرك أكثر.',
   tutorialGo: 'اصعد إلى المسرح',
   tutorialLore:
     'يقولون إنه لم يخسر مناظرة قط. تفوّق على إعصار في الكلام، وأقنع المرآة بأن توافقه. ثم ملّ من الفوز فحمل المطرقة.',

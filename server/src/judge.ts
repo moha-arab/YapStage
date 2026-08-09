@@ -558,7 +558,7 @@ const DEBRIEF_SCHEMA = {
   required: ['praise', 'fix', 'next'],
   properties: {
     praise: { type: 'string', description: 'One specific thing the student genuinely did well, referencing their actual words. 1-2 sentences.' },
-    fix: { type: 'string', description: 'The single most valuable improvement for next time, concrete and doable. 1-2 sentences.' },
+    fix: { type: 'string', description: 'The single most valuable improvement for next time, concrete and doable, naming which scoring area it falls under: making your case, backing it up with real evidence, answering what the opponent actually said, or using your speaking time. 1-2 sentences.' },
     next: { type: 'string', description: 'A warm one-sentence send-off telling them they are ready to face Pip the duckling in training mode.' },
   },
 } as const;

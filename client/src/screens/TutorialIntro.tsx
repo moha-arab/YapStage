@@ -47,6 +47,7 @@ export default function TutorialIntro({ localStream, mediaError, onRetryMedia, o
         <p className="tutorial-line">{t('tutorialHow1')}</p>
         <p className="tutorial-line">{t('tutorialHow2')}</p>
         <p className="tutorial-line">{t('tutorialHow3')}</p>
+        <p className="tutorial-line">{t('tutorialHow4')}</p>
       </div>
 
       <div className="bot-mirror">
