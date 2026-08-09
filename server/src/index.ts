@@ -49,6 +49,7 @@ import { coachReply } from './coach.js';
 import { cardFrom, renderCard } from './share.js';
 import { DISPUTE_MAX } from './dispute.js';
 import {
+  campaignLocksOn,
   getCampaign,
   getPlayer,
   initStore,
@@ -955,8 +956,11 @@ io.on('connection', (socket) => {
 
     // Campaign gate: the ladder is levels now. No playerId (old client) or a
     // downed store fails OPEN — a dead database must never brick training.
+    // DORMANT unless CAMPAIGN_LOCKS=on (his call 2026-08-09: unlock everything
+    // for now, same parking pattern as DISPUTE_MODE). Progress still records
+    // while dormant, so wins earned in the open period count when locks return.
     const playerId = String(p?.playerId ?? '').slice(0, 64);
-    if (playerId) {
+    if (playerId && campaignLocksOn()) {
       const level = await getCampaign(playerId);
       if (level !== null && bot.rank > level) {
         return cb({ ok: false, error: 'locked' });
@@ -1000,6 +1004,9 @@ io.on('connection', (socket) => {
 
   socket.on('campaign:get', (p, cb) => {
     if (typeof cb !== 'function') return;
+    // Locks dormant: null reads as "no gate" on the client — no locked
+    // cards, no tutorial-first banner.
+    if (!campaignLocksOn()) return cb({ level: null });
     // Rate-limited like every other store-touching handler: this is a raw
     // SELECT keyed on a client-supplied id, and the pg pool is shared with
     // ELO and reports. Legit clients call it once per picker mount.

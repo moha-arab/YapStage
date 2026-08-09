@@ -220,6 +220,14 @@ export async function applyRankedResult(
 // null everywhere means "store down": callers FAIL OPEN — a dead database
 // unlocks the ladder rather than bricking training mode.
 
+/** Campaign locks are DORMANT unless CAMPAIGN_LOCKS=on — the same parking
+    pattern as DISPUTE_MODE. Progress records either way, so wins earned
+    while the ladder is open still count when the locks come back. Read per
+    call so tests can flip it without a restart. */
+export function campaignLocksOn(): boolean {
+  return process.env.CAMPAIGN_LOCKS === 'on';
+}
+
 /** Where this player's campaign stands. 0 for a player we've never seen. */
 export async function getCampaign(id: string): Promise<number | null> {
   if (!pool || !ready) return null;

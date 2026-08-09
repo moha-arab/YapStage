@@ -5,7 +5,7 @@ import { destroyLobby, touch } from './lobby.js';
 import type { Io } from './debate.js';
 import { event } from './stats.js';
 import { synthesize } from './tts.js';
-import { advanceCampaign, applyRankedResult, getCampaign } from './store.js';
+import { advanceCampaign, applyRankedResult, campaignLocksOn, getCampaign } from './store.js';
 import { BOTS } from './bots.js';
 
 // Local copy of the step layout (phase/speaker per index) so judge.ts has no
@@ -439,6 +439,9 @@ async function unlockLevel(io: Io, lobby: Lobby, target: number): Promise<void> 
   const after = await advanceCampaign(playerId, lobby.host?.name ?? 'player', target);
   if (after === null) return;
   event('campaign_up', { code: lobby.code, level: target });
+  // Locks dormant: record the progress but skip the "unlocked" fanfare —
+  // announcing an unlock while everything is already open reads as broken.
+  if (!campaignLocksOn()) return;
   // rank 7 doesn't exist: the ladder is conquered.
   const next = BOTS.find((b) => b.rank === target);
   io.to(lobby.code).emit('campaign:up', { level: target, unlocked: next?.name ?? null });
