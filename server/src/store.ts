@@ -75,6 +75,24 @@ export async function initStore(): Promise<void> {
         at           timestamptz NOT NULL DEFAULT now()
       )
     `);
+    // Campaign progress rides the same identity as the ranked ladder.
+    await pool.query(
+      `ALTER TABLE players ADD COLUMN IF NOT EXISTS campaign integer NOT NULL DEFAULT 0`,
+    );
+    // Reports keep the debate's words as evidence — the one deliberate
+    // exception to "transcripts die with the lobby", disclosed in the UI.
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS reports (
+        id            bigserial PRIMARY KEY,
+        code          text NOT NULL,
+        mode          text NOT NULL,
+        reporter_name text NOT NULL,
+        reported_name text NOT NULL,
+        reason        text NOT NULL,
+        transcript    jsonb NOT NULL,
+        at            timestamptz NOT NULL DEFAULT now()
+      )
+    `);
     ready = true;
     console.log('[store] postgres ready — share links are short');
   } catch (err) {
@@ -193,6 +211,90 @@ export async function applyRankedResult(
   } catch (err) {
     console.error('[store] applyRankedResult failed:', err);
     return null;
+  }
+}
+
+// ---- campaign (the bot ladder as levels) ----
+// level = the highest bot rank this player may face. 0 = only the tutorial;
+// finishing the tutorial reaches 1 (Pip); beating rank r reaches r+1.
+// null everywhere means "store down": callers FAIL OPEN — a dead database
+// unlocks the ladder rather than bricking training mode.
+
+/** Where this player's campaign stands. 0 for a player we've never seen. */
+export async function getCampaign(id: string): Promise<number | null> {
+  if (!pool || !ready) return null;
+  try {
+    const res = await pool.query(`SELECT campaign FROM players WHERE id = $1`, [id.slice(0, 64)]);
+    return res.rowCount === 1 ? (res.rows[0].campaign as number) : 0;
+  } catch (err) {
+    console.error('[store] getCampaign failed:', err);
+    return null;
+  }
+}
+
+/** Raise the frontier to `level` (monotonic — replaying old levels never
+    lowers it). Returns the resulting level, or null when the store is down. */
+export async function advanceCampaign(
+  id: string,
+  name: string,
+  level: number,
+): Promise<number | null> {
+  if (!pool || !ready) return null;
+  try {
+    const res = await pool.query(
+      `INSERT INTO players (id, name, campaign) VALUES ($1, $2, $3)
+       ON CONFLICT (id) DO UPDATE SET campaign = GREATEST(players.campaign, $3), updated_at = now()
+       RETURNING campaign`,
+      [id.slice(0, 64), name.slice(0, 24), level],
+    );
+    return res.rows[0].campaign as number;
+  } catch (err) {
+    console.error('[store] advanceCampaign failed:', err);
+    return null;
+  }
+}
+
+// ---- reports ----
+
+export interface ReportRow {
+  code: string;
+  mode: string;
+  reporterName: string;
+  reportedName: string;
+  reason: string;
+  transcript: unknown;
+}
+
+/** File a report. false = not recorded (store down) — callers must say so
+    rather than pretend it went through. */
+export async function saveReport(r: ReportRow): Promise<boolean> {
+  if (!pool || !ready) return false;
+  try {
+    await pool.query(
+      `INSERT INTO reports (code, mode, reporter_name, reported_name, reason, transcript)
+       VALUES ($1, $2, $3, $4, $5, $6)`,
+      [r.code, r.mode, r.reporterName.slice(0, 24), r.reportedName.slice(0, 24), r.reason.slice(0, 24), JSON.stringify(r.transcript)],
+    );
+    return true;
+  } catch (err) {
+    console.error('[store] saveReport failed:', err);
+    return false;
+  }
+}
+
+/** The review queue, newest first. */
+export async function loadReports(limit = 50): Promise<Record<string, unknown>[]> {
+  if (!pool || !ready) return [];
+  try {
+    const res = await pool.query(
+      `SELECT id, code, mode, reporter_name, reported_name, reason, transcript, at
+       FROM reports ORDER BY at DESC LIMIT $1`,
+      [Math.min(200, Math.max(1, limit))],
+    );
+    return res.rows as Record<string, unknown>[];
+  } catch (err) {
+    console.error('[store] loadReports failed:', err);
+    return [];
   }
 }
 

@@ -105,14 +105,15 @@ export const BOTS: Bot[] = [
 const TUTOR: Bot = {
   id: 'tutor',
   name: 'YapMaster',
-  tagline: 'the judge, moonlighting as your coach',
-  blurb: 'walks you through all four rounds, one at a time.',
+  tagline: 'the greatest yapper of all time',
+  blurb: 'won every debate there was, got bored of winning, picked up the gavel.',
   color: 'gold',
   rank: 0,
   skill: 'the teacher',
   difficulty: 'hard', // unused: the tutor has its own generation path
   voiceId: 'pqHfZKP75CvOlQylNhV4', // Bill — the same voice that reads verdicts
-  style: 'You are the YapMaster: warm, funny, endlessly encouraging, never condescending.',
+  style:
+    'You are the YapMaster: in your day the greatest debater alive, retired undefeated because nobody was left to argue with, so you took up the gavel and became the judge. Warm, funny, endlessly encouraging, never condescending. You may drop ONE short, fond reference to your own legendary yapping days per turn when it helps make a point ("back when I debated a hurricane and won"), never more.',
   hidden: true,
 };
 BOTS.push(TUTOR);

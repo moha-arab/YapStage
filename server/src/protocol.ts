@@ -193,7 +193,7 @@ export interface Verdict {
   ruling?: Ruling;
 }
 
-export type JoinError = 'not_found' | 'full' | 'in_progress' | 'bad_name' | 'rate_limited';
+export type JoinError = 'not_found' | 'full' | 'in_progress' | 'bad_name' | 'rate_limited' | 'locked';
 
 export type CreateResult =
   | { ok: true; update: LobbyUpdate }
@@ -267,14 +267,24 @@ export interface ClientToServer {
       side?: Side | 'random';
       lang?: 'en' | 'ar';
       pace?: Pace;
+      /** Campaign identity: bots above your unlocked level are refused
+          ('locked'). Absent (old clients) or store-down means no gate. */
+      playerId?: string;
     },
     cb: (res: { ok: boolean; error?: JoinError }) => void,
   ) => void;
+  /** Where this player's campaign stands: the highest bot rank they may face.
+      level 0 = only the tutorial; null = the store is down (client fails open). */
+  'campaign:get': (p: { playerId: string }, cb: (res: { level: number | null }) => void) => void;
+  /** Report your human opponent (custom or ranked; bots can't be reported).
+      Stores the debate's transcript for review — the one deliberate exception
+      to "transcripts die with the lobby". ok:false = not recorded, be honest. */
+  'report': (p: { reason: string }, cb: (res: { ok: boolean }) => void) => void;
   'bot:done': (p: { stepIndex: number }) => void; // the bot finished speaking its turn
   /** Start the interactive tutorial: the YapMaster demos each round, then the
       student tries it. No judge at the end — a debrief instead. */
   'tutorial:start': (
-    p: { sessionId: string; name: string; lang?: 'en' | 'ar' },
+    p: { sessionId: string; name: string; lang?: 'en' | 'ar'; playerId?: string },
     cb: (res: { ok: boolean; error?: JoinError }) => void,
   ) => void;
 }
@@ -354,6 +364,9 @@ export interface ServerToClient {
     mime?: string;
     audio?: ArrayBuffer;
   }) => void;
+  /** Campaign frontier moved: `level` is the newly unlocked bot rank,
+      `unlocked` its name — null once the whole ladder is conquered. */
+  'campaign:up': (p: { level: number; unlocked: string | null }) => void;
 }
 
 export interface SocketData {

@@ -4,6 +4,7 @@ import { isSoundMuted, playCrash, playDrumRoll, playHit, setSoundMuted, speak } 
 import { socket } from '../socket';
 import { useI18n } from '../i18n';
 import VideoTile from '../VideoTile';
+import ReportFlag from '../Report';
 import { playBotTurn, stopBotVoice } from '../botvoice';
 
 const COACH_LIMIT = 6;
@@ -38,6 +39,8 @@ interface Props {
   onRematch: () => void;
   rematch: { youWant: boolean; peerWant: boolean; peerLeft: boolean } | null;
   botOpponent?: { id: string; name: string; color: string } | null;
+  /** Campaign: the win moved your frontier — announce the new challenger. */
+  unlocked?: { level: number; unlocked: string | null } | null;
 }
 
 /**
@@ -130,6 +133,7 @@ export default function VerdictScreen({
   onRematch,
   rematch,
   botOpponent,
+  unlocked,
   framing,
 }: Props) {
   const { lang, t } = useI18n();
@@ -515,6 +519,7 @@ export default function VerdictScreen({
               {muted ? t('unmuteStage') : t('muteStage')}
             </button>
           </div>
+          {!botOpponent ? <ReportFlag /> : null}
           <p className="footnote">{t('condolences', { x: names[loser] })}</p>
         </div>
   );
@@ -610,6 +615,13 @@ export default function VerdictScreen({
             </p>
           ) : null}
         </>
+      ) : null}
+      {unlocked ? (
+        <span className="tape tape-gold unlock-tape">
+          {unlocked.unlocked
+            ? t('unlockedTape', { x: unlocked.unlocked })
+            : t('campaignDone')}
+        </span>
       ) : null}
       {strip}
 

@@ -23,6 +23,7 @@ import {
 import { setOnChunk, setSpeechLang, speechSupported, startTurn, stopTurn } from './speech';
 import { recordingSupported, setOnRecordingActive, startTurnRecording, stopTurnRecording } from './recorder';
 import { saveReceipt } from './history';
+import { playerId } from './player';
 import { LangToggle, useI18n } from './i18n';
 import Home from './screens/Home';
 import GreenRoom from './screens/GreenRoom';
@@ -101,6 +102,8 @@ export default function App() {
   // Tutorial: the intro screen, then (after the lesson) the YapMaster's notes.
   const [tutoring, setTutoring] = useState(false);
   const [debrief, setDebrief] = useState<DebriefInfo | null>(null);
+  // Campaign: a win at the frontier unlocked the next opponent.
+  const [unlocked, setUnlocked] = useState<{ level: number; unlocked: string | null } | null>(null);
   // Spectating a lobby by code (state + the latest server snapshot for it).
   const [spectating, setSpectating] = useState<string | null>(null);
   const [specState, setSpecState] = useState<SpectateState | null>(null);
@@ -164,6 +167,7 @@ export default function App() {
     setBotPicking(false);
     setTutoring(false);
     setDebrief(null);
+    setUnlocked(null);
     setBotTurn(null);
     setBotSpeaking(false);
     setBotSpeakDeadline(null);
@@ -184,6 +188,13 @@ export default function App() {
     socket.on('debate:phase', (p) => {
       setBotFailed(false); // a new turn clears the last one's error
       setHeardWords(0);
+      // Backstop: if the server force-advanced past the bot (its fallback
+      // timer), the voice must never carry into the human's turn.
+      if (startDataRef.current?.bot && p.activeSpeaker === startDataRef.current.yourSide) {
+        stopBotVoice();
+        setBotSpeaking(false);
+        setBotSpeakDeadline(null);
+      }
       setPhase(p);
     });
     // Proof the judge is receiving you, reduced to a count.
@@ -292,6 +303,7 @@ export default function App() {
       setJudgeStatus(null);
       setDebrief(p);
     });
+    socket.on('campaign:up', (p) => setUnlocked(p));
     socket.on('rematch:update', (p) => setRematch(p));
     socket.on('rematch:go', () => {
       // Both agreed: drop the finished-debate state and fall back to the green
@@ -303,6 +315,7 @@ export default function App() {
       setJudgeStatus(null);
       setAbortInfo(null);
       setRematch(null);
+      setUnlocked(null);
       clearResume();
     });
     // Losing the socket mid-debate is the honest place to handle a server that
@@ -368,6 +381,7 @@ export default function App() {
       socket.off('rematch:go');
       socket.off('bot:turn');
       socket.off('tutorial:debrief');
+      socket.off('campaign:up');
       socket.off('spectate:state');
       socket.off('spectate:count');
       socket.off('caption');
@@ -603,12 +617,13 @@ export default function App() {
   const startTutorial = useCallback(() => {
     socket.emit(
       'tutorial:start',
-      { sessionId: session.id, name: botName, lang: langRef.current },
+      { sessionId: session.id, name: botName, lang: langRef.current, playerId: playerId() },
       (res) => {
         if (res.ok) return; // debate:start arrives next and renders the lesson
         const map: Record<string, string> = {
           rate_limited: 'errRateLimited',
           bad_name: 'errBadName',
+          locked: 'errLocked',
         };
         resetToHome(map[res.error ?? ''] ?? 'lostLobby');
       },
@@ -626,6 +641,7 @@ export default function App() {
     setDebrief(null);
     setJudgeStatus(null);
     setTutoring(false);
+    setUnlocked(null);
     setBotPicking(true);
   }, []);
 
@@ -633,12 +649,13 @@ export default function App() {
     (c: BotStartConfig) => {
       socket.emit(
         'bot:start',
-        { sessionId: session.id, name: botName, lang: langRef.current, ...c },
+        { sessionId: session.id, name: botName, lang: langRef.current, playerId: playerId(), ...c },
         (res) => {
           if (res.ok) return; // debate:start arrives next and renders the debate
           const map: Record<string, string> = {
             rate_limited: 'errRateLimited',
             bad_name: 'errBadName',
+            locked: 'errLocked',
           };
           resetToHome(map[res.error ?? ''] ?? 'lostLobby');
         },
@@ -689,6 +706,7 @@ export default function App() {
     content = (
       <TutorialDone
         debrief={debrief}
+        unlocked={unlocked}
         onTrain={trainAfterTutorial}
         onHome={() => window.location.assign('/')}
       />
@@ -716,6 +734,7 @@ export default function App() {
         rematch={rematch}
         onRematch={() => socket.emit('rematch')}
         botOpponent={start?.bot ?? null}
+        unlocked={unlocked}
       />
     );
   } else if (start) {
@@ -750,6 +769,10 @@ export default function App() {
         mediaError={mediaError}
         onRetryMedia={retryMedia}
         onStart={startBot}
+        onTutorial={() => {
+          setBotPicking(false);
+          setTutoring(true);
+        }}
         onBack={() => {
           setBotPicking(false);
           releaseMedia();

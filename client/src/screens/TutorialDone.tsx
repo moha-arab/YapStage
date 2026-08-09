@@ -17,9 +17,11 @@ interface Props {
   debrief: DebriefInfo;
   onTrain: () => void;
   onHome: () => void;
+  /** Campaign: finishing the lesson unlocked your first real opponent. */
+  unlocked?: { level: number; unlocked: string | null } | null;
 }
 
-export default function TutorialDone({ debrief, onTrain, onHome }: Props) {
+export default function TutorialDone({ debrief, onTrain, onHome, unlocked }: Props) {
   const { lang, t } = useI18n();
   const [speaking, setSpeaking] = useState(true);
 
@@ -56,6 +58,12 @@ export default function TutorialDone({ debrief, onTrain, onHome }: Props) {
           <p className="note-text">{debrief.next}</p>
         </div>
       </div>
+
+      {unlocked?.unlocked ? (
+        <span className="tape tape-gold unlock-tape">
+          {t('unlockedTape', { x: unlocked.unlocked })}
+        </span>
+      ) : null}
 
       <div className="tutorial-done-actions">
         <button className="btn btn-primary" onClick={onTrain}>

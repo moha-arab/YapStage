@@ -5,7 +5,8 @@ import { destroyLobby, touch } from './lobby.js';
 import type { Io } from './debate.js';
 import { event } from './stats.js';
 import { synthesize } from './tts.js';
-import { applyRankedResult } from './store.js';
+import { advanceCampaign, applyRankedResult, getCampaign } from './store.js';
+import { BOTS } from './bots.js';
 
 // Local copy of the step layout (phase/speaker per index) so judge.ts has no
 // runtime dependency on debate.ts. Every pace shares this 6-step shape; only
@@ -427,6 +428,22 @@ async function applyElo(lobby: Lobby): Promise<void> {
   event('elo_applied', { code: lobby.code, delta: moved.winner.after - moved.winner.before });
 }
 
+/** Move the campaign frontier to `target` and announce it — but only when this
+    is genuinely new ground (replaying a beaten level stays silent). Fail-soft:
+    a dead store costs the unlock, never the debate. */
+async function unlockLevel(io: Io, lobby: Lobby, target: number): Promise<void> {
+  if (!lobby.campaign) return;
+  const { playerId } = lobby.campaign;
+  const current = await getCampaign(playerId);
+  if (current === null || target <= current) return;
+  const after = await advanceCampaign(playerId, lobby.host?.name ?? 'player', target);
+  if (after === null) return;
+  event('campaign_up', { code: lobby.code, level: target });
+  // rank 7 doesn't exist: the ladder is conquered.
+  const next = BOTS.find((b) => b.rank === target);
+  io.to(lobby.code).emit('campaign:up', { level: target, unlocked: next?.name ?? null });
+}
+
 async function callJudge(lobby: Lobby): Promise<Verdict> {
   const names = namesOf(lobby);
   const v = await scoreTranscript(lobby.topic ?? {}, lobby.transcript, {
@@ -502,6 +519,13 @@ export async function runJudge(io: Io, lobby: Lobby, requesterSocketId?: string)
     const spoken = verdict.ruling?.decree || verdict.summary;
     lobby.verdictAudio = (await synthesize(spoken, YAPMASTER_VOICE)) ?? undefined;
     await applyElo(lobby); // ranked only; before the emit so the reveal has it
+    // Campaign: beating a bot at your frontier unlocks the next rung.
+    if (lobby.campaign && lobby.bot && !lobby.tutorial) {
+      const humanSide: Side = lobby.bot.side === 'FOR' ? 'AGAINST' : 'FOR';
+      if (verdict.winner === humanSide) {
+        await unlockLevel(io, lobby, lobby.campaign.botRank + 1);
+      }
+    }
     touch(lobby);
     emitVerdict(io, lobby, lobby.code);
     // Keep the lobby around briefly so a reconnecting client can re-fetch,
@@ -619,6 +643,9 @@ export async function runTutorialDebrief(io: Io, lobby: Lobby): Promise<void> {
     mime: audio?.mime,
     audio: audio ? (audio.data as unknown as ArrayBuffer) : undefined,
   });
+  // Finishing the lesson opens the ladder: level 1 is Pip. No win required —
+  // the tutorial has no winner to require.
+  await unlockLevel(io, lobby, 1);
   setTimeout(() => {
     destroyLobby(lobby.code);
     io.socketsLeave(lobby.code);

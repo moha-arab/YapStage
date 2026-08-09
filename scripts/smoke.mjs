@@ -601,8 +601,10 @@ console.log('\n=== Scenario 7: bots mode ===');
     side: 'FOR',
     lang: 'en',
   });
-  check('bot:start accepted', res.ok === true);
+  check('bot:start accepted (campaign fails open when store down)', res.ok === true);
   const start = await once(h, 'debate:start', 12000);
+  const rep7 = await emitP(h, 'report', { reason: 'other' });
+  check('report: bots cannot be reported', rep7.ok === false);
   check(
     'bot debate: opponent is the chosen character',
     Boolean(start.bot) && start.bot.id === 'capybara' && start.names.AGAINST === 'Cappy',
@@ -667,6 +669,9 @@ console.log('\n=== Scenario 9: ranked + spectate ===');
   const st1 = await s1;
   check('ranked: debate starts straight from double-confirm', Boolean(st1.topic?.en));
 
+  const rep9 = await emitP(r1, 'report', { reason: 'harassment' });
+  check('report: honest failure when the store is down', rep9.ok === false);
+
   // A spectator walks in mid-debate with just the code.
   const sj = await emitP(spec, 'spectate:join', { code: code9 });
   check('spectate: join accepted', sj.ok === true);
@@ -716,7 +721,9 @@ console.log('\n=== Scenario 10: tutorial ===');
   h.on('verdict:result', () => {
     sawVerdict = true;
   });
-  const res = await emitP(h, 'tutorial:start', { sessionId: 'tut-h', name: 'student', lang: 'en' });
+  const camp = await emitP(h, 'campaign:get', { playerId: 'pid-tut' });
+  check('campaign: level is null (unknown) when the store is down', camp.level === null);
+  const res = await emitP(h, 'tutorial:start', { sessionId: 'tut-h', name: 'student', lang: 'en', playerId: 'pid-tut' });
   check('tutorial:start accepted', res.ok === true);
   const start = await once(h, 'debate:start', 12000);
   check(

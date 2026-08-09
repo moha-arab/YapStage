@@ -6,6 +6,7 @@ import { useI18n } from '../i18n';
 import MicMeter from '../MicMeter';
 import VideoTile from '../VideoTile';
 import BotAvatar from '../BotAvatar';
+import ReportFlag from '../Report';
 
 interface Props {
   start: DebateStart;
@@ -295,6 +296,8 @@ export default function Debate({
       {!isBot && !peerLostUntil && (rtcState === 'disconnected' || rtcState === 'failed') ? (
         <div className="banner banner-warn">{t('videoDropped')}</div>
       ) : null}
+
+      {!isBot ? <ReportFlag /> : null}
       </div>
     </div>
   );

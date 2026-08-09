@@ -298,8 +298,12 @@ function emitStep(io: Io, lobby: Lobby, next: number): void {
   // A human turn is the fixed shot clock. A bot turn gets a thinking grace plus
   // the SAME speaking time a human gets for this phase; the client signals
   // bot:done when the voice finishes (or cuts it off at the allowance), and
-  // this window is only the fallback if that signal never lands.
-  const windowSec = isBotStep ? (FAST ? 25 : 30 + step.seconds) : step.seconds;
+  // this window is only the fallback if that signal never lands. The tutor's
+  // teaching turns generate more text and speak longer, so their fallback gets
+  // extra grace — firing it early flips the phase while the YapMaster is still
+  // mid-lesson, which is exactly "it talked into my turn".
+  const grace = lobby.tutorial ? 50 : 30;
+  const windowSec = isBotStep ? (FAST ? 25 : grace + step.seconds) : step.seconds;
   const deadline = now + windowSec * 1000;
   lobby.stepStartedAt = now;
 
@@ -456,17 +460,17 @@ async function generateTutorTurn(lobby: Lobby, bot: Bot, stepIndex: number): Pro
   const lessons: Record<number, { job: string; words: string; maxTokens: number }> = {
     0: {
       job: `Welcome the student to the stage in one warm line. Explain in ONE plain sentence what an OPENING is: say which side you are on, then give your reasons. Then say "watch me do one" and DEMO a short model opening arguing FOR the motion, with two clear reasons. End by handing over the mic: it is their turn to give an opening AGAINST the motion. Give them one concrete tip: state your side in your first sentence, then give two reasons why.`,
-      words: 'about 120 words',
+      words: 'about 105 words',
       maxTokens: 340,
     },
     2: {
       job: `First, react to the student's ACTUAL opening: praise ONE specific real thing they said (reference their real words) and give ONE gentle nudge if something was missing. If the transcript shows nothing from them (mic trouble), say warmly that you could not hear them and carry on teaching, never invent what they said. Then explain in ONE sentence what a REBUTTAL is: attack THEIR argument instead of repeating your own. Demo it: take ONE thing the student actually argued (or, if you heard nothing, one obvious AGAINST argument) and rebut it cleanly, flagged as a demo. Then hand over: their turn to rebut YOUR opening. Tip: pick my weakest reason and tell everyone why it fails. Warn them in one short line that right after their rebuttal comes their DEFENSE, where they rebuild their own case after my attack, so they should listen to what I just hit.`,
-      words: 'about 130 words',
+      words: 'about 115 words',
       maxTokens: 360,
     },
     5: {
       job: `React to the student's rebuttal AND defense: praise ONE specific real thing from those turns, plus ONE gentle nudge. Then explain in ONE sentence what a DEFENSE is: repair your own case where it got hit, instead of attacking. Demo a very short model defense repairing whatever their rebuttal actually hit in your case. Then tee up the final round: next is their CLOSING. Tip: no new arguments, just say in a sentence or two why your side won the arguments that actually happened.`,
-      words: 'about 100 words',
+      words: 'about 90 words',
       maxTokens: 300,
     },
     7: {

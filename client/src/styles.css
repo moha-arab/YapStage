@@ -2663,3 +2663,89 @@ html[dir='rtl'] .meter-hint {
   flex-wrap: wrap;
   justify-content: center;
 }
+
+/* Campaign: locked rungs on the bot ladder */
+.bot-locked {
+  filter: grayscale(0.85) brightness(0.55);
+  cursor: not-allowed;
+}
+
+.bot-locked:hover {
+  transform: none;
+}
+
+.lock-nudge {
+  text-align: center;
+  margin-top: 10px;
+}
+
+.campaign-banner {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  border: 3px dashed var(--gold);
+  padding: 10px 16px;
+  margin: 4px auto 12px;
+  max-width: 560px;
+  transform: rotate(-0.5deg);
+}
+
+.campaign-banner-line {
+  margin: 0;
+  font-size: 14px;
+}
+
+.unlock-tape {
+  font-size: 17px;
+  transform: rotate(1.5deg);
+}
+
+/* Tutorial lore line */
+.tutorial-lore {
+  color: var(--muted);
+  font-style: italic;
+  max-width: 460px;
+  margin: 0;
+  font-size: 14px;
+}
+
+/* Reporting */
+.report-btn {
+  font: inherit;
+  font-size: 12px;
+  color: var(--muted);
+  background: none;
+  border: none;
+  text-decoration: underline;
+  cursor: pointer;
+  padding: 4px;
+  margin-top: 10px;
+}
+
+.report-btn:hover {
+  color: var(--danger);
+}
+
+.report-flag {
+  margin-top: 10px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.report-note {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.report-reasons {
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.report-done {
+  margin-top: 10px;
+  font-size: 13px;
+  color: var(--gold);
+}

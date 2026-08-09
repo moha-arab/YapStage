@@ -168,21 +168,36 @@ export function playBotTurn(
       const url = URL.createObjectURL(blob);
       currentUrl = url;
       const a = element();
-      const safety = setTimeout(() => finish(false), spokenMs(text) + 6000);
+      // Safety net for an element whose onended never fires. It must NOT end
+      // the turn while audio is audibly playing — that advanced the debate
+      // with the voice still going (the "talks into my turn" bug). If the
+      // element is genuinely mid-clip, wait; the maxMs cutoff still bounds it.
+      let safety: ReturnType<typeof setTimeout> | null = null;
+      const armSafety = (ms: number) => {
+        safety = setTimeout(() => {
+          if (!a.paused && !a.ended && a.currentTime > 0) {
+            armSafety(5000);
+            return;
+          }
+          releaseUrl();
+          finish(false);
+        }, ms);
+      };
+      armSafety(spokenMs(text) + 6000);
       a.onended = () => {
-        clearTimeout(safety);
+        if (safety) clearTimeout(safety);
         releaseUrl();
         finish(false); // real audio finished: it genuinely took its time
       };
       a.onerror = () => {
-        clearTimeout(safety);
+        if (safety) clearTimeout(safety);
         releaseUrl();
         browserSpeak(text, lang, () => finish(true));
       };
       a.src = url;
       a.volume = 1;
       void a.play().catch(() => {
-        clearTimeout(safety);
+        if (safety) clearTimeout(safety);
         releaseUrl();
         // Blocked (no gesture yet). Speak it, and hold the floor either way.
         browserSpeak(text, lang, () => finish(true));

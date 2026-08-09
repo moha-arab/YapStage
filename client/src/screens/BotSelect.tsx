@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react';
 import type { BotInfo, Pace, Side, TopicCategory, TopicMode } from '../../../server/src/protocol';
+import { socket } from '../socket';
+import { playerId } from '../player';
 import { useI18n } from '../i18n';
 import { initAudio } from '../sound';
 import { unlockBotVoice } from '../botvoice';
@@ -21,9 +23,11 @@ interface Props {
   onRetryMedia: () => void;
   onStart: (c: BotStartConfig) => void;
   onBack: () => void;
+  /** Level 0 players get pointed at the tutorial — it IS their first level. */
+  onTutorial: () => void;
 }
 
-export default function BotSelect({ localStream, mediaError, onRetryMedia, onStart, onBack }: Props) {
+export default function BotSelect({ localStream, mediaError, onRetryMedia, onStart, onBack, onTutorial }: Props) {
   const { lang, t } = useI18n();
   const [bots, setBots] = useState<BotInfo[]>([]);
   const [topics, setTopics] = useState<TopicCategory[]>([]);
@@ -33,6 +37,10 @@ export default function BotSelect({ localStream, mediaError, onRetryMedia, onSta
   const [topicId, setTopicId] = useState<string | null>(null);
   const [side, setSide] = useState<Side | 'random'>('random');
   const [pace, setPace] = useState<Pace>('standard');
+  // Campaign frontier: the highest rank you may face. null = unknown (store
+  // down or old server) — fail OPEN, the ladder is never bricked by a database.
+  const [level, setLevel] = useState<number | null>(null);
+  const [lockNudge, setLockNudge] = useState<string | null>(null);
 
   useEffect(() => {
     fetch('/bots')
@@ -42,11 +50,24 @@ export default function BotSelect({ localStream, mediaError, onRetryMedia, onSta
         setTopics(d.topics ?? []);
       })
       .catch(() => {});
+    socket.emit('campaign:get', { playerId: playerId() }, (res) => {
+      setLevel(res?.level ?? null);
+    });
   }, []);
 
   const maxRank = bots.reduce((m, b) => Math.max(m, b.rank), 6);
-  const ready = !!botId && !!localStream && (mode === 'agree' ? !!topicId : true);
+  const isLocked = (b: BotInfo) => level !== null && b.rank > level;
   const chosen = bots.find((b) => b.id === botId);
+
+  // The level can arrive AFTER a pick (campaign:get is async): a selection
+  // that turns out to be locked must not stay armed on the start button.
+  useEffect(() => {
+    if (chosen && isLocked(chosen)) setBotId(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [level, chosen?.id]);
+
+  const ready =
+    !!botId && !!chosen && !isLocked(chosen) && !!localStream && (mode === 'agree' ? !!topicId : true);
 
   function start() {
     if (!ready || !botId) return;
@@ -80,26 +101,61 @@ export default function BotSelect({ localStream, mediaError, onRetryMedia, onSta
       <h1 className="display bot-title">{t('chooseOpponent')}</h1>
       <p className="bot-ladder-note">{t('easiestToHardest')}</p>
 
-      <div className="bot-grid">
-        {bots.map((b) => (
-          <button
-            key={b.id}
-            className={`bot-card ${botId === b.id ? 'bot-picked' : ''} ${b.rank === maxRank ? 'bot-boss' : ''}`}
-            onClick={() => setBotId(b.id)}
-          >
-            <span className="bot-rank-badge">#{b.rank}</span>
-            <BotAvatar botId={b.id} color={b.color} size={96} speaking={botId === b.id} />
-            <span className="bot-name">{b.name}</span>
-            <span className="bot-tagline">{b.tagline}</span>
-            <div className="bot-meter" aria-label={b.skill}>
-              {Array.from({ length: maxRank }, (_, i) => (
-                <span key={i} className={`meter-pip ${i < b.rank ? 'pip-on' : ''}`} />
-              ))}
-            </div>
-            <span className="bot-skill">{b.skill}</span>
+      {level === 0 ? (
+        <div className="campaign-banner">
+          <p className="campaign-banner-line">{t('campaignIntro')}</p>
+          <button className="btn btn-small" onClick={onTutorial}>
+            {t('campaignIntroBtn')}
           </button>
-        ))}
+        </div>
+      ) : null}
+
+      <div className="bot-grid">
+        {bots.map((b) => {
+          const locked = isLocked(b);
+          return (
+            <button
+              key={b.id}
+              className={`bot-card ${botId === b.id ? 'bot-picked' : ''} ${b.rank === maxRank ? 'bot-boss' : ''} ${locked ? 'bot-locked' : ''}`}
+              aria-disabled={locked}
+              onClick={() => {
+                if (locked) {
+                  setLockNudge(
+                    b.rank === 1
+                      ? t('lockFirst')
+                      : t('lockBeat', { x: bots.find((p) => p.rank === b.rank - 1)?.name ?? '' }),
+                  );
+                  return;
+                }
+                setLockNudge(null);
+                setBotId(b.id);
+              }}
+            >
+              <span className="bot-rank-badge">#{b.rank}</span>
+              <BotAvatar botId={b.id} color={b.color} size={96} speaking={botId === b.id} />
+              <span className="bot-name">{b.name}</span>
+              <span className="bot-tagline">{b.tagline}</span>
+              <div className="bot-meter" aria-label={b.skill}>
+                {Array.from({ length: maxRank }, (_, i) => (
+                  <span key={i} className={`meter-pip ${i < b.rank ? 'pip-on' : ''}`} />
+                ))}
+              </div>
+              <span className="bot-skill">
+                {locked
+                  ? b.rank === 1
+                    ? t('lockedTag')
+                    : t('lockBeat', { x: bots.find((p) => p.rank === b.rank - 1)?.name ?? '' })
+                  : b.skill}
+              </span>
+            </button>
+          );
+        })}
       </div>
+      {lockNudge ? (
+        <p className="error lock-nudge" role="alert">
+          {lockNudge}
+        </p>
+      ) : null}
 
       <div className="bot-setup card">
         {chosen ? <p className="bot-chosen-blurb">“{chosen.blurb}”</p> : null}

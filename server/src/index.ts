@@ -49,12 +49,15 @@ import { coachReply } from './coach.js';
 import { cardFrom, renderCard } from './share.js';
 import { DISPUTE_MAX } from './dispute.js';
 import {
+  getCampaign,
   getPlayer,
   initStore,
   lastShutdown,
   loadCard,
+  loadReports,
   recordShutdown,
   saveCard,
+  saveReport,
   storeReady,
 } from './store.js';
 import { TOPIC_BY_ID, TOPIC_CATEGORIES } from './topics.js';
@@ -161,6 +164,20 @@ app.get<{ Querystring: { key?: string; code?: string; limit?: string } }>(
       previousShutdown: await lastShutdown(),
       events: recentEvents(limit, req.query.code?.toUpperCase()),
     };
+  },
+);
+
+// The report review queue. STRICTER than the other /stats routes: those are
+// counters and may be public when STATS_KEY is unset, but this one serves
+// debate transcripts — the disclosed exception says "to the review team",
+// not "to the internet". No key configured means no route at all.
+app.get<{ Querystring: { key?: string; limit?: string } }>(
+  '/stats/reports',
+  async (req, reply) => {
+    if (!process.env.STATS_KEY || req.query.key !== process.env.STATS_KEY) {
+      return reply.code(404).send({ error: 'Not Found' });
+    }
+    return { reports: await loadReports(Number(req.query.limit) || 50) };
   },
 );
 
@@ -925,7 +942,7 @@ io.on('connection', (socket) => {
     socket.data.code = undefined;
   });
 
-  socket.on('bot:start', (p, cb) => {
+  socket.on('bot:start', async (p, cb) => {
     if (typeof cb !== 'function') return;
     if (!FAST && !allow(`create:${ipOf(socket)}`, 10, 5 * 60_000)) {
       return cb({ ok: false, error: 'rate_limited' });
@@ -933,8 +950,20 @@ io.on('connection', (socket) => {
     const name = String(p?.name ?? '').trim();
     if (!NAME_RE.test(name)) return cb({ ok: false, error: 'bad_name' });
     const bot = BOT_BY_ID.get(String(p?.botId ?? ''));
-    if (!bot) return cb({ ok: false, error: 'not_found' });
+    if (!bot || bot.hidden) return cb({ ok: false, error: 'not_found' });
     if (lobbyCount() >= MAX_LOBBIES) return cb({ ok: false, error: 'rate_limited' });
+
+    // Campaign gate: the ladder is levels now. No playerId (old client) or a
+    // downed store fails OPEN — a dead database must never brick training.
+    const playerId = String(p?.playerId ?? '').slice(0, 64);
+    if (playerId) {
+      const level = await getCampaign(playerId);
+      if (level !== null && bot.rank > level) {
+        return cb({ ok: false, error: 'locked' });
+      }
+      // The socket may have died while we read the level.
+      if (!io.sockets.sockets.get(socket.id)) return;
+    }
 
     const topicMode = p?.topicMode === 'agree' || p?.topicMode === 'category' ? p.topicMode : 'random';
     const lang = p?.lang === 'ar' ? 'ar' : 'en';
@@ -961,11 +990,54 @@ io.on('connection', (socket) => {
     const lobby = createLobby(socket.id, String(p?.sessionId ?? '').slice(0, 64), name);
     lobby.pace = pace;
     lobby.bot = { id: bot.id, name: bot.name, difficulty: bot.difficulty, side: botSide, lang };
+    if (playerId) lobby.campaign = { playerId, botRank: bot.rank };
     socket.data.code = lobby.code;
     socket.data.role = 'host';
     void socket.join(lobby.code);
     cb({ ok: true });
     startBotDebate(io, lobby, topic, humanSide);
+  });
+
+  socket.on('campaign:get', (p, cb) => {
+    if (typeof cb !== 'function') return;
+    // Rate-limited like every other store-touching handler: this is a raw
+    // SELECT keyed on a client-supplied id, and the pg pool is shared with
+    // ELO and reports. Legit clients call it once per picker mount.
+    if (!allow(`campget:${ipOf(socket)}`, 30, 60_000)) return cb({ level: null });
+    const playerId = String(p?.playerId ?? '').slice(0, 64);
+    if (!playerId) return cb({ level: null });
+    void getCampaign(playerId).then((level) => cb({ level }));
+  });
+
+  // Report a human opponent. One per reporter per debate; bots can't be
+  // reported. ok:false means "not recorded" — the client must say so.
+  socket.on('report', (p, cb) => {
+    if (typeof cb !== 'function') return;
+    if (!allow(`report:${ipOf(socket)}`, 5, 10 * 60_000)) return cb({ ok: false });
+    const lobby = socket.data.code ? getLobby(socket.data.code) : undefined;
+    if (!lobby || lobby.bot) return cb({ ok: false });
+    const reporter = participantOf(lobby, socket.id);
+    if (!reporter) return cb({ ok: false });
+    const other = reporter === lobby.host ? lobby.guest : lobby.host;
+    if (!other) return cb({ ok: false });
+    const REASONS = new Set(['harassment', 'hate', 'cheating', 'other']);
+    const reason = String(p?.reason ?? '');
+    if (!REASONS.has(reason)) return cb({ ok: false });
+    lobby.reportedBy ??= new Set();
+    if (lobby.reportedBy.has(reporter.sessionId)) return cb({ ok: true }); // already filed
+    lobby.reportedBy.add(reporter.sessionId);
+    event('report_filed', { code: lobby.code, reason });
+    void saveReport({
+      code: lobby.code,
+      mode: lobby.ranked ? 'ranked' : 'custom',
+      reporterName: reporter.name,
+      reportedName: other.name,
+      reason,
+      transcript: lobby.transcript,
+    }).then((ok) => {
+      if (!ok) lobby.reportedBy?.delete(reporter.sessionId); // let them retry
+      cb({ ok });
+    });
   });
 
   // The tutorial: a bots-mode debate against the hidden YapMaster teacher.
@@ -988,6 +1060,8 @@ io.on('connection', (socket) => {
     const lobby = createLobby(socket.id, String(p?.sessionId ?? '').slice(0, 64), name);
     lobby.tutorial = true;
     lobby.bot = { id: tutor.id, name: tutor.name, difficulty: tutor.difficulty, side: 'FOR', lang };
+    const playerId = String(p?.playerId ?? '').slice(0, 64);
+    if (playerId) lobby.campaign = { playerId, botRank: 0 };
     socket.data.code = lobby.code;
     socket.data.role = 'host';
     void socket.join(lobby.code);

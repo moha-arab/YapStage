@@ -41,6 +41,7 @@ export default function TutorialIntro({ localStream, mediaError, onRetryMedia, o
       <BotAvatar botId="tutor" color="gold" size={120} speaking />
       <p className="kicker">{t('tutorialKicker')}</p>
       <h1 className="display">{t('tutorialTitle')}</h1>
+      <p className="tutorial-lore">{t('tutorialLore')}</p>
 
       <div className="card tutorial-brief">
         <p className="tutorial-line">{t('tutorialHow1')}</p>

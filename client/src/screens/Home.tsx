@@ -20,6 +20,7 @@ const ERROR_KEYS: Record<JoinError, string> = {
   in_progress: 'errInProgress',
   bad_name: 'errBadName',
   rate_limited: 'errRateLimited',
+  locked: 'errLocked',
 };
 
 /** Errors render next to the thing that caused them, not in a shared pile.

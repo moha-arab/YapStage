@@ -78,6 +78,11 @@ export interface Lobby {
   ranked?: { host: string; guest: string };
   /** Tutorial: the YapMaster teaches instead of competes — no judge, a debrief. */
   tutorial?: boolean;
+  /** Campaign identity for bots mode: whose ladder this debate can advance.
+      botRank 0 = the tutorial itself. */
+  campaign?: { playerId: string; botRank: number };
+  /** Session ids that already filed a report this debate (one each). */
+  reportedBy?: Set<string>;
   /** Rating movement after a ranked verdict, kept so a re-fetch replays it. */
   eloResult?: Record<Side, { before: number; after: number }>;
   /** The last debate:phase payload sent, so a mid-debate spectator (or a
