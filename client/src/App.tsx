@@ -37,6 +37,7 @@ import TutorialDone, { type DebriefInfo } from './screens/TutorialDone';
 import ClaimName from './screens/ClaimName';
 import Matches from './screens/Matches';
 import Locker from './screens/Locker';
+import Welcome from './screens/Welcome';
 import { playBotTurn, stopBotVoice } from './botvoice';
 
 interface VerdictInfo {
@@ -105,6 +106,11 @@ export default function App() {
   const [tutoring, setTutoring] = useState(false);
   const [viewingMatches, setViewingMatches] = useState(false);
   const [viewingLocker, setViewingLocker] = useState(false);
+  // Signed-out visitors land on Welcome; 'continue as guest' dismisses it for
+  // the session. Invite links skip it — they were sent here to play, now.
+  const [guestMode, setGuestMode] = useState(
+    () => new URLSearchParams(window.location.search).get('code') !== null,
+  );
   const [debrief, setDebrief] = useState<DebriefInfo | null>(null);
   // Campaign: a win at the frontier unlocked the next opponent.
   const [unlocked, setUnlocked] = useState<{ level: number; unlocked: string | null } | null>(null);
@@ -565,14 +571,18 @@ export default function App() {
   // Un-masking re-acquires through the media effect below (mediaRetry bump).
   const maskedRef = useRef(false);
   useEffect(() => {
-    const masked = Boolean(lobby?.yourMasked);
+    // BOT and TUTORIAL modes have no lobby object on the client (bot:start goes
+    // straight to debate:start), so the lobby flag alone left training on
+    // camera no matter what the locker said. Fall back to the account's
+    // preference whenever there is no lobby to read.
+    const masked = lobby ? Boolean(lobby.yourMasked) : Boolean(account?.maskDefault);
     if (masked === maskedRef.current) return;
     maskedRef.current = masked;
     setAudioOnly(masked);
     releaseMedia();
     setLocalStream(null);
     setMediaRetry((n) => n + 1);
-  }, [lobby?.yourMasked]);
+  }, [lobby?.yourMasked, lobby, account?.maskDefault]);
 
   useEffect(() => {
     if (!lobby && !botPicking && !tutoring && !start?.bot) return;
@@ -845,6 +855,13 @@ export default function App() {
         speechSupported={speechSupported}
         rtcState={rtcState}
         onRetryMedia={retryMedia}
+      />
+    );
+  } else if (account && account.google && !account.signedIn && !guestMode) {
+    content = (
+      <Welcome
+        onGuest={() => setGuestMode(true)}
+        invited={new URLSearchParams(window.location.search).get('code') !== null}
       />
     );
   } else {

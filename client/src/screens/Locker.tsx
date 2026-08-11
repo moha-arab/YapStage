@@ -3,6 +3,7 @@
 // the debate, so there was never a screen to choose one on.
 import { useState } from 'react';
 import Mask, { MASK_IDS } from '../Mask';
+import { socket } from '../socket';
 import { saveLocker, type Account } from '../player';
 import { useI18n } from '../i18n';
 
@@ -24,6 +25,11 @@ export default function Locker({ account, onSaved, onBack }: Props) {
     const ok = await saveLocker(mask, maskDefault);
     setSaving(false);
     if (ok) {
+      // The server reads your locker once, when the socket connects. Bounce it
+      // so the choice you just made applies to the very next debate instead of
+      // the next page load.
+      socket.disconnect();
+      socket.connect();
       setSaved(true);
       onSaved(mask, maskDefault);
       setTimeout(() => setSaved(false), 1600);

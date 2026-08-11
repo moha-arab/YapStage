@@ -12,71 +12,18 @@ const COLOR: Record<string, string> = {
 const D = '#1a1712';
 
 
-// QUALITY PASS (Pip first, as the test). Flat fills read as clip art at 96px.
-// What actually separates "character" from "shape pile", in order of payoff:
-//   1. a light source — one consistent highlight top-left, shadow bottom-right
-//   2. depth layers — under-shadow behind the body, not just outlines
-//   3. eye craft — iris + pupil + specular dot + a lid, instead of a dot
-//   4. asymmetry — nothing perfectly centred; faces are never symmetrical
-//   5. line weight variety — thick where forms meet, thin for detail
-// All of it is still hand-authored SVG, so it stays crisp at any size, costs
-// no network request, and the mouth can still animate.
-const PAINT = `
-  <defs>
-    <radialGradient id="lit" cx="36%" cy="26%" r="80%">
-      <stop offset="0%" stop-color="#fff" stop-opacity=".45"/>
-      <stop offset="52%" stop-color="#fff" stop-opacity="0"/>
-      <stop offset="100%" stop-color="#000" stop-opacity=".3"/>
-    </radialGradient>
-    <radialGradient id="blush" cx="50%" cy="50%" r="50%">
-      <stop offset="0%" stop-color="#ff7a4a" stop-opacity=".7"/>
-      <stop offset="100%" stop-color="#ff7a4a" stop-opacity="0"/>
-    </radialGradient>
-    <linearGradient id="beak" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stop-color="#ffb63e"/>
-      <stop offset="100%" stop-color="#e0701a"/>
-    </linearGradient>
-    <linearGradient id="down" x1="0" y1="0" x2="0.3" y2="1">
-      <stop offset="0%" stop-color="#ffe27a"/>
-      <stop offset="60%" stop-color="#ffd23e"/>
-      <stop offset="100%" stop-color="#f0b21e"/>
-    </linearGradient>
-  </defs>`;
-
+// REVERTED 2026-08-11: a "higher quality" Pip (gradients, layered eyes,
+// shading) was built and Mohammad preferred the original. Kept as a rule, not
+// a one-off: the FLAT poster style is the identity, so added realism reads as
+// off-brand rather than better. Detail is not the axis to improve on here.
 const ANIMALS: Record<string, string> = {
-  // Pip, the quality test. Same duckling, built properly: fluffy silhouette
-  // instead of one ellipse, a lit body, layered eyes with lids that make him
-  // read as nervous rather than blank, and a beak with a seam.
   duckling: `
-    ${PAINT}
-    <ellipse cx="50" cy="88" rx="26" ry="5" fill="#000" opacity=".22"/>
-    <path d="M50 24 C64 24 74 32 78 44 C86 52 84 68 74 76 C66 84 58 87 50 87
-             C42 87 34 84 26 76 C16 68 14 52 22 44 C26 32 36 24 50 24Z"
-          fill="url(#down)"/>
-    <path d="M50 24 C64 24 74 32 78 44 C86 52 84 68 74 76 C66 84 58 87 50 87
-             C42 87 34 84 26 76 C16 68 14 52 22 44 C26 32 36 24 50 24Z"
-          fill="url(#lit)"/>
-    <path d="M40 26 q4 -11 8 -1 q4 -12 9 0 q5 -10 8 2" stroke="#f7c62e"
-          stroke-width="4.5" fill="none" stroke-linecap="round"/>
-    <ellipse cx="27" cy="63" rx="7" ry="5.5" fill="url(#blush)"/>
-    <ellipse cx="73" cy="63" rx="7" ry="5.5" fill="url(#blush)"/>
-    <ellipse cx="39.5" cy="52" rx="9" ry="9.5" fill="#fffdf6"/>
-    <ellipse cx="60.5" cy="52" rx="9" ry="9.5" fill="#fffdf6"/>
-    <ellipse cx="40.5" cy="54" rx="5" ry="5.4" fill="#4a3a1a"/>
-    <ellipse cx="61.5" cy="54" rx="5" ry="5.4" fill="#4a3a1a"/>
-    <circle cx="40.5" cy="54.5" r="3.1" fill="${D}"/>
-    <circle cx="61.5" cy="54.5" r="3.1" fill="${D}"/>
-    <circle cx="42.4" cy="51.8" r="1.9" fill="#fff"/>
-    <circle cx="63.4" cy="51.8" r="1.9" fill="#fff"/>
-    <circle cx="38.6" cy="57" r="1" fill="#fff" opacity=".55"/>
-    <circle cx="59.6" cy="57" r="1" fill="#fff" opacity=".55"/>
-    <path d="M31 46.5 q8.5 -4.5 17 -0.5" stroke="#f0b21e" stroke-width="3"
-          fill="none" stroke-linecap="round"/>
-    <path d="M69 46 q-8.5 -5 -17 -1" stroke="#f0b21e" stroke-width="3"
-          fill="none" stroke-linecap="round"/>
-    <ellipse class="bot-mouth" cx="50" cy="68" rx="11" ry="6.5" fill="url(#beak)"/>
-    <path d="M39.5 68 q10.5 3 21 0" stroke="#c25c12" stroke-width="1.4" fill="none"/>
-    <ellipse cx="46" cy="65.5" rx="3" ry="1.2" fill="#fff" opacity=".35"/>`,
+    <ellipse cx="50" cy="58" rx="31" ry="29" fill="#ffd23e"/>
+    <path d="M43 27 q3 -9 6 0 M50 24 q3 -10 6 1 M57 28 q4 -8 6 1" stroke="#ffcf2e" stroke-width="4" fill="none" stroke-linecap="round"/>
+    <circle cx="39" cy="52" r="8" fill="#fff"/><circle cx="61" cy="52" r="8" fill="#fff"/>
+    <circle cx="40" cy="54" r="4" fill="${D}"/><circle cx="60" cy="54" r="4" fill="${D}"/>
+    <ellipse class="bot-mouth" cx="50" cy="66" rx="10" ry="6" fill="#ff9a2e"/>
+    <circle cx="28" cy="62" r="5" fill="#ff8a5a" opacity="0.45"/><circle cx="72" cy="62" r="5" fill="#ff8a5a" opacity="0.45"/>`,
   // Capybara, NOT a bear. The difference is all in the proportions: a bear has
   // a round head with big round ears on top and a small snout. A capybara has a
   // brick-shaped head, tiny ears tucked at the SIDES, eyes shoved right up to
