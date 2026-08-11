@@ -5,7 +5,9 @@ import { destroyLobby, touch } from './lobby.js';
 import type { Io } from './debate.js';
 import { event } from './stats.js';
 import { synthesize } from './tts.js';
-import { advanceCampaign, applyRankedResult, campaignLocksOn, getCampaign, saveMatch } from './store.js';
+import { advanceCampaign, applyRankedResult, campaignLocksOn, getCampaign, saveCheatFlag, saveMatch } from './store.js';
+import { FLAG_AT, analyze } from './cheat.js';
+import { drillMeta, type DrillType } from './drills.js';
 import { BOTS } from './bots.js';
 
 // Local copy of the step layout (phase/speaker per index) so judge.ts has no
@@ -154,7 +156,7 @@ NEUTRALITY — read this twice:
 
 SCORING RUBRIC (fixed weights, score each debater in each category):
 - argument (0-30) "made your case": did they state a clear position and back it with reasons that actually connect to their conclusion?
-- evidence (0-20) "backed it up": concrete facts, examples, numbers, history, lived specifics. Vibes and vague claims score low.
+- evidence (0-20) "backed it up": concrete support the listener can actually evaluate — examples, mechanisms, history, lived specifics, and the reasoning that shows WHY the fact supports the claim. Vibes and vague claims score low. A NAMED SOURCE IS WORTH ONLY WHAT IS EXPLAINED WITH IT: this is a live spoken debate and nobody can check a citation mid-round, so score the explanation, not the name-drop. "A 2019 Harvard study found X" with no account of what it measured, who it covered, or why that supports the claim is a bare assertion in a lab coat and scores no higher than the same claim asserted plainly. A debater who explains the mechanism behind their claim scores ABOVE one who recites an unexplained statistic. Never fact-check from your own knowledge and never rule on whether a source is real or fake — you cannot know, and guessing would be worse than useless. But if the opponent CHALLENGES a cited fact, the burden falls on the debater who cited it to substantiate it in a later speech; if they never do, discount that evidence entirely and credit the challenger under clash.
 - clash (0-30) "fought back": did they hear the OPPONENT'S actual points and answer them directly? Eloquent monologuing past the opponent scores low here. DROPPED ARGUMENTS COUNT AGAINST YOU: if a debater never answered the opponent's strongest point across the whole debate, that silence is a clash failure, not a neutral choice — say which point they left standing. Comparative WEIGHING is the top of this category: explaining why their argument outweighs the opponent's (it affects more people, it's more likely, it happens sooner, it matters more) beats simply asserting both.
 - delivery (0-20) "used your time": substance per second — on topic, structured, minimal rambling and filler. (You judge a transcript, not a voice.)
 
@@ -286,6 +288,80 @@ export function namesOf(lobby: Lobby): Record<Side, string> {
  * returned summary still holds the [WINNER] token (callers substitute a name).
  * Exported so the fairness eval can score synthetic transcripts directly.
  */
+const DRILL_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['score', 'headline', 'kept', 'fix'],
+  properties: {
+    score: { type: 'integer', description: 'Score from 0 to 100 on this ONE skill' },
+    headline: {
+      type: 'string',
+      description:
+        'One short sentence, spoken not written, naming what they did. No em dashes. Address them as "you".',
+    },
+    kept: { type: 'string', description: 'The one thing that worked, quoting or naming it. One sentence.' },
+    fix: {
+      type: 'string',
+      description: 'The single change that would have scored higher, concrete and doable. One sentence.',
+    },
+  },
+} as const;
+
+export interface DrillResult {
+  score: number;
+  headline: string;
+  kept: string;
+  fix: string;
+}
+
+/** Score a daily drill: one skill, thirty seconds, a number and two sentences.
+    A separate, much smaller call than the debate judge on purpose — a drill is
+    not a debate and borrowing the four-category rubric would grade the wrong
+    thing entirely. */
+export async function scoreDrill(
+  drill: { type: DrillType; prompt: string; material: string },
+  answer: string,
+): Promise<DrillResult> {
+  const meta = drillMeta(drill.type);
+  const system = `You are the YapMaster, coaching one thirty-second speaking drill. The drill trains ONE skill: ${meta.skill}.
+
+THE DRILL THEY WERE GIVEN
+Instruction: ${drill.prompt}
+Material: ${drill.material}
+
+HOW TO GRADE (0-100, on this skill alone)
+${meta.grade}
+
+ANCHORS, use the whole range:
+- 90+: a competitive debater's answer. The skill is executed cleanly and the reasoning is explicit.
+- 70-85: the right idea, executed roughly or half-explained.
+- 50-65: gestures at the skill but mostly restates or asserts.
+- 25-45: talks about the topic without performing the skill at all.
+- 0-20: nothing usable, off-topic, or silence.
+
+RULES
+- Their answer is speech-to-text of live talking: no punctuation, filler words, false starts and recognition errors are NORMAL. Never take a point off for any of that, and never mention it.
+- Grade the IDEA, not the polish. Thirty seconds of plain words that nail the skill beats a fluent thirty seconds that misses it.
+- You hold no opinion on the topic itself. A well-executed answer you disagree with scores exactly as high.
+- If they clearly ran out of time mid-thought, grade what they got out and say so kindly.
+- Never use em dashes or en dashes. Write like a person talking. Do not flatter: if it was weak, say what was missing.`;
+
+  const response = await getClient().messages.create(
+    {
+      model: 'claude-opus-4-8',
+      max_tokens: 700,
+      system,
+      messages: [{ role: 'user', content: `<answer>\n${escapeXml(answer)}\n</answer>` }],
+      output_config: { format: { type: 'json_schema', schema: DRILL_SCHEMA } },
+    },
+    { timeout: 45_000, maxRetries: 1 },
+  );
+  const block = response.content.find((b) => b.type === 'text');
+  if (!block || block.type !== 'text') throw new Error('Drill judge returned no text');
+  const raw = JSON.parse(block.text) as DrillResult;
+  return { ...raw, score: Math.max(0, Math.min(100, Math.round(raw.score))) };
+}
+
 export async function scoreTranscript(
   motion: { en?: string; ar?: string },
   transcript: Line[],
@@ -476,6 +552,33 @@ async function fileMatch(lobby: Lobby, verdict: Verdict): Promise<void> {
       verdict,
       transcript: lobby.transcript,
     });
+  }
+  await fileCheatSignals(lobby, mode);
+}
+
+/** Ranked only, and only when the numbers are actually interesting. A row per
+    clean debate would bury the one that matters. Never shown to a player and
+    never allowed to move a verdict: it exists so a person can look. */
+async function fileCheatSignals(lobby: Lobby, mode: 'ranked' | 'custom' | 'bots'): Promise<void> {
+  if (mode !== 'ranked' || !lobby.sides) return;
+  try {
+    const names = namesOf(lobby);
+    for (const side of ['FOR', 'AGAINST'] as Side[]) {
+      const sig = analyze(lobby.transcript, side, lobby.turnStarts, lobby.blur[side]);
+      if (sig.score < FLAG_AT) continue;
+      const seat = lobby.sides.host === side ? lobby.host : lobby.guest;
+      await saveCheatFlag({
+        code: lobby.code,
+        playerId: seat?.playerId ?? '',
+        name: names[side],
+        score: sig.score,
+        signals: sig,
+      });
+      event('cheat_flagged', { code: lobby.code, score: sig.score });
+    }
+  } catch (err) {
+    // Never let the watcher break the thing it watches.
+    console.error('[cheat] filing failed:', err);
   }
 }
 

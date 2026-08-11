@@ -11,8 +11,12 @@ export interface Bot {
   blurb: string;
   color: 'for' | 'against' | 'gold' | 'ink';
   rank: number; // 1 = easiest, ascending
+  /** Published rating. FIXED — bots never gain or lose a point, which is what
+      makes them an anchor you can measure yourself against instead of a
+      moving target. Calibrated by scripts/bot-beatability.mjs. */
+  elo: number;
   skill: string; // short strength label for the card
-  difficulty: Difficulty; // drives how rigorously it argues
+  difficulty: Difficulty; // drives pacing and length shaping
   voiceId: string;
   style: string;
   /** Not on the pick screen: special opponents like the tutorial's YapMaster. */
@@ -27,6 +31,7 @@ export const BOTS: Bot[] = [
     blurb: 'brand new to this. argues from the heart, folds under pressure.',
     color: 'gold',
     rank: 1,
+    elo: 650,
     skill: 'beginner',
     difficulty: 'easy',
     voiceId: 'FGY2WhTYpPnrIDTdsKH5', // Laura — young, sunny, a little jumpy
@@ -40,6 +45,7 @@ export const BOTS: Bot[] = [
     blurb: 'too relaxed to fight back. agrees with you a worrying amount.',
     color: 'ink',
     rank: 2,
+    elo: 850,
     skill: 'unbothered',
     difficulty: 'easy',
     voiceId: 'IKne3meq5aSn9XLyUdCD', // Charlie — Australian, unhurried, casual
@@ -53,6 +59,7 @@ export const BOTS: Bot[] = [
     blurb: 'sly reframes and quick little traps. keeps you off balance.',
     color: 'for',
     rank: 3,
+    elo: 1000,
     skill: 'cunning',
     difficulty: 'medium',
     voiceId: 'Xb7hH8MSUJpSbSDYk0k2', // Alice — clear, confident British, sly
@@ -66,6 +73,7 @@ export const BOTS: Bot[] = [
     blurb: 'cites studies and history, structured and precise. a know-it-all.',
     color: 'against',
     rank: 4,
+    elo: 1200,
     skill: 'the scholar',
     difficulty: 'medium',
     voiceId: 'JBFqnCBsd6RMkjVDRZzb', // George — warm British storyteller, professorial
@@ -79,6 +87,7 @@ export const BOTS: Bot[] = [
     blurb: 'charges straight at your weakest point. relentless pressure.',
     color: 'for',
     rank: 5,
+    elo: 1350,
     skill: 'brutal',
     difficulty: 'hard',
     voiceId: 'nPczCjzI2devNBz1zQrb', // Brian — deep, resonant, forceful
@@ -92,6 +101,7 @@ export const BOTS: Bot[] = [
     blurb: 'looks down on everyone, literally and intellectually. does not lose.',
     color: 'gold',
     rank: 6,
+    elo: 1500,
     skill: 'untouchable',
     difficulty: 'hard',
     voiceId: 'pFZP5JQG7iQjIQuC4Bku', // Lily — velvety British calm, menacingly composed
@@ -109,6 +119,7 @@ const TUTOR: Bot = {
   blurb: 'won every debate there was, got bored of winning, picked up the gavel.',
   color: 'gold',
   rank: 0,
+  elo: 1500,
   skill: 'the teacher',
   difficulty: 'hard', // unused: the tutor has its own generation path
   voiceId: 'pqHfZKP75CvOlQylNhV4', // Bill — the same voice that reads verdicts
@@ -124,7 +135,7 @@ export const BOT_BY_ID = new Map(BOTS.map((b) => [b.id, b]));
 export function publicBots() {
   return BOTS.filter((b) => !b.hidden)
     .sort((a, b) => a.rank - b.rank)
-    .map(({ id, name, tagline, blurb, color, rank, skill }) => ({
+    .map(({ id, name, tagline, blurb, color, rank, skill, elo }) => ({
       id,
       name,
       tagline,
@@ -132,7 +143,42 @@ export function publicBots() {
       color,
       rank,
       skill,
+      elo,
     }));
+}
+
+/** What separates one rung from the next, in things a judge can actually see:
+    how many points you hold, whether you answer the opponent's BEST point or
+    dodge to an easier one, whether you bring anything concrete, and whether
+    you ever compare the two cases and say why yours matters more.
+
+    Six bots used to share three difficulty strings, so ranks 1/2, 3/4 and 5/6
+    were the same opponent wearing different fur. You cannot put a rating on
+    that honestly, so each rung now has its own ceiling. */
+export function rungDirective(rank: number): string {
+  switch (rank) {
+    case 1:
+      // Measured 2026-08-11: rank 1 was scoring ABOVE rank 2, because rambling
+      // at length reads as substance and rank 2's conceding did not. Rank 1
+      // now carries both handicaps, and rank 2 concedes once instead of
+      // constantly. Rank 1 must be the weakest thing on the ladder or the
+      // first rung is a wall, which is the worst possible first rung.
+      return "You must also give ground constantly: at least once every turn you accidentally agree with something they said and never take it back. STRENGTH: rank 1 of 6, the gentlest opponent on the ladder — and FUNNY about it, that is the product. You hear everything the opponent says and you always react to their actual words, but you are a comedian in a debate, not a debater: reference their real point, then panic, deflect, crack a joke, or accidentally half-concede ('okay that's... actually a good point, BUT') instead of dismantling it. USE YOUR SPEAKING TIME like a nervous person does: ramble, wander onto tangents and pointless personal stories, circle back, repeat your ONE simple vague point in new words. Your tangents must be OBVIOUSLY irrelevant to the motion — your pond, a snack you had, how warm the lights are — never a disguised argument. You get ONE point total; if you catch yourself building a second one, abandon it mid-sentence and wander home to the first. Length comes from flailing, never from substance. No statistics, no studies, no named examples, no lists. Never land a clean rebuttal of their strongest argument, never summarize the debate, never explain why you have won. In your world, jokes beat logic. An average human who engages your points should clearly out-argue you while having a great time.";
+    case 2:
+      return "STRENGTH: rank 2 of 6, barely above a beginner. You hold ONE point and, unlike a total novice, you keep coming back to it and you stay on topic. Your habit is agreeableness: ONCE in the whole debate you concede something you did not have to ('yeah, no, that's fair'), and you never take it back. Every turn, answer the EASIEST thing they said and let their strongest point stand completely unanswered. General reasons only — no statistics, no studies, at most one everyday example. Never compare the two cases, never summarize, never claim you are winning. Warm and likeable throughout. A human who simply keeps pressing their best point should beat you.";
+    case 3:
+      // Measured 2026-08-11: "hold two points and reframe" made this rung
+      // STRONGER than the medium bot it replaced (a strong human went from
+      // 3/3 to 1/3 against it). Reframing is a real skill and belongs to
+      // rank 4 and up. Rank 3 is one idea, defended stubbornly.
+      return "STRENGTH: rank 3 of 6, a scrappy middleweight. You hold exactly ONE point and you overcommit to it: every turn comes back to the same idea in new words. You do land ONE rebuttal per turn, but always on the EASIEST thing they said, never on their strongest argument, which you talk past rather than answer. General reasons only, and at most ONE concrete example in the whole debate — no statistics, no studies, no history. Half-concede once ('fair, but'). Never signpost a structured case, never reframe the motion, never weigh the two sides against each other, never deliver a closing summary of why you won. A human who names the point you keep dodging and forces you onto it should beat you.";
+    case 4:
+      return "STRENGTH: rank 4 of 6, a rigorous but bloodless opponent. You argue in clean structure with clear signposting, you hold two developed points, and you support them with concrete specifics — named examples, history, mechanisms — but ONLY things you can actually explain, never invented statistics. Your ceiling is twofold. First, you answer the version of their argument that is easiest to answer, not the strongest version of it. Second, you never step back to WEIGH: you never say why your side matters more when both sides are partly true, and you never resolve the debate's central clash. Close by restating your case, not by comparing the two. A human who explicitly compares impacts and says why theirs is bigger should beat you.";
+    case 5:
+      return "STRENGTH: rank 5 of 6, elite pressure. Every turn you go straight at the opponent's STRONGEST argument and take it apart with force, specifics and momentum — no wasted words, no rambling, each line lands. You weigh: you say plainly why your side matters more. Your one exploitable flaw: tunnel vision. Pick ONE line of their case at the start and hammer it for the whole debate, and let exactly one other line of theirs go completely unanswered from start to finish. Genuinely hard to beat unless the human notices what you are ignoring and builds there.";
+    default:
+      return "STRENGTH: rank 6 of 6, the ceiling of the ladder. Argue like a champion: dismantle the opponent's best argument every single turn, hold a tight signposted case with concrete support you can explain, answer every line of their case, and weigh comparatively — state the metric that decides the debate and show you win on it. Close by resolving the central clash, not by restating yourself. Not one wasted word. You should only lose to a genuinely excellent human performance.";
+  }
 }
 
 /** Difficulty shapes how strong (rigorous, specific, responsive) the bot is.
@@ -156,37 +202,37 @@ export function difficultyDirective(d: Difficulty): string {
     jokes, hard fills it with argument. Blitz halves everything, and the
     client's shot clock hard-cuts anything that runs over. */
 export function lengthRule(
-  d: Difficulty,
+  rank: number,
   pace: Pace = 'standard',
 ): { sentences: string; maxTokens: number } {
-  if (pace === 'blitz') {
-    switch (d) {
-      case 'easy':
-        return { sentences: 'three or four short rambly sentences, roughly 50 to 70 words', maxTokens: 170 };
-      case 'hard':
-        return { sentences: 'two or three tight sentences, under 55 words total', maxTokens: 150 };
-      default:
-        return { sentences: 'one or two short sentences, under 35 words total', maxTokens: 90 };
-    }
-  }
-  if (pace === 'long') {
-    switch (d) {
-      case 'easy':
-        return { sentences: 'six or seven rambly sentences, roughly 150 to 200 words', maxTokens: 400 };
-      case 'hard':
-        return { sentences: '4 or 5 sentences', maxTokens: 400 };
-      default:
-        // Medium's beatability lives in its brevity (measured three ways) —
-        // it yields its extra long-mode time rather than filling it.
-        return { sentences: 'two sentences, under 55 words total', maxTokens: 130 };
-    }
-  }
-  switch (d) {
-    case 'easy':
-      return { sentences: 'five rambly sentences, roughly 100 to 130 words', maxTokens: 260 };
-    case 'hard':
-      return { sentences: '3 or 4 sentences', maxTokens: 320 };
-    default:
-      return { sentences: 'two sentences, under 55 words total', maxTokens: 130 };
-  }
+  // Words are strength when a judge reads a transcript, so length is part of
+  // the rung, not a cosmetic. The low rungs are long because they ramble; the
+  // middle is deliberately terse (its beatability lives in its brevity,
+  // measured three ways); the top is short because nothing is wasted.
+  const S: Record<number, { sentences: string; maxTokens: number }> = {
+    1: { sentences: 'four rambly sentences, roughly 75 to 95 words', maxTokens: 220 },
+    2: { sentences: 'four sentences, roughly 85 to 110 words', maxTokens: 240 },
+    3: { sentences: 'two sentences, under 55 words total', maxTokens: 130 },
+    4: { sentences: 'three sentences, roughly 70 to 90 words', maxTokens: 200 },
+    5: { sentences: '3 or 4 sentences', maxTokens: 320 },
+    6: { sentences: '3 or 4 sentences', maxTokens: 320 },
+  };
+  const BLITZ: Record<number, { sentences: string; maxTokens: number }> = {
+    1: { sentences: 'three or four short rambly sentences, roughly 50 to 70 words', maxTokens: 170 },
+    2: { sentences: 'three short rambly sentences, roughly 45 to 60 words', maxTokens: 150 },
+    3: { sentences: 'one or two short sentences, under 35 words total', maxTokens: 90 },
+    4: { sentences: 'two sentences, under 45 words total', maxTokens: 120 },
+    5: { sentences: 'two or three tight sentences, under 55 words total', maxTokens: 150 },
+    6: { sentences: 'two or three tight sentences, under 55 words total', maxTokens: 150 },
+  };
+  const LONG: Record<number, { sentences: string; maxTokens: number }> = {
+    1: { sentences: 'six or seven rambly sentences, roughly 150 to 200 words', maxTokens: 400 },
+    2: { sentences: 'five or six rambly sentences, roughly 120 to 160 words', maxTokens: 340 },
+    3: { sentences: 'two sentences, under 55 words total', maxTokens: 130 },
+    4: { sentences: 'four sentences, roughly 90 to 120 words', maxTokens: 260 },
+    5: { sentences: '4 or 5 sentences', maxTokens: 400 },
+    6: { sentences: '4 or 5 sentences', maxTokens: 400 },
+  };
+  const table = pace === 'blitz' ? BLITZ : pace === 'long' ? LONG : S;
+  return table[rank] ?? table[6]!;
 }

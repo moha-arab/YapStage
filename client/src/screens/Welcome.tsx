@@ -7,6 +7,7 @@ import { useI18n } from '../i18n';
 import { signIn } from '../player';
 import BotAvatar from '../BotAvatar';
 import Mask from '../Mask';
+import HomeFeed from '../HomeFeed';
 
 interface Props {
   /** Skip the account and go straight in, guest-style. */
@@ -33,22 +34,24 @@ export default function Welcome({ onGuest, invited }: Props) {
         <BotAvatar botId="giraffe" color="gold" size={78} />
       </div>
 
-      <div className="welcome-beats">
-        <p>{t('welcomeBeat1')}</p>
-        <p>{t('welcomeBeat2')}</p>
-        <p>{t('welcomeBeat3')}</p>
-      </div>
+      <p className="welcome-beats">{t('welcomeHow')}</p>
 
+      {/* One primary action, one quiet way past it. Two buttons of equal weight
+          side by side is the landing-page tell that nobody decided what the
+          page is FOR. */}
       <div className="welcome-doors">
         <button className="btn btn-primary btn-wide" onClick={signIn}>
           {t('signInGoogle')}
         </button>
-        <button className="btn btn-wide" onClick={onGuest}>
+        <button className="link-btn" onClick={onGuest}>
           {invited ? t('welcomeGuestInvited') : t('welcomeGuest')}
         </button>
       </div>
 
       <p className="small-print welcome-fine">{t('welcomeFine')}</p>
+
+      {/* Proof, not promises: real finished debates and the real ladder. */}
+      <HomeFeed />
     </div>
   );
 }

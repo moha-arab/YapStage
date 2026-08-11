@@ -84,7 +84,7 @@ export interface Lobby {
   categoryKey: string | null; // chosen category in 'category' mode
   pace: Pace; // turn lengths (host-controlled; survives rematch like topicMode)
   /** Set only in bots mode: the AI opponent. host is the human; there's no guest. */
-  bot?: { id: string; name: string; difficulty: Difficulty; side: Side; lang: 'en' | 'ar' };
+  bot?: { id: string; name: string; difficulty: Difficulty; rank: number; side: Side; lang: 'en' | 'ar' };
   pick: Pick;
   topic?: TopicText;
   /** Dispute mode: what the AI made of the two accounts. */
@@ -110,6 +110,10 @@ export interface Lobby {
   sides?: { host: Side; guest: Side };
   stepIndex: number; // -1 before step 0
   stepStartedAt: number; // epoch ms of the last phase transition
+  /** stepIndex -> when that turn opened. Anti-cheat reads dead air from this. */
+  turnStarts: Map<number, number>;
+  /** Per-side tab-blur time reported by the client, for the anti-cheat file. */
+  blur: Record<Side, { blurMs: number; blurCount: number }>;
   finishedAt?: number; // epoch ms when step 5 ended
   phaseTimer?: NodeJS.Timeout;
   judgeTimer?: NodeJS.Timeout;
@@ -178,6 +182,8 @@ export function createLobby(socketId: string, sessionId: string, name: string): 
     },
     stepIndex: -1,
     stepStartedAt: 0,
+    turnStarts: new Map(),
+    blur: { FOR: { blurMs: 0, blurCount: 0 }, AGAINST: { blurMs: 0, blurCount: 0 } },
     transcript: [],
     audioTurns: [],
     segmentText: [],

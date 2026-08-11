@@ -88,8 +88,34 @@ export async function initStore(): Promise<void> {
         seen_at    timestamptz NOT NULL DEFAULT now()
       )
     `);
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS cheat_flags (
+        id        bigserial PRIMARY KEY,
+        code      text NOT NULL,
+        player_id text NOT NULL,
+        name      text NOT NULL,
+        score     integer NOT NULL,
+        signals   jsonb NOT NULL,
+        at        timestamptz NOT NULL DEFAULT now()
+      )
+    `);
+    // One row per friendship, subs sorted so (a,b) and (b,a) cannot both exist.
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS friends (
+        lo_sub   text NOT NULL,
+        hi_sub   text NOT NULL,
+        status   text NOT NULL,
+        asked_by text NOT NULL,
+        at       timestamptz NOT NULL DEFAULT now(),
+        PRIMARY KEY (lo_sub, hi_sub)
+      )
+    `);
+    await pool.query(`CREATE INDEX IF NOT EXISTS friends_hi ON friends (hi_sub)`);
     await pool.query(`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS username text`);
     await pool.query(`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS username_fold text`);
+    await pool.query(`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS drill_last date`);
+    await pool.query(`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS drill_streak integer NOT NULL DEFAULT 0`);
+    await pool.query(`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS drill_best integer NOT NULL DEFAULT 0`);
     await pool.query(`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS mask text`);
     await pool.query(`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS mask_default boolean NOT NULL DEFAULT false`);
     // Case-insensitive uniqueness: 'YapKing' and 'yapking' are the same person
@@ -229,22 +255,62 @@ export async function getPlayer(id: string, name: string): Promise<PlayerRow | n
   }
 }
 
-/** Standard ELO, K=32. Returns both movements, or null if the store is down. */
+/** Read-only rating lookup. Deliberately NOT getPlayer: that one upserts and
+    rewrites the stored name, so calling it from a page load would create a row
+    for every visitor and rename real players to whatever the caller passed. A
+    display never writes. */
+export async function getRating(id: string): Promise<PlayerRow | null> {
+  if (!pool || !ready) return null;
+  try {
+    const res = await pool.query(`SELECT rating, wins, losses FROM players WHERE id = $1`, [
+      id.slice(0, 64),
+    ]);
+    return res.rowCount === 1 ? (res.rows[0] as PlayerRow) : null;
+  } catch (err) {
+    console.error('[store] getRating failed:', err);
+    return null;
+  }
+}
+
+/** Matches you must finish before your rating is a number and not a guess.
+    Chess.com hides the rating for 5 games; Lichess shows "?" until its
+    deviation settles. Same idea: don't show a number you don't believe yet. */
+export const PLACEMENT_MATCHES = 5;
+
+/** K shrinks as the system learns you. A brand-new player swings fast so they
+    reach their real level in a few nights; an established one barely moves,
+    which is also what stops a veteran from being dragged around by newcomers.
+    USCF does this with K = 800/(N+m); this is the same curve, clamped. */
+function kFor(games: number): number {
+  if (games < PLACEMENT_MATCHES) return 64;
+  if (games < 20) return 40;
+  return 24;
+}
+
+/** ELO with a placement-aware K. Returns both movements, or null if the store
+    is down. The two players can move by DIFFERENT amounts — that is deliberate
+    and is how a settled rating survives a rush of new accounts. */
 export async function applyRankedResult(
   winnerId: string,
   loserId: string,
 ): Promise<{ winner: { before: number; after: number }; loser: { before: number; after: number } } | null> {
   if (!pool || !ready) return null;
   try {
-    const res = await pool.query(`SELECT id, rating FROM players WHERE id = ANY($1)`, [
+    const res = await pool.query(`SELECT id, rating, wins, losses FROM players WHERE id = ANY($1)`, [
       [winnerId, loserId],
     ]);
-    const ratings = new Map(res.rows.map((r: { id: string; rating: number }) => [r.id, r.rating]));
-    const rw = ratings.get(winnerId) ?? 1000;
-    const rl = ratings.get(loserId) ?? 1000;
+    type R = { id: string; rating: number; wins: number; losses: number };
+    const rows = new Map(res.rows.map((r: R) => [r.id, r]));
+    const rw = rows.get(winnerId)?.rating ?? 1000;
+    const rl = rows.get(loserId)?.rating ?? 1000;
+    const gw = (rows.get(winnerId)?.wins ?? 0) + (rows.get(winnerId)?.losses ?? 0);
+    const gl = (rows.get(loserId)?.wins ?? 0) + (rows.get(loserId)?.losses ?? 0);
     const expected = 1 / (1 + Math.pow(10, (rl - rw) / 400));
-    const delta = Math.max(1, Math.round(32 * (1 - expected)));
-    const after = { winner: rw + delta, loser: Math.max(0, rl - delta) };
+    const gain = Math.max(1, Math.round(kFor(gw) * (1 - expected)));
+    const drop = Math.max(1, Math.round(kFor(gl) * (1 - expected)));
+    // A floor, not a kindness: it stops the pool leaking points out the bottom
+    // when someone tilts through ten losses and never comes back.
+    const after = { winner: rw + gain, loser: Math.max(100, rl - drop) };
     await pool.query(
       `UPDATE players SET rating = $2, wins = wins + 1, updated_at = now() WHERE id = $1`,
       [winnerId, after.winner],
@@ -379,6 +445,252 @@ export async function claimUsername(
   }
 }
 
+/** Daily drill streak. A streak only survives if you show up the next day,
+    which is the entire mechanic: today extends it, a missed day resets it.
+    Returns the state AFTER recording today's attempt, or null if the store is
+    down (the drill still scores, you just get no streak). */
+export async function recordDrill(
+  sub: string,
+  day: string,
+  score: number,
+): Promise<{ streak: number; best: number; already: boolean } | null> {
+  if (!pool || !ready) return null;
+  try {
+    const cur = await pool.query(
+      `SELECT drill_last, drill_streak, drill_best FROM accounts WHERE sub = $1`,
+      [sub],
+    );
+    if (cur.rowCount !== 1) return null;
+    const row = cur.rows[0] as {
+      drill_last: string | null;
+      drill_streak: number | null;
+      drill_best: number | null;
+    };
+    const last = row.drill_last ? String(row.drill_last).slice(0, 10) : null;
+    const streakNow = row.drill_streak ?? 0;
+    const best = Math.max(row.drill_best ?? 0, score);
+    if (last === day) return { streak: streakNow, best, already: true };
+    const yesterday = new Date(new Date(`${day}T00:00:00Z`).getTime() - 86_400_000)
+      .toISOString()
+      .slice(0, 10);
+    const streak = last === yesterday ? streakNow + 1 : 1;
+    await pool.query(
+      `UPDATE accounts SET drill_last = $2, drill_streak = $3, drill_best = $4 WHERE sub = $1`,
+      [sub, day, streak, best],
+    );
+    return { streak, best, already: false };
+  } catch (err) {
+    console.error('[store] recordDrill failed:', err);
+    return null;
+  }
+}
+
+/** Streak state without playing: what the drill screen shows on arrival. */
+export async function drillState(
+  sub: string,
+  day: string,
+): Promise<{ streak: number; best: number; doneToday: boolean }> {
+  if (!pool || !ready) return { streak: 0, best: 0, doneToday: false };
+  try {
+    const res = await pool.query(
+      `SELECT drill_last, drill_streak, drill_best FROM accounts WHERE sub = $1`,
+      [sub],
+    );
+    if (res.rowCount !== 1) return { streak: 0, best: 0, doneToday: false };
+    const r = res.rows[0] as {
+      drill_last: string | null;
+      drill_streak: number | null;
+      drill_best: number | null;
+    };
+    const last = r.drill_last ? String(r.drill_last).slice(0, 10) : null;
+    const yesterday = new Date(new Date(`${day}T00:00:00Z`).getTime() - 86_400_000)
+      .toISOString()
+      .slice(0, 10);
+    // A streak you have already broken should read as broken before you play,
+    // not flip to 1 the moment you submit.
+    const alive = last === day || last === yesterday;
+    return {
+      streak: alive ? (r.drill_streak ?? 0) : 0,
+      best: r.drill_best ?? 0,
+      doneToday: last === day,
+    };
+  } catch {
+    return { streak: 0, best: 0, doneToday: false };
+  }
+}
+
+/** Anti-cheat evidence. Deliberately small and deliberately private: it holds
+    numbers about HOW someone spoke, never what they said. */
+export async function saveCheatFlag(f: {
+  code: string;
+  playerId: string;
+  name: string;
+  score: number;
+  signals: unknown;
+}): Promise<void> {
+  if (!pool || !ready) return;
+  try {
+    await pool.query(
+      `INSERT INTO cheat_flags (code, player_id, name, score, signals) VALUES ($1,$2,$3,$4,$5)`,
+      [f.code.slice(0, 12), f.playerId.slice(0, 64), f.name.slice(0, 24), f.score, JSON.stringify(f.signals)],
+    );
+  } catch (err) {
+    console.error('[store] saveCheatFlag failed:', err);
+  }
+}
+
+export async function loadCheatFlags(limit = 50): Promise<Record<string, unknown>[]> {
+  if (!pool || !ready) return [];
+  try {
+    const res = await pool.query(
+      `SELECT id, code, name, score, signals, at FROM cheat_flags ORDER BY at DESC LIMIT $1`,
+      [Math.min(limit, 200)],
+    );
+    return res.rows;
+  } catch (err) {
+    console.error('[store] loadCheatFlags failed:', err);
+    return [];
+  }
+}
+
+// ---- friends ----
+// A friendship is ONE row, always stored with the two subs in sorted order, so
+// "are we friends" is a single primary-key lookup instead of an OR over two
+// columns. `asked_by` remembers who sent it, which is the only thing that
+// makes a pending row directional.
+
+export interface FriendRow {
+  /** Their account id. Server-side only: never goes out over HTTP. */
+  sub: string;
+  username: string;
+  playerId: string;
+  rating: number;
+  pending: boolean;
+  /** True when THEY asked YOU: your side of a pending row has a button. */
+  incoming: boolean;
+}
+
+const pairOf = (a: string, b: string): [string, string] => (a < b ? [a, b] : [b, a]);
+
+/** Send (or auto-accept) a friend request by username. Asking someone who
+    already asked you just makes you friends: a request you both sent is a
+    friendship, and making the second person wait for a button would be silly. */
+export async function requestFriend(
+  sub: string,
+  username: string,
+): Promise<'ok' | 'accepted' | 'self' | 'no_user' | 'already' | 'down'> {
+  if (!pool || !ready) return 'down';
+  try {
+    const who = await pool.query(`SELECT sub FROM accounts WHERE username_fold = $1`, [
+      foldName(username),
+    ]);
+    if (who.rowCount !== 1) return 'no_user';
+    const other = who.rows[0].sub as string;
+    if (other === sub) return 'self';
+    const [lo, hi] = pairOf(sub, other);
+    const cur = await pool.query(
+      `SELECT status, asked_by FROM friends WHERE lo_sub = $1 AND hi_sub = $2`,
+      [lo, hi],
+    );
+    if (cur.rowCount === 1) {
+      const row = cur.rows[0] as { status: string; asked_by: string };
+      if (row.status === 'accepted') return 'already';
+      if (row.asked_by === sub) return 'already';
+      await pool.query(
+        `UPDATE friends SET status = 'accepted' WHERE lo_sub = $1 AND hi_sub = $2`,
+        [lo, hi],
+      );
+      event('friend_accepted');
+      return 'accepted';
+    }
+    await pool.query(
+      `INSERT INTO friends (lo_sub, hi_sub, status, asked_by) VALUES ($1,$2,'pending',$3)`,
+      [lo, hi, sub],
+    );
+    event('friend_requested');
+    return 'ok';
+  } catch (err) {
+    console.error('[store] requestFriend failed:', err);
+    return 'down';
+  }
+}
+
+/** Accept a pending request. Only the person who did NOT ask can accept. */
+export async function acceptFriend(sub: string, username: string): Promise<boolean> {
+  if (!pool || !ready) return false;
+  try {
+    const who = await pool.query(`SELECT sub FROM accounts WHERE username_fold = $1`, [
+      foldName(username),
+    ]);
+    if (who.rowCount !== 1) return false;
+    const [lo, hi] = pairOf(sub, who.rows[0].sub as string);
+    const res = await pool.query(
+      `UPDATE friends SET status = 'accepted'
+       WHERE lo_sub = $1 AND hi_sub = $2 AND status = 'pending' AND asked_by <> $3`,
+      [lo, hi, sub],
+    );
+    if (res.rowCount === 1) event('friend_accepted');
+    return res.rowCount === 1;
+  } catch (err) {
+    console.error('[store] acceptFriend failed:', err);
+    return false;
+  }
+}
+
+/** Remove a friend, decline a request, or cancel one you sent: all one row. */
+export async function removeFriend(sub: string, username: string): Promise<boolean> {
+  if (!pool || !ready) return false;
+  try {
+    const who = await pool.query(`SELECT sub FROM accounts WHERE username_fold = $1`, [
+      foldName(username),
+    ]);
+    if (who.rowCount !== 1) return false;
+    const [lo, hi] = pairOf(sub, who.rows[0].sub as string);
+    const res = await pool.query(`DELETE FROM friends WHERE lo_sub = $1 AND hi_sub = $2`, [lo, hi]);
+    return (res.rowCount ?? 0) > 0;
+  } catch (err) {
+    console.error('[store] removeFriend failed:', err);
+    return false;
+  }
+}
+
+/** Everyone attached to you: accepted friends and both directions of pending. */
+export async function listFriends(sub: string): Promise<FriendRow[]> {
+  if (!pool || !ready) return [];
+  try {
+    const res = await pool.query(
+      `SELECT f.status, f.asked_by, a.sub AS other, a.username, a.player_id, p.rating
+       FROM friends f
+       JOIN accounts a ON a.sub = CASE WHEN f.lo_sub = $1 THEN f.hi_sub ELSE f.lo_sub END
+       LEFT JOIN players p ON p.id = a.player_id
+       WHERE (f.lo_sub = $1 OR f.hi_sub = $1) AND a.username IS NOT NULL
+       ORDER BY f.status DESC, a.username ASC
+       LIMIT 200`,
+      [sub],
+    );
+    return res.rows.map(
+      (r: {
+        status: string;
+        asked_by: string;
+        other: string;
+        username: string;
+        player_id: string;
+        rating: number | null;
+      }) => ({
+        sub: r.other,
+        username: r.username,
+        playerId: r.player_id,
+        rating: r.rating ?? 1000,
+        pending: r.status === 'pending',
+        incoming: r.status === 'pending' && r.asked_by !== sub,
+      }),
+    );
+  } catch (err) {
+    console.error('[store] listFriends failed:', err);
+    return [];
+  }
+}
+
 // ---- campaign (the bot ladder as levels) ----
 // level = the highest bot rank this player may face. 0 = only the tutorial;
 // finishing the tutorial reaches 1 (Pip); beating rank r reaches r+1.
@@ -466,6 +778,44 @@ export async function saveMatch(m: MatchRow): Promise<void> {
     );
   } catch (err) {
     console.error('[store] saveMatch failed:', err);
+  }
+}
+
+/** The ladder, top N. Only players who have actually placed appear: a
+    leaderboard full of 1-0 accounts is noise, and an empty one is worse than
+    no leaderboard at all, which is why the bots sit on it too (client-side). */
+export async function leaderboard(limit = 10): Promise<Record<string, unknown>[]> {
+  if (!pool || !ready) return [];
+  try {
+    const res = await pool.query(
+      `SELECT name, rating, wins, losses FROM players
+       WHERE wins + losses >= $2 ORDER BY rating DESC, wins DESC LIMIT $1`,
+      [Math.min(limit, 50), PLACEMENT_MATCHES],
+    );
+    return res.rows;
+  } catch (err) {
+    console.error('[store] leaderboard failed:', err);
+    return [];
+  }
+}
+
+/** Finished ranked debates, newest first: the home page's proof of life. Only
+    the result and the motion — never the transcript, which is not public. */
+export async function recentRanked(limit = 6): Promise<Record<string, unknown>[]> {
+  if (!pool || !ready) return [];
+  try {
+    const res = await pool.query(
+      `SELECT m.topic, m.my_total AS won_total, m.their_total AS lost_total,
+              m.opponent AS loser, p.name AS winner, p.rating AS winner_rating, m.at
+       FROM matches m JOIN players p ON p.id = m.player_id
+       WHERE m.mode = 'ranked' AND m.won = true
+       ORDER BY m.at DESC LIMIT $1`,
+      [Math.min(limit, 20)],
+    );
+    return res.rows;
+  } catch (err) {
+    console.error('[store] recentRanked failed:', err);
+    return [];
   }
 }
 

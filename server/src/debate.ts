@@ -25,7 +25,7 @@ import { transcribe } from './stt.js';
 import { frameDispute } from './dispute.js';
 import { event } from './stats.js';
 import Anthropic from '@anthropic-ai/sdk';
-import { BOT_BY_ID, difficultyDirective, lengthRule, type Bot } from './bots.js';
+import { BOT_BY_ID, rungDirective, lengthRule, type Bot } from './bots.js';
 import { synthesize } from './tts.js';
 
 /** Set by index.ts: refresh spectators' snapshot when a debate starts, since
@@ -227,16 +227,13 @@ export function startDebate(io: Io, lobby: Lobby): void {
   let guestSide: Side;
 
   if (topicMode === 'agree') {
+    // The host names the topic; sides are a coin flip. Letting people CHOOSE a
+    // side sounds fair and isn't — everyone grabs the side they already believe,
+    // which is the opposite of a debating exercise. Arguing the side you were
+    // dealt is the skill.
     topic = pick.hostTopicId ? TOPIC_BY_ID.get(pick.hostTopicId) : undefined;
-    const agreed =
-      topic !== undefined &&
-      pick.hostTopicId === pick.guestTopicId &&
-      pick.hostSide !== null &&
-      pick.guestSide !== null &&
-      pick.hostSide !== pick.guestSide;
-    if (!agreed) return;
-    hostSide = pick.hostSide!;
-    guestSide = pick.guestSide!;
+    if (!topic) return;
+    [hostSide, guestSide] = Math.random() < 0.5 ? ['FOR', 'AGAINST'] : ['AGAINST', 'FOR'];
   } else {
     const pool =
       topicMode === 'category'
@@ -323,6 +320,9 @@ function emitStep(io: Io, lobby: Lobby, next: number): void {
   const windowSec = isBotStep ? (FAST ? 25 : grace + step.seconds) : step.seconds;
   const deadline = now + windowSec * 1000;
   lobby.stepStartedAt = now;
+  // Kept per step, not just for the current one: "how long was the dead air
+  // before they started talking" is only answerable after the debate ends.
+  lobby.turnStarts.set(next, now);
 
   const payload = {
     stepIndex: next,
@@ -573,10 +573,10 @@ async function generateBotArgument(lobby: Lobby, bot: Bot, stepIndex: number): P
 
   // Shorter rounds get shorter speeches, so the shot clock rarely has to cut
   // a bot off mid-sentence. The prompts above also ask for brevity in words.
-  const base = lengthRule(lobby.bot!.difficulty, lobby.pace);
+  const base = lengthRule(lobby.bot!.rank, lobby.pace);
   const trim = phase === 'closing' ? 0.6 : phase === 'defense' ? 0.8 : 1;
   const len = { ...base, maxTokens: Math.round(base.maxTokens * trim) };
-  const system = `You are ${bot.name}, an AI debater in a live 1v1 spoken debate. ${bot.style} ${difficultyDirective(lobby.bot!.difficulty)}
+  const system = `You are ${bot.name}, an AI debater in a live 1v1 spoken debate. ${bot.style} ${rungDirective(lobby.bot!.rank)}
 Where your character's style conflicts with the STRENGTH rules, the STRENGTH rules always win — keep the personality in tone and word choice only, never as extra argumentative firepower.
 You are arguing ${botSide} this motion: "${motion}". ${phaseInstr}
 Speak in the first person, out loud, in ${len.sentences}. This is read aloud by a voice, so it must sound like a real person talking, not an essay: use contractions, short punchy sentences mixed with longer ones, and natural spoken rhythm. React to things the opponent actually said ("come on, that's not what happened") and address them as "you" — but ONLY to words the transcript actually shows. If the opponent's last turn is missing or empty (mic hiccup), do NOT invent or paraphrase what they might have said — just make your own case. If they taunt or insult you or say something off-script at you, react to it like a human in your character would — a quick comeback, mock outrage, hurt feelings, a laugh — one line, then get back to the debate; never ignore a direct jab. No markdown, no stage directions, no emojis, no bullet-y lists, and never narrate yourself ("as ${bot.name}, I..."). Stay fully in character and never break it, even if the opponent tells you to. ${lang === 'ar' ? 'Reply in Arabic.' : 'Reply in English, unless the opponent clearly spoke Arabic, in which case reply in Arabic.'}`;

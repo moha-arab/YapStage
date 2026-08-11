@@ -2,8 +2,8 @@
 // ours"). The rules this screen now follows:
 //   1. ONE top bar: brand left, who-you-are right. The account never floats
 //      loose in the middle of the card again.
-//   2. FOUR modes, not five. The tutorial is level one of the bot ladder, so
-//      it lives inside training where a beginner is already looking.
+//   2. The tutorial is not a mode. It is level one of the bot ladder, so it
+//      lives inside training where a beginner is already looking.
 //   3. Everything below the fold is either an action or gone. No marquee, no
 //      "sanctioned by the athletic commission", no browser-support boasting.
 //   4. Your record is a real screen you can open, filter, and read — not a
@@ -14,6 +14,7 @@ import { session, socket } from '../socket';
 import { playerId, signIn, signOut, whoAmI, type Account } from '../player';
 import { unlockSpectateAudio } from '../specaudio';
 import { useI18n } from '../i18n';
+import HomeFeed from '../HomeFeed';
 
 const ERROR_KEYS: Record<JoinError, string> = {
   not_found: 'errNotFound',
@@ -27,9 +28,10 @@ const ERROR_KEYS: Record<JoinError, string> = {
 
 type ErrorZone = 'name' | 'panel' | 'ticket';
 
-/** Four. The tutorial moved into training (it IS the ladder's level one). */
-type Mode = 'custom' | 'ranked' | 'training' | 'spectate';
-const MODES: Mode[] = ['ranked', 'custom', 'training', 'spectate'];
+type Mode = 'custom' | 'ranked' | 'training' | 'drill' | 'spectate';
+// Five doors. The drill earned its place: it is the only one you can walk
+// through alone, in forty seconds, with nobody waiting on you.
+const MODES: Mode[] = ['ranked', 'custom', 'training', 'drill', 'spectate'];
 
 interface Props {
   notice: string | null;
@@ -38,9 +40,11 @@ interface Props {
   onSpectate: (code: string, feed: boolean) => void;
   onMatches: () => void;
   onLocker: () => void;
+  onFriends: () => void;
+  onDrill: () => void;
 }
 
-export default function Home({ notice, onEntered, onPlayBot, onSpectate, onMatches, onLocker }: Props) {
+export default function Home({ notice, onEntered, onPlayBot, onSpectate, onMatches, onLocker, onFriends, onDrill }: Props) {
   const { t } = useI18n();
   const [name, setName] = useState('');
   const [mode, setMode] = useState<Mode>('ranked');
@@ -62,6 +66,23 @@ export default function Home({ notice, onEntered, onPlayBot, onSpectate, onMatch
     void whoAmI().then(setAccount);
   }, []);
   const needAccount = account.google && !account.signedIn;
+
+  // Your rating, so the bot ladder's numbers mean something the moment you see
+  // them. Hidden until you have placed: a rating still swinging 64 points a
+  // match is a guess, and showing a guess as a fact is how ladders lose trust.
+  const [rank, setRank] = useState<{
+    rating: number;
+    provisional: boolean;
+    placementsLeft: number;
+  } | null>(null);
+  useEffect(() => {
+    void fetch(`/rating?playerId=${encodeURIComponent(playerId())}`)
+      .then((r) => r.json())
+      .then((d) => {
+        if (typeof d?.rating === 'number') setRank(d);
+      })
+      .catch(() => {});
+  }, [account.signedIn]);
 
   const [authNote] = useState(() => new URLSearchParams(window.location.search).get('auth'));
   useEffect(() => {
@@ -291,6 +312,13 @@ export default function Home({ notice, onEntered, onPlayBot, onSpectate, onMatch
           {zoneError('panel')}
           {ticket(false)}
         </>
+      ) : mode === 'drill' ? (
+        <>
+          <p className="mode-panel-desc">{t('panelDrillDesc')}</p>
+          <button className="btn btn-primary btn-wide" onClick={onDrill}>
+            {t('drillGo')}
+          </button>
+        </>
       ) : mode === 'training' ? (
         <>
           <p className="mode-panel-desc">{t('panelTrainingDesc')}</p>
@@ -340,6 +368,21 @@ export default function Home({ notice, onEntered, onPlayBot, onSpectate, onMatch
         <div className="bar-right">
           {account.signedIn ? (
             <>
+              {rank ? (
+                <span className="rating-chip" title={t('yourRating')}>
+                  {rank.provisional ? (
+                    t('placeIn', { n: rank.placementsLeft })
+                  ) : (
+                    <>
+                      <span className="rating-chip-label">{t('yourRating')}</span>
+                      <span className="elo">{rank.rating}</span>
+                    </>
+                  )}
+                </span>
+              ) : null}
+              <button className="btn btn-small ghost" onClick={onFriends}>
+                {t('friendsPillHome')}
+              </button>
               <button className="btn btn-small ghost" onClick={onLocker}>
                 {t('lockerPill')}
               </button>
@@ -434,6 +477,13 @@ export default function Home({ notice, onEntered, onPlayBot, onSpectate, onMatch
           </>
         )}
       </div>
+
+      <HomeFeed />
+
+      {/* The one place the rule belongs. It was small print on the bot picker,
+          where it read as an apology; here it is the house telling you how the
+          game is played, once, before you play it. */}
+      <p className="house-rules">{t('houseRules')}</p>
 
       <p className="build-stamp">build {__BUILD__}</p>
     </div>

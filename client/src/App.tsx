@@ -37,6 +37,8 @@ import TutorialDone, { type DebriefInfo } from './screens/TutorialDone';
 import ClaimName from './screens/ClaimName';
 import Matches from './screens/Matches';
 import Locker from './screens/Locker';
+import Friends from './screens/Friends';
+import Drill from './screens/Drill';
 import Welcome from './screens/Welcome';
 import { playBotTurn, stopBotVoice } from './botvoice';
 
@@ -106,6 +108,10 @@ export default function App() {
   const [tutoring, setTutoring] = useState(false);
   const [viewingMatches, setViewingMatches] = useState(false);
   const [viewingLocker, setViewingLocker] = useState(false);
+  const [viewingFriends, setViewingFriends] = useState(false);
+  const [viewingDrill, setViewingDrill] = useState(false);
+  /** A friend's open room, pushed to every tab you have. Survives screens. */
+  const [callout, setCallout] = useState<{ from: string; code: string } | null>(null);
   // Signed-out visitors land on Welcome; 'continue as guest' dismisses it for
   // the session. Invite links skip it — they were sent here to play, now.
   const [guestMode, setGuestMode] = useState(
@@ -195,6 +201,7 @@ export default function App() {
 
   useEffect(() => {
     socket.on('lobby:update', (u) => setLobby(u));
+    socket.on('friend:invited', (p) => setCallout(p));
     // Spectator plumbing: the snapshot (kept here so the Spectate screen can
     // mount with it instead of racing the event) and the watcher count that
     // debaters must always see.
@@ -386,6 +393,7 @@ export default function App() {
 
     return () => {
       socket.off('lobby:update');
+      socket.off('friend:invited');
       socket.off('lobby:closed');
       socket.off('rtc:go');
       socket.off('rtc:signal');
@@ -509,6 +517,37 @@ export default function App() {
     return () => {
       document.removeEventListener('visibilitychange', onVis);
       window.removeEventListener('pagehide', onPageHide);
+    };
+  }, []);
+
+  // Anti-cheat, softest signal: how long you spent somewhere else while it was
+  // YOUR turn to talk. Reported, never enforced, and easy to spoof — it only
+  // matters when the transcript signals agree with it. Nothing about the words
+  // is sent here, just milliseconds.
+  useEffect(() => {
+    let awaySince: number | null = null;
+    const away = () => {
+      const s = startDataRef.current;
+      const p = phaseRef.current;
+      return Boolean(s && p && !endedRef.current && p.activeSpeaker === s.yourSide);
+    };
+    const leave = () => {
+      if (awaySince === null && away()) awaySince = Date.now();
+    };
+    const back = () => {
+      if (awaySince === null) return;
+      const ms = Date.now() - awaySince;
+      awaySince = null;
+      if (ms > 1500) socket.emit('turn:away', { ms });
+    };
+    const onVis = () => (document.visibilityState === 'hidden' ? leave() : back());
+    document.addEventListener('visibilitychange', onVis);
+    window.addEventListener('blur', leave);
+    window.addEventListener('focus', back);
+    return () => {
+      document.removeEventListener('visibilitychange', onVis);
+      window.removeEventListener('blur', leave);
+      window.removeEventListener('focus', back);
     };
   }, []);
 
@@ -639,6 +678,25 @@ export default function App() {
     setLobby(u);
   }, []);
 
+  /** Call out a friend: open a room, then push its code straight to them. The
+      room is real either way, so a friend who is asleep still leaves you with
+      a lobby you can share by hand. */
+  const challengeFriend = useCallback(
+    (username: string) => {
+      const name = account?.name ?? '';
+      if (!name) return;
+      socket.emit('lobby:create', { sessionId: session.id, name }, (res) => {
+        if (!res.ok) return;
+        setViewingFriends(false);
+        handleEntered(res.update);
+        socket.emit('friend:invite', { username, code: res.update.code }, (r) => {
+          setNotice(r?.ok ? null : 'friendInviteOffline');
+        });
+      });
+    },
+    [account?.name, handleEntered],
+  );
+
   const onPlayBot = useCallback((name: string) => {
     setNotice(null);
     setBotName(name);
@@ -732,6 +790,10 @@ export default function App() {
         onBack={() => setViewingLocker(false)}
       />
     );
+  } else if (viewingDrill) {
+    content = <Drill onBack={() => setViewingDrill(false)} />;
+  } else if (viewingFriends) {
+    content = <Friends onBack={() => setViewingFriends(false)} onChallenge={challengeFriend} />;
   } else if (viewingMatches) {
     content = <Matches onBack={() => setViewingMatches(false)} />;
   } else if (spectating) {
@@ -815,6 +877,7 @@ export default function App() {
         rematch={rematch}
         onRematch={() => socket.emit('rematch')}
         botOpponent={start?.bot ?? null}
+        ranked={Boolean(lobby?.ranked)}
         unlocked={unlocked}
         avatars={start?.avatars ?? null}
       />
@@ -909,6 +972,8 @@ export default function App() {
         }}
         onMatches={() => setViewingMatches(true)}
         onLocker={() => setViewingLocker(true)}
+        onFriends={() => setViewingFriends(true)}
+        onDrill={() => setViewingDrill(true)}
       />
     );
   }
@@ -917,6 +982,55 @@ export default function App() {
     <>
       <LangToggle />
       {content}
+      {callout && !lobby ? (
+        <CallOut
+          callout={callout}
+          onJoin={() => {
+            const name = account?.name ?? '';
+            if (!name) return;
+            socket.emit(
+              'lobby:join',
+              { code: callout.code, sessionId: session.id, name },
+              (res) => {
+                setCallout(null);
+                if (res.ok) {
+                  setViewingFriends(false);
+                  setViewingMatches(false);
+                  handleEntered(res.update);
+                } else {
+                  setNotice('errNotFound');
+                }
+              },
+            );
+          }}
+          onDismiss={() => setCallout(null)}
+        />
+      ) : null}
     </>
+  );
+}
+
+/** The bar that drops in when a friend opens a room for you. It joins with the
+    account's own name, so there is nothing to type and nothing to get wrong. */
+function CallOut({
+  callout,
+  onJoin,
+  onDismiss,
+}: {
+  callout: { from: string; code: string };
+  onJoin: () => void;
+  onDismiss: () => void;
+}) {
+  const { t } = useI18n();
+  return (
+    <div className="callout" role="status">
+      <span className="callout-text">{t('friendCalledOut', { x: callout.from })}</span>
+      <button className="btn btn-small btn-primary" onClick={onJoin}>
+        {t('friendJoinNow')}
+      </button>
+      <button className="btn btn-small ghost" onClick={onDismiss}>
+        ✕
+      </button>
+    </div>
   );
 }

@@ -58,30 +58,34 @@ a.emit('rtc:signal', { description: { type: 'offer', sdp: 'fake-sdp' } });
 const sig = await relayed;
 check('rtc:signal relayed verbatim', sig?.description?.sdp === 'fake-sdp');
 
-// picks: both must choose the SAME topic (by id) and OPPOSITE sides, then confirm
+// picks: the HOST names the topic (guests cannot), sides are dealt by the
+// server, then both confirm. Choosing your own side sounds fair and isn't:
+// everyone grabs the side they already believe.
 const PICKED = 'kurdistan';
-a.emit('pick:topic', PICKED);
-a.emit('pick:side', 'FOR');
-b.emit('pick:side', 'FOR'); // same side: agreement impossible yet
-await new Promise((r) => setTimeout(r, 300));
 let early = false;
 a.once('debate:start', () => { early = true; });
-a.emit('pick:confirm'); // topics don't match AND sides clash: must be a no-op
+b.emit('pick:topic', PICKED); // guest pick: must not register
+await new Promise((r) => setTimeout(r, 300));
+a.emit('pick:confirm'); // no topic on the table: must be a no-op
 b.emit('pick:confirm');
 await new Promise((r) => setTimeout(r, 500));
-check('confirm before agreement is refused', !early);
+check('a guest cannot pick the topic', !early);
 
 const startA = once(a, 'debate:start');
 const startB = once(b, 'debate:start');
-b.emit('pick:topic', PICKED);
-b.emit('pick:side', 'AGAINST');
+a.emit('pick:topic', PICKED);
 await new Promise((r) => setTimeout(r, 300));
 a.emit('pick:confirm');
 b.emit('pick:confirm');
 const [sa, sb] = await Promise.all([startA, startB]);
-check('debate starts with the agreed topic (bilingual)', sa.topic.id === PICKED && sa.topic.en.includes('Kurdistan') && sa.topic.ar.length > 0 && sb.topic.id === PICKED);
-check('sides match the picks', sa.yourSide === 'FOR' && sb.yourSide === 'AGAINST');
-check('names carried on both sides', sa.names.FOR === 'pizzamaster' && sa.names.AGAINST === 'yapqueen');
+check('debate starts with the host topic (bilingual)', sa.topic.id === PICKED && sa.topic.en.includes('Kurdistan') && sa.topic.ar.length > 0 && sb.topic.id === PICKED);
+check('sides are dealt opposite', sa.yourSide !== sb.yourSide && ['FOR', 'AGAINST'].includes(sa.yourSide));
+// Sides are dealt, so check the names landed on the right seats rather than on
+// fixed sides: the host's name goes wherever the host was dealt.
+check(
+  'names carried on both sides',
+  sa.names[sa.yourSide] === 'pizzamaster' && sa.names[sb.yourSide] === 'yapqueen',
+);
 
 const forSock = sa.yourSide === 'FOR' ? a : b;
 const againstSock = sa.yourSide === 'FOR' ? b : a;

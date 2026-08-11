@@ -18,7 +18,6 @@ export default function Locker({ account, onSaved, onBack }: Props) {
   const [mask, setMask] = useState(account.mask ?? MASK_IDS[0]);
   const [maskDefault, setMaskDefault] = useState(Boolean(account.maskDefault));
   const [saving, setSaving] = useState(false);
-  const [saved, setSaved] = useState(false);
 
   async function save() {
     setSaving(true);
@@ -30,9 +29,10 @@ export default function Locker({ account, onSaved, onBack }: Props) {
       // the next page load.
       socket.disconnect();
       socket.connect();
-      setSaved(true);
       onSaved(mask, maskDefault);
-      setTimeout(() => setSaved(false), 1600);
+      // Saving is finished business: leave. Sitting on a 'saved' badge makes the
+      // player wonder whether anything happened and what to press next.
+      onBack();
     }
   }
 
@@ -80,7 +80,7 @@ export default function Locker({ account, onSaved, onBack }: Props) {
       <p className="small-print locker-note">{t('lockerRankedNote')}</p>
 
       <button className="btn btn-primary" disabled={saving} onClick={() => void save()}>
-        {saved ? t('lockerSaved') : saving ? t('claiming') : t('lockerSave')}
+        {saving ? t('claiming') : t('lockerSave')}
       </button>
     </div>
   );

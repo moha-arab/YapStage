@@ -30,6 +30,7 @@ export interface BotInfo {
   color: string;
   rank: number; // 1 = easiest, ascending
   skill: string; // short strength label
+  elo: number; // fixed published rating, calibrated against the judge
 }
 
 // Structural stand-ins for DOM WebRTC types (server tsconfig has no DOM lib).
@@ -289,7 +290,23 @@ export interface ClientToServer {
     p: { code: string },
     cb: (res: { ok: boolean; error?: 'not_found' | 'full' | 'rate_limited' }) => void,
   ) => void;
+  /** Anti-cheat: you left the tab for `ms` while it was your turn to speak. */
+  'turn:away': (p: { ms: number }) => void;
   'spectate:leave': () => void;
+  /** Push your room code to a friend who is online right now. Friends only,
+      checked server-side. */
+  'friend:invite': (
+    p: { username: string; code: string },
+    cb: (res: {
+      ok: boolean;
+      error?: 'signed_out' | 'rate_limited' | 'bad_request' | 'not_friends' | 'offline';
+    }) => void,
+  ) => void;
+  /** Which of your friends have a tab open. */
+  'friend:presence': (
+    p: Record<string, never>,
+    cb: (res: { ok: boolean; online: string[] }) => void,
+  ) => void;
   /** Ask for a shareable link to this verdict. The whole card is encoded in
       the returned URL — nothing is stored server-side. */
   'share:link': (cb: (res: { url: string } | null) => void) => void;
@@ -331,6 +348,8 @@ export interface ClientToServer {
 
 export interface ServerToClient {
   'lobby:update': (u: LobbyUpdate) => void;
+  /** A friend called you out: their room is open and waiting for you. */
+  'friend:invited': (p: { from: string; code: string }) => void;
   'lobby:closed': (p: { reason: string; vars?: Record<string, string> }) => void;
   'rtc:go': () => void; // sent to HOST only when both peers are rtc-ready
   'rtc:signal': (p: SignalPayload) => void;

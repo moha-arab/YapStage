@@ -17,12 +17,20 @@ let currentStep = -1;
 let consecutiveErrors = 0;
 let warned = false;
 let onChunk: (() => void) | null = null;
+let sink: ((text: string) => void) | null = null;
 let speechLang = 'en-US';
 
 /** Match recognition to the UI language. Applies from the next turn. */
 export function setSpeechLang(lang: 'en' | 'ar'): void {
   speechLang = lang === 'ar' ? 'ar-SA' : 'en-US';
   if (rec) rec.lang = speechLang;
+}
+
+/** Divert transcript text to a local callback instead of the debate socket.
+    The daily drill has no lobby and no step index, so it takes the words
+    directly; setting this to null puts the mic back on the debate path. */
+export function setSpeechSink(cb: ((text: string) => void) | null): void {
+  sink = cb;
 }
 
 /** UI hook: fires whenever a final transcript chunk is actually captured. */
@@ -69,7 +77,11 @@ function ensure(): void {
       const result = e.results[i];
       if (result.isFinal) {
         const text = String(result[0]?.transcript ?? '').trim();
-        if (text && currentStep >= 0) {
+        if (!text) continue;
+        if (sink) {
+          sink(text);
+          onChunk?.();
+        } else if (currentStep >= 0) {
           socket.emit('speech:chunk', { stepIndex: currentStep, text });
           onChunk?.();
         }

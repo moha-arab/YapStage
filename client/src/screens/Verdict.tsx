@@ -40,6 +40,9 @@ interface Props {
   onRematch: () => void;
   rematch: { youWant: boolean; peerWant: boolean; peerLeft: boolean } | null;
   botOpponent?: { id: string; name: string; color: string } | null;
+  /** Ranked hides rematch: the queue is how you go again, so two accounts
+      cannot sit in a loop trading rating. */
+  ranked?: boolean;
   /** Campaign: the win moved your frontier — announce the new challenger. */
   unlocked?: { level: number; unlocked: string | null } | null;
   /** Masks by side (an entry = that side is masked), so the post-verdict call
@@ -152,6 +155,7 @@ export default function VerdictScreen({
   onRematch,
   rematch,
   botOpponent,
+  ranked,
   unlocked,
   avatars,
   framing,
@@ -523,9 +527,9 @@ export default function VerdictScreen({
           </div>
 
           <div className="verdict-actions">
-            {botOpponent ? (
+            {botOpponent || ranked ? (
               <button className="btn btn-primary" onClick={() => window.location.assign('/')}>
-                {t('newOpponent')}
+                {t(ranked ? 'backToQueue' : 'newOpponent')}
               </button>
             ) : rematch?.peerLeft ? (
               <button className="btn btn-primary" disabled>

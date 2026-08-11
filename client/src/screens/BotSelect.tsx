@@ -141,11 +141,9 @@ export default function BotSelect({ localStream, mediaError, onRetryMedia, onSta
               <BotAvatar botId={b.id} color={b.color} size={96} speaking={botId === b.id} />
               <span className="bot-name">{b.name}</span>
               <span className="bot-tagline">{b.tagline}</span>
-              <div className="bot-meter" aria-label={b.skill}>
-                {Array.from({ length: maxRank }, (_, i) => (
-                  <span key={i} className={`meter-pip ${i < b.rank ? 'pip-on' : ''}`} />
-                ))}
-              </div>
+              {/* A number beats a row of bars: it says how strong, not just
+                  stronger-than-the-last-one, and it is comparable to yours. */}
+              <span className="bot-elo elo">{b.elo}</span>
               <span className="bot-skill">
                 {locked
                   ? b.rank === 1
@@ -169,7 +167,7 @@ export default function BotSelect({ localStream, mediaError, onRetryMedia, onSta
         <div className="setup-row">
           <span className="setup-label">{t('topic')}</span>
           <div className="chip-row">
-            {(['agree', 'category', 'random'] as TopicMode[]).map((m) => (
+            {(['agree', 'random'] as TopicMode[]).map((m) => (
               <button
                 key={m}
                 className={`cat-tab ${mode === m ? 'cat-active' : ''}`}
@@ -258,7 +256,6 @@ export default function BotSelect({ localStream, mediaError, onRetryMedia, onSta
           sub={t(selfMask ? 'onMask' : 'onCam')}
           placeholder={mediaError ? t('cameraBlocked') : t('cameraWarming')}
         />
-        <p className="small-print">{t(selfMask ? 'botCamNoteMasked' : 'botCamNote')}</p>
       </div>
 
       {mediaError ? (

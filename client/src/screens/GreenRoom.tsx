@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import type { LobbyUpdate, Side } from '../../../server/src/protocol';
+import type { LobbyUpdate } from '../../../server/src/protocol';
 import { socket } from '../socket';
 
 /** Mirrors DISPUTE_MAX on the server. */
@@ -83,14 +83,12 @@ export default function GreenRoom({
 
   const isHost = lobby.role === 'host';
   const mode = lobby.topicMode;
-  const topicsMatch = pick.yourTopicId !== null && pick.yourTopicId === pick.peerTopicId;
-  const sidesOk =
-    pick.yourSide !== null && pick.peerSide !== null && pick.yourSide !== pick.peerSide;
-  const agreed = topicsMatch && sidesOk;
+  // The host names the topic and the server mirrors it to the guest, so there
+  // is nothing left to negotiate: one pick and the room is ready.
   const bothDescribed = Boolean(pick.yourDispute && pick.peerDisputeReady);
   const ready =
     mode === 'agree'
-      ? agreed
+      ? pick.yourTopicId !== null
       : mode === 'category'
         ? lobby.categoryKey !== null
         : mode === 'dispute'
@@ -106,16 +104,10 @@ export default function GreenRoom({
         : t('connectingVideo')
       : mode === 'agree'
         ? !pick.yourTopicId
-          ? t('pickTopic')
-          : !topicsMatch
-            ? t('waitSameTopic', { x: peer })
-            : !pick.yourSide
-              ? t('pickSide')
-              : !pick.peerSide
-                ? t('waitSide', { x: peer })
-                : !sidesOk
-                  ? t('sameSide', { x: t(pick.yourSide!) })
-                  : t('confirm')
+          ? isHost
+            ? t('pickTopic')
+            : t('waitTopic', { x: peer })
+          : t('confirm')
         : mode === 'dispute'
           ? !pick.yourDispute
             ? t('describeFirst')
@@ -245,7 +237,7 @@ export default function GreenRoom({
               </div>
             ) : isHost ? (
               <div className="mode-row">
-                {(['agree', 'category', 'random'] as const).map((m) => (
+                {(['agree', 'random'] as const).map((m) => (
                   <button
                     key={m}
                     className={`cat-tab ${mode === m ? 'cat-active' : ''}`}
@@ -288,42 +280,18 @@ export default function GreenRoom({
                 </div>
 
                 <div className="topic-list">
-                  {deck[cat]?.topics.map((topic) => {
-                    const mine = pick.yourTopicId === topic.id;
-                    const theirs = pick.peerTopicId === topic.id;
-                    return (
-                      <button
-                        key={topic.id}
-                        className={`topic-btn ${mine && theirs ? 'topic-on-table' : ''}`}
-                        onClick={() => socket.emit('pick:topic', topic.id)}
-                      >
-                        {topic[lang]}
-                        <span className="topic-marks">
-                          {mine && theirs ? t('bothMark') : mine ? t('you') : theirs ? peer : ''}
-                        </span>
-                      </button>
-                    );
-                  })}
-                </div>
-
-                <div className="side-row">
-                  {(['FOR', 'AGAINST'] as Side[]).map((side) => (
+                  {deck[cat]?.topics.map((topic) => (
                     <button
-                      key={side}
-                      className={`side-btn ${side === 'FOR' ? 'for' : 'against'} ${
-                        pick.yourSide === side ? 'side-mine' : ''
-                      }`}
-                      onClick={() => socket.emit('pick:side', side)}
+                      key={topic.id}
+                      className={`topic-btn ${pick.yourTopicId === topic.id ? 'topic-on-table' : ''}`}
+                      disabled={!isHost}
+                      onClick={() => socket.emit('pick:topic', topic.id)}
                     >
-                      <span className="side-name">{t(side)}</span>
-                      <span className="side-claim">
-                        {[pick.yourSide === side ? t('you') : null, pick.peerSide === side ? peer : null]
-                          .filter(Boolean)
-                          .join(' + ') || ' '}
-                      </span>
+                      {topic[lang]}
                     </button>
                   ))}
                 </div>
+                <p className="mode-desc">{t('sidesFlipped')}</p>
               </>
             ) : mode === 'category' ? (
               <>

@@ -8,6 +8,7 @@ import { Server } from 'socket.io';
 import {
   AVATAR_IDS,
   NAME_RE,
+  foldName,
   type AvatarId,
   type ClientToServer,
   type LobbyUpdate,
@@ -47,22 +48,34 @@ import {
 } from './debate.js';
 import { BOT_BY_ID, publicBots } from './bots.js';
 import { sttConfigured } from './stt.js';
-import { namesOf, runJudge, scoreTranscript } from './judge.js';
+import { namesOf, runJudge, scoreDrill, scoreTranscript } from './judge.js';
+import { DRILL_SECONDS, drillMeta, drillOfDay, today } from './drills.js';
 import { coachOnRecord, coachReply } from './coach.js';
 import { cardFrom, renderCard } from './share.js';
 import { DISPUTE_MAX } from './dispute.js';
 import {
+  acceptFriend,
   campaignLocksOn,
+  drillState,
   getCampaign,
   getLocker,
   getPlayer,
+  getRating,
   initStore,
   lastShutdown,
+  leaderboard,
+  listFriends,
   listMatches,
   loadCard,
+  loadCheatFlags,
   loadMatch,
   loadReports,
+  PLACEMENT_MATCHES,
+  recentRanked,
+  recordDrill,
   recordShutdown,
+  removeFriend,
+  requestFriend,
   saveCard,
   saveReport,
   storeReady,
@@ -171,6 +184,119 @@ app.get<{ Querystring: { not?: string } }>('/spectate/random', async (req) => {
 // Every route here scopes to the caller's own player id from the session, so
 // a guessed match id can never open somebody else's debate.
 
+// The home page's proof of life. Public on purpose: a ranked result (who won,
+// on what motion) is already visible to spectators, and a landing page that
+// shows real finished debates beats one that describes them. Transcripts and
+// player ids stay out of it.
+app.get('/feed', async () => ({
+  recent: await recentRanked(6),
+  top: await leaderboard(8),
+}));
+
+/** Your own ladder row, so the app can show your rating next to a bot's. Read
+    only: a page load must never create or rename a player. */
+app.get<{ Querystring: { playerId?: string } }>('/rating', async (req) => {
+  const id = String(req.query.playerId ?? '').slice(0, 64);
+  if (!id) return { rating: null };
+  const row = await getRating(id);
+  if (!row) return { rating: null };
+  const games = row.wins + row.losses;
+  return {
+    rating: row.rating,
+    wins: row.wins,
+    losses: row.losses,
+    games,
+    // Below placement the number exists but is not shown: it is still moving
+    // 64 points a match and would be a lie dressed as a measurement.
+    provisional: games < PLACEMENT_MATCHES,
+    placementsLeft: Math.max(0, PLACEMENT_MATCHES - games),
+  };
+});
+
+// ---- the daily drill ----
+// Same drill for everyone, every day, derived from the date so there is nothing
+// to store or schedule. Playable signed out (the point is that a stranger can
+// try the product in forty seconds); the streak needs an account, because a
+// streak is a promise you keep to a name.
+app.get('/drill', async (req) => {
+  const day = today();
+  const d = drillOfDay(day);
+  const s = readSession(req);
+  const state = s ? await drillState(s.sub, day) : { streak: 0, best: 0, doneToday: false };
+  return {
+    day,
+    drill: { id: d.id, type: d.type, prompt: d.prompt, material: d.material },
+    seconds: DRILL_SECONDS,
+    skill: drillMeta(d.type).name,
+    ...state,
+    signedIn: Boolean(s),
+  };
+});
+
+app.post<{ Body: { text?: string } }>(
+  '/drill',
+  { bodyLimit: 16_384 },
+  async (req, reply) => {
+    if (!allow(`drill:${req.ip}`, 20, 10 * 60_000)) {
+      return reply.code(429).send({ error: 'rate_limited' });
+    }
+    const answer = String(req.body?.text ?? '').trim().slice(0, 4000);
+    const day = today();
+    const d = drillOfDay(day);
+    // Silence is not a score. Say so plainly instead of asking the judge to
+    // grade nothing and getting a hallucinated 40 back.
+    if (answer.split(/\s+/).filter(Boolean).length < 8) {
+      return { result: null, error: 'too_short' };
+    }
+    try {
+      const result = await scoreDrill(d, answer);
+      const s = readSession(req);
+      const streak = s ? await recordDrill(s.sub, day, result.score) : null;
+      event('drill_done', { score: result.score });
+      return { result, streak: streak?.streak ?? 0, best: streak?.best ?? 0, already: streak?.already ?? false };
+    } catch (err) {
+      req.log.error({ err }, 'drill scoring failed');
+      return reply.code(503).send({ error: 'judge_down' });
+    }
+  },
+);
+
+// ---- friends ----
+// Account-only, like every friends list worth having: a friend you cannot find
+// again tomorrow is not a friend, it is a tab. The account id never leaves the
+// server; the client identifies people by username alone.
+app.get('/friends', async (req, reply) => {
+  const s = readSession(req);
+  if (!s) return reply.code(401).send({ friends: [] });
+  const rows = await listFriends(s.sub);
+  return {
+    friends: rows.map(({ sub, playerId, ...safe }) => ({
+      ...safe,
+      online: (io.sockets.adapter.rooms.get(`acct:${sub}`)?.size ?? 0) > 0,
+    })),
+  };
+});
+
+app.post<{ Body: { username?: string; action?: string } }>('/friends', async (req, reply) => {
+  const s = readSession(req);
+  if (!s) return reply.code(401).send({ error: 'signed_out' });
+  if (!allow(`friends:${s.sub}`, 40, 5 * 60_000)) {
+    return reply.code(429).send({ error: 'rate_limited' });
+  }
+  const username = String(req.body?.username ?? '').trim();
+  if (!username || username.length > 16) return reply.code(400).send({ error: 'bad_request' });
+  switch (req.body?.action) {
+    case 'add':
+      return { result: await requestFriend(s.sub, username) };
+    case 'accept':
+      return { result: (await acceptFriend(s.sub, username)) ? 'ok' : 'no_user' };
+    case 'remove':
+      return { result: (await removeFriend(s.sub, username)) ? 'ok' : 'no_user' };
+    default:
+      return reply.code(400).send({ error: 'bad_request' });
+  }
+});
+
 app.get<{ Querystring: { mode?: string } }>('/matches', async (req, reply) => {
   const s = readSession(req);
   if (!s) return reply.code(401).send({ matches: [] });
@@ -259,6 +385,19 @@ app.get<{ Querystring: { key?: string; limit?: string } }>(
       return reply.code(404).send({ error: 'Not Found' });
     }
     return { reports: await loadReports(Number(req.query.limit) || 50) };
+  },
+);
+
+// The anti-cheat file. Same key, same fail-closed rule: without STATS_KEY set
+// this endpoint does not exist, because a public list of who we suspect would
+// be far worse than no list at all.
+app.get<{ Querystring: { key?: string; limit?: string } }>(
+  '/stats/cheat',
+  async (req, reply) => {
+    if (!process.env.STATS_KEY || req.query.key !== process.env.STATS_KEY) {
+      return reply.code(404).send({ error: 'Not Found' });
+    }
+    return { flags: await loadCheatFlags(Number(req.query.limit) || 50) };
   },
 );
 
@@ -579,6 +718,9 @@ io.on('connection', (socket) => {
   const sess = readSessionCookie(socket.handshake.headers.cookie);
   if (sess?.name) {
     socket.data.account = { sub: sess.sub, playerId: sess.playerId, name: sess.name };
+    // Presence: one room per account, so a friend list can ask "are they here"
+    // and a challenge can reach every tab they have open.
+    void socket.join(`acct:${sess.sub}`);
     // Locker: your saved mask follows you into every mode, including training,
     // which has no green room to pick one in.
     void getLocker(sess.sub).then((l) => {
@@ -814,10 +956,17 @@ io.on('connection', (socket) => {
     if (!me) return;
     const id = String(topicId ?? '');
     if (!TOPIC_BY_ID.has(id)) return;
-    // No-op picks don't rebroadcast: repeated identical events are free.
-    if ((me === lobby.host ? lobby.pick.hostTopicId : lobby.pick.guestTopicId) === id) return;
-    if (me === lobby.host) lobby.pick.hostTopicId = id;
-    else lobby.pick.guestTopicId = id;
+    // SIMPLIFIED CUSTOM (his review: "pick it together doesn't really make
+    // sense"). The old flow needed BOTH players to land on the same topic AND
+    // opposite sides AND both confirm — four negotiations before a debate could
+    // start, and a green room full of "waiting for them to pick the same
+    // topic". Now the HOST sets the topic and the server coin-flips sides,
+    // which is how every challenge-based game works: the challenger names the
+    // terms, the other accepts.
+    if (me !== lobby.host) return;
+    if (lobby.pick.hostTopicId === id) return; // no-op picks don't rebroadcast
+    lobby.pick.hostTopicId = id;
+    lobby.pick.guestTopicId = id; // agreement is automatic now
     // any change requires both players to re-confirm
     lobby.pick.hostConfirmed = false;
     lobby.pick.guestConfirmed = false;
@@ -866,16 +1015,12 @@ io.on('connection', (socket) => {
     const me = participantOf(lobby, socket.id);
     if (!me) return;
     const { pick } = lobby;
-    // What "ready to confirm" means depends on the mode.
-    const agreed =
-      pick.hostTopicId !== null &&
-      pick.hostTopicId === pick.guestTopicId &&
-      pick.hostSide !== null &&
-      pick.guestSide !== null &&
-      pick.hostSide !== pick.guestSide;
+    // What "ready to confirm" means depends on the mode. In 'agree' the host
+    // names the topic and the server mirrors it, so there is exactly one thing
+    // to wait for. Sides are dealt at the start, never chosen.
     const ready =
       lobby.topicMode === 'agree'
-        ? agreed
+        ? pick.hostTopicId !== null
         : lobby.topicMode === 'category'
           ? lobby.categoryKey !== null
           : lobby.topicMode === 'dispute'
@@ -929,6 +1074,21 @@ io.on('connection', (socket) => {
     const me = participantOf(lobby, socket.id);
     if (!me) return;
     acceptChunk(lobby, me, chunk);
+  });
+
+  // Anti-cheat bookkeeping. Capped per turn so a spoofed flood cannot inflate
+  // someone else's number, and only counted for the side whose turn it is.
+  socket.on('turn:away', (p) => {
+    if (!p || typeof p !== 'object') return;
+    const lobby = socket.data.code ? getLobby(socket.data.code) : undefined;
+    if (!lobby?.ranked || !lobby.sides) return;
+    const me = participantOf(lobby, socket.id);
+    if (!me) return;
+    const side = me === lobby.host ? lobby.sides.host : lobby.sides.guest;
+    if (lobby.lastPhase?.activeSpeaker !== side) return;
+    const ms = Math.min(120_000, Math.max(0, Number(p.ms) || 0));
+    lobby.blur[side].blurMs += ms;
+    lobby.blur[side].blurCount += 1;
   });
 
   // "Pass the mic" — the active speaker ends their own turn early.
@@ -985,6 +1145,9 @@ io.on('connection', (socket) => {
   });
 
   socket.on('rematch', () => {
+    // Ranked never rematches: same-pair repeats are how a tiny population's
+    // ratings turn into fiction. The queue is ranked's 'again'.
+    { const l = socket.data.code ? getLobby(socket.data.code) : undefined; if (l?.ranked) return; }
     const lobby = socket.data.code ? getLobby(socket.data.code) : undefined;
     if (!lobby || lobby.status !== 'verdict') return;
     const me = participantOf(lobby, socket.id);
@@ -1103,6 +1266,47 @@ io.on('connection', (socket) => {
     broadcastQueue();
   });
 
+  // Call out a friend: push your room code to every tab they have open. The
+  // code was already shareable by hand; this just saves the copy and paste and
+  // makes "who is around right now" a real answer instead of a group chat.
+  socket.on('friend:invite', (p, cb) => {
+    if (typeof cb !== 'function') return;
+    const me = socket.data.account;
+    if (!me) return cb({ ok: false, error: 'signed_out' });
+    if (!allow(`invite:${me.sub}`, 20, 5 * 60_000)) return cb({ ok: false, error: 'rate_limited' });
+    const code = String(p?.code ?? '')
+      .trim()
+      .toUpperCase();
+    const to = String(p?.username ?? '').trim();
+    if (code.length !== 6 || !to) return cb({ ok: false, error: 'bad_request' });
+    void (async () => {
+      // Only actual friends, checked server-side: an invite you can send to any
+      // username is a way to spam strangers.
+      const friends = await listFriends(me.sub);
+      const target = friends.find((f) => !f.pending && foldName(f.username) === foldName(to));
+      if (!target) return cb({ ok: false, error: 'not_friends' });
+      const room = io.sockets.adapter.rooms.get(`acct:${target.sub}`);
+      if (!room || room.size === 0) return cb({ ok: false, error: 'offline' });
+      io.to(`acct:${target.sub}`).emit('friend:invited', { from: me.name, code });
+      event('friend_invited');
+      cb({ ok: true });
+    })();
+  });
+
+  /** Who of your friends has a tab open right now. */
+  socket.on('friend:presence', (_p, cb) => {
+    if (typeof cb !== 'function') return;
+    const me = socket.data.account;
+    if (!me) return cb({ ok: false, online: [] });
+    void (async () => {
+      const friends = await listFriends(me.sub);
+      const online = friends
+        .filter((f) => !f.pending && (io.sockets.adapter.rooms.get(`acct:${f.sub}`)?.size ?? 0) > 0)
+        .map((f) => f.username);
+      cb({ ok: true, online });
+    })();
+  });
+
   // Watch a live lobby by code. The code IS the invitation: whoever has it was
   // given it by someone in the room. Debaters always see the watcher count.
   socket.on('spectate:join', (p, cb) => {
@@ -1189,7 +1393,7 @@ io.on('connection', (socket) => {
     lobby.host!.playerId = socket.data.account?.playerId;
     Object.assign(lobby.host!, seatLook());
     lobby.pace = pace;
-    lobby.bot = { id: bot.id, name: bot.name, difficulty: bot.difficulty, side: botSide, lang };
+    lobby.bot = { id: bot.id, name: bot.name, difficulty: bot.difficulty, rank: bot.rank, side: botSide, lang };
     if (playerId) lobby.campaign = { playerId, botRank: bot.rank };
     socket.data.code = lobby.code;
     socket.data.role = 'host';
@@ -1264,7 +1468,7 @@ io.on('connection', (socket) => {
     lobby.host!.playerId = socket.data.account?.playerId;
     Object.assign(lobby.host!, seatLook());
     lobby.tutorial = true;
-    lobby.bot = { id: tutor.id, name: tutor.name, difficulty: tutor.difficulty, side: 'FOR', lang };
+    lobby.bot = { id: tutor.id, name: tutor.name, difficulty: tutor.difficulty, rank: tutor.rank, side: 'FOR', lang };
     const playerId = idOf(String(p?.playerId ?? '').slice(0, 64));
     if (playerId) lobby.campaign = { playerId, botRank: 0 };
     socket.data.code = lobby.code;
