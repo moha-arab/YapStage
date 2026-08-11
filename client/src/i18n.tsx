@@ -26,8 +26,8 @@ export function getStoredLang(): Lang {
 type Dict = Record<string, string>;
 
 const en: Dict = {
-  kicker: '1v1 video debates · ai judge · no accounts',
-  homeSubtitle: 'call out a friend or spar the bots. the judge hears everything and crowns a yapmaster.',
+  kicker: '1v1 video debates · ai judge · one yap name',
+  homeSubtitle: 'call out a friend, spar the bots, or take on a stranger. the judge hears everything and crowns a yapmaster.',
   nameFirst: 'name first, champ',
   startSomething: 'pick your game',
   tile_custom: 'custom',
