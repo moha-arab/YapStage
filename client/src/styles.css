@@ -3252,3 +3252,19 @@ html[dir='rtl'] .meter-hint {
   letter-spacing: 0;
   font-size: 12px;
 }
+
+/* Spectate: the ranked feed sits above the code box */
+.spec-or {
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.spec-actions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  margin-top: 10px;
+}

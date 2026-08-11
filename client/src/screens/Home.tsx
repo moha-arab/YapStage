@@ -34,7 +34,7 @@ interface Props {
   notice: string | null;
   onEntered: (u: LobbyUpdate) => void;
   onPlayBot: (name: string) => void;
-  onSpectate: (code: string) => void;
+  onSpectate: (code: string, feed: boolean) => void;
   onMatches: () => void;
   onLocker: () => void;
 }
@@ -173,6 +173,35 @@ export default function Home({ notice, onEntered, onPlayBot, onSpectate, onMatch
     onPlayBot(effName);
   }
 
+  const [feedBusy, setFeedBusy] = useState(false);
+
+  /** Watch a random LIVE ranked debate. Ranked is public by consent, so this
+      needs no code — which is the whole point: a code was only ever the key to
+      a friend's room, never a way into the sport. */
+  function watchRanked() {
+    if (feedBusy) return;
+    setFeedBusy(true);
+    setError(null);
+    unlockSpectateAudio();
+    void fetch('/spectate/random')
+      .then((r) => r.json())
+      .then((d: { code: string | null }) => {
+        if (!d.code) {
+          setFeedBusy(false);
+          return setError({ key: 'feedEmpty', zone: 'panel' });
+        }
+        socket.emit('spectate:join', { code: d.code }, (res) => {
+          setFeedBusy(false);
+          if (!res.ok) return setError({ key: 'feedEmpty', zone: 'panel' });
+          onSpectate(d.code!, true);
+        });
+      })
+      .catch(() => {
+        setFeedBusy(false);
+        setError({ key: 'feedEmpty', zone: 'panel' });
+      });
+  }
+
   function watch() {
     const c = watchCode.trim().toUpperCase();
     if (c.length !== 6) return setError({ key: 'errCodeLen', zone: 'panel' });
@@ -181,7 +210,7 @@ export default function Home({ notice, onEntered, onPlayBot, onSpectate, onMatch
       if (!res.ok) {
         return setError({ key: res.error === 'full' ? 'specFull' : 'specNotFound', zone: 'panel' });
       }
-      onSpectate(c);
+      onSpectate(c, false);
     });
   }
 
@@ -272,6 +301,10 @@ export default function Home({ notice, onEntered, onPlayBot, onSpectate, onMatch
       ) : (
         <>
           <p className="mode-panel-desc">{t('panelSpectateDesc')}</p>
+          <button className="btn btn-primary btn-wide" disabled={feedBusy} onClick={watchRanked}>
+            {feedBusy ? t('loading') : t('watchRanked')}
+          </button>
+          <p className="mode-panel-desc spec-or">{t('watchByCode')}</p>
           <div className="join-row">
             <input
               className="input input-code"

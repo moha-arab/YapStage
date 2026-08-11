@@ -116,6 +116,9 @@ export default function App() {
   const [unlocked, setUnlocked] = useState<{ level: number; unlocked: string | null } | null>(null);
   // Spectating a lobby by code (state + the latest server snapshot for it).
   const [spectating, setSpectating] = useState<string | null>(null);
+  // Arrived through the ranked feed (vs a friend's code): only the feed offers
+  // a 'next debate', because a custom lobby is one room, not a channel.
+  const [specFeed, setSpecFeed] = useState(false);
   const [specState, setSpecState] = useState<SpectateState | null>(null);
   // How many people are watching MY debate (shown to debaters).
   const [watchers, setWatchers] = useState(0);
@@ -739,7 +742,35 @@ export default function App() {
         onLeave={() => {
           setSpectating(null);
           setSpecState(null);
+          setSpecFeed(false);
         }}
+        onNext={
+          specFeed
+            ? () => {
+                setSpecState(null);
+                void fetch(`/spectate/random?not=${spectating}`)
+                  .then((r) => r.json())
+                  .then((d: { code: string | null }) => {
+                    if (!d.code) {
+                      setSpectating(null);
+                      setSpecFeed(false);
+                      return;
+                    }
+                    socket.emit('spectate:join', { code: d.code }, (res) => {
+                      if (res.ok) setSpectating(d.code!);
+                      else {
+                        setSpectating(null);
+                        setSpecFeed(false);
+                      }
+                    });
+                  })
+                  .catch(() => {
+                    setSpectating(null);
+                    setSpecFeed(false);
+                  });
+              }
+            : undefined
+        }
       />
     );
   } else if (abortInfo) {
@@ -872,7 +903,10 @@ export default function App() {
         notice={notice}
         onEntered={handleEntered}
         onPlayBot={onPlayBot}
-        onSpectate={(code) => setSpectating(code)}
+        onSpectate={(code, feed) => {
+          setSpectating(code);
+          setSpecFeed(feed);
+        }}
         onMatches={() => setViewingMatches(true)}
         onLocker={() => setViewingLocker(true)}
       />

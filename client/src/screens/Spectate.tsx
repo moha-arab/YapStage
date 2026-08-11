@@ -16,6 +16,9 @@ interface Props {
   code: string;
   initial: SpectateState | null;
   onLeave: () => void;
+  /** Swipe to another live ranked debate. Absent when watching by code —
+      a custom lobby is one specific room, not a channel to flip through. */
+  onNext?: () => void;
 }
 
 const PHASES: { key: string; labelKey: string }[] = [
@@ -28,7 +31,7 @@ const PHASES: { key: string; labelKey: string }[] = [
 /** Watching a debate you are not in: live state and live audio, no cameras
     asked of anyone. Video spectating needs the SFU (PRD Step 4); this screen
     is built to gain video without changing shape. */
-export default function Spectate({ code, initial, onLeave }: Props) {
+export default function Spectate({ code, initial, onLeave, onNext }: Props) {
   const { lang, t } = useI18n();
   const [state, setState] = useState<SpectateState | null>(initial);
   const [phase, setPhase] = useState<PhaseUpdate | null>(initial?.phase ?? null);
@@ -177,9 +180,23 @@ export default function Spectate({ code, initial, onLeave }: Props) {
             <p className="subtitle">{t('specWaitingStart')}</p>
           )}
 
-          <button className="btn btn-small" onClick={leave}>
-            {t('specLeave')}
-          </button>
+          <div className="spec-actions">
+            {onNext ? (
+              <button
+                className="btn btn-primary"
+                onClick={() => {
+                  socket.emit('spectate:leave');
+                  stopSpectateAudio();
+                  onNext();
+                }}
+              >
+                {t('feedNext')}
+              </button>
+            ) : null}
+            <button className="btn btn-small" onClick={leave}>
+              {t('specLeave')}
+            </button>
+          </div>
         </>
       )}
     </div>
