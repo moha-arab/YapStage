@@ -2878,3 +2878,274 @@ html[dir='rtl'] .meter-hint {
 .claim-card .small-print {
   margin-top: 4px;
 }
+
+/* ===== home, rebuilt: one bar, four modes, nothing below the fold ===== */
+.home-bar {
+  width: min(760px, 96vw);
+  margin: 0 auto 8px;
+}
+
+.bar-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.ghost {
+  background: transparent;
+}
+
+.account-chip {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--gold);
+  border: 2px solid var(--line);
+  padding: 4px 10px;
+  border-radius: 2px;
+}
+
+.home-hero {
+  text-align: center;
+  margin: 10px 0 4px;
+}
+
+.home-card {
+  width: min(520px, 94vw);
+  margin: 0 auto;
+  text-align: start;
+  box-shadow: 6px 6px 0 rgba(0, 0, 0, 0.5);
+}
+
+.home .build-stamp {
+  text-align: center;
+  margin-top: 22px;
+}
+
+/* the tutorial as the ladder's level zero */
+.tutor-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: min(680px, 94vw);
+  margin: 0 auto 14px;
+  text-align: start;
+  background: var(--panel);
+  border: 3px dashed var(--gold);
+  border-radius: 2px;
+  padding: 12px 16px;
+  cursor: pointer;
+  color: var(--ink);
+  font: inherit;
+}
+
+.tutor-card:hover {
+  background: var(--panel-2);
+}
+
+.tutor-rank {
+  font-family: var(--marker);
+  color: var(--gold);
+  font-size: 18px;
+}
+
+.tutor-body {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  gap: 2px;
+}
+
+.tutor-name {
+  font-weight: 800;
+  font-size: 16px;
+}
+
+.tutor-desc {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.tutor-go {
+  font-weight: 700;
+  color: var(--gold);
+  white-space: nowrap;
+}
+
+/* ===== matches ===== */
+.matches {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.page-title {
+  font-size: clamp(28px, 5vw, 44px);
+  text-align: center;
+}
+
+.page-sub {
+  color: var(--muted);
+  margin: 0;
+  text-align: center;
+}
+
+.filter-row {
+  justify-content: center;
+  margin: 4px 0 8px;
+}
+
+.match-list {
+  width: min(680px, 96vw);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.match-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  text-align: start;
+  background: var(--panel);
+  border: 3px solid var(--line);
+  border-radius: 2px;
+  padding: 10px 14px;
+  cursor: pointer;
+  color: var(--ink);
+  font: inherit;
+  transition: transform 0.07s ease, border-color 0.07s ease;
+}
+
+.match-row:hover {
+  border-color: var(--gold);
+  transform: translate(-1px, -1px);
+}
+
+.match-mark {
+  font-family: var(--marker);
+  font-size: 20px;
+  width: 22px;
+  text-align: center;
+}
+
+.match-main {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+}
+
+.match-topic {
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.match-meta {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.match-score {
+  font-weight: 800;
+  font-size: 15px;
+}
+
+.match-score em {
+  font-style: normal;
+  color: var(--muted);
+  font-weight: 400;
+}
+
+.match-date {
+  font-size: 11px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.empty-note {
+  margin-top: 30px;
+}
+
+.detail-card {
+  width: min(620px, 96vw);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.scoreboard-mini {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.mini-row {
+  display: flex;
+  justify-content: space-between;
+  border-bottom: 1px dashed var(--line);
+  padding-bottom: 4px;
+}
+
+.mini-label {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.mini-nums {
+  font-weight: 700;
+}
+
+.mini-nums em {
+  font-style: normal;
+  color: var(--muted);
+  font-weight: 400;
+  font-size: 12px;
+}
+
+.mini-theirs {
+  color: var(--muted);
+  font-weight: 400;
+  margin-inline-start: 8px;
+  font-size: 12px;
+}
+
+.detail-feedback ul {
+  margin: 8px 0 0;
+  padding-inline-start: 18px;
+}
+
+.detail-feedback li {
+  margin-bottom: 6px;
+}
+
+.matches .coach-card {
+  width: min(620px, 96vw);
+}
+
+.page-title.won {
+  color: var(--gold);
+}
+
+/* The home stage centers its own column now that it no longer borrows
+   .center-col (which also vertically centered and fought the top bar). */
+.stage.home {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.home-hero .subtitle {
+  margin: 8px auto 0;
+  max-width: 460px;
+}
+
+.topbar.home-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}

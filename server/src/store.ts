@@ -104,6 +104,28 @@ export async function initStore(): Promise<void> {
     await pool.query(
       `ALTER TABLE players ADD COLUMN IF NOT EXISTS campaign integer NOT NULL DEFAULT 0`,
     );
+    // Match history: the account's own debates, so a verdict is re-openable
+    // and the coach can still read the transcript days later. Disclosed at
+    // sign-up; his call 2026-08-08 (save by default).
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS matches (
+        id         bigserial PRIMARY KEY,
+        player_id  text NOT NULL,
+        mode       text NOT NULL,
+        topic      text NOT NULL,
+        my_side    text NOT NULL,
+        won        boolean NOT NULL,
+        my_total   integer NOT NULL,
+        their_total integer NOT NULL,
+        opponent   text NOT NULL,
+        verdict    jsonb NOT NULL,
+        transcript jsonb NOT NULL,
+        at         timestamptz NOT NULL DEFAULT now()
+      )
+    `);
+    await pool.query(
+      `CREATE INDEX IF NOT EXISTS matches_player_at ON matches (player_id, at DESC)`,
+    );
     // Reports keep the debate's words as evidence — the one deliberate
     // exception to "transcripts die with the lobby", disclosed in the UI.
     await pool.query(`
@@ -375,6 +397,92 @@ export async function advanceCampaign(
     return res.rows[0].campaign as number;
   } catch (err) {
     console.error('[store] advanceCampaign failed:', err);
+    return null;
+  }
+}
+
+// ---- match history ----
+// A verdict you can re-open days later, with the transcript still attached so
+// the coach can read the actual debate rather than a summary of it.
+
+export interface MatchRow {
+  playerId: string;
+  mode: 'ranked' | 'custom' | 'bots';
+  topic: string;
+  mySide: string;
+  won: boolean;
+  myTotal: number;
+  theirTotal: number;
+  opponent: string;
+  verdict: unknown;
+  transcript: unknown;
+}
+
+export async function saveMatch(m: MatchRow): Promise<void> {
+  if (!pool || !ready) return;
+  try {
+    await pool.query(
+      `INSERT INTO matches
+         (player_id, mode, topic, my_side, won, my_total, their_total, opponent, verdict, transcript)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
+      [
+        m.playerId.slice(0, 64),
+        m.mode,
+        m.topic.slice(0, 300),
+        m.mySide,
+        m.won,
+        m.myTotal,
+        m.theirTotal,
+        m.opponent.slice(0, 24),
+        JSON.stringify(m.verdict),
+        JSON.stringify(m.transcript),
+      ],
+    );
+  } catch (err) {
+    console.error('[store] saveMatch failed:', err);
+  }
+}
+
+/** The history list: enough to render rows, without shipping every transcript. */
+export async function listMatches(
+  playerId: string,
+  mode?: string,
+): Promise<Record<string, unknown>[]> {
+  if (!pool || !ready) return [];
+  try {
+    const res = mode
+      ? await pool.query(
+          `SELECT id, mode, topic, my_side, won, my_total, their_total, opponent, at
+           FROM matches WHERE player_id = $1 AND mode = $2 ORDER BY at DESC LIMIT 100`,
+          [playerId.slice(0, 64), mode],
+        )
+      : await pool.query(
+          `SELECT id, mode, topic, my_side, won, my_total, their_total, opponent, at
+           FROM matches WHERE player_id = $1 ORDER BY at DESC LIMIT 100`,
+          [playerId.slice(0, 64)],
+        );
+    return res.rows as Record<string, unknown>[];
+  } catch (err) {
+    console.error('[store] listMatches failed:', err);
+    return [];
+  }
+}
+
+/** One match in full. Scoped to the owner: you can only re-open your own. */
+export async function loadMatch(
+  playerId: string,
+  id: number,
+): Promise<Record<string, unknown> | null> {
+  if (!pool || !ready) return null;
+  try {
+    const res = await pool.query(
+      `SELECT id, mode, topic, my_side, won, my_total, their_total, opponent, verdict, transcript, at
+       FROM matches WHERE id = $1 AND player_id = $2`,
+      [id, playerId.slice(0, 64)],
+    );
+    return res.rowCount === 1 ? (res.rows[0] as Record<string, unknown>) : null;
+  } catch (err) {
+    console.error('[store] loadMatch failed:', err);
     return null;
   }
 }

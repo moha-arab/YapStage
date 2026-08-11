@@ -35,6 +35,7 @@ import Spectate from './screens/Spectate';
 import TutorialIntro from './screens/TutorialIntro';
 import TutorialDone, { type DebriefInfo } from './screens/TutorialDone';
 import ClaimName from './screens/ClaimName';
+import Matches from './screens/Matches';
 import { playBotTurn, stopBotVoice } from './botvoice';
 
 interface VerdictInfo {
@@ -101,6 +102,7 @@ export default function App() {
   const [botPicking, setBotPicking] = useState(false);
   // Tutorial: the intro screen, then (after the lesson) the YapMaster's notes.
   const [tutoring, setTutoring] = useState(false);
+  const [viewingMatches, setViewingMatches] = useState(false);
   const [debrief, setDebrief] = useState<DebriefInfo | null>(null);
   // Campaign: a win at the frontier unlocked the next opponent.
   const [unlocked, setUnlocked] = useState<{ level: number; unlocked: string | null } | null>(null);
@@ -707,6 +709,8 @@ export default function App() {
         onClaimed={(name) => setAccount({ ...account, name, needsName: false })}
       />
     );
+  } else if (viewingMatches) {
+    content = <Matches onBack={() => setViewingMatches(false)} />;
   } else if (spectating) {
     content = (
       <Spectate
@@ -840,7 +844,7 @@ export default function App() {
         onEntered={handleEntered}
         onPlayBot={onPlayBot}
         onSpectate={(code) => setSpectating(code)}
-        onTutorial={onTutorial}
+        onMatches={() => setViewingMatches(true)}
       />
     );
   }

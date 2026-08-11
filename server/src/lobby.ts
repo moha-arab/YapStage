@@ -24,6 +24,9 @@ export interface Participant {
   avatarId: AvatarId;
   /** True = debating behind the mask, no camera at all. Ranked forces this. */
   masked: boolean;
+  /** Set only for SIGNED-IN players: where this debate gets filed afterwards.
+      Guests have no account, so they get no history — by design, not omission. */
+  playerId?: string;
   rtcReady: boolean; // gUM done, tracks added, handlers registered
   disconnectedAt?: number;
   graceTimer?: NodeJS.Timeout;

@@ -5,7 +5,7 @@ import { destroyLobby, touch } from './lobby.js';
 import type { Io } from './debate.js';
 import { event } from './stats.js';
 import { synthesize } from './tts.js';
-import { advanceCampaign, applyRankedResult, campaignLocksOn, getCampaign } from './store.js';
+import { advanceCampaign, applyRankedResult, campaignLocksOn, getCampaign, saveMatch } from './store.js';
 import { BOTS } from './bots.js';
 
 // Local copy of the step layout (phase/speaker per index) so judge.ts has no
@@ -447,6 +447,38 @@ async function unlockLevel(io: Io, lobby: Lobby, target: number): Promise<void> 
   io.to(lobby.code).emit('campaign:up', { level: target, unlocked: next?.name ?? null });
 }
 
+/** File this debate under each signed-in player's history. Stored per PLAYER,
+    not per lobby, so each side keeps their own point of view (their side, their
+    score, their opponent) and can re-open the verdict — with the transcript —
+    long after the lobby is gone. Guests store nothing. Fail-soft throughout. */
+async function fileMatch(lobby: Lobby, verdict: Verdict): Promise<void> {
+  if (!lobby.sides) return;
+  const names = namesOf(lobby);
+  const t = (s: CategoryScores) => s.argument + s.evidence + s.clash + s.delivery;
+  const mode: 'ranked' | 'custom' | 'bots' = lobby.ranked
+    ? 'ranked'
+    : lobby.bot
+      ? 'bots'
+      : 'custom';
+  for (const p of [lobby.host, lobby.guest]) {
+    if (!p?.playerId) continue; // guest, or a bot's empty seat
+    const side = p === lobby.host ? lobby.sides.host : lobby.sides.guest;
+    const other: Side = side === 'FOR' ? 'AGAINST' : 'FOR';
+    await saveMatch({
+      playerId: p.playerId,
+      mode,
+      topic: lobby.topic?.en ?? '',
+      mySide: side,
+      won: verdict.winner === side,
+      myTotal: t(verdict.scores[side]),
+      theirTotal: t(verdict.scores[other]),
+      opponent: names[other],
+      verdict,
+      transcript: lobby.transcript,
+    });
+  }
+}
+
 async function callJudge(lobby: Lobby): Promise<Verdict> {
   const names = namesOf(lobby);
   const v = await scoreTranscript(lobby.topic ?? {}, lobby.transcript, {
@@ -521,6 +553,7 @@ export async function runJudge(io: Io, lobby: Lobby, requesterSocketId?: string)
     // Settle-it speaks the decree; debate mode speaks the hype summary.
     const spoken = verdict.ruling?.decree || verdict.summary;
     lobby.verdictAudio = (await synthesize(spoken, YAPMASTER_VOICE)) ?? undefined;
+    await fileMatch(lobby, verdict); // history, before the emit so it can't be lost
     await applyElo(lobby); // ranked only; before the emit so the reveal has it
     // Campaign: beating a bot at your frontier unlocks the next rung.
     if (lobby.campaign && lobby.bot && !lobby.tutorial) {

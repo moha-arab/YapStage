@@ -106,3 +106,52 @@ export async function coachReply(
   if (!block || block.type !== 'text') throw new Error('coach returned no text');
   return block.text.trim().slice(0, 1200);
 }
+
+/** The same coach, reading a STORED match instead of a live lobby. The live
+    version reads `lobby`, which is gone ten minutes after the verdict — this is
+    what lets you re-open a debate from your history days later and still argue
+    with the ruling. Same prompt, same refusal to move the score. */
+export async function coachOnRecord(m: {
+  question: string;
+  history: CoachTurn[];
+  side: Side;
+  topic: string;
+  verdict: { winner: Side; scores: Record<Side, { argument: number; evidence: number; clash: number; delivery: number }> };
+  transcript: { side: Side; stepIndex: number; text: string }[];
+}): Promise<string> {
+  const oppSide: Side = m.side === 'FOR' ? 'AGAINST' : 'FOR';
+  const you = m.verdict.scores[m.side];
+  const opp = m.verdict.scores[oppSide];
+  const fmt = (s: typeof you) =>
+    `argument ${s.argument}/30, evidence ${s.evidence}/20, clash ${s.clash}/30, delivery ${s.delivery}/20`;
+  const lines = (side: Side) =>
+    (m.transcript ?? [])
+      .filter((e) => e.side === side)
+      .sort((a, b) => a.stepIndex - b.stepIndex)
+      .map((e) => e.text)
+      .join('\n');
+
+  const xml =
+    `<debate motion="${escapeXml(m.topic)}">\n` +
+    `  <you side="${m.side}" outcome="${m.verdict.winner === m.side ? 'won' : 'lost'}" scores="${fmt(you)}">\n` +
+    `${escapeXml(lines(m.side))}\n` +
+    `  </you>\n` +
+    `  <opponent side="${oppSide}" scores="${fmt(opp)}">\n` +
+    `${escapeXml(lines(oppSide))}\n` +
+    `  </opponent>\n` +
+    `</debate>`;
+
+  const turns: CoachTurn[] = [
+    ...m.history,
+    { role: 'user', content: `The debater says: ${escapeXml(m.question)}` },
+  ];
+  turns[0] = { ...turns[0], content: `${xml}\n\n${turns[0].content}` };
+
+  const response = await getClient().messages.create(
+    { model: 'claude-opus-4-8', max_tokens: 400, system: SYSTEM, messages: turns },
+    { timeout: 45_000, maxRetries: 1 },
+  );
+  const block = response.content.find((b) => b.type === 'text');
+  if (!block || block.type !== 'text') throw new Error('coach returned no text');
+  return block.text.trim().slice(0, 1200);
+}

@@ -47,7 +47,7 @@ import {
 import { BOT_BY_ID, publicBots } from './bots.js';
 import { sttConfigured } from './stt.js';
 import { namesOf, runJudge, scoreTranscript } from './judge.js';
-import { coachReply } from './coach.js';
+import { coachOnRecord, coachReply } from './coach.js';
 import { cardFrom, renderCard } from './share.js';
 import { DISPUTE_MAX } from './dispute.js';
 import {
@@ -56,7 +56,9 @@ import {
   getPlayer,
   initStore,
   lastShutdown,
+  listMatches,
   loadCard,
+  loadMatch,
   loadReports,
   recordShutdown,
   saveCard,
@@ -66,7 +68,7 @@ import {
 import { TOPIC_BY_ID, TOPIC_CATEGORIES } from './topics.js';
 import { event, recentEvents, statsSnapshot } from './stats.js';
 import { allow } from './ratelimit.js';
-import { googleConfigured, readSessionCookie, registerAuth } from './auth.js';
+import { googleConfigured, readSession, readSessionCookie, registerAuth } from './auth.js';
 
 // Deployed on Railway via Dockerfile (see railway.json). Fastify serves the
 // built client from client/dist and hosts the Socket.IO signaling server.
@@ -162,6 +164,60 @@ app.get<{ Querystring: { not?: string } }>('/spectate/random', async (req) => {
   if (live.length === 0) return { code: null };
   return { code: live[Math.floor(Math.random() * live.length)].code };
 });
+
+// ---- match history (signed-in players only) ----
+// Every route here scopes to the caller's own player id from the session, so
+// a guessed match id can never open somebody else's debate.
+
+app.get<{ Querystring: { mode?: string } }>('/matches', async (req, reply) => {
+  const s = readSession(req);
+  if (!s) return reply.code(401).send({ matches: [] });
+  const mode = ['ranked', 'custom', 'bots'].includes(String(req.query.mode))
+    ? String(req.query.mode)
+    : undefined;
+  return { matches: await listMatches(s.playerId, mode) };
+});
+
+app.get<{ Params: { id: string } }>('/matches/:id', async (req, reply) => {
+  const s = readSession(req);
+  if (!s) return reply.code(401).send({ error: 'signed_out' });
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id)) return reply.code(400).send({ error: 'bad_id' });
+  const match = await loadMatch(s.playerId, id);
+  if (!match) return reply.code(404).send({ error: 'not_found' });
+  return { match };
+});
+
+/** Ask the YapMaster about a FINISHED match, days later. The live coach reads
+    a lobby that no longer exists, so this reads the stored transcript instead
+    — same voice, same refusal to move the score. */
+app.post<{ Params: { id: string }; Body: { question?: string; history?: unknown } }>(
+  '/matches/:id/coach',
+  async (req, reply) => {
+    const s = readSession(req);
+    if (!s) return reply.code(401).send({ error: 'signed_out' });
+    if (!allow(`coachrec:${req.ip}`, 30, 10 * 60_000)) {
+      return reply.code(429).send({ error: 'rate_limited' });
+    }
+    const id = Number(req.params.id);
+    const question = String(req.body?.question ?? '').slice(0, 300).trim();
+    if (!Number.isInteger(id) || !question) return reply.code(400).send({ error: 'bad_request' });
+    const match = await loadMatch(s.playerId, id);
+    if (!match) return reply.code(404).send({ error: 'not_found' });
+    const history = Array.isArray(req.body?.history)
+      ? (req.body.history as { role: 'user' | 'assistant'; content: string }[]).slice(-8)
+      : [];
+    const text = await coachOnRecord({
+      question,
+      history,
+      side: String(match.my_side) as 'FOR' | 'AGAINST',
+      topic: String(match.topic),
+      verdict: match.verdict as never,
+      transcript: match.transcript as never,
+    });
+    return { text };
+  },
+);
 
 // Gate with STATS_KEY when set (404 so the endpoint doesn't advertise itself);
 // public when unset — zero-config for casual use, lockable in one env var.
@@ -303,7 +359,8 @@ function tryMatch(): void {
       break;
     }
     const lobby = createLobby(a.socketId, a.sessionId, a.name);
-    lobby.guest = { socketId: b.socketId, sessionId: b.sessionId, name: b.name, avatarId: randomAvatar(), masked: false, rtcReady: false };
+    lobby.host!.playerId = a.playerId;
+    lobby.guest = { socketId: b.socketId, sessionId: b.sessionId, name: b.name, avatarId: randomAvatar(), masked: false, playerId: b.playerId, rtcReady: false };
     lobby.status = 'greenroom';
     lobby.topicMode = 'random'; // strangers never negotiate a topic
     lobby.ranked = { host: a.playerId, guest: b.playerId };
@@ -552,6 +609,7 @@ io.on('connection', (socket) => {
       name,
       avatarId: randomAvatar(),
       masked: false,
+      playerId: socket.data.account?.playerId,
       rtcReady: false,
     };
     lobby.status = 'greenroom';
@@ -1085,6 +1143,7 @@ io.on('connection', (socket) => {
 
     releasePreviousSeat(socket);
     const lobby = createLobby(socket.id, String(p?.sessionId ?? '').slice(0, 64), name);
+    lobby.host!.playerId = socket.data.account?.playerId;
     lobby.pace = pace;
     lobby.bot = { id: bot.id, name: bot.name, difficulty: bot.difficulty, side: botSide, lang };
     if (playerId) lobby.campaign = { playerId, botRank: bot.rank };
@@ -1158,6 +1217,7 @@ io.on('connection', (socket) => {
 
     releasePreviousSeat(socket);
     const lobby = createLobby(socket.id, String(p?.sessionId ?? '').slice(0, 64), name);
+    lobby.host!.playerId = socket.data.account?.playerId;
     lobby.tutorial = true;
     lobby.bot = { id: tutor.id, name: tutor.name, difficulty: tutor.difficulty, side: 'FOR', lang };
     const playerId = idOf(String(p?.playerId ?? '').slice(0, 64));

@@ -101,14 +101,18 @@ export default function BotSelect({ localStream, mediaError, onRetryMedia, onSta
       <h1 className="display bot-title">{t('chooseOpponent')}</h1>
       <p className="bot-ladder-note">{t('easiestToHardest')}</p>
 
-      {level === 0 ? (
-        <div className="campaign-banner">
-          <p className="campaign-banner-line">{t('campaignIntro')}</p>
-          <button className="btn btn-small" onClick={onTutorial}>
-            {t('campaignIntroBtn')}
-          </button>
-        </div>
-      ) : null}
+      {/* Level one of the ladder, always visible: a beginner looking for an
+          opponent is exactly who needs the lesson, so it lives HERE rather
+          than as a fifth mode on the home page. */}
+      <button className="tutor-card" onClick={onTutorial}>
+        <BotAvatar botId="tutor" color="gold" size={64} />
+        <span className="tutor-rank">#0</span>
+        <span className="tutor-body">
+          <span className="tutor-name">{t('tutorialTitle2')}</span>
+          <span className="tutor-desc">{t('panelTutorialDesc')}</span>
+        </span>
+        <span className="tutor-go">{t('startTutorial')}</span>
+      </button>
 
       <div className="bot-grid">
         {bots.map((b) => {
