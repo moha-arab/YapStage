@@ -8,7 +8,7 @@
 import crypto from 'node:crypto';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { event } from './stats.js';
-import { NAME_RE } from './protocol.js';
+import { nameProblem } from './protocol.js';
 import { claimUsername, linkAccount, type AccountRow } from './store.js';
 
 const AUTH_URL = 'https://accounts.google.com/o/oauth2/v2/auth';
@@ -229,7 +229,8 @@ export function registerAuth(app: FastifyInstance): void {
     if (!s) return reply.code(401).send({ ok: false, error: 'signed_out' });
     if (s.name) return reply.code(409).send({ ok: false, error: 'already' });
     const name = String(req.body?.name ?? '').trim();
-    if (!NAME_RE.test(name)) return reply.code(400).send({ ok: false, error: 'bad_name' });
+    const problem = nameProblem(name);
+    if (problem) return reply.code(400).send({ ok: false, error: problem });
     const result = await claimUsername(s.sub, name);
     if (result === 'taken') return reply.code(409).send({ ok: false, error: 'taken' });
     if (result !== 'ok') return reply.code(409).send({ ok: false, error: 'already' });

@@ -2,7 +2,7 @@
 // a name is the identity everyone else sees on a scoreboard, so it gets picked
 // once and it's yours. Uniqueness is decided by the server, never guessed here.
 import { useState } from 'react';
-import { NAME_RE } from '../../../server/src/protocol';
+import { nameProblem } from '../../../server/src/protocol';
 import { useI18n } from '../i18n';
 import Mask, { MASK_IDS } from '../Mask';
 
@@ -15,7 +15,10 @@ export default function ClaimName({ onClaimed }: Props) {
   const [name, setName] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const valid = NAME_RE.test(name);
+  // Same function the server runs, so the screen never promises a name the
+  // server will refuse.
+  const problem = name ? nameProblem(name) : 'bad_name';
+  const valid = problem === null;
 
   async function claim() {
     if (busy || !valid) return;
@@ -30,7 +33,13 @@ export default function ClaimName({ onClaimed }: Props) {
       const out = (await res.json()) as { ok?: boolean; error?: string; name?: string };
       if (out.ok && out.name) return onClaimed(out.name);
       setError(
-        out.error === 'taken' ? 'nameTaken' : out.error === 'bad_name' ? 'errBadName' : 'nameFailed',
+        out.error === 'taken'
+          ? 'nameTaken'
+          : out.error === 'reserved'
+            ? 'nameReserved'
+            : out.error === 'bad_name'
+              ? 'errBadName'
+              : 'nameFailed',
       );
     } catch {
       setError('nameFailed');
@@ -65,7 +74,9 @@ export default function ClaimName({ onClaimed }: Props) {
             if (e.key === 'Enter') void claim();
           }}
         />
-        {name && !valid ? <p className="field-hint">{t('errBadName')}</p> : null}
+        {name && !valid ? (
+          <p className="field-hint">{t(problem === 'reserved' ? 'nameReserved' : 'errBadName')}</p>
+        ) : null}
         {error ? (
           <p className="error" role="alert">
             {t(error)}

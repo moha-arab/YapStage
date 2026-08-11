@@ -9,6 +9,7 @@
 import pg from 'pg';
 import { sanitizeCard, type Card } from './share.js';
 import { event } from './stats.js';
+import { foldName } from './protocol.js';
 
 let pool: pg.Pool | null = null;
 let ready = false;
@@ -88,10 +89,16 @@ export async function initStore(): Promise<void> {
       )
     `);
     await pool.query(`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS username text`);
+    await pool.query(`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS username_fold text`);
     // Case-insensitive uniqueness: 'YapKing' and 'yapking' are the same person
     // to everyone reading a scoreboard, so they cannot both exist.
     await pool.query(
       `CREATE UNIQUE INDEX IF NOT EXISTS accounts_username_key ON accounts (lower(username))`,
+    );
+    // The real referee: folding collapses case AND lookalike letters, so a
+    // Cyrillic twin of a taken name loses the race instead of impersonating.
+    await pool.query(
+      `CREATE UNIQUE INDEX IF NOT EXISTS accounts_username_fold_key ON accounts (username_fold)`,
     );
     // Campaign progress rides the same identity as the ranked ladder.
     await pool.query(
@@ -305,8 +312,8 @@ export async function claimUsername(
     const cur = await pool.query(`SELECT username FROM accounts WHERE sub = $1`, [sub]);
     if (cur.rowCount === 1 && cur.rows[0].username) return 'already';
     const res = await pool.query(
-      `UPDATE accounts SET username = $2 WHERE sub = $1 AND username IS NULL`,
-      [sub, username],
+      `UPDATE accounts SET username = $2, username_fold = $3 WHERE sub = $1 AND username IS NULL`,
+      [sub, username, foldName(username)],
     );
     if (res.rowCount !== 1) return 'already';
     // The ladder row shows this name too, so keep the two in step.

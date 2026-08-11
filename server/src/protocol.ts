@@ -412,3 +412,52 @@ export interface SocketData {
 
 // Unicode letters (Arabic mode means Arabic names), digits, underscore.
 export const NAME_RE = /^[\p{L}\p{N}_]{3,16}$/u;
+
+// ---- claimed yap names (accounts) ----
+// A guest name only has to be typeable. A CLAIMED name is an identity other
+// people read on a scoreboard, so it has to survive three attacks a plain
+// regex doesn't see: lookalike letters, reserved names, and pure punctuation.
+
+/** Latin letters that Cyrillic and Greek have identical-looking twins for.
+    Without folding these, "уapking" (Cyrillic у) is a different row that
+    renders pixel-identical to "yapking" — free impersonation. */
+const CONFUSABLES: Record<string, string> = {
+  а: 'a', в: 'b', с: 'c', е: 'e', һ: 'h', і: 'i', ј: 'j', к: 'k', м: 'm',
+  о: 'o', р: 'p', ѕ: 's', т: 't', и: 'u', х: 'x', у: 'y', ѐ: 'e', ї: 'i',
+  α: 'a', β: 'b', ε: 'e', ι: 'i', κ: 'k', ο: 'o', ρ: 'p', τ: 't', υ: 'u',
+  ν: 'v', χ: 'x', γ: 'y', ζ: 'z', '０': '0', '１': '1',
+};
+
+/** The key uniqueness is decided on. Two names that fold the same cannot both
+    exist, even though each keeps the capitalisation its owner typed. */
+export function foldName(name: string): string {
+  return name
+    .normalize('NFKC') // ligatures and full-width letters collapse to plain ones
+    .toLowerCase()
+    .split('')
+    .map((ch) => CONFUSABLES[ch] ?? ch)
+    .join('');
+}
+
+/** Names nobody gets to wear: the judge, the bots, and anything that reads as
+    staff. Impersonating the YapMaster in an app where the YapMaster SPEAKS is
+    the one name collision that could actually fool someone. */
+const RESERVED = new Set([
+  'yapmaster', 'yapstage', 'admin', 'administrator', 'moderator', 'mod',
+  'staff', 'support', 'official', 'judge', 'system', 'root', 'null',
+  'deleted', 'anonymous', 'pip', 'cappy', 'vivi', 'ozzy', 'brutus', 'gigi',
+]);
+
+export type NameProblem = 'bad_name' | 'reserved' | null;
+
+/** Server and client run the SAME check, so the claim screen never promises a
+    name the server will refuse. */
+export function nameProblem(raw: string): NameProblem {
+  const name = raw.normalize('NFKC').trim();
+  if (!NAME_RE.test(name)) return 'bad_name';
+  const fold = foldName(name);
+  if (RESERVED.has(fold)) return 'reserved';
+  // "___" and "_ _" are not names; require something readable in there.
+  if (!/[\p{L}\p{N}]{2,}/u.test(name)) return 'bad_name';
+  return null;
+}
