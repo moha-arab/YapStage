@@ -3149,3 +3149,22 @@ html[dir='rtl'] .meter-hint {
   justify-content: space-between;
   gap: 12px;
 }
+
+/* The account ask, placed where it's a gift: right after a real verdict. */
+.save-nudge {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  justify-content: center;
+  border: 3px dashed var(--gold);
+  padding: 12px 16px;
+  margin-top: 14px;
+}
+
+.save-nudge-line {
+  margin: 0;
+  font-size: 14px;
+  flex: 1;
+  min-width: 200px;
+}

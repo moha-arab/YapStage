@@ -95,15 +95,19 @@ export default function Home({ notice, onEntered, onPlayBot, onSpectate, onMatch
     return false;
   }
 
-  /** The ask lands at the moment you try to PLAY, never on arrival. */
+  /** RANKED ONLY. Everything else is playable signed out, deliberately: a
+      wall before anyone has felt the product costs the try, and a bot debate
+      that ends in a real verdict is the best account pitch we have. Ranked is
+      the one mode where identity is load-bearing — rating, opponents, cheat
+      enforcement, bans — so it is the one wall that defends something. */
   function requireAccount(): boolean {
     if (!needAccount) return true;
-    setError({ key: 'signInFirst', zone: 'panel' });
+    setError({ key: 'signInRanked', zone: 'panel' });
     return false;
   }
 
   function create() {
-    if (busy || !requireAccount() || !requireName()) return;
+    if (busy || !requireName()) return;
     setBusy(true);
     socket.emit('lobby:create', { sessionId: session.id, name: effName }, (res) => {
       setBusy(false);
@@ -164,7 +168,7 @@ export default function Home({ notice, onEntered, onPlayBot, onSpectate, onMatch
   }
 
   function handleBot() {
-    if (!requireAccount() || !requireName()) return;
+    if (!requireName()) return;
     onPlayBot(effName);
   }
 

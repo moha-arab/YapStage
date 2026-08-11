@@ -5,6 +5,7 @@ import { socket } from '../socket';
 import { useI18n } from '../i18n';
 import VideoTile from '../VideoTile';
 import ReportFlag from '../Report';
+import { signIn, whoAmI } from '../player';
 import { playBotTurn, stopBotVoice } from '../botvoice';
 
 const COACH_LIMIT = 6;
@@ -177,6 +178,12 @@ export default function VerdictScreen({
   const [coachAsks, setCoachAsks] = useState(0);
   const [coachInput, setCoachInput] = useState('');
   const [shareState, setShareState] = useState<'idle' | 'working' | 'copied' | 'failed'>('idle');
+  // Signed-out and just handed a real verdict: the one moment an account ask
+  // is a gift rather than a toll.
+  const [saveNudge, setSaveNudge] = useState(false);
+  useEffect(() => {
+    void whoAmI().then((me) => setSaveNudge(me.google && !me.signedIn));
+  }, []);
 
   useEffect(() => {
     const onReply = (p: { text: string; error?: boolean; done?: boolean }) => {
@@ -540,6 +547,15 @@ export default function VerdictScreen({
               {muted ? t('unmuteStage') : t('muteStage')}
             </button>
           </div>
+          {saveNudge ? (
+            <div className="save-nudge">
+              <p className="save-nudge-line">{t('saveThisNudge')}</p>
+              <button className="btn btn-small btn-google" onClick={signIn}>
+                {t('signInGoogle')}
+              </button>
+            </div>
+          ) : null}
+
           {!botOpponent ? <ReportFlag /> : null}
           <p className="footnote">{t('condolences', { x: names[loser] })}</p>
         </div>
