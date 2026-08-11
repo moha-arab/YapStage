@@ -25,9 +25,11 @@ interface Props {
   onBack: () => void;
   /** Level 0 players get pointed at the tutorial — it IS their first level. */
   onTutorial: () => void;
+  /** Your locker mask, when you chose to wear it instead of a camera. */
+  selfMask?: string;
 }
 
-export default function BotSelect({ localStream, mediaError, onRetryMedia, onStart, onBack, onTutorial }: Props) {
+export default function BotSelect({ localStream, mediaError, onRetryMedia, onStart, onBack, onTutorial, selfMask }: Props) {
   const { lang, t } = useI18n();
   const [bots, setBots] = useState<BotInfo[]>([]);
   const [topics, setTopics] = useState<TopicCategory[]>([]);
@@ -251,6 +253,7 @@ export default function BotSelect({ localStream, mediaError, onRetryMedia, onSta
           stream={localStream}
           muted
           mirror
+          maskId={selfMask}
           label={t('you')}
           sub={t('onCam')}
           placeholder={mediaError ? t('cameraBlocked') : t('cameraWarming')}

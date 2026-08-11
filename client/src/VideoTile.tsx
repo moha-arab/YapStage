@@ -15,7 +15,7 @@ interface Props {
   /** Remote camera died while the connection stayed up — overlay the tile. */
   dead?: boolean;
   /** Mask mode: no camera at all, this player debates behind a mask. The tile
-      renders the mask instead of video and the mouth works off . */
+      renders the mask instead of video and the mouth works off `level`. */
   maskId?: string;
   /** 0..1 mic level, so the mask reacts to YOUR voice (own tile only). */
   level?: number;
@@ -89,11 +89,14 @@ export default function VideoTile(props: Props) {
     if (ref.current) ref.current.muted = props.muted;
   }, [props.muted]);
 
+  // A masked player still holds an AUDIO-ONLY stream. Rendering <video> for it
+  // produces a black rectangle, which is what a forgotten maskId looks like.
+  const hasVideo = Boolean(props.stream && props.stream.getVideoTracks().length > 0);
   const sideClass = props.side === 'FOR' ? 'tile-for' : props.side === 'AGAINST' ? 'tile-against' : '';
 
   // Masked player: the tile IS the mask. No video element is ever created, so
   // a masked debate needs no camera permission at all.
-  if (props.maskId) {
+  if (props.maskId || (props.stream && !hasVideo)) {
     // The mouth moves whenever the mic moves. Gating it on `active` made the
     // mask look dead everywhere except your own turn — which is most of the app.
     const loud = (props.level ?? 0) > 0.05;
@@ -106,7 +109,7 @@ export default function VideoTile(props: Props) {
         ) : null}
         <div className="tile-mask-wrap">
           <Mask
-            id={props.maskId}
+            id={props.maskId ?? 'luchador'}
             size={132}
             speaking={loud}
             color={props.side === 'FOR' ? 'var(--for)' : props.side === 'AGAINST' ? 'var(--against)' : undefined}

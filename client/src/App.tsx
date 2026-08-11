@@ -819,6 +819,7 @@ export default function App() {
         localStream={localStream}
         mediaError={mediaError}
         onRetryMedia={retryMedia}
+        selfMask={account?.maskDefault ? (account.mask ?? undefined) : undefined}
         onStart={startBot}
         onTutorial={() => {
           setBotPicking(false);
@@ -837,6 +838,7 @@ export default function App() {
         localStream={localStream}
         mediaError={mediaError}
         onRetryMedia={retryMedia}
+        selfMask={account?.maskDefault ? (account.mask ?? undefined) : undefined}
         onStart={startTutorial}
         onBack={() => {
           setTutoring(false);

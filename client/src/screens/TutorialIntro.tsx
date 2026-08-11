@@ -13,11 +13,13 @@ interface Props {
   onRetryMedia: () => void;
   onStart: () => void;
   onBack: () => void;
+  /** Your locker mask, when you chose to wear it instead of a camera. */
+  selfMask?: string;
 }
 
-export default function TutorialIntro({ localStream, mediaError, onRetryMedia, onStart, onBack }: Props) {
+export default function TutorialIntro({ localStream, mediaError, onRetryMedia, onStart, onBack, selfMask }: Props) {
   const { t } = useI18n();
-  const ready = Boolean(localStream);
+  const ready = Boolean(localStream) || Boolean(selfMask);
 
   function start() {
     if (!ready) return;
@@ -55,6 +57,7 @@ export default function TutorialIntro({ localStream, mediaError, onRetryMedia, o
           stream={localStream}
           muted
           mirror
+          maskId={selfMask}
           label={t('you')}
           sub={t('onCam')}
           placeholder={mediaError ? t('cameraBlocked') : t('cameraWarming')}
