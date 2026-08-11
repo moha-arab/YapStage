@@ -405,6 +405,9 @@ export interface ServerToClient {
 export interface SocketData {
   code?: string;
   role?: Role;
+  /** Set from the session cookie at connect: a signed-in socket argues under
+      its account's name and player id, whatever the payload claims. */
+  account?: { sub: string; playerId: string; name: string };
 }
 
 // Unicode letters (Arabic mode means Arabic names), digits, underscore.

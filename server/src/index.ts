@@ -66,7 +66,7 @@ import {
 import { TOPIC_BY_ID, TOPIC_CATEGORIES } from './topics.js';
 import { event, recentEvents, statsSnapshot } from './stats.js';
 import { allow } from './ratelimit.js';
-import { googleConfigured, registerAuth } from './auth.js';
+import { googleConfigured, readSessionCookie, registerAuth } from './auth.js';
 
 // Deployed on Railway via Dockerfile (see railway.json). Fastify serves the
 // built client from client/dist and hosts the Socket.IO signaling server.
@@ -501,13 +501,23 @@ function releasePreviousSeat(socket: { id: string; data: SocketData }): void {
 }
 
 io.on('connection', (socket) => {
+  // Bind the socket to its account BEFORE any handler runs. A yap name is only
+  // an identity if it cannot be typed by whoever asks, so from here on a
+  // signed-in socket's name and playerId come from the signed cookie, never
+  // from the payload. Signed-out sockets behave exactly as they always did.
+  const sess = readSessionCookie(socket.handshake.headers.cookie);
+  if (sess?.name) socket.data.account = { sub: sess.sub, playerId: sess.playerId, name: sess.name };
+  /** The name this socket is allowed to use. */
+  const nameOf = (claimed: string): string => socket.data.account?.name ?? claimed;
+  /** The ladder identity this socket is allowed to use. */
+  const idOf = (claimed: string): string => socket.data.account?.playerId ?? claimed;
   socket.on('lobby:create', (p, cb) => {
     if (typeof cb !== 'function') return;
     // Friendly ceiling: two friends never hit this; a lobby-spam script does.
     if (!FAST && !allow(`create:${ipOf(socket)}`, 10, 5 * 60_000)) {
       return cb({ ok: false, error: 'rate_limited' });
     }
-    const name = String(p?.name ?? '').trim();
+    const name = nameOf(String(p?.name ?? '').trim());
     if (!NAME_RE.test(name)) return cb({ ok: false, error: 'bad_name' });
     if (lobbyCount() >= MAX_LOBBIES) return cb({ ok: false, error: 'rate_limited' });
     releasePreviousSeat(socket);
@@ -525,7 +535,7 @@ io.on('connection', (socket) => {
     if (!FAST && !allow(`join:${ipOf(socket)}`, 30, 5 * 60_000)) {
       return cb({ ok: false, error: 'rate_limited' });
     }
-    const name = String(p?.name ?? '').trim();
+    const name = nameOf(String(p?.name ?? '').trim());
     if (!NAME_RE.test(name)) return cb({ ok: false, error: 'bad_name' });
     const lobby = getLobby(String(p.code ?? '').slice(0, 8));
     if (!lobby) return cb({ ok: false, error: 'not_found' });
@@ -964,9 +974,9 @@ io.on('connection', (socket) => {
     if (!FAST && !allow(`join:${ipOf(socket)}`, 30, 5 * 60_000)) {
       return cb({ ok: false, error: 'rate_limited' });
     }
-    const name = String(p?.name ?? '').trim();
+    const name = nameOf(String(p?.name ?? '').trim());
     if (!NAME_RE.test(name)) return cb({ ok: false, error: 'bad_name' });
-    const playerId = String(p?.playerId ?? '').slice(0, 64);
+    const playerId = idOf(String(p?.playerId ?? '').slice(0, 64));
     if (!playerId) return cb({ ok: false, error: 'bad_name' });
     if (rankedQueue.some((q) => q.socketId === socket.id)) return cb({ ok: true });
     releasePreviousSeat(socket);
@@ -1031,7 +1041,7 @@ io.on('connection', (socket) => {
     if (!FAST && !allow(`create:${ipOf(socket)}`, 10, 5 * 60_000)) {
       return cb({ ok: false, error: 'rate_limited' });
     }
-    const name = String(p?.name ?? '').trim();
+    const name = nameOf(String(p?.name ?? '').trim());
     if (!NAME_RE.test(name)) return cb({ ok: false, error: 'bad_name' });
     const bot = BOT_BY_ID.get(String(p?.botId ?? ''));
     if (!bot || bot.hidden) return cb({ ok: false, error: 'not_found' });
@@ -1042,7 +1052,7 @@ io.on('connection', (socket) => {
     // DORMANT unless CAMPAIGN_LOCKS=on (his call 2026-08-09: unlock everything
     // for now, same parking pattern as DISPUTE_MODE). Progress still records
     // while dormant, so wins earned in the open period count when locks return.
-    const playerId = String(p?.playerId ?? '').slice(0, 64);
+    const playerId = idOf(String(p?.playerId ?? '').slice(0, 64));
     if (playerId && campaignLocksOn()) {
       const level = await getCampaign(playerId);
       if (level !== null && bot.rank > level) {
@@ -1094,7 +1104,7 @@ io.on('connection', (socket) => {
     // SELECT keyed on a client-supplied id, and the pg pool is shared with
     // ELO and reports. Legit clients call it once per picker mount.
     if (!allow(`campget:${ipOf(socket)}`, 30, 60_000)) return cb({ level: null });
-    const playerId = String(p?.playerId ?? '').slice(0, 64);
+    const playerId = idOf(String(p?.playerId ?? '').slice(0, 64));
     if (!playerId) return cb({ level: null });
     void getCampaign(playerId).then((level) => cb({ level }));
   });
@@ -1138,7 +1148,7 @@ io.on('connection', (socket) => {
     if (!FAST && !allow(`create:${ipOf(socket)}`, 10, 5 * 60_000)) {
       return cb({ ok: false, error: 'rate_limited' });
     }
-    const name = String(p?.name ?? '').trim();
+    const name = nameOf(String(p?.name ?? '').trim());
     if (!NAME_RE.test(name)) return cb({ ok: false, error: 'bad_name' });
     const tutor = BOT_BY_ID.get('tutor');
     if (!tutor) return cb({ ok: false, error: 'not_found' });
@@ -1150,7 +1160,7 @@ io.on('connection', (socket) => {
     const lobby = createLobby(socket.id, String(p?.sessionId ?? '').slice(0, 64), name);
     lobby.tutorial = true;
     lobby.bot = { id: tutor.id, name: tutor.name, difficulty: tutor.difficulty, side: 'FOR', lang };
-    const playerId = String(p?.playerId ?? '').slice(0, 64);
+    const playerId = idOf(String(p?.playerId ?? '').slice(0, 64));
     if (playerId) lobby.campaign = { playerId, botRank: 0 };
     socket.data.code = lobby.code;
     socket.data.role = 'host';

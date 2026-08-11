@@ -8,7 +8,8 @@
 import crypto from 'node:crypto';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { event } from './stats.js';
-import { linkAccount, type AccountRow } from './store.js';
+import { NAME_RE } from './protocol.js';
+import { claimUsername, linkAccount, type AccountRow } from './store.js';
 
 const AUTH_URL = 'https://accounts.google.com/o/oauth2/v2/auth';
 const TOKEN_URL = 'https://oauth2.googleapis.com/token';
@@ -42,7 +43,7 @@ function sign(payload: string): string {
 export interface Session {
   sub: string; // Google's stable user id
   playerId: string; // the canonical player row this account owns
-  name: string;
+  name: string; // the claimed yap name (empty until claimed)
   exp: number; // epoch ms
 }
 
@@ -53,7 +54,13 @@ function packSession(s: Session): string {
 
 /** Verify and unpack. Any tampering, or an expired session, reads as signed out. */
 export function readSession(req: FastifyRequest): Session | null {
-  const raw = readCookie(req, SESSION_COOKIE);
+  return readSessionCookie(req.headers.cookie);
+}
+
+/** Same check, from a raw Cookie header — this is what lets a SOCKET know who
+    it belongs to, so a signed-in player cannot emit somebody else's name. */
+export function readSessionCookie(header: string | undefined): Session | null {
+  const raw = pickCookie(header, SESSION_COOKIE);
   if (!raw) return null;
   const dot = raw.lastIndexOf('.');
   if (dot < 1) return null;
@@ -75,7 +82,10 @@ export function readSession(req: FastifyRequest): Session | null {
 // Fastify doesn't parse cookies without a plugin, and one header split is
 // cheaper than another dependency in the login path.
 function readCookie(req: FastifyRequest, name: string): string | null {
-  const header = req.headers.cookie;
+  return pickCookie(req.headers.cookie, name);
+}
+
+function pickCookie(header: string | undefined, name: string): string | null {
   if (!header) return null;
   for (const part of header.split(';')) {
     const eq = part.indexOf('=');
@@ -182,7 +192,8 @@ export function registerAuth(app: FastifyInstance): void {
         const session: Session = {
           sub: claims.sub,
           playerId: account.playerId,
-          name: account.name,
+          // Empty until they claim a yap name — that emptiness IS the gate.
+          name: account.username ?? '',
           exp: Date.now() + SESSION_DAYS * 24 * 60 * 60 * 1000,
         };
         setCookie(reply, SESSION_COOKIE, packSession(session), SESSION_DAYS * 24 * 60 * 60);
@@ -197,11 +208,34 @@ export function registerAuth(app: FastifyInstance): void {
   );
 
   /** Who am I? The client calls this on boot and adopts the returned playerId,
-      which is how progress follows an account across devices. */
+      which is how progress follows an account across devices. `needsName` is
+      the one-time yap-name claim: a fresh account can't play until it lands. */
   app.get('/auth/me', async (req) => {
     const s = readSession(req);
     if (!s) return { signedIn: false, google: googleConfigured() };
-    return { signedIn: true, google: true, playerId: s.playerId, name: s.name };
+    return {
+      signedIn: true,
+      google: true,
+      playerId: s.playerId,
+      name: s.name,
+      needsName: !s.name,
+    };
+  });
+
+  /** Claim the yap name, once. Re-issues the session so every later socket
+      connection carries the real name. */
+  app.post<{ Body: { name?: string } }>('/auth/username', async (req, reply) => {
+    const s = readSession(req);
+    if (!s) return reply.code(401).send({ ok: false, error: 'signed_out' });
+    if (s.name) return reply.code(409).send({ ok: false, error: 'already' });
+    const name = String(req.body?.name ?? '').trim();
+    if (!NAME_RE.test(name)) return reply.code(400).send({ ok: false, error: 'bad_name' });
+    const result = await claimUsername(s.sub, name);
+    if (result === 'taken') return reply.code(409).send({ ok: false, error: 'taken' });
+    if (result !== 'ok') return reply.code(409).send({ ok: false, error: 'already' });
+    const session: Session = { ...s, name };
+    setCookie(reply, SESSION_COOKIE, packSession(session), SESSION_DAYS * 24 * 60 * 60);
+    return { ok: true, name };
   });
 
   app.post('/auth/logout', async (_req, reply) => {

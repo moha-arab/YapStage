@@ -82,10 +82,17 @@ export async function initStore(): Promise<void> {
         email      text NOT NULL DEFAULT '',
         name       text NOT NULL DEFAULT '',
         picture    text NOT NULL DEFAULT '',
+        username   text,
         created_at timestamptz NOT NULL DEFAULT now(),
         seen_at    timestamptz NOT NULL DEFAULT now()
       )
     `);
+    await pool.query(`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS username text`);
+    // Case-insensitive uniqueness: 'YapKing' and 'yapking' are the same person
+    // to everyone reading a scoreboard, so they cannot both exist.
+    await pool.query(
+      `CREATE UNIQUE INDEX IF NOT EXISTS accounts_username_key ON accounts (lower(username))`,
+    );
     // Campaign progress rides the same identity as the ranked ladder.
     await pool.query(
       `ALTER TABLE players ADD COLUMN IF NOT EXISTS campaign integer NOT NULL DEFAULT 0`,
@@ -236,6 +243,8 @@ export interface AccountRow {
   sub: string;
   playerId: string;
   name: string;
+  /** Null until they claim one. The app blocks play until they do. */
+  username: string | null;
 }
 
 export async function linkAccount(p: {
@@ -247,9 +256,10 @@ export async function linkAccount(p: {
 }): Promise<AccountRow | null> {
   if (!pool || !ready) return null;
   try {
-    const existing = await pool.query(`SELECT player_id, name FROM accounts WHERE sub = $1`, [
-      p.sub,
-    ]);
+    const existing = await pool.query(
+      `SELECT player_id, name, username FROM accounts WHERE sub = $1`,
+      [p.sub],
+    );
     if (existing.rowCount === 1) {
       // Returning user: refresh the profile, keep the canonical player row.
       await pool.query(
@@ -259,7 +269,8 @@ export async function linkAccount(p: {
       return {
         sub: p.sub,
         playerId: existing.rows[0].player_id as string,
-        name: (existing.rows[0].name as string) || p.name,
+        name: (existing.rows[0].username as string) || (existing.rows[0].name as string) || p.name,
+        username: (existing.rows[0].username as string) || null,
       };
     }
     // First sign-in: adopt this device's progress rather than starting over.
@@ -275,10 +286,41 @@ export async function linkAccount(p: {
       [p.sub, playerId, p.email.slice(0, 200), p.name.slice(0, 64), p.picture.slice(0, 500)],
     );
     event('account_created');
-    return { sub: p.sub, playerId, name: p.name };
+    return { sub: p.sub, playerId, name: p.name, username: null };
   } catch (err) {
     console.error('[store] linkAccount failed:', err);
     return null;
+  }
+}
+
+/** Claim a yap name for this account. One shot: the name IS the identity on a
+    scoreboard, so it can't be swapped out from under an opponent's receipts.
+    'taken' is a normal answer, not an error — the unique index is the referee. */
+export async function claimUsername(
+  sub: string,
+  username: string,
+): Promise<'ok' | 'taken' | 'already' | 'down'> {
+  if (!pool || !ready) return 'down';
+  try {
+    const cur = await pool.query(`SELECT username FROM accounts WHERE sub = $1`, [sub]);
+    if (cur.rowCount === 1 && cur.rows[0].username) return 'already';
+    const res = await pool.query(
+      `UPDATE accounts SET username = $2 WHERE sub = $1 AND username IS NULL`,
+      [sub, username],
+    );
+    if (res.rowCount !== 1) return 'already';
+    // The ladder row shows this name too, so keep the two in step.
+    await pool.query(
+      `UPDATE players SET name = $2 WHERE id = (SELECT player_id FROM accounts WHERE sub = $1)`,
+      [sub, username],
+    );
+    event('username_claimed');
+    return 'ok';
+  } catch (err) {
+    // 23505 = unique violation: somebody got there first.
+    if ((err as { code?: string })?.code === '23505') return 'taken';
+    console.error('[store] claimUsername failed:', err);
+    return 'down';
   }
 }
 

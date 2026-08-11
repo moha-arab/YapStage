@@ -104,7 +104,9 @@ export default function Home({ notice, onEntered, onPlayBot, onSpectate, onTutor
     };
   }, [onEntered]);
 
-  const validName = NAME_RE.test(name);
+  // Signed in: the yap name comes from the account and can't be retyped.
+  const effName = account.signedIn && account.name ? account.name : name;
+  const validName = NAME_RE.test(effName);
   const wins = receipts.filter((r) => r.won).length;
 
   function requireName(): boolean {
@@ -125,7 +127,7 @@ export default function Home({ notice, onEntered, onPlayBot, onSpectate, onTutor
   function create() {
     if (busy || !requireAccount() || !requireName()) return;
     setBusy(true);
-    socket.emit('lobby:create', { sessionId: session.id, name }, (res) => {
+    socket.emit('lobby:create', { sessionId: session.id, name: effName }, (res) => {
       setBusy(false);
       if (!res.ok) {
         return setError({
@@ -143,7 +145,7 @@ export default function Home({ notice, onEntered, onPlayBot, onSpectate, onTutor
     setBusy(true);
     socket.emit(
       'lobby:join',
-      { code: code.trim().toUpperCase(), sessionId: session.id, name },
+      { code: code.trim().toUpperCase(), sessionId: session.id, name: effName },
       (res) => {
         setBusy(false);
         if (res.ok) return onEntered(res.update);
@@ -161,7 +163,7 @@ export default function Home({ notice, onEntered, onPlayBot, onSpectate, onTutor
     if (queueing || !requireAccount() || !requireName()) return;
     socket.emit(
       'queue:join',
-      { sessionId: session.id, playerId: playerId(), name },
+      { sessionId: session.id, playerId: playerId(), name: effName },
       (res) => {
         if (!res.ok) {
           return setError({
@@ -188,7 +190,7 @@ export default function Home({ notice, onEntered, onPlayBot, onSpectate, onTutor
 
   function handleBot() {
     if (!requireAccount() || !requireName()) return;
-    onPlayBot(name);
+    onPlayBot(effName);
   }
 
   function watch() {
@@ -296,7 +298,7 @@ export default function Home({ notice, onEntered, onPlayBot, onSpectate, onTutor
           <button
             className="btn btn-primary btn-wide"
             onClick={() => {
-              if (requireAccount() && requireName()) onTutorial(name);
+              if (requireAccount() && requireName()) onTutorial(effName);
             }}
           >
             {t('startTutorial')}
@@ -386,6 +388,7 @@ export default function Home({ notice, onEntered, onPlayBot, onSpectate, onTutor
         <p className="subtitle">{t('homeSubtitle')}</p>
 
         <div className="card">
+          {account.signedIn ? null : (<>
           <label className="field-label" htmlFor="yapname">
             {t('yourYapName')}
           </label>
@@ -406,6 +409,7 @@ export default function Home({ notice, onEntered, onPlayBot, onSpectate, onTutor
             {name && !validName ? <p className="field-hint">{t('errBadName')}</p> : null}
             {zoneError('name')}
           </div>
+          </>)}
 
           {invited && !doorsRevealed ? (
             // Invite-link arrival: the ticket IS the page. The selector waits

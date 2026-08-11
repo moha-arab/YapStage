@@ -39,6 +39,8 @@ export interface Account {
   /** Whether sign-in is even available on this deployment. */
   google: boolean;
   name?: string;
+  /** Signed in but hasn't claimed a yap name yet — the app blocks until they do. */
+  needsName?: boolean;
 }
 
 /** Ask the server who we are. Adopts the account's player id as a side effect

@@ -24,7 +24,7 @@ import {
 import { setOnChunk, setSpeechLang, speechSupported, startTurn, stopTurn } from './speech';
 import { recordingSupported, setOnRecordingActive, startTurnRecording, stopTurnRecording } from './recorder';
 import { saveReceipt } from './history';
-import { playerId } from './player';
+import { playerId, whoAmI, type Account } from './player';
 import { LangToggle, useI18n } from './i18n';
 import Home from './screens/Home';
 import GreenRoom from './screens/GreenRoom';
@@ -34,6 +34,7 @@ import BotSelect, { type BotStartConfig } from './screens/BotSelect';
 import Spectate from './screens/Spectate';
 import TutorialIntro from './screens/TutorialIntro';
 import TutorialDone, { type DebriefInfo } from './screens/TutorialDone';
+import ClaimName from './screens/ClaimName';
 import { playBotTurn, stopBotVoice } from './botvoice';
 
 interface VerdictInfo {
@@ -118,6 +119,12 @@ export default function App() {
   // How many of your words the judge has actually received this turn. Kept as a
   // COUNT, not text: captions turned a debate into a dictation app.
   const [heardWords, setHeardWords] = useState(0);
+  // A fresh account has no yap name yet, and a name is the identity everyone
+  // else sees — so nothing else renders until it is claimed.
+  const [account, setAccount] = useState<Account | null>(null);
+  useEffect(() => {
+    void whoAmI().then(setAccount);
+  }, []);
 
   // Server-STT availability (for bot mode, which has no LobbyUpdate to carry it).
   const sttGlobalRef = useRef(false);
@@ -694,7 +701,13 @@ export default function App() {
   }, []);
 
   let content;
-  if (spectating) {
+  if (account?.signedIn && account.needsName) {
+    content = (
+      <ClaimName
+        onClaimed={(name) => setAccount({ ...account, name, needsName: false })}
+      />
+    );
+  } else if (spectating) {
     content = (
       <Spectate
         code={spectating}

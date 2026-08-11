@@ -2865,3 +2865,16 @@ html[dir='rtl'] .meter-hint {
   cursor: pointer;
   padding: 2px;
 }
+
+/* First sign-in: claim your yap name */
+.claim-card {
+  width: min(420px, 94vw);
+  text-align: start;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.claim-card .small-print {
+  margin-top: 4px;
+}
