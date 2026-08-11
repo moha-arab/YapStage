@@ -75,6 +75,17 @@ export async function initStore(): Promise<void> {
         at           timestamptz NOT NULL DEFAULT now()
       )
     `);
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS accounts (
+        sub        text PRIMARY KEY,
+        player_id  text NOT NULL,
+        email      text NOT NULL DEFAULT '',
+        name       text NOT NULL DEFAULT '',
+        picture    text NOT NULL DEFAULT '',
+        created_at timestamptz NOT NULL DEFAULT now(),
+        seen_at    timestamptz NOT NULL DEFAULT now()
+      )
+    `);
     // Campaign progress rides the same identity as the ranked ladder.
     await pool.query(
       `ALTER TABLE players ADD COLUMN IF NOT EXISTS campaign integer NOT NULL DEFAULT 0`,
@@ -210,6 +221,63 @@ export async function applyRankedResult(
     };
   } catch (err) {
     console.error('[store] applyRankedResult failed:', err);
+    return null;
+  }
+}
+
+// ---- accounts ----
+// Identity is Google's `sub`. The account OWNS one canonical player row, which
+// is how a rating and a campaign follow you across devices: signing in on a new
+// device hands back the account's playerId and the client adopts it, so every
+// player-keyed feature keeps working untouched. First sign-in ADOPTS whatever
+// the device already earned, so nothing is lost by making an account late.
+
+export interface AccountRow {
+  sub: string;
+  playerId: string;
+  name: string;
+}
+
+export async function linkAccount(p: {
+  sub: string;
+  email: string;
+  name: string;
+  picture: string;
+  claimPlayerId: string | null;
+}): Promise<AccountRow | null> {
+  if (!pool || !ready) return null;
+  try {
+    const existing = await pool.query(`SELECT player_id, name FROM accounts WHERE sub = $1`, [
+      p.sub,
+    ]);
+    if (existing.rowCount === 1) {
+      // Returning user: refresh the profile, keep the canonical player row.
+      await pool.query(
+        `UPDATE accounts SET email = $2, name = $3, picture = $4, seen_at = now() WHERE sub = $1`,
+        [p.sub, p.email.slice(0, 200), p.name.slice(0, 64), p.picture.slice(0, 500)],
+      );
+      return {
+        sub: p.sub,
+        playerId: existing.rows[0].player_id as string,
+        name: (existing.rows[0].name as string) || p.name,
+      };
+    }
+    // First sign-in: adopt this device's progress rather than starting over.
+    const playerId = p.claimPlayerId || `acct_${p.sub}`;
+    await pool.query(
+      `INSERT INTO players (id, name) VALUES ($1, $2) ON CONFLICT (id) DO NOTHING`,
+      [playerId, p.name.slice(0, 24) || 'player'],
+    );
+    await pool.query(
+      `INSERT INTO accounts (sub, player_id, email, name, picture)
+       VALUES ($1, $2, $3, $4, $5)
+       ON CONFLICT (sub) DO NOTHING`,
+      [p.sub, playerId, p.email.slice(0, 200), p.name.slice(0, 64), p.picture.slice(0, 500)],
+    );
+    event('account_created');
+    return { sub: p.sub, playerId, name: p.name };
+  } catch (err) {
+    console.error('[store] linkAccount failed:', err);
     return null;
   }
 }

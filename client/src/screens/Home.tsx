@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { NAME_RE, type JoinError, type LobbyUpdate } from '../../../server/src/protocol';
 import { session, socket } from '../socket';
 import { loadReceipts, readPattern, type Category } from '../history';
-import { playerId } from '../player';
+import { playerId, signIn, signOut, whoAmI, type Account } from '../player';
 import { unlockSpectateAudio } from '../specaudio';
 import { useI18n } from '../i18n';
 
@@ -58,6 +58,21 @@ export default function Home({ notice, onEntered, onPlayBot, onSpectate, onTutor
   const [busy, setBusy] = useState(false);
   const [queueing, setQueueing] = useState(false);
   const [queueInfo, setQueueInfo] = useState<{ waiting: number; rating: number } | null>(null);
+  // chess.com's pattern: browse freely, the ask lands when you try to PLAY.
+  const [account, setAccount] = useState<Account>({ signedIn: false, google: false });
+  useEffect(() => {
+    void whoAmI().then(setAccount);
+  }, []);
+  // Google bounced us back with a result: say what happened, then clean the URL
+  // so a refresh doesn't replay the message.
+  const [authNote] = useState(() => new URLSearchParams(window.location.search).get('auth'));
+  useEffect(() => {
+    if (!authNote) return;
+    const url = new URL(window.location.href);
+    url.searchParams.delete('auth');
+    window.history.replaceState({}, '', url.toString());
+  }, [authNote]);
+  const needAccount = account.google && !account.signedIn;
   const [receipts] = useState(loadReceipts);
   const pattern = useMemo(() => readPattern(receipts), [receipts]);
   const [showMatches, setShowMatches] = useState(false);
@@ -99,8 +114,16 @@ export default function Home({ notice, onEntered, onPlayBot, onSpectate, onTutor
     return false;
   }
 
+  /** The wall: everything is browsable signed out, and the ask lands at the
+      moment you actually try to play. Invited guests are exempt (see below). */
+  function requireAccount(): boolean {
+    if (!needAccount) return true;
+    setError({ key: 'signInFirst', zone: 'panel' });
+    return false;
+  }
+
   function create() {
-    if (busy || !requireName()) return;
+    if (busy || !requireAccount() || !requireName()) return;
     setBusy(true);
     socket.emit('lobby:create', { sessionId: session.id, name }, (res) => {
       setBusy(false);
@@ -135,7 +158,7 @@ export default function Home({ notice, onEntered, onPlayBot, onSpectate, onTutor
   }
 
   function joinQueue() {
-    if (queueing || !requireName()) return;
+    if (queueing || !requireAccount() || !requireName()) return;
     socket.emit(
       'queue:join',
       { sessionId: session.id, playerId: playerId(), name },
@@ -164,7 +187,7 @@ export default function Home({ notice, onEntered, onPlayBot, onSpectate, onTutor
   }
 
   function handleBot() {
-    if (!requireName()) return;
+    if (!requireAccount() || !requireName()) return;
     onPlayBot(name);
   }
 
@@ -273,7 +296,7 @@ export default function Home({ notice, onEntered, onPlayBot, onSpectate, onTutor
           <button
             className="btn btn-primary btn-wide"
             onClick={() => {
-              if (requireName()) onTutorial(name);
+              if (requireAccount() && requireName()) onTutorial(name);
             }}
           >
             {t('startTutorial')}
@@ -309,6 +332,25 @@ export default function Home({ notice, onEntered, onPlayBot, onSpectate, onTutor
 
   const selector = (
     <>
+      {account.google ? (
+        <div className="account-row">
+          {account.signedIn ? (
+            <>
+              <span className="account-who">{t('signedInAs', { x: account.name ?? '' })}</span>
+              <button className="account-link" onClick={() => void signOut()}>
+                {t('signOut')}
+              </button>
+            </>
+          ) : (
+            <>
+              <button className="btn btn-small btn-google" onClick={signIn}>
+                {t('signInGoogle')}
+              </button>
+              <span className="account-why">{t('signInWhy')}</span>
+            </>
+          )}
+        </div>
+      ) : null}
       <span className="field-label modes-label">{t('startSomething')}</span>
       <div className="mode-grid" role="tablist">
         {MODES.map((m) => (
@@ -332,6 +374,11 @@ export default function Home({ notice, onEntered, onPlayBot, onSpectate, onTutor
     <>
       <div className="stage center-col home">
         {notice ? <div className="banner">{t(notice)}</div> : null}
+        {authNote && authNote !== 'ok' ? (
+          <div className="banner banner-warn">
+            {t(authNote === 'cancelled' ? 'authCancelled' : authNote === 'nostore' ? 'authNoStore' : 'authFailed')}
+          </div>
+        ) : null}
         <p className="kicker">{t('kicker')}</p>
         <h1 className="display logo">
           YAP<span className="logo-accent">STAGE</span>

@@ -2827,3 +2827,41 @@ html[dir='rtl'] .meter-hint {
 .mask-chip .bot-avatar {
   border-width: 2px;
 }
+
+/* Accounts: one quiet row above the mode selector */
+.account-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 14px;
+}
+
+.btn-google {
+  background: var(--ink);
+  color: #1c1508;
+  border-color: var(--ink);
+}
+
+.account-who {
+  font-size: 13px;
+  color: var(--gold);
+}
+
+.account-why {
+  font-size: 12px;
+  color: var(--muted);
+  flex: 1;
+  min-width: 160px;
+}
+
+.account-link {
+  font: inherit;
+  font-size: 12px;
+  color: var(--muted);
+  background: none;
+  border: none;
+  text-decoration: underline;
+  cursor: pointer;
+  padding: 2px;
+}

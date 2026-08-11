@@ -66,6 +66,7 @@ import {
 import { TOPIC_BY_ID, TOPIC_CATEGORIES } from './topics.js';
 import { event, recentEvents, statsSnapshot } from './stats.js';
 import { allow } from './ratelimit.js';
+import { googleConfigured, registerAuth } from './auth.js';
 
 // Deployed on Railway via Dockerfile (see railway.json). Fastify serves the
 // built client from client/dist and hosts the Socket.IO signaling server.
@@ -138,8 +139,11 @@ app.get('/healthz', async () => ({
   stt: sttConfigured() ? 'cloudflare' : 'browser',
   tts: process.env.ELEVENLABS_API_KEY ? 'elevenlabs' : 'browser',
   share: storeReady() ? 'stored' : 'in-link',
+  auth: googleConfigured() ? (storeReady() ? 'google' : 'google-no-store') : 'off',
   commit: process.env.RAILWAY_GIT_COMMIT_SHA?.slice(0, 7) ?? 'dev',
 }));
+
+registerAuth(app);
 
 app.get('/bots', async () => ({ bots: publicBots(), topics: TOPIC_CATEGORIES }));
 
