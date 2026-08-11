@@ -59,7 +59,7 @@ export default function TutorialIntro({ localStream, mediaError, onRetryMedia, o
           mirror
           maskId={selfMask}
           label={t('you')}
-          sub={t('onCam')}
+          sub={t(selfMask ? 'onMask' : 'onCam')}
           placeholder={mediaError ? t('cameraBlocked') : t('cameraWarming')}
         />
       </div>

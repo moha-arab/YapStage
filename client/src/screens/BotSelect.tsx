@@ -255,10 +255,10 @@ export default function BotSelect({ localStream, mediaError, onRetryMedia, onSta
           mirror
           maskId={selfMask}
           label={t('you')}
-          sub={t('onCam')}
+          sub={t(selfMask ? 'onMask' : 'onCam')}
           placeholder={mediaError ? t('cameraBlocked') : t('cameraWarming')}
         />
-        <p className="small-print">{t('botCamNote')}</p>
+        <p className="small-print">{t(selfMask ? 'botCamNoteMasked' : 'botCamNote')}</p>
       </div>
 
       {mediaError ? (
