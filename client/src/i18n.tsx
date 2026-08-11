@@ -193,6 +193,7 @@ const en: Dict = {
   errInProgress: 'that debate already started without you. get a new code.',
   errCodeLen: 'codes are 6 characters. count again.',
   errRateLimited: 'easy there. too many attempts from your network, take a short break.',
+  errSelf: "that's your own lobby. debates take two people.",
   footChrome: 'works best in chrome on a laptop. the judge needs ears.',
   footAny: 'phones, laptops, any browser. no excuses.',
   smallPrint: 'sanctioned by the yapstage athletic commission · the judge cannot be bribed (we tried)',

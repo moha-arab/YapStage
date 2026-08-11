@@ -223,7 +223,14 @@ export interface Verdict {
   ruling?: Ruling;
 }
 
-export type JoinError = 'not_found' | 'full' | 'in_progress' | 'bad_name' | 'rate_limited' | 'locked';
+export type JoinError =
+  | 'not_found'
+  | 'full'
+  | 'in_progress'
+  | 'bad_name'
+  | 'rate_limited'
+  | 'locked'
+  | 'self';
 
 export type CreateResult =
   | { ok: true; update: LobbyUpdate }

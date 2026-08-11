@@ -758,5 +758,49 @@ console.log('\n=== Scenario 10: tutorial ===');
   h.disconnect();
 }
 
+// ---------- Scenario 11: you cannot be your own opponent ----------
+// ELO makes this integrity, not trivia: two tabs on one account would be a
+// rating printing press, and the judge would be scoring one person arguing
+// both sides of the same debate.
+console.log('\n=== Scenario 11: no self-play ===');
+{
+  const t1 = connect();
+  const t2 = connect();
+  let selfMatched = false;
+  t1.on('queue:matched', () => {
+    selfMatched = true;
+  });
+  t2.on('queue:matched', () => {
+    selfMatched = true;
+  });
+  await emitP(t1, 'queue:join', { sessionId: 'sp-1', playerId: 'same-player', name: 'twotabs' });
+  await emitP(t2, 'queue:join', { sessionId: 'sp-2', playerId: 'same-player', name: 'twotabs' });
+  await new Promise((r) => setTimeout(r, 1200));
+  check('ranked: one player is never matched with themselves', selfMatched === false);
+
+  // ...and the guard must not break real matchmaking.
+  const t3 = connect();
+  const gotReal = once(t3, 'queue:matched', 8000).then(() => true).catch(() => false);
+  await emitP(t3, 'queue:join', { sessionId: 'sp-3', playerId: 'other-player', name: 'realrival' });
+  check('ranked: a real opponent still matches', (await gotReal) === true);
+
+  const h = connect();
+  const made = await emitP(h, 'lobby:create', { sessionId: 'self-h', name: 'hostself' });
+  const selfJoin = await emitP(h, 'lobby:join', {
+    code: made.update.code,
+    sessionId: 'self-h',
+    name: 'hostself',
+  });
+  check('custom: cannot join your own lobby', selfJoin.ok === false && selfJoin.error === 'self');
+  const g = connect();
+  const realJoin = await emitP(g, 'lobby:join', {
+    code: made.update.code,
+    sessionId: 'self-g',
+    name: 'realguest',
+  });
+  check('custom: a real guest still joins', realJoin.ok === true);
+  [t1, t2, t3, h, g].forEach((s) => s.disconnect());
+}
+
 console.log(`\n${failures === 0 ? 'ALL CHECKS PASSED' : failures + ' CHECK(S) FAILED'}`);
 process.exit(failures === 0 ? 0 : 1);

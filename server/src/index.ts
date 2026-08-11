@@ -350,7 +350,19 @@ function broadcastQueue(): void {
 function tryMatch(): void {
   while (rankedQueue.length >= 2) {
     const a = rankedQueue.shift()!;
-    const b = rankedQueue.shift()!;
+    // Never pair someone with themselves. A signed-in player has one stable
+    // playerId across tabs, so without this two tabs are an ELO printing press
+    // and the judge ends up scoring one person arguing both sides. Take the
+    // first entry that is genuinely somebody else; if there is none, put A back
+    // and wait for a real opponent rather than inventing one.
+    const otherAt = rankedQueue.findIndex(
+      (q) => q.playerId !== a.playerId && q.sessionId !== a.sessionId,
+    );
+    if (otherAt < 0) {
+      rankedQueue.unshift(a);
+      break;
+    }
+    const b = rankedQueue.splice(otherAt, 1)[0]!;
     const sa = io.sockets.sockets.get(a.socketId);
     const sb = io.sockets.sockets.get(b.socketId);
     // A ghost entry (socket died between heartbeats) must not eat a real one.
@@ -619,6 +631,14 @@ io.on('connection', (socket) => {
       return cb({ ok: false, error: lobby.status === 'greenroom' ? 'full' : 'in_progress' });
     }
     if (lobby.guest) return cb({ ok: false, error: 'full' });
+    // You cannot be your own opponent. Caught two ways: the same ACCOUNT, and
+    // the same browser session in a second tab. A debate needs two people to
+    // mean anything, and the judge cannot score one person playing both sides.
+    const meAcct = socket.data.account?.playerId;
+    if (meAcct && lobby.host?.playerId === meAcct) return cb({ ok: false, error: 'self' });
+    if (lobby.host?.sessionId && lobby.host.sessionId === String(p.sessionId ?? '')) {
+      return cb({ ok: false, error: 'self' });
+    }
 
     releasePreviousSeat(socket);
     lobby.guest = {
@@ -1056,6 +1076,12 @@ io.on('connection', (socket) => {
     if (rankedQueue.some((q) => q.socketId === socket.id)) return cb({ ok: true });
     releasePreviousSeat(socket);
     dropFromQueue(socket.id);
+    // One slot per PLAYER, not per socket. A second tab takes over the queue
+    // place instead of sitting beside itself, which is the other half of how
+    // one person met themselves.
+    for (let i = rankedQueue.length - 1; i >= 0; i--) {
+      if (rankedQueue[i].playerId === playerId) rankedQueue.splice(i, 1);
+    }
     void getPlayer(playerId, name).then((row) => {
       // The socket may have left the queue (or died) while we read the rating.
       if (!io.sockets.sockets.get(socket.id)) return;

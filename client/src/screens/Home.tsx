@@ -22,6 +22,7 @@ const ERROR_KEYS: Record<JoinError, string> = {
   bad_name: 'errBadName',
   rate_limited: 'errRateLimited',
   locked: 'errLocked',
+  self: 'errSelf',
 };
 
 type ErrorZone = 'name' | 'panel' | 'ticket';
