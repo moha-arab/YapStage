@@ -90,7 +90,7 @@ function LiveStrip({
           placeholder={t('leftCall')}
         />
       </div>
-      <p className="live-note">{t('stillLive')}</p>
+      <p className="live-note">{t(myMask ? 'stillLiveMasked' : 'stillLive')}</p>
       <button className="btn btn-small" onClick={onLeaveCall}>
         {t('leaveCall')}
       </button>

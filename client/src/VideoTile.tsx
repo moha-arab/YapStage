@@ -24,7 +24,20 @@ interface Props {
 export default function VideoTile(props: Props) {
   const { t } = useI18n();
   const ref = useRef<HTMLVideoElement>(null);
+  // Mask mode's stand-in for the <video> element's audio channel.
+  const audioRef = useRef<HTMLAudioElement>(null);
   const [blocked, setBlocked] = useState(false);
+
+  // Keep the masked tile's audio element fed. Separate from the video effect
+  // because the two elements never exist at the same time.
+  useEffect(() => {
+    const el = audioRef.current;
+    if (!el) return;
+    if (el.srcObject !== props.stream) {
+      el.srcObject = props.stream;
+      if (props.stream) void el.play().catch(() => {});
+    }
+  }, [props.stream, props.maskId, props.muted]);
 
   useEffect(() => {
     const el = ref.current;
@@ -86,6 +99,11 @@ export default function VideoTile(props: Props) {
     const loud = (props.level ?? 0) > 0.05;
     return (
       <div className={`tile tile-masked ${sideClass} ${props.active ? 'tile-active' : ''}`}>
+        {/* The <video> element we're NOT rendering was also what played the
+            opponent's voice. Without this, a masked debate is silent. */}
+        {props.stream && !props.muted ? (
+          <audio ref={audioRef} autoPlay playsInline />
+        ) : null}
         <div className="tile-mask-wrap">
           <Mask
             id={props.maskId}
