@@ -4,7 +4,18 @@ export type Lang = 'en' | 'ar';
 
 const KEY = 'yapstage.lang';
 
+// ARABIC IS PARKED (Mohammad, 2026-08-11) — same pattern as DISPUTE_MODE: the
+// feature is unreachable, the work is not deleted. The `ar` dictionary below is
+// intact, so switching this back on is one line rather than a re-translation.
+//
+// Why: he is aiming at a Western audience and does not want to run two apps.
+// The sharper reason is ours — every judge and bot eval we have is English
+// only, so an Arabic debate was scored by a judge we never validated. Turning
+// this on again means paying that eval debt first (see PRD).
+export const ARABIC_ENABLED = false;
+
 export function getStoredLang(): Lang {
+  if (!ARABIC_ENABLED) return 'en'; // a stored 'ar' must not outlive the park
   try {
     return localStorage.getItem(KEY) === 'ar' ? 'ar' : 'en';
   } catch {
@@ -144,7 +155,7 @@ const en: Dict = {
   startDebate: 'start a debate',
   joinOne: 'join one',
   codePlaceholder: 'CODE',
-  errBadName: 'yap names are 3 to 16 characters. letters, numbers, underscores.',
+  errBadName: 'yap names are 3 to 16 characters: english letters, numbers, underscores.',
   errNotFound: "that code doesn't exist, or it expired. codes die after 30 quiet minutes.",
   errFull: 'lobby is full. debates are strictly 1v1.',
   errInProgress: 'that debate already started without you. get a new code.',
@@ -851,6 +862,7 @@ export function useI18n(): I18n {
 /** The ع / EN toggle. Lives at the top of every screen. */
 export function LangToggle() {
   const { lang, setLang } = useI18n();
+  if (!ARABIC_ENABLED) return null; // parked: no second language to toggle to
   return (
     <button
       className="lang-toggle"

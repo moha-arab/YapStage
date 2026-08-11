@@ -324,10 +324,14 @@ check('server survives payload-less events (no crash)', stillAlive);
 h.disconnect();
 h2.disconnect();
 
-// (b) Arabic names are now valid
+// (b) Names are ASCII-only since Arabic was parked (2026-08-11). That also
+// makes homoglyphs and bidirectional-override characters unrepresentable,
+// which no amount of fold-matching could fix.
 const ar = connect();
 const arRes = await emitP(ar, 'lobby:create', { sessionId: 'sess-ar', name: 'محمد' });
-check('Arabic name accepted', arRes.ok === true);
+check('non-ascii name rejected', arRes.ok === false && arRes.error === 'bad_name');
+const cyr = await emitP(ar, 'lobby:create', { sessionId: 'sess-cy', name: 'уapking' });
+check('cyrillic lookalike name rejected', cyr.ok === false && cyr.error === 'bad_name');
 ar.disconnect();
 
 // (c) joining a lobby whose debate already started says in_progress, not full

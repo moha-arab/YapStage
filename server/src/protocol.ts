@@ -411,7 +411,12 @@ export interface SocketData {
 }
 
 // Unicode letters (Arabic mode means Arabic names), digits, underscore.
-export const NAME_RE = /^[\p{L}\p{N}_]{3,16}$/u;
+// ASCII only, deliberately. This used to be \p{L}\p{N} (any script) for the
+// Arabic build; with Arabic parked, ASCII is both honest about the audience and
+// strictly safer: it removes every non-Latin homoglyph at once AND makes
+// bidirectional override characters unrepresentable — those can visually
+// REVERSE a name on a scoreboard, which no amount of folding fixes.
+export const NAME_RE = /^[A-Za-z0-9_]{3,16}$/;
 
 // ---- claimed yap names (accounts) ----
 // A guest name only has to be typeable. A CLAIMED name is an identity other
@@ -457,7 +462,7 @@ export function nameProblem(raw: string): NameProblem {
   if (!NAME_RE.test(name)) return 'bad_name';
   const fold = foldName(name);
   if (RESERVED.has(fold)) return 'reserved';
-  // "___" and "_ _" are not names; require something readable in there.
-  if (!/[\p{L}\p{N}]{2,}/u.test(name)) return 'bad_name';
+  // "___" is not a name; require something readable in there.
+  if (!/[A-Za-z0-9]{2,}/.test(name)) return 'bad_name';
   return null;
 }
