@@ -41,6 +41,9 @@ interface Props {
   botOpponent?: { id: string; name: string; color: string } | null;
   /** Campaign: the win moved your frontier — announce the new challenger. */
   unlocked?: { level: number; unlocked: string | null } | null;
+  /** Masks by side (an entry = that side is masked), so the post-verdict call
+      still shows a face for players who never had a camera. */
+  avatars?: Partial<Record<Side, string>> | null;
 }
 
 /**
@@ -55,20 +58,35 @@ function LiveStrip({
   peerName,
   myName,
   onLeaveCall,
-}: Pick<Props, 'localStream' | 'remoteStream' | 'rtcConnected' | 'peerName' | 'myName' | 'onLeaveCall'>) {
+  myMask,
+  peerMask,
+}: Pick<Props, 'localStream' | 'remoteStream' | 'rtcConnected' | 'peerName' | 'myName' | 'onLeaveCall'> & {
+  myMask?: string;
+  peerMask?: string;
+}) {
   const { t } = useI18n();
-  if (!localStream) {
+  // A masked debater has no camera by design — the post-verdict chat must
+  // still work for them, so 'no stream' is only 'you left' when unmasked.
+  if (!localStream && !myMask) {
     return <p className="live-note">{t('youLeft')}</p>;
   }
   return (
     <div className="live-strip">
       <div className="live-strip-tiles">
-        <VideoTile stream={localStream} muted mirror label={myName} sub={t('live')} />
+        <VideoTile
+          stream={localStream}
+          muted
+          mirror
+          maskId={myMask}
+          label={myName}
+          sub={t('live')}
+        />
         <VideoTile
           stream={rtcConnected ? remoteStream : null}
           muted={false}
+          maskId={peerMask}
           label={peerName}
-          sub={rtcConnected && remoteStream ? t('live') : undefined}
+          sub={rtcConnected && (remoteStream || peerMask) ? t('live') : undefined}
           placeholder={t('leftCall')}
         />
       </div>
@@ -134,6 +152,7 @@ export default function VerdictScreen({
   rematch,
   botOpponent,
   unlocked,
+  avatars,
   framing,
 }: Props) {
   const { lang, t } = useI18n();
@@ -146,6 +165,8 @@ export default function VerdictScreen({
       peerName={peerName}
       myName={myName}
       onLeaveCall={onLeaveCall}
+      myMask={mySide ? avatars?.[mySide] : undefined}
+      peerMask={mySide ? avatars?.[mySide === 'FOR' ? 'AGAINST' : 'FOR'] : undefined}
     />
   );
   const [stage, setStage] = useState<Stage>('waiting');

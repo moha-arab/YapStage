@@ -549,11 +549,19 @@ export default function App() {
   // Camera starts the moment you're in a lobby OR picking a bot: the solo green
   // room / bot picker is a mirror check, not a dead black rectangle. Also
   // surfaces permission problems before the debate.
-  // Ranked is masked: ask for a mic only, so no camera light ever turns on
-  // and no permission prompt appears for a face nobody will see.
+  // Masked play never holds a camera: no permission prompt, and if one was
+  // already granted the track is STOPPED so the camera light actually goes out.
+  // Un-masking re-acquires through the media effect below (mediaRetry bump).
+  const maskedRef = useRef(false);
   useEffect(() => {
-    if (lobby?.ranked) setAudioOnly(true);
-  }, [lobby?.ranked]);
+    const masked = Boolean(lobby?.yourMasked);
+    if (masked === maskedRef.current) return;
+    maskedRef.current = masked;
+    setAudioOnly(masked);
+    releaseMedia();
+    setLocalStream(null);
+    setMediaRetry((n) => n + 1);
+  }, [lobby?.yourMasked]);
 
   useEffect(() => {
     if (!lobby && !botPicking && !tutoring && !start?.bot) return;
@@ -740,6 +748,7 @@ export default function App() {
         onRematch={() => socket.emit('rematch')}
         botOpponent={start?.bot ?? null}
         unlocked={unlocked}
+        avatars={start?.avatars ?? null}
       />
     );
   } else if (start) {

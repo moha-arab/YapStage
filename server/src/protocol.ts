@@ -136,6 +136,10 @@ export interface LobbyUpdate {
       cameras instead, each player's own choice). */
   yourAvatar: AvatarId;
   peerAvatar?: AvatarId;
+  /** Behind the mask (no camera) or on camera. SERVER state, not local: your
+      opponent has to see the mask you picked. Ranked forces true. */
+  yourMasked: boolean;
+  peerMasked?: boolean;
   /** Custom only, host-controlled: whether the code admits watchers. */
   spectatorsAllowed: boolean;
 }
@@ -242,6 +246,7 @@ export interface ClientToServer {
   'pick:category': (key: string) => void; // host only: category for 'category' mode
   'pick:pace': (pace: Pace) => void; // host only: turn lengths
   'pick:avatar': (id: string) => void; // any seat, pre-debate: choose your mask
+  'pick:mask': (on: boolean) => void; // any seat, custom only: mask instead of camera
   'pick:spectators': (allowed: boolean) => void; // host only, custom: open the door to watchers
   'pick:topic': (topicId: string) => void; // set YOUR topic choice (by id)
   /** Dispute mode: describe the argument in YOUR own words (≤400 chars). */

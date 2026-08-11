@@ -39,7 +39,10 @@ export default function VideoTile(props: Props) {
         void el.play().then(() => setBlocked(false)).catch(() => setBlocked(true));
       }
     }
-  }, [props.stream, props.muted]);
+  // props.maskId is in the deps on purpose: leaving mask mode MOUNTS A NEW
+  // <video> element, and without a re-run its srcObject is never set — the
+  // camera stays on with a black tile (his "face doesn't come back" bug).
+  }, [props.stream, props.muted, props.maskId]);
 
   // Autoplay refused: keep retrying on EVERY tap until one lands (a single
   // once:true attempt can miss), and show an overlay so a black tile isn't
@@ -78,14 +81,16 @@ export default function VideoTile(props: Props) {
   // Masked player: the tile IS the mask. No video element is ever created, so
   // a masked debate needs no camera permission at all.
   if (props.maskId) {
-    const loud = (props.level ?? 0) > 0.08;
+    // The mouth moves whenever the mic moves. Gating it on `active` made the
+    // mask look dead everywhere except your own turn — which is most of the app.
+    const loud = (props.level ?? 0) > 0.05;
     return (
       <div className={`tile tile-masked ${sideClass} ${props.active ? 'tile-active' : ''}`}>
         <div className="tile-mask-wrap">
           <Mask
             id={props.maskId}
             size={132}
-            speaking={Boolean(props.active && loud)}
+            speaking={loud}
             color={props.side === 'FOR' ? 'var(--for)' : props.side === 'AGAINST' ? 'var(--against)' : undefined}
           />
         </div>

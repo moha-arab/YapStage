@@ -208,8 +208,10 @@ export async function startDispute(
 function avatarsOf(lobby: Lobby): Partial<Record<Side, AvatarId>> {
   if (!lobby.sides) return {};
   const out: Partial<Record<Side, AvatarId>> = {};
-  if (lobby.host) out[lobby.sides.host] = lobby.host.avatarId;
-  if (lobby.guest) out[lobby.sides.guest] = lobby.guest.avatarId;
+  // An entry means THAT SIDE IS MASKED. A debater on camera has no entry, so
+  // every screen (opponent, spectator, verdict) reads masking the same way.
+  if (lobby.host?.masked) out[lobby.sides.host] = lobby.host.avatarId;
+  if (lobby.guest?.masked) out[lobby.sides.guest] = lobby.guest.avatarId;
   return out;
 }
 

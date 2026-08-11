@@ -22,6 +22,8 @@ export interface Participant {
   name: string;
   /** The mask this player wears (always set; ranked shows only masks). */
   avatarId: AvatarId;
+  /** True = debating behind the mask, no camera at all. Ranked forces this. */
+  masked: boolean;
   rtcReady: boolean; // gUM done, tracks added, handlers registered
   disconnectedAt?: number;
   graceTimer?: NodeJS.Timeout;
@@ -155,7 +157,7 @@ export function createLobby(socketId: string, sessionId: string, name: string): 
   const now = Date.now();
   const lobby: Lobby = {
     code: generateCode(),
-    host: { socketId, sessionId, name, avatarId: randomAvatar(), rtcReady: false },
+    host: { socketId, sessionId, name, avatarId: randomAvatar(), masked: false, rtcReady: false },
     status: 'waiting',
     topicMode: 'agree',
     categoryKey: null,

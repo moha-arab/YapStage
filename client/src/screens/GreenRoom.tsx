@@ -45,14 +45,11 @@ export default function GreenRoom({
   const localLevel = useAudioLevel(localStream);
   const remoteLevel = useAudioLevel(remoteStream);
 
-  // Ranked is masked, always — no faces between strangers. Custom is each
-  // player's own choice; `faceMode` is local (your camera, your call) and the
-  // mask id itself is server state so your opponent sees the same face.
-  const [faceOn, setFaceOn] = useState(true);
-  const masked = Boolean(lobby.ranked) || !faceOn;
-  // We can't see the peer's local choice directly, but a masked peer never
-  // sends video: no remote stream once connected means they're behind a mask.
-  const peerMasked = Boolean(lobby.ranked) || (connected && !remoteStream);
+  // Masking is SERVER state, not local. It has to be: your opponent must see
+  // the mask you picked (a local flag left them watching your camera), and the
+  // choice has to survive into the debate. Ranked is masked by format.
+  const masked = lobby.yourMasked;
+  const peerMasked = Boolean(lobby.peerMasked);
 
   // Mic proof-of-life: if the mic has never moved the meter, say so before
   // the debate, not after the verdict comes back with one side missing.
@@ -153,14 +150,14 @@ export default function GreenRoom({
         {!lobby.ranked ? (
           <div className="chip-row face-row">
             <button
-              className={`cat-tab ${faceOn ? 'cat-active' : ''}`}
-              onClick={() => setFaceOn(true)}
+              className={`cat-tab ${!masked ? 'cat-active' : ''}`}
+              onClick={() => socket.emit('pick:mask', false)}
             >
               {t('faceCamera')}
             </button>
             <button
-              className={`cat-tab ${!faceOn ? 'cat-active' : ''}`}
-              onClick={() => setFaceOn(false)}
+              className={`cat-tab ${masked ? 'cat-active' : ''}`}
+              onClick={() => socket.emit('pick:mask', true)}
             >
               {t('faceMask')}
             </button>

@@ -299,10 +299,13 @@ function tryMatch(): void {
       break;
     }
     const lobby = createLobby(a.socketId, a.sessionId, a.name);
-    lobby.guest = { socketId: b.socketId, sessionId: b.sessionId, name: b.name, avatarId: randomAvatar(), rtcReady: false };
+    lobby.guest = { socketId: b.socketId, sessionId: b.sessionId, name: b.name, avatarId: randomAvatar(), masked: false, rtcReady: false };
     lobby.status = 'greenroom';
     lobby.topicMode = 'random'; // strangers never negotiate a topic
     lobby.ranked = { host: a.playerId, guest: b.playerId };
+    // Ranked is faceless by format: both strangers are behind masks.
+    lobby.host!.masked = true;
+    lobby.guest.masked = true;
     sa.data.code = lobby.code;
     sa.data.role = 'host';
     sb.data.code = lobby.code;
@@ -404,6 +407,8 @@ function updateFor(lobby: Lobby, receiver: Participant): LobbyUpdate {
     ranked: Boolean(lobby.ranked),
     yourAvatar: receiver.avatarId,
     peerAvatar: peer?.avatarId,
+    yourMasked: receiver.masked,
+    peerMasked: peer?.masked,
     spectatorsAllowed: lobby.spectatorsAllowed,
   };
 }
@@ -532,6 +537,7 @@ io.on('connection', (socket) => {
       sessionId: String(p.sessionId ?? '').slice(0, 64),
       name,
       avatarId: randomAvatar(),
+      masked: false,
       rtcReady: false,
     };
     lobby.status = 'greenroom';
@@ -644,6 +650,20 @@ io.on('connection', (socket) => {
     if (!me) return;
     if (!(AVATAR_IDS as readonly string[]).includes(String(id))) return;
     me.avatarId = String(id) as (typeof AVATAR_IDS)[number];
+    touch(lobby);
+    broadcastLobbyUpdate(lobby);
+  });
+
+  // Mask instead of camera. Custom only (ranked is masked by format) and
+  // pre-debate only: flipping mid-debate would need a WebRTC renegotiation.
+  socket.on('pick:mask', (on) => {
+    if (!allow(`pick:${socket.id}`, 60, 10_000)) return;
+    const lobby = socket.data.code ? getLobby(socket.data.code) : undefined;
+    if (!lobby || lobby.ranked) return;
+    if (lobby.status !== 'greenroom' && lobby.status !== 'waiting') return;
+    const me = participantOf(lobby, socket.id);
+    if (!me) return;
+    me.masked = Boolean(on);
     touch(lobby);
     broadcastLobbyUpdate(lobby);
   });
