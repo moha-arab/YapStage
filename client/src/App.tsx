@@ -36,6 +36,7 @@ import TutorialIntro from './screens/TutorialIntro';
 import TutorialDone, { type DebriefInfo } from './screens/TutorialDone';
 import ClaimName from './screens/ClaimName';
 import Matches from './screens/Matches';
+import Locker from './screens/Locker';
 import { playBotTurn, stopBotVoice } from './botvoice';
 
 interface VerdictInfo {
@@ -103,6 +104,7 @@ export default function App() {
   // Tutorial: the intro screen, then (after the lesson) the YapMaster's notes.
   const [tutoring, setTutoring] = useState(false);
   const [viewingMatches, setViewingMatches] = useState(false);
+  const [viewingLocker, setViewingLocker] = useState(false);
   const [debrief, setDebrief] = useState<DebriefInfo | null>(null);
   // Campaign: a win at the frontier unlocked the next opponent.
   const [unlocked, setUnlocked] = useState<{ level: number; unlocked: string | null } | null>(null);
@@ -709,6 +711,14 @@ export default function App() {
         onClaimed={(name) => setAccount({ ...account, name, needsName: false })}
       />
     );
+  } else if (viewingLocker && account) {
+    content = (
+      <Locker
+        account={account}
+        onSaved={(mask, maskDefault) => setAccount({ ...account, mask, maskDefault })}
+        onBack={() => setViewingLocker(false)}
+      />
+    );
   } else if (viewingMatches) {
     content = <Matches onBack={() => setViewingMatches(false)} />;
   } else if (spectating) {
@@ -845,6 +855,7 @@ export default function App() {
         onPlayBot={onPlayBot}
         onSpectate={(code) => setSpectating(code)}
         onMatches={() => setViewingMatches(true)}
+        onLocker={() => setViewingLocker(true)}
       />
     );
   }

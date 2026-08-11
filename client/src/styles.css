@@ -3168,3 +3168,22 @@ html[dir='rtl'] .meter-hint {
   flex: 1;
   min-width: 200px;
 }
+
+/* The locker */
+.locker-preview {
+  display: flex;
+  justify-content: center;
+  margin: 6px 0;
+}
+
+.locker-row {
+  max-width: 420px;
+}
+
+.locker-toggle {
+  max-width: 420px;
+}
+
+.locker-note {
+  margin-top: 4px;
+}

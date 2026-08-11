@@ -182,14 +182,37 @@ function MatchDetail({ match, onBack }: { match: FullMatch; onBack: () => void }
       <div className="card detail-card">
         <p className="summary">{v.summary}</p>
 
-        <div className="scoreboard-mini">
+        <div className="scoreboard">
+          <div className="score-head">
+            <span className="fighter for">
+              {match.my_side === 'FOR' ? 'you' : match.opponent} · {v.scores.FOR.argument + v.scores.FOR.evidence + v.scores.FOR.clash + v.scores.FOR.delivery}
+            </span>
+            <span className="vs">/100</span>
+            <span className="fighter against">
+              {match.my_side === 'AGAINST' ? 'you' : match.opponent} · {v.scores.AGAINST.argument + v.scores.AGAINST.evidence + v.scores.AGAINST.clash + v.scores.AGAINST.delivery}
+            </span>
+          </div>
           {CATS.map((c) => (
-            <div className="mini-row" key={c.key}>
-              <span className="mini-label">{t(c.labelKey)}</span>
-              <span className="mini-nums">
-                {v.scores[mySide][c.key]} <em>/ {c.max}</em>
-                <span className="mini-theirs">({v.scores[theirSide][c.key]})</span>
-              </span>
+            <div className="score-row" key={c.key}>
+              <span className="score-num">{v.scores.FOR[c.key]}</span>
+              <div className="score-bars">
+                <div className="score-bar left">
+                  <div
+                    className="score-fill fill-for"
+                    style={{ width: `${(v.scores.FOR[c.key] / c.max) * 100}%` }}
+                  />
+                </div>
+                <span className="score-label">
+                  {t(c.labelKey)} <em>/{c.max}</em>
+                </span>
+                <div className="score-bar">
+                  <div
+                    className="score-fill fill-against"
+                    style={{ width: `${(v.scores.AGAINST[c.key] / c.max) * 100}%` }}
+                  />
+                </div>
+              </div>
+              <span className="score-num">{v.scores.AGAINST[c.key]}</span>
             </div>
           ))}
         </div>

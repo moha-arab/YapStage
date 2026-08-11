@@ -41,6 +41,24 @@ export interface Account {
   name?: string;
   /** Signed in but hasn't claimed a yap name yet — the app blocks until they do. */
   needsName?: boolean;
+  /** The locker: your saved mask, and whether you wear it instead of a camera. */
+  mask?: string | null;
+  maskDefault?: boolean;
+}
+
+/** Save your mask choice to the account, so it follows you into every mode. */
+export async function saveLocker(mask: string, maskDefault: boolean): Promise<boolean> {
+  try {
+    const res = await fetch('/auth/locker', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ mask, maskDefault }),
+    });
+    const d = (await res.json()) as { ok?: boolean };
+    return Boolean(d.ok);
+  } catch {
+    return false;
+  }
 }
 
 /** Ask the server who we are. Adopts the account's player id as a side effect

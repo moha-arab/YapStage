@@ -90,6 +90,8 @@ export async function initStore(): Promise<void> {
     `);
     await pool.query(`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS username text`);
     await pool.query(`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS username_fold text`);
+    await pool.query(`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS mask text`);
+    await pool.query(`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS mask_default boolean NOT NULL DEFAULT false`);
     // Case-insensitive uniqueness: 'YapKing' and 'yapking' are the same person
     // to everyone reading a scoreboard, so they cannot both exist.
     await pool.query(
@@ -274,6 +276,30 @@ export interface AccountRow {
   name: string;
   /** Null until they claim one. The app blocks play until they do. */
   username: string | null;
+}
+
+/** The locker: your chosen mask, and whether you want it INSTEAD of a camera
+    by default. Ranked ignores the second flag (always masked). */
+export async function getLocker(sub: string): Promise<{ mask: string | null; maskDefault: boolean }> {
+  if (!pool || !ready) return { mask: null, maskDefault: false };
+  try {
+    const r = await pool.query(`SELECT mask, mask_default FROM accounts WHERE sub = $1`, [sub]);
+    if (r.rowCount !== 1) return { mask: null, maskDefault: false };
+    return { mask: (r.rows[0].mask as string) || null, maskDefault: Boolean(r.rows[0].mask_default) };
+  } catch {
+    return { mask: null, maskDefault: false };
+  }
+}
+
+export async function setLocker(sub: string, mask: string, maskDefault: boolean): Promise<boolean> {
+  if (!pool || !ready) return false;
+  try {
+    await pool.query(`UPDATE accounts SET mask = $2, mask_default = $3 WHERE sub = $1`, [sub, mask, maskDefault]);
+    return true;
+  } catch (err) {
+    console.error('[store] setLocker failed:', err);
+    return false;
+  }
 }
 
 export async function linkAccount(p: {

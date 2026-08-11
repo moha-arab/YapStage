@@ -8,6 +8,7 @@ import { Server } from 'socket.io';
 import {
   AVATAR_IDS,
   NAME_RE,
+  type AvatarId,
   type ClientToServer,
   type LobbyUpdate,
   type ServerToClient,
@@ -53,6 +54,7 @@ import { DISPUTE_MAX } from './dispute.js';
 import {
   campaignLocksOn,
   getCampaign,
+  getLocker,
   getPlayer,
   initStore,
   lastShutdown,
@@ -563,11 +565,25 @@ io.on('connection', (socket) => {
   // signed-in socket's name and playerId come from the signed cookie, never
   // from the payload. Signed-out sockets behave exactly as they always did.
   const sess = readSessionCookie(socket.handshake.headers.cookie);
-  if (sess?.name) socket.data.account = { sub: sess.sub, playerId: sess.playerId, name: sess.name };
+  if (sess?.name) {
+    socket.data.account = { sub: sess.sub, playerId: sess.playerId, name: sess.name };
+    // Locker: your saved mask follows you into every mode, including training,
+    // which has no green room to pick one in.
+    void getLocker(sess.sub).then((l) => {
+      if (socket.data.account) socket.data.locker = l;
+    });
+  }
   /** The name this socket is allowed to use. */
   const nameOf = (claimed: string): string => socket.data.account?.name ?? claimed;
   /** The ladder identity this socket is allowed to use. */
   const idOf = (claimed: string): string => socket.data.account?.playerId ?? claimed;
+  /** Seat defaults from the locker: the mask you saved, and whether you'd
+      rather wear it than show a camera. Ranked forces masked regardless; this
+      is what finally gives TRAINING a mask, since it has no green room. */
+  const seatLook = (): { avatarId: AvatarId; masked: boolean } => ({
+    avatarId: (socket.data.locker?.mask as AvatarId) ?? randomAvatar(),
+    masked: Boolean(socket.data.locker?.maskDefault),
+  });
   socket.on('lobby:create', (p, cb) => {
     if (typeof cb !== 'function') return;
     // Friendly ceiling: two friends never hit this; a lobby-spam script does.
@@ -579,6 +595,8 @@ io.on('connection', (socket) => {
     if (lobbyCount() >= MAX_LOBBIES) return cb({ ok: false, error: 'rate_limited' });
     releasePreviousSeat(socket);
     const lobby = createLobby(socket.id, String(p.sessionId ?? '').slice(0, 64), name);
+    lobby.host!.playerId = socket.data.account?.playerId;
+    Object.assign(lobby.host!, seatLook());
     event('lobby_created', { code: lobby.code });
     socket.data.code = lobby.code;
     socket.data.role = 'host';
@@ -607,8 +625,7 @@ io.on('connection', (socket) => {
       socketId: socket.id,
       sessionId: String(p.sessionId ?? '').slice(0, 64),
       name,
-      avatarId: randomAvatar(),
-      masked: false,
+      ...seatLook(),
       playerId: socket.data.account?.playerId,
       rtcReady: false,
     };
@@ -1144,6 +1161,7 @@ io.on('connection', (socket) => {
     releasePreviousSeat(socket);
     const lobby = createLobby(socket.id, String(p?.sessionId ?? '').slice(0, 64), name);
     lobby.host!.playerId = socket.data.account?.playerId;
+    Object.assign(lobby.host!, seatLook());
     lobby.pace = pace;
     lobby.bot = { id: bot.id, name: bot.name, difficulty: bot.difficulty, side: botSide, lang };
     if (playerId) lobby.campaign = { playerId, botRank: bot.rank };
@@ -1218,6 +1236,7 @@ io.on('connection', (socket) => {
     releasePreviousSeat(socket);
     const lobby = createLobby(socket.id, String(p?.sessionId ?? '').slice(0, 64), name);
     lobby.host!.playerId = socket.data.account?.playerId;
+    Object.assign(lobby.host!, seatLook());
     lobby.tutorial = true;
     lobby.bot = { id: tutor.id, name: tutor.name, difficulty: tutor.difficulty, side: 'FOR', lang };
     const playerId = idOf(String(p?.playerId ?? '').slice(0, 64));

@@ -36,9 +36,10 @@ interface Props {
   onPlayBot: (name: string) => void;
   onSpectate: (code: string) => void;
   onMatches: () => void;
+  onLocker: () => void;
 }
 
-export default function Home({ notice, onEntered, onPlayBot, onSpectate, onMatches }: Props) {
+export default function Home({ notice, onEntered, onPlayBot, onSpectate, onMatches, onLocker }: Props) {
   const { t } = useI18n();
   const [name, setName] = useState('');
   const [mode, setMode] = useState<Mode>('ranked');
@@ -305,6 +306,9 @@ export default function Home({ notice, onEntered, onPlayBot, onSpectate, onMatch
         <div className="bar-right">
           {account.signedIn ? (
             <>
+              <button className="btn btn-small ghost" onClick={onLocker}>
+                {t('lockerPill')}
+              </button>
               <button className="btn btn-small ghost" onClick={onMatches}>
                 {t('myMatches')}
               </button>

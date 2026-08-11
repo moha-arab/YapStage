@@ -8,8 +8,8 @@
 import crypto from 'node:crypto';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { event } from './stats.js';
-import { nameProblem } from './protocol.js';
-import { claimUsername, linkAccount, type AccountRow } from './store.js';
+import { AVATAR_IDS, nameProblem } from './protocol.js';
+import { claimUsername, getLocker, linkAccount, setLocker, type AccountRow } from './store.js';
 
 const AUTH_URL = 'https://accounts.google.com/o/oauth2/v2/auth';
 const TOKEN_URL = 'https://oauth2.googleapis.com/token';
@@ -213,12 +213,15 @@ export function registerAuth(app: FastifyInstance): void {
   app.get('/auth/me', async (req) => {
     const s = readSession(req);
     if (!s) return { signedIn: false, google: googleConfigured() };
+    const locker = await getLocker(s.sub);
     return {
       signedIn: true,
       google: true,
       playerId: s.playerId,
       name: s.name,
       needsName: !s.name,
+      mask: locker.mask,
+      maskDefault: locker.maskDefault,
     };
   });
 
@@ -237,6 +240,19 @@ export function registerAuth(app: FastifyInstance): void {
     const session: Session = { ...s, name };
     setCookie(reply, SESSION_COOKIE, packSession(session), SESSION_DAYS * 24 * 60 * 60);
     return { ok: true, name };
+  });
+
+  /** The locker: your mask, and whether you want it instead of a camera by
+      default. Ranked ignores maskDefault (it is always masked). */
+  app.post<{ Body: { mask?: string; maskDefault?: boolean } }>('/auth/locker', async (req, reply) => {
+    const s = readSession(req);
+    if (!s) return reply.code(401).send({ ok: false });
+    const mask = String(req.body?.mask ?? '');
+    if (!(AVATAR_IDS as readonly string[]).includes(mask)) {
+      return reply.code(400).send({ ok: false, error: 'bad_mask' });
+    }
+    const ok = await setLocker(s.sub, mask, Boolean(req.body?.maskDefault));
+    return { ok };
   });
 
   app.post('/auth/logout', async (_req, reply) => {
