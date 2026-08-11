@@ -6,6 +6,7 @@ import Fastify from 'fastify';
 import fastifyStatic from '@fastify/static';
 import { Server } from 'socket.io';
 import {
+  AVATAR_IDS,
   NAME_RE,
   type ClientToServer,
   type LobbyUpdate,
@@ -22,6 +23,7 @@ import {
   lobbyCount,
   participantOf,
   peerOf,
+  randomAvatar,
   sideOf,
   startSweep,
   touch,
@@ -140,6 +142,22 @@ app.get('/healthz', async () => ({
 }));
 
 app.get('/bots', async () => ({ bots: publicBots(), topics: TOPIC_CATEGORIES }));
+
+// Feed v1 (the "tiktok" spectate): one random LIVE ranked debate, no filters
+// on purpose — his call. `not` skips the debate you're already watching so
+// "next" never hands you the same one back.
+app.get<{ Querystring: { not?: string } }>('/spectate/random', async (req) => {
+  const skip = String(req.query.not ?? '').toUpperCase();
+  const live = allLobbies().filter(
+    (l) =>
+      Boolean(l.ranked) &&
+      l.status === 'in_debate' &&
+      l.code !== skip &&
+      spectatorCount(l.code) < SPECTATOR_CAP,
+  );
+  if (live.length === 0) return { code: null };
+  return { code: live[Math.floor(Math.random() * live.length)].code };
+});
 
 // Gate with STATS_KEY when set (404 so the endpoint doesn't advertise itself);
 // public when unset — zero-config for casual use, lockable in one env var.
@@ -281,7 +299,7 @@ function tryMatch(): void {
       break;
     }
     const lobby = createLobby(a.socketId, a.sessionId, a.name);
-    lobby.guest = { socketId: b.socketId, sessionId: b.sessionId, name: b.name, rtcReady: false };
+    lobby.guest = { socketId: b.socketId, sessionId: b.sessionId, name: b.name, avatarId: randomAvatar(), rtcReady: false };
     lobby.status = 'greenroom';
     lobby.topicMode = 'random'; // strangers never negotiate a topic
     lobby.ranked = { host: a.playerId, guest: b.playerId };
@@ -303,7 +321,9 @@ function tryMatch(): void {
 // socket room (free live state: phases, verdicts, aborts) and a spec room
 // (audio relays). Debaters always see the watcher count.
 const spectators = new Map<string, Set<string>>(); // code -> socketIds
-const SPECTATOR_CAP = 20;
+// 100 is still just a safety rail on the naive one-process audio fan-out;
+// real broadcast scale is the SFU tier (PRD). Was 20 before 2026-08-09.
+const SPECTATOR_CAP = 100;
 
 function spectatorCount(code: string): number {
   return spectators.get(code)?.size ?? 0;
@@ -341,6 +361,12 @@ function spectateStateFor(lobby: Lobby): import('./protocol.js').SpectateState {
       : undefined,
     phase: lobby.status === 'in_debate' ? lobby.lastPhase : undefined,
     watchers: spectatorCount(lobby.code),
+    avatars: lobby.sides
+      ? {
+          ...(lobby.host && lobby.sides.host ? { [lobby.sides.host]: lobby.host.avatarId } : {}),
+          ...(lobby.guest && lobby.sides.guest ? { [lobby.sides.guest]: lobby.guest.avatarId } : {}),
+        }
+      : undefined,
   };
 }
 
@@ -376,6 +402,9 @@ function updateFor(lobby: Lobby, receiver: Participant): LobbyUpdate {
     iceServers: getIceServers(),
     sttAvailable: sttConfigured(),
     ranked: Boolean(lobby.ranked),
+    yourAvatar: receiver.avatarId,
+    peerAvatar: peer?.avatarId,
+    spectatorsAllowed: lobby.spectatorsAllowed,
   };
 }
 
@@ -502,6 +531,7 @@ io.on('connection', (socket) => {
       socketId: socket.id,
       sessionId: String(p.sessionId ?? '').slice(0, 64),
       name,
+      avatarId: randomAvatar(),
       rtcReady: false,
     };
     lobby.status = 'greenroom';
@@ -600,6 +630,33 @@ io.on('connection', (socket) => {
     lobby.pace = pace;
     lobby.pick.hostConfirmed = false;
     lobby.pick.guestConfirmed = false;
+    touch(lobby);
+    broadcastLobbyUpdate(lobby);
+  });
+
+  // Pick your mask. Any seat, any pre-debate moment (ranked green room too —
+  // it's the one choice ranked allows). Doesn't reset confirmations: cosmetic.
+  socket.on('pick:avatar', (id) => {
+    if (!allow(`pick:${socket.id}`, 60, 10_000)) return;
+    const lobby = socket.data.code ? getLobby(socket.data.code) : undefined;
+    if (!lobby || (lobby.status !== 'greenroom' && lobby.status !== 'waiting')) return;
+    const me = participantOf(lobby, socket.id);
+    if (!me) return;
+    if (!(AVATAR_IDS as readonly string[]).includes(String(id))) return;
+    me.avatarId = String(id) as (typeof AVATAR_IDS)[number];
+    touch(lobby);
+    broadcastLobbyUpdate(lobby);
+  });
+
+  // Open or shut the door to watchers. Host-only, custom only — ranked is the
+  // public sport and always spectatable.
+  socket.on('pick:spectators', (allowed) => {
+    if (!allow(`pick:${socket.id}`, 60, 10_000)) return;
+    const lobby = socket.data.code ? getLobby(socket.data.code) : undefined;
+    if (!lobby || lobby.ranked) return;
+    if (lobby.status !== 'greenroom' && lobby.status !== 'waiting') return;
+    if (participantOf(lobby, socket.id) !== lobby.host) return;
+    lobby.spectatorsAllowed = Boolean(allowed);
     touch(lobby);
     broadcastLobbyUpdate(lobby);
   });
@@ -921,6 +978,8 @@ io.on('connection', (socket) => {
     const lobby = getLobby(String(p?.code ?? '').slice(0, 8));
     if (!lobby) return cb({ ok: false, error: 'not_found' });
     if (participantOf(lobby, socket.id)) return cb({ ok: false, error: 'not_found' });
+    // The host shut the door (custom only — ranked is always spectatable).
+    if (!lobby.ranked && !lobby.spectatorsAllowed) return cb({ ok: false, error: 'not_found' });
     if (spectatorCount(lobby.code) >= SPECTATOR_CAP) return cb({ ok: false, error: 'full' });
     const set = spectators.get(lobby.code) ?? new Set<string>();
     set.add(socket.id);

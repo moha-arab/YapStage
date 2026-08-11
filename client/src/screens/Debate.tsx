@@ -152,6 +152,8 @@ export default function Debate({
             stream={localStream}
             muted
             mirror
+            maskId={start.avatars?.[mySide] && !localStream ? start.avatars[mySide] : undefined}
+            level={localLevel}
             label={start.names[mySide]}
             sub={`${t('you')} · ${label(mySide)}`}
             side={mySide}
@@ -182,6 +184,8 @@ export default function Debate({
             <VideoTile
               stream={remoteStream}
               muted={remoteMuted}
+              maskId={start.avatars?.[peerSide] && !remoteStream ? start.avatars[peerSide] : undefined}
+              level={remoteLevel}
               label={start.names[peerSide]}
               sub={label(peerSide)}
               side={peerSide}

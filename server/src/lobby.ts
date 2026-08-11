@@ -1,4 +1,5 @@
 import type {
+  AvatarId,
   Difficulty,
   Framing,
   Pace,
@@ -7,11 +8,20 @@ import type {
   TopicText,
   Verdict,
 } from './protocol.js';
+import { AVATAR_IDS } from './protocol.js';
+
+/** Everyone gets a mask the moment they take a seat; picking a different one
+    in the green room is optional. */
+export function randomAvatar(): AvatarId {
+  return AVATAR_IDS[Math.floor(Math.random() * AVATAR_IDS.length)];
+}
 
 export interface Participant {
   socketId: string;
   sessionId: string;
   name: string;
+  /** The mask this player wears (always set; ranked shows only masks). */
+  avatarId: AvatarId;
   rtcReady: boolean; // gUM done, tracks added, handlers registered
   disconnectedAt?: number;
   graceTimer?: NodeJS.Timeout;
@@ -83,6 +93,10 @@ export interface Lobby {
   campaign?: { playerId: string; botRank: number };
   /** Session ids that already filed a report this debate (one each). */
   reportedBy?: Set<string>;
+  /** Host-controlled (custom): whether the code admits watchers. Ranked is
+      always spectatable — it's the public sport. Defaults open: the code is
+      already a key, but the host can shut the door entirely. */
+  spectatorsAllowed: boolean;
   /** Rating movement after a ranked verdict, kept so a re-fetch replays it. */
   eloResult?: Record<Side, { before: number; after: number }>;
   /** The last debate:phase payload sent, so a mid-debate spectator (or a
@@ -141,7 +155,7 @@ export function createLobby(socketId: string, sessionId: string, name: string): 
   const now = Date.now();
   const lobby: Lobby = {
     code: generateCode(),
-    host: { socketId, sessionId, name, rtcReady: false },
+    host: { socketId, sessionId, name, avatarId: randomAvatar(), rtcReady: false },
     status: 'waiting',
     topicMode: 'agree',
     categoryKey: null,
@@ -167,6 +181,7 @@ export function createLobby(socketId: string, sessionId: string, name: string): 
     judgeAttempts: 0,
     lastJudgeAt: 0,
     rematch: { host: false, guest: false },
+    spectatorsAllowed: true,
     botFailures: 0,
     coachAsks: 0,
     coachLog: [],

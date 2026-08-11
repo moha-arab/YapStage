@@ -98,6 +98,21 @@ export interface Framing {
   said: Record<Side, string>;
 }
 
+/** The founding mask set — humans wear masks, bots are animals, so who's a
+    machine is legible at a glance. Ids are the shared contract; the art
+    lives client-side. Forever-free defaults; rarity comes from future drops. */
+export const AVATAR_IDS = [
+  'luchador',
+  'kitsune',
+  'oni',
+  'masque',
+  'knight',
+  'boxer',
+  'goalie',
+  'astro',
+] as const;
+export type AvatarId = (typeof AVATAR_IDS)[number];
+
 export interface LobbyUpdate {
   code: string;
   role: Role;
@@ -117,6 +132,12 @@ export interface LobbyUpdate {
   /** Ranked match: paired from the queue, random topic, fixed pace, no picks,
       ratings on the line. */
   ranked?: boolean;
+  /** Everyone always has a mask (ranked shows ONLY masks; custom may show
+      cameras instead, each player's own choice). */
+  yourAvatar: AvatarId;
+  peerAvatar?: AvatarId;
+  /** Custom only, host-controlled: whether the code admits watchers. */
+  spectatorsAllowed: boolean;
 }
 
 /** Everything a spectator needs to watch a debate they are not in. */
@@ -130,6 +151,9 @@ export interface SpectateState {
   /** The current phase, so a mid-debate joiner lands on a live clock. */
   phase?: PhaseUpdate;
   watchers: number;
+  /** Human debaters' masks by side (bots use their own art). Spectators see
+      masks unless the debate is camera-on custom with video relay (SFU, later). */
+  avatars?: Partial<Record<Side, AvatarId>>;
 }
 
 export interface DebateStart {
@@ -140,6 +164,8 @@ export interface DebateStart {
   serverNow: number;
   /** Present only in bots mode — the opponent is this AI, not a human peer. */
   bot?: { id: string; name: string; color: string };
+  /** Human debaters' masks by side. In ranked these are the only faces. */
+  avatars?: Partial<Record<Side, AvatarId>>;
   /** Dispute mode only: the argument and each side's position, shown instead of
       FOR/AGAINST. Written during the reveal countdown, so it costs no waiting. */
   framing?: Framing;
@@ -215,6 +241,8 @@ export interface ClientToServer {
   'pick:mode': (mode: TopicMode) => void; // host only: how the topic is decided
   'pick:category': (key: string) => void; // host only: category for 'category' mode
   'pick:pace': (pace: Pace) => void; // host only: turn lengths
+  'pick:avatar': (id: string) => void; // any seat, pre-debate: choose your mask
+  'pick:spectators': (allowed: boolean) => void; // host only, custom: open the door to watchers
   'pick:topic': (topicId: string) => void; // set YOUR topic choice (by id)
   /** Dispute mode: describe the argument in YOUR own words (≤400 chars). */
   'pick:dispute': (text: string) => void;

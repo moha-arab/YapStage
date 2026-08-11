@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type { Side } from '../../server/src/protocol';
 import { useI18n } from './i18n';
+import Mask from './Mask';
 
 interface Props {
   stream: MediaStream | null;
@@ -13,6 +14,11 @@ interface Props {
   placeholder?: string;
   /** Remote camera died while the connection stayed up — overlay the tile. */
   dead?: boolean;
+  /** Mask mode: no camera at all, this player debates behind a mask. The tile
+      renders the mask instead of video and the mouth works off . */
+  maskId?: string;
+  /** 0..1 mic level, so the mask reacts to YOUR voice (own tile only). */
+  level?: number;
 }
 
 export default function VideoTile(props: Props) {
@@ -68,6 +74,30 @@ export default function VideoTile(props: Props) {
   }, [props.muted]);
 
   const sideClass = props.side === 'FOR' ? 'tile-for' : props.side === 'AGAINST' ? 'tile-against' : '';
+
+  // Masked player: the tile IS the mask. No video element is ever created, so
+  // a masked debate needs no camera permission at all.
+  if (props.maskId) {
+    const loud = (props.level ?? 0) > 0.08;
+    return (
+      <div className={`tile tile-masked ${sideClass} ${props.active ? 'tile-active' : ''}`}>
+        <div className="tile-mask-wrap">
+          <Mask
+            id={props.maskId}
+            size={132}
+            speaking={Boolean(props.active && loud)}
+            color={props.side === 'FOR' ? 'var(--for)' : props.side === 'AGAINST' ? 'var(--against)' : undefined}
+          />
+        </div>
+        <div className="tag">
+          <span className="tag-name">{props.label}</span>
+          {props.sub ? <span className="tag-sub">{props.sub}</span> : null}
+        </div>
+        {props.active ? <div className="live-pill">{t('onTheMic')}</div> : null}
+      </div>
+    );
+  }
+
   return (
     <div className={`tile ${sideClass} ${props.active ? 'tile-active' : ''}`}>
       {props.stream ? (

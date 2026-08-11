@@ -16,6 +16,7 @@ import {
   reacquireMedia,
   releaseMedia,
   setMicEnabled,
+  setAudioOnly,
   setTrackHealthHandlers,
   setupPeer,
   teardownPeer,
@@ -548,6 +549,12 @@ export default function App() {
   // Camera starts the moment you're in a lobby OR picking a bot: the solo green
   // room / bot picker is a mirror check, not a dead black rectangle. Also
   // surfaces permission problems before the debate.
+  // Ranked is masked: ask for a mic only, so no camera light ever turns on
+  // and no permission prompt appears for a face nobody will see.
+  useEffect(() => {
+    if (lobby?.ranked) setAudioOnly(true);
+  }, [lobby?.ranked]);
+
   useEffect(() => {
     if (!lobby && !botPicking && !tutoring && !start?.bot) return;
     let cancelled = false;

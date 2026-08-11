@@ -10,6 +10,7 @@ import { useI18n } from '../i18n';
 import { formatClock, useCountdown } from '../useCountdown';
 import { enqueueSpectateAudio, stopSpectateAudio } from '../specaudio';
 import BotAvatar from '../BotAvatar';
+import Mask from '../Mask';
 
 interface Props {
   code: string;
@@ -95,6 +96,15 @@ export default function Spectate({ code, initial, onLeave }: Props) {
       <div className={`spec-fighter ${side === 'FOR' ? 'for' : 'against'} ${active ? 'spec-live' : ''}`}>
         {isBot && state?.bot ? (
           <BotAvatar botId={state.bot.id} color={state.bot.color} speaking={active} size={110} />
+        ) : state?.avatars?.[side] ? (
+          // Humans wear masks here. Watching a ranked debate you see exactly
+          // this and nothing else — the mask IS the face of the sport.
+          <Mask
+            id={state.avatars[side]!}
+            size={110}
+            speaking={active}
+            color={side === 'FOR' ? 'var(--for)' : 'var(--against)'}
+          />
         ) : (
           <span className="spec-fighter-glyph">{side === 'FOR' ? '🔴' : '🔵'}</span>
         )}

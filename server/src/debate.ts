@@ -1,5 +1,6 @@
 import type { Server } from 'socket.io';
 import type {
+  AvatarId,
   ClientToServer,
   Difficulty,
   Pace,
@@ -193,12 +194,23 @@ export async function startDispute(
       names,
       startsAt,
       serverNow: now,
+      avatars: avatarsOf(lobby),
       framing: result.framing,
     });
   }
   lobby.stepIndex = -1;
   lobby.phaseTimer = setTimeout(() => advance(io, lobby, -1), reveal);
   onDebateStarted?.(lobby);
+}
+
+/** Human debaters' masks by side. Bot sides carry no entry — bots have their
+    own art. Ranked renders ONLY these; custom may show cameras instead. */
+function avatarsOf(lobby: Lobby): Partial<Record<Side, AvatarId>> {
+  if (!lobby.sides) return {};
+  const out: Partial<Record<Side, AvatarId>> = {};
+  if (lobby.host) out[lobby.sides.host] = lobby.host.avatarId;
+  if (lobby.guest) out[lobby.sides.guest] = lobby.guest.avatarId;
+  return out;
 }
 
 export function startDebate(io: Io, lobby: Lobby): void {
@@ -249,12 +261,14 @@ export function startDebate(io: Io, lobby: Lobby): void {
   const now = Date.now();
   const reveal = revealMs(lobby);
   const startsAt = now + reveal;
+  const avatars = avatarsOf(lobby);
   io.to(lobby.host.socketId).emit('debate:start', {
     topic: lobby.topic,
     yourSide: lobby.sides.host,
     names,
     startsAt,
     serverNow: now,
+    avatars,
   });
   io.to(lobby.guest.socketId).emit('debate:start', {
     topic: lobby.topic,
@@ -262,6 +276,7 @@ export function startDebate(io: Io, lobby: Lobby): void {
     names,
     startsAt,
     serverNow: now,
+    avatars,
   });
 
   lobby.stepIndex = -1;
@@ -723,6 +738,8 @@ export function resendState(io: Io, lobby: Lobby, participant: Participant): voi
         names: namesOf(lobby),
         startsAt: lobby.stepStartedAt, // already in the past — no reveal replay
         serverNow: now,
+        avatars: avatarsOf(lobby),
+        ...(lobby.framing ? { framing: lobby.framing } : {}),
       });
     }
   };

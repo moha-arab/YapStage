@@ -30,6 +30,17 @@ function watchLocalTracks(s: MediaStream): void {
   }
 }
 
+/** Masked play (all of ranked, and custom when you choose a mask) never asks
+    for a camera at all — no permission prompt, no lit camera light, nothing to
+    leak. Set BEFORE the first ensureLocalStream call for a session. */
+let audioOnly = false;
+export function setAudioOnly(on: boolean): void {
+  audioOnly = on;
+}
+export function isAudioOnly(): boolean {
+  return audioOnly;
+}
+
 export function ensureLocalStream(): Promise<MediaStream> {
   if (localStream) return Promise.resolve(localStream);
   // In-flight dedup: overlapping calls (effect re-runs while the permission
@@ -39,7 +50,7 @@ export function ensureLocalStream(): Promise<MediaStream> {
   if (!localStreamPromise) {
     localStreamPromise = navigator.mediaDevices
       .getUserMedia({
-        video: { width: { ideal: 1280 }, height: { ideal: 720 } },
+        video: audioOnly ? false : { width: { ideal: 1280 }, height: { ideal: 720 } },
         // echoCancellation matters twice over: call quality AND keeping the
         // opponent's voice out of this side's speech transcript.
         audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },

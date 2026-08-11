@@ -2749,3 +2749,81 @@ html[dir='rtl'] .meter-hint {
   font-size: 13px;
   color: var(--gold);
 }
+
+/* ===== masks: humans behind faces, the VTuber half of the roster ===== */
+.mask-avatar {
+  background: linear-gradient(180deg, #241f18, #16130f);
+}
+
+.tile-masked {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: repeating-linear-gradient(
+    135deg,
+    #1a1712,
+    #1a1712 12px,
+    #1d1a15 12px,
+    #1d1a15 24px
+  );
+}
+
+.tile-mask-wrap {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  padding: 12px;
+}
+
+.face-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 10px;
+  align-items: center;
+}
+
+.face-row {
+  justify-content: center;
+}
+
+.mask-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: center;
+}
+
+.mask-row {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  justify-content: center;
+  max-width: 340px;
+}
+
+.mask-chip {
+  background: none;
+  border: 3px solid transparent;
+  border-radius: 2px;
+  padding: 0;
+  cursor: pointer;
+  line-height: 0;
+  opacity: 0.55;
+  transition: opacity 0.1s ease, transform 0.1s ease;
+}
+
+.mask-chip:hover {
+  opacity: 0.85;
+}
+
+.mask-chip-on {
+  opacity: 1;
+  border-color: var(--gold);
+  transform: translate(-1px, -1px);
+}
+
+.mask-chip .bot-avatar {
+  border-width: 2px;
+}

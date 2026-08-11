@@ -10,6 +10,7 @@ import { useAudioLevel } from '../useAudioLevel';
 import { useI18n } from '../i18n';
 import MicMeter from '../MicMeter';
 import VideoTile from '../VideoTile';
+import MaskPicker from '../MaskPicker';
 
 interface Props {
   lobby: LobbyUpdate;
@@ -43,6 +44,15 @@ export default function GreenRoom({
 
   const localLevel = useAudioLevel(localStream);
   const remoteLevel = useAudioLevel(remoteStream);
+
+  // Ranked is masked, always — no faces between strangers. Custom is each
+  // player's own choice; `faceMode` is local (your camera, your call) and the
+  // mask id itself is server state so your opponent sees the same face.
+  const [faceOn, setFaceOn] = useState(true);
+  const masked = Boolean(lobby.ranked) || !faceOn;
+  // We can't see the peer's local choice directly, but a masked peer never
+  // sends video: no remote stream once connected means they're behind a mask.
+  const peerMasked = Boolean(lobby.ranked) || (connected && !remoteStream);
 
   // Mic proof-of-life: if the mic has never moved the meter, say so before
   // the debate, not after the verdict comes back with one side missing.
@@ -128,12 +138,43 @@ export default function GreenRoom({
         stream={localStream}
         muted
         mirror
+        maskId={masked ? lobby.yourAvatar : undefined}
+        level={localLevel}
         label={lobby.yourName}
         sub={t('you')}
         placeholder={mediaError ? t('cameraBlocked') : t('cameraWarming')}
       />
       {localStream ? <MicMeter level={localLevel} label={t('yourMic')} warn={micSilent} /> : null}
       {localStream && micSilent ? <p className="meter-hint">{t('micHint')}</p> : null}
+
+      {/* Ranked: masks are the format, so this is purely "which mask". Custom:
+          you also choose whether to show your face at all. */}
+      <div className="face-controls">
+        {!lobby.ranked ? (
+          <div className="chip-row face-row">
+            <button
+              className={`cat-tab ${faceOn ? 'cat-active' : ''}`}
+              onClick={() => setFaceOn(true)}
+            >
+              {t('faceCamera')}
+            </button>
+            <button
+              className={`cat-tab ${!faceOn ? 'cat-active' : ''}`}
+              onClick={() => setFaceOn(false)}
+            >
+              {t('faceMask')}
+            </button>
+          </div>
+        ) : (
+          <span className="mode-hint">{t('rankedMasked')}</span>
+        )}
+        {masked ? (
+          <MaskPicker
+            value={lobby.yourAvatar}
+            onPick={(id) => socket.emit('pick:avatar', id)}
+          />
+        ) : null}
+      </div>
     </div>
   );
 
@@ -173,6 +214,8 @@ export default function GreenRoom({
               <VideoTile
                 stream={remoteStream}
                 muted={false}
+                maskId={peerMasked ? lobby.peerAvatar : undefined}
+                level={remoteLevel}
                 label={lobby.peerName ?? '...'}
                 sub={pick.peerConfirmed ? t('confirmed') : undefined}
                 placeholder={t('connectingTheirCamera')}
@@ -368,13 +411,38 @@ export default function GreenRoom({
               </div>
             ) : null}
 
+            {/* Who may watch. Host-only, custom-only: ranked is the public
+                sport and is always spectatable (said so in the consent line). */}
+            {isHost && !lobby.ranked ? (
+              <div className="setup-row">
+                <span className="setup-label">{t('watchersLabel')}</span>
+                <div className="chip-row">
+                  <button
+                    className={`cat-tab ${lobby.spectatorsAllowed ? 'cat-active' : ''}`}
+                    onClick={() => socket.emit('pick:spectators', true)}
+                  >
+                    {t('watchersOpen')}
+                  </button>
+                  <button
+                    className={`cat-tab ${!lobby.spectatorsAllowed ? 'cat-active' : ''}`}
+                    onClick={() => socket.emit('pick:spectators', false)}
+                  >
+                    {t('watchersShut')}
+                  </button>
+                </div>
+                <span className="pace-hint">
+                  {t(lobby.spectatorsAllowed ? 'watchersOpenHint' : 'watchersShutHint')}
+                </span>
+              </div>
+            ) : null}
+
             <label className="consent-row">
               <input
                 type="checkbox"
                 checked={consent}
                 onChange={(e) => setConsent(e.target.checked)}
               />
-              <span>{t('consent')}</span>
+              <span>{t(lobby.ranked ? 'consentRanked' : 'consent')}</span>
             </label>
 
             <button className="btn btn-primary btn-wide" disabled={!canConfirm} onClick={confirm}>
