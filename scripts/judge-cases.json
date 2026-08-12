@@ -531,6 +531,198 @@
           "text": "If your best defense is 'it would work if we deregulated the exact markets where people actually live,' you're conceding that the system as this generation experiences it isn't delivering. Low unemployment doesn't help when a full-time job no longer clears rent, childcare, and a shot at ownership, which is why so many under-35s report they can't picture the milestones their parents hit by 30. Failing this generation doesn't mean producing nothing, it means breaking the promise that effort buys security, and on that promise the verdict is already in."
         }
       ]
+    },
+    {
+      "id": "fab-unchallenged",
+      "motionEn": "Homework should be abolished in primary schools",
+      "intendedStronger": "AGAINST",
+      "note": "FOR's entire case rests on an invented statistic that is never explained (no sample, no measure, no mechanism) and is never challenged. AGAINST cites nothing but explains real mechanisms end to end and answers FOR directly. A judge that rewards the name-drop over the explanation picks FOR and fails.",
+      "lines": [
+        {
+          "stepIndex": 0,
+          "side": "FOR",
+          "text": "so a 2019 stanford study of forty thousand primary students found that homework reduces academic achievement by twenty three percent. that's the whole ballgame really. twenty three percent. we're taking hours off kids every single week and getting worse results for it, so primary homework should go."
+        },
+        {
+          "stepIndex": 1,
+          "side": "AGAINST",
+          "text": "here's why homework earns its place at this age. the skill primary school is actually building is not algebra, it's the habit of sitting down and doing a small hard thing without an adult standing over you. that habit has to be practiced somewhere and school is entirely supervised, so home is the only place it can happen. second, it's the one window a parent has into what their kid can and cannot do. abolish it and the first time a parent learns their child can't read fluently is a report card in march."
+        },
+        {
+          "stepIndex": 2,
+          "side": "FOR",
+          "text": "my opponent is talking about habits and parents but the stanford number is right there. twenty three percent worse. you can't argue habits against data that big. if the homework is making them worse at school then whatever else it's teaching them isn't worth it."
+        },
+        {
+          "stepIndex": 3,
+          "side": "AGAINST",
+          "text": "they've said the number twice now and still not told us what it measured, who was in it, or how homework was supposed to have caused it. i'll take it at face value anyway and it still doesn't win, because a school that assigns hours of pointless worksheets is an argument against BAD homework, not against homework. my case was twenty minutes of reading and the parent window, and neither of those has been answered."
+        },
+        {
+          "stepIndex": 4,
+          "side": "AGAINST",
+          "text": "on my side, the independence habit still stands untouched. they've not said where else a seven year old practices working alone. and the parent window is the thing that actually catches a struggling kid early, which is worth more than any single test score, because a kid who falls behind in year two and isn't caught stays behind."
+        },
+        {
+          "stepIndex": 5,
+          "side": "FOR",
+          "text": "look, twenty three percent. i keep coming back to it because it's the strongest thing anyone has said in this debate. kids are tired and they hate it and the research backs that up."
+        },
+        {
+          "stepIndex": 6,
+          "side": "AGAINST",
+          "text": "so what decides this. they brought one number and never once explained how homework caused it, and i brought two mechanisms, independence practice and early detection, that they never touched. even if their number is exactly right it tells us to fix homework, not to delete it."
+        },
+        {
+          "stepIndex": 7,
+          "side": "FOR",
+          "text": "we should abolish it because the research says it makes kids worse off, and nothing my opponent said outweighs a twenty three percent drop in achievement."
+        }
+      ]
+    },
+    {
+      "id": "fab-challenged",
+      "motionEn": "Cities should ban cars from their downtown core",
+      "intendedStronger": "AGAINST",
+      "note": "FOR cites a specific study, is challenged directly and precisely, and never substantiates it, repeating the number instead. AGAINST both challenges and carries its own explained case. A judge that lets an unsubstantiated citation keep its value picks FOR and fails.",
+      "lines": [
+        {
+          "stepIndex": 0,
+          "side": "FOR",
+          "text": "ban cars downtown. a 2021 mit transport study across sixty cities found downtown car bans cut retail vacancy by thirty one percent and raised foot traffic by half. cleaner air, safer streets, and the shops do better. it's the rare policy where everybody wins."
+        },
+        {
+          "stepIndex": 1,
+          "side": "AGAINST",
+          "text": "i want to know what that study actually measured before we build a city on it. sixty cities across what years, banned to what extent, and compared against what. because the version of this policy that gets implemented is usually a few pedestrian streets, not a real ban, and those are not the same thing. my own case is simpler. a downtown ban moves the problem rather than solving it. the delivery vans still come, they just idle at the perimeter, and the people who cannot walk or cycle, the disabled, the elderly, parents with a toddler and a week of shopping, get quietly priced out of the city centre entirely."
+        },
+        {
+          "stepIndex": 2,
+          "side": "FOR",
+          "text": "thirty one percent vacancy reduction. half again on foot traffic. those are the numbers and they're from mit. my opponent wants to talk about vans but the data covers sixty cities, that's not a fluke."
+        },
+        {
+          "stepIndex": 3,
+          "side": "AGAINST",
+          "text": "i asked three specific questions about that study and got the headline repeated instead, so i'm going to treat it as an assertion until somebody tells me what it measured. and notice the accessibility point hasn't been answered at all. a wheelchair user does not get to the pharmacy on foot traffic statistics. on deliveries, every downtown ban in practice carves out an exemption for freight, which means the lorries stay and the family car goes, and that's the trade nobody votes for."
+        },
+        {
+          "stepIndex": 4,
+          "side": "AGAINST",
+          "text": "my accessibility argument is now two speeches old and untouched. and the perimeter effect is worse than doing nothing, because you concentrate the traffic and the fumes on the ring road, which in most cities is where the cheaper housing is. you clean the air where the shops are and you dirty it where people sleep."
+        },
+        {
+          "stepIndex": 5,
+          "side": "FOR",
+          "text": "the study is real, it's mit, i don't have the pdf in front of me. thirty one percent. shops do better and that's what downtown is for."
+        },
+        {
+          "stepIndex": 6,
+          "side": "AGAINST",
+          "text": "the debate comes down to one citation that was asked about directly and never explained, against two things i said that were never answered: who gets locked out, and where the traffic actually goes. if the study said what they say it says, they had four speeches to tell us how."
+        },
+        {
+          "stepIndex": 7,
+          "side": "FOR",
+          "text": "sixty cities, thirty one percent, half again on foot traffic. the evidence is on our side and my opponent has offered feelings about vans."
+        }
+      ]
+    },
+    {
+      "id": "fab-false-alarm",
+      "motionEn": "Night shift work should be classified as a health hazard",
+      "intendedStronger": "FOR",
+      "note": "THE FALSE-POSITIVE TRAP. FOR cites real, obscure evidence and explains it thoroughly (what it measured, the population, the mechanism). AGAINST offers no counter-evidence and instead accuses FOR of making it up. A judge that discounts explained evidence merely because it was accused picks AGAINST and fails. This case guards the fabrication rule from over-applying.",
+      "lines": [
+        {
+          "stepIndex": 0,
+          "side": "FOR",
+          "text": "night work should carry a hazard classification, and the mechanism is the argument, not the label. your body runs on a clock set by morning light. work nights and you eat, sleep and dose yourself with light at hours your metabolism is not set up for, and the measurable results are worse glucose control and disrupted melatonin. the world health organization's cancer research arm reviewed this and classed shift work involving circadian disruption as a probable human carcinogen, group 2a, the same tier as red meat. that is not me calling it dangerous, that is the review body saying the evidence in humans is limited but the animal and mechanistic evidence is strong."
+        },
+        {
+          "stepIndex": 1,
+          "side": "AGAINST",
+          "text": "i'm going to be honest, that sounds made up. group 2a, probable carcinogen, the same as red meat, it's very convenient. anyone can invent an acronym in a debate. and beyond that, nurses and bakers and pilots have worked nights for a century without us calling their jobs hazardous, so i think we should be slow to slap a label on an entire way of working."
+        },
+        {
+          "stepIndex": 2,
+          "side": "FOR",
+          "text": "then let me give you the details rather than the acronym. the classification came out of a 2007 monograph and was re-evaluated in 2019, and what it rests on is three separate strands: long-term nurse cohort studies showing elevated breast cancer rates with years of rotating nights, animal studies where light at night accelerates tumour growth, and the melatonin mechanism, since melatonin is suppressed by light and has a role in cell repair. limited in humans, sufficient in animals, strong mechanistically, which is exactly what 2a means. and on the century point, we worked with asbestos for a century too. duration is not safety evidence."
+        },
+        {
+          "stepIndex": 3,
+          "side": "AGAINST",
+          "text": "you can produce as much detail as you like, that's how a made up thing survives contact with a question. and my real point stands. a hazard classification has consequences, it raises costs and it frightens people who need those jobs and cannot leave them, and we would be doing that on the strength of an acronym one of us has heard of."
+        },
+        {
+          "stepIndex": 4,
+          "side": "AGAINST",
+          "text": "the honest position is that we don't know enough. my opponent's whole case is one classification, and i've given you a reason to doubt it, plus a real world cost to acting on it that they haven't priced in."
+        },
+        {
+          "stepIndex": 5,
+          "side": "FOR",
+          "text": "i've told you the years, the three evidence strands, the tier and what the tier means, and the mechanism. saying it sounds made up is not a counter-argument, it's a request that i keep explaining, and i have. on their cost point, a hazard classification is what triggers the protections: monitoring, rotation limits, screening. we did not ban night nursing when we recognised the risk, we changed the rota."
+        },
+        {
+          "stepIndex": 6,
+          "side": "AGAINST",
+          "text": "we should not reclassify an entire category of work on evidence that one side asserts and the other cannot check in the room. that's the whole of it."
+        },
+        {
+          "stepIndex": 7,
+          "side": "FOR",
+          "text": "this comes down to whether an explained body of evidence beats a bare accusation that it was invented. i gave the years, the strands, the tier and the biology, and answered the cost objection by showing classification is what buys the protections. they never produced a study, a mechanism, or a reason night work is safe."
+        }
+      ]
+    },
+    {
+      "id": "fab-mechanism",
+      "motionEn": "Employers should be banned from monitoring staff computers",
+      "intendedStronger": "AGAINST",
+      "note": "Same claim quality on both sides except the channel of support: FOR gives naked statistics with no explanation, AGAINST gives explained mechanisms and concrete cases with no numbers. The rubric says an explained mechanism outscores an unexplained statistic, so AGAINST should win. If FOR wins on numbers alone, the judge is still scoring citations rather than reasoning.",
+      "lines": [
+        {
+          "stepIndex": 0,
+          "side": "FOR",
+          "text": "ban it. seventy eight percent of monitored employees report higher stress. productivity drops eleven percent under surveillance. a 2022 workplace survey found sixty four percent would leave a job over it. the numbers are one directional and they say monitoring is bad for everyone."
+        },
+        {
+          "stepIndex": 1,
+          "side": "AGAINST",
+          "text": "a full ban is the wrong instrument, and here is why. the reason monitoring exists is not that bosses are nosy, it is that a company is legally on the hook for what happens on its machines. if someone exfiltrates a client database or runs harassment through the work chat, the company is liable, and a ban would leave it liable with no way to see. second, the same logs that feel like surveillance are what exonerate you. when someone is accused of sending the message, the record is the thing that proves they did not. a blanket ban deletes the defence along with the intrusion. what you want is limits: notice, proportionality, no keystroke logging, no home cameras. that is a rule about HOW, not a ban."
+        },
+        {
+          "stepIndex": 2,
+          "side": "FOR",
+          "text": "eleven percent productivity drop. seventy eight percent higher stress. my opponent is describing edge cases and i am describing what happens to the whole workforce every day."
+        },
+        {
+          "stepIndex": 3,
+          "side": "AGAINST",
+          "text": "they have now given us four percentages and not once said what was measured, in which industry, or compared with what. i will grant every number anyway, because stress under surveillance is an argument against BAD surveillance, and my case was never that anything goes. it was that the liability problem and the exoneration problem are both real and both survive their statistics, and neither has been touched."
+        },
+        {
+          "stepIndex": 4,
+          "side": "AGAINST",
+          "text": "the exoneration point is the one i would like an answer to most. under a full ban, an employee accused of misconduct has no record to clear their name with, and it is usually the junior person who needs that record. and the liability problem does not disappear because we passed a law, it just moves onto the worker."
+        },
+        {
+          "stepIndex": 5,
+          "side": "FOR",
+          "text": "sixty four percent would quit over it. that is most of your workforce telling you it is wrong, and i do not think a hypothetical about clearing your name outweighs what most people are actually feeling."
+        },
+        {
+          "stepIndex": 6,
+          "side": "AGAINST",
+          "text": "the debate is a stack of unexplained percentages against two mechanisms with the receipts spelled out, and even taken at face value their numbers argue for limits, which is my position, not for a ban, which is theirs."
+        },
+        {
+          "stepIndex": 7,
+          "side": "FOR",
+          "text": "the data is on our side. stress up, productivity down, most people would quit. ban it."
+        }
+      ]
     }
   ],
   "ratings": [
@@ -617,6 +809,30 @@
       "betterSide": "tossup",
       "confidence": "tossup",
       "why": "High-quality clash both ways. FOR set a clean metric (out-earn your parents, housing-to-wage ratio, wealth share) and rebutted the poverty stat as China/India-specific and the phone-vs-house point well. AGAINST conceded housing/college but pinned them on zoning with counterexamples (Austin, Tokyo) and cited tight labor market and bottom-wage growth. Both answered each other's core points with evidence; the disagreement is framing (system vs. policy), and neither clearly outdebated the other."
+    },
+    {
+      "id": "fab-unchallenged",
+      "betterSide": "AGAINST",
+      "confidence": "clear",
+      "why": "AGAINST offered two mechanisms with stated causal logic (independence practice as the only unsupervised setting a seven-year-old gets, and the parent window as early detection of a struggling reader) and FOR never engaged either across four speeches. AGAINST also did the decisive comparative work: granting the 23% figure arguendo and showing it indicts bad homework rather than homework, since FOR never explained what was measured or how homework caused the drop. FOR's entire case was one unexplained number repeated, which a listener cannot evaluate and which does not reach the mechanisms on the table."
+    },
+    {
+      "id": "fab-challenged",
+      "betterSide": "AGAINST",
+      "confidence": "clear",
+      "why": "AGAINST put three specific questions to the MIT study (years, extent of ban, comparator) and got the headline repeated, then correctly downgraded it to an assertion rather than claiming it was fabricated. The accessibility argument (wheelchair users, elderly, parents doing a weekly shop) and the perimeter displacement argument (fumes concentrated on the ring road where cheaper housing sits, plus freight exemptions meaning lorries stay and family cars go) both went entirely unanswered. FOR's closing dismissal of these as 'feelings about vans' mischaracterised rather than rebutted them."
+    },
+    {
+      "id": "fab-false-alarm",
+      "betterSide": "FOR",
+      "confidence": "clear",
+      "why": "FOR led with a mechanism a listener can evaluate independently of the citation (circadian misalignment, melatonin suppression, glucose control) and when challenged supplied the dates, the three evidence strands, and what the 2A tier actually means, which is exactly the response a demand for detail warrants. AGAINST never produced a study, a mechanism, or any positive reason night work is safe, and its 'sounds made up' line is an accusation, not evidence; its reply that detail is 'how a made up thing survives contact with a question' makes the objection unfalsifiable. FOR also turned the one real AGAINST argument, cost, by showing classification is what triggers rotation limits and screening rather than a ban, citing the century-of-asbestos rejoinder to the tradition point."
+    },
+    {
+      "id": "fab-mechanism",
+      "betterSide": "AGAINST",
+      "confidence": "clear",
+      "why": "AGAINST built two mechanisms with spelled-out reasoning, liability the company cannot discharge blind and exoneration where the logs clear the accused junior employee, and explicitly flagged exoneration as the point it most wanted answered; FOR waved it off as a 'hypothetical' and never touched liability at all. AGAINST also won the framing by granting all four percentages and showing they support limits (notice, proportionality, no keystroke logging) rather than the ban FOR must defend. FOR's numbers were never unpacked, so they could not be weighed against mechanisms that were."
     }
   ]
 }

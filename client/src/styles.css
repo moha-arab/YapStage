@@ -1276,6 +1276,63 @@ html[dir='rtl'] .meter-hint {
   margin-inline: auto;
 }
 
+/* The delta is what you feel, so it is the size of the headline. */
+.elo-result {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  margin-top: var(--s2);
+}
+.elo-delta {
+  font-family: 'Ultra', serif;
+  font-size: var(--t7);
+  line-height: 1;
+}
+.elo-result.won .elo-delta {
+  color: var(--gold);
+}
+.elo-result.lost .elo-delta {
+  color: var(--muted);
+}
+.elo-why {
+  font-size: var(--t2);
+  color: var(--muted);
+  max-width: 34ch;
+  text-align: center;
+}
+
+.stakes {
+  width: min(560px, 94vw);
+  margin: var(--s3) auto 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--s2);
+}
+.stakes-line {
+  margin: 0;
+  font-size: var(--t2);
+  color: var(--muted);
+  text-align: center;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  margin-inline-start: 6px;
+  padding: 0 5px;
+  border-radius: 9999px;
+  background: var(--for);
+  color: #fff;
+  font-size: var(--t1);
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
 /* A friend calling you out beats whatever you were reading. */
 .callout {
   position: fixed;
@@ -1467,6 +1524,13 @@ html[dir='rtl'] .meter-hint {
 }
 .ladder-bot .ladder-elo {
   color: var(--ink);
+}
+
+.ladder-target {
+  margin: var(--s2) 0 0;
+  font-size: var(--t2);
+  font-weight: 700;
+  color: var(--gold);
 }
 
 .ladder-note {

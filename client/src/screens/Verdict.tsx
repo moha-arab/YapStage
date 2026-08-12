@@ -48,6 +48,52 @@ interface Props {
   /** Masks by side (an entry = that side is masked), so the post-verdict call
       still shows a face for players who never had a camera. */
   avatars?: Partial<Record<Side, string>> | null;
+  /** Bot mode: whether the ladder was armed, and why not when it wasn't. */
+  botStake?: { rated: boolean; reason?: string } | null;
+  /** What the opponent was rated, so the delta can explain its own size. */
+  opponentRating?: number;
+}
+
+/** The rating movement, taught rather than announced.
+    The delta is the thing you feel, so it is the headline; the sentence under
+    it is one line of Elo literacy per match, which kills "why did I only get
+    six points" permanently and costs nothing. */
+function EloResult({
+  before,
+  after,
+  won,
+  opponentRating,
+}: {
+  before: number;
+  after: number;
+  won: boolean;
+  opponentRating?: number;
+}) {
+  const { t } = useI18n();
+  const delta = after - before;
+  const favoured = opponentRating !== undefined ? before > opponentRating : null;
+  const why =
+    favoured === null
+      ? null
+      : won
+        ? favoured
+          ? t('eloFavored')
+          : t('eloUnderdog')
+        : favoured
+          ? t('eloUpsetLoss')
+          : t('eloExpectedLoss');
+  return (
+    <div className={`elo-result ${won ? 'won' : 'lost'}`}>
+      <span className="elo-delta elo">
+        {delta > 0 ? '+' : ''}
+        {delta}
+      </span>
+      <span className="elo-line elo">
+        {before} → {after}
+      </span>
+      {why ? <span className="elo-why">{why}</span> : null}
+    </div>
+  );
 }
 
 /**
@@ -159,6 +205,8 @@ export default function VerdictScreen({
   unlocked,
   avatars,
   framing,
+  botStake,
+  opponentRating,
 }: Props) {
   const { lang, t } = useI18n();
   // No shared call to keep visible when the opponent is a bot.
@@ -651,8 +699,18 @@ export default function VerdictScreen({
             {youWon ? t('youWon') : t('youLost')}
           </p>
           {info.elo?.[mySide] ? (
-            <p className={`elo-line ${youWon ? 'won' : 'lost'}`}>
-              {t('eloLine', { a: info.elo[mySide].before, b: info.elo[mySide].after })}
+            <EloResult
+              before={info.elo[mySide].before}
+              after={info.elo[mySide].after}
+              won={youWon}
+              opponentRating={opponentRating}
+            />
+          ) : botStake && !botStake.rated ? (
+            // Say WHY it did not count, and never as a surprise: the same
+            // reason was on the pick screen before the debate started.
+            <p className="elo-line">
+              {t('eloNotRated')}{' '}
+              {botStake.reason ? t(`eloReason_${botStake.reason}`) : ''}
             </p>
           ) : null}
         </>

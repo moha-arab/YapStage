@@ -366,7 +366,7 @@ export function startBotDebate(io: Io, lobby: Lobby, topic: TopicText, humanSide
     names,
     startsAt,
     serverNow: now,
-    bot: { id: lobby.bot.id, name: lobby.bot.name, color: meta?.color ?? 'gold' },
+    bot: { id: lobby.bot.id, name: lobby.bot.name, color: meta?.color ?? 'gold', elo: meta?.elo },
   });
   lobby.stepIndex = -1;
   lobby.phaseTimer = setTimeout(() => advance(io, lobby, -1), reveal);

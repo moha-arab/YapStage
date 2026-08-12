@@ -62,7 +62,7 @@ export async function initStore(): Promise<void> {
       CREATE TABLE IF NOT EXISTS players (
         id         text PRIMARY KEY,
         name       text NOT NULL,
-        rating     integer NOT NULL DEFAULT 1000,
+        rating     integer NOT NULL DEFAULT 700,
         wins       integer NOT NULL DEFAULT 0,
         losses     integer NOT NULL DEFAULT 0,
         updated_at timestamptz NOT NULL DEFAULT now()
@@ -118,6 +118,29 @@ export async function initStore(): Promise<void> {
     await pool.query(`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS drill_best integer NOT NULL DEFAULT 0`);
     await pool.query(`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS mask text`);
     await pool.query(`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS mask_default boolean NOT NULL DEFAULT false`);
+    // BACKFILL, and the reason this exists is worth keeping.
+    // `username_fold` arrived in a later deploy than `username`, so every
+    // account that claimed a name in between has username set and fold NULL.
+    // Every friend lookup keys on the fold, so those accounts are invisible:
+    // typing their exact name returns "no yapper by that name". Confirmed on
+    // production 2026-08-12 — the founder's own account could not be found by
+    // its own name, which is precisely the "friend adding doesn't work" bug.
+    // Postgres treats NULLs as distinct in a unique index, so nothing ever
+    // complained. Folding is JS, so the backfill has to round-trip through it.
+    try {
+      const stale = await pool.query(
+        `SELECT sub, username FROM accounts WHERE username IS NOT NULL AND username_fold IS NULL`,
+      );
+      for (const row of stale.rows as { sub: string; username: string }[]) {
+        await pool.query(`UPDATE accounts SET username_fold = $2 WHERE sub = $1`, [
+          row.sub,
+          foldName(row.username),
+        ]);
+      }
+      if (stale.rowCount) console.log(`[store] backfilled ${stale.rowCount} username folds`);
+    } catch (err) {
+      console.error('[store] username_fold backfill failed:', err);
+    }
     // Case-insensitive uniqueness: 'YapKing' and 'yapking' are the same person
     // to everyone reading a scoreboard, so they cannot both exist.
     await pool.query(
@@ -154,6 +177,23 @@ export async function initStore(): Promise<void> {
     await pool.query(
       `CREATE INDEX IF NOT EXISTS matches_player_at ON matches (player_id, at DESC)`,
     );
+    // Bot matches are rated now, so a match row has to remember whether it
+    // counted. Sparring rows stay false and the daily cap ignores them.
+    await pool.query(`ALTER TABLE matches ADD COLUMN IF NOT EXISTS rated boolean NOT NULL DEFAULT false`);
+    // One-time data changes that cannot be expressed as CREATE IF NOT EXISTS.
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS migrations (
+        key text PRIMARY KEY,
+        at  timestamptz NOT NULL DEFAULT now()
+      )
+    `);
+    await runOnce('rating_seed_700', async () => {
+      // The scale moved down 300 points when the seed went from 1000 to 700.
+      // Shift every existing player by the same amount so relative order and
+      // games played survive; anyone below the new floor is pulled up to it.
+      await pool!.query(`ALTER TABLE players ALTER COLUMN rating SET DEFAULT ${SEED_RATING}`);
+      await pool!.query(`UPDATE players SET rating = GREATEST(${RATING_FLOOR}, rating - 300)`);
+    });
     // Reports keep the debate's words as evidence — the one deliberate
     // exception to "transcripts die with the lobby", disclosed in the UI.
     await pool.query(`
@@ -174,6 +214,23 @@ export async function initStore(): Promise<void> {
     console.error('[store] init failed, falling back to self-contained links:', err);
     pool = null;
     ready = false;
+  }
+}
+
+/** Run a one-time migration exactly once, ever, across every deploy and every
+    replica. Fails soft like everything else here: a migration that throws
+    leaves its key unwritten and gets retried next boot rather than taking the
+    server down. */
+async function runOnce(key: string, fn: () => Promise<void>): Promise<void> {
+  if (!pool) return;
+  try {
+    const seen = await pool.query(`SELECT 1 FROM migrations WHERE key = $1`, [key]);
+    if (seen.rowCount === 1) return;
+    await fn();
+    await pool.query(`INSERT INTO migrations (key) VALUES ($1) ON CONFLICT DO NOTHING`, [key]);
+    console.log(`[store] migration ${key} applied`);
+  } catch (err) {
+    console.error(`[store] migration ${key} failed, will retry next boot:`, err);
   }
 }
 
@@ -277,6 +334,28 @@ export async function getRating(id: string): Promise<PlayerRow | null> {
     deviation settles. Same idea: don't show a number you don't believe yet. */
 export const PLACEMENT_MATCHES = 5;
 
+/** Rated matches per bot per day. A guard, not a leash: six bots times three
+    is ninety minutes of debating, so a real player will never see it. */
+export const RATED_BOT_MATCHES_PER_DAY = 3;
+
+/** Where a new player starts.
+    700 was chosen from the bot ladder, not from chess. At 700 you are a 57%
+    favourite over Pip (650) and a 30% underdog to Cappy (850), so your first
+    rated match is probably a win and not certainly one, which is the right
+    prior for someone who has never debated.
+    1000 was wrong for a specific reason: 1000 IS Vivi, rank 3 of 6. Every new
+    account was being handed the claim that it could already take half the
+    ladder. Chess.com has the same shape as this: its bots start at 250 and a
+    self-declared beginner starts at 400, so a newcomer has one rung below them
+    and a long way up. */
+export const SEED_RATING = 700;
+
+/** A floor, not a kindness. 500 against Pip means the gentlest bot on the
+    ladder beats you 70% of the time; everything below that is dead space that
+    exists only to humiliate someone. It also plugs the leak: points that fall
+    out of the bottom of a pool never come back. */
+export const RATING_FLOOR = 500;
+
 /** K shrinks as the system learns you. A brand-new player swings fast so they
     reach their real level in a few nights; an established one barely moves,
     which is also what stops a veteran from being dragged around by newcomers.
@@ -285,6 +364,67 @@ function kFor(games: number): number {
   if (games < PLACEMENT_MATCHES) return 64;
   if (games < 20) return 40;
   return 24;
+}
+
+/** Expected score for A against B, the only thing a rating gap ever means. */
+const expected = (a: number, b: number): number => 1 / (1 + Math.pow(10, (b - a) / 400));
+
+/** A rated match against a FIXED-rating bot. The bot never moves, which is the
+    entire point: it is an external anchor, so points enter and leave the human
+    pool against a measured opponent instead of circulating among twenty
+    friends. That is what turns "you are 1100" from a claim about your rank
+    among strangers into a claim about debating.
+
+    Farming is handled by the maths rather than by a rule: at 700 a win over
+    Pip pays +14, at 850 it pays +6, at 1050 it pays +2 while a loss costs 22.
+    You asymptote at your true level against that bot and stop. */
+export async function applyBotResult(
+  playerId: string,
+  name: string,
+  botRating: number,
+  won: boolean,
+): Promise<{ before: number; after: number } | null> {
+  if (!pool || !ready) return null;
+  try {
+    const row = await getPlayer(playerId, name);
+    if (!row) return null;
+    const games = row.wins + row.losses;
+    // A bot plays a scripted ceiling, so a result against one says a little
+    // less about you than a live human who adapts. Same idea as chess.com
+    // valuing games against a high-uncertainty opponent less.
+    const k = kFor(games) * 0.75;
+    const e = expected(row.rating, botRating);
+    const delta = Math.round(k * ((won ? 1 : 0) - e));
+    const after = Math.max(RATING_FLOOR, row.rating + delta);
+    await pool.query(
+      `UPDATE players SET rating = $2, wins = wins + $3, losses = losses + $4, updated_at = now()
+       WHERE id = $1`,
+      [playerId.slice(0, 64), after, won ? 1 : 0, won ? 0 : 1],
+    );
+    return { before: row.rating, after };
+  } catch (err) {
+    console.error('[store] applyBotResult failed:', err);
+    return null;
+  }
+}
+
+/** Rated matches this player has already had against this bot today. The cap
+    is a guard, not a leash: six bots times three is ninety minutes of debating,
+    so a real player will never see it. */
+export async function ratedBotMatchesToday(playerId: string, opponent: string): Promise<number> {
+  if (!pool || !ready) return 0;
+  try {
+    const res = await pool.query(
+      `SELECT COUNT(*)::int AS n FROM matches
+       WHERE player_id = $1 AND mode = 'bots' AND rated = true
+         AND opponent = $2 AND at > now() - interval '24 hours'`,
+      [playerId.slice(0, 64), opponent.slice(0, 24)],
+    );
+    return res.rows[0]?.n ?? 0;
+  } catch (err) {
+    console.error('[store] ratedBotMatchesToday failed:', err);
+    return 0;
+  }
 }
 
 /** ELO with a placement-aware K. Returns both movements, or null if the store
@@ -301,8 +441,8 @@ export async function applyRankedResult(
     ]);
     type R = { id: string; rating: number; wins: number; losses: number };
     const rows = new Map(res.rows.map((r: R) => [r.id, r]));
-    const rw = rows.get(winnerId)?.rating ?? 1000;
-    const rl = rows.get(loserId)?.rating ?? 1000;
+    const rw = rows.get(winnerId)?.rating ?? SEED_RATING;
+    const rl = rows.get(loserId)?.rating ?? SEED_RATING;
     const gw = (rows.get(winnerId)?.wins ?? 0) + (rows.get(winnerId)?.losses ?? 0);
     const gl = (rows.get(loserId)?.wins ?? 0) + (rows.get(loserId)?.losses ?? 0);
     const expected = 1 / (1 + Math.pow(10, (rl - rw) / 400));
@@ -310,7 +450,7 @@ export async function applyRankedResult(
     const drop = Math.max(1, Math.round(kFor(gl) * (1 - expected)));
     // A floor, not a kindness: it stops the pool leaking points out the bottom
     // when someone tilts through ten losses and never comes back.
-    const after = { winner: rw + gain, loser: Math.max(100, rl - drop) };
+    const after = { winner: rw + gain, loser: Math.max(RATING_FLOOR, rl - drop) };
     await pool.query(
       `UPDATE players SET rating = $2, wins = wins + 1, updated_at = now() WHERE id = $1`,
       [winnerId, after.winner],
@@ -565,12 +705,34 @@ export interface FriendRow {
   username: string;
   playerId: string;
   rating: number;
+  /** Finished placements. A seed rating shown as fact next to someone who has
+      never played is a number the app is inventing about them. */
+  placed: boolean;
   pending: boolean;
   /** True when THEY asked YOU: your side of a pending row has a button. */
   incoming: boolean;
 }
 
 const pairOf = (a: string, b: string): [string, string] => (a < b ? [a, b] : [b, a]);
+
+/** Account id for a yap name, folded so case and homoglyphs cannot miss.
+    The second clause is belt and braces for any row whose fold never got
+    written: a friend you cannot find is the worst failure this feature has. */
+export async function subForUsername(username: string): Promise<string | null> {
+  if (!pool || !ready) return null;
+  try {
+    const res = await pool.query(
+      `SELECT sub FROM accounts
+       WHERE username_fold = $1 OR (username_fold IS NULL AND lower(username) = lower($2))
+       LIMIT 1`,
+      [foldName(username), username],
+    );
+    return res.rowCount === 1 ? (res.rows[0].sub as string) : null;
+  } catch (err) {
+    console.error('[store] subForUsername failed:', err);
+    return null;
+  }
+}
 
 /** Send (or auto-accept) a friend request by username. Asking someone who
     already asked you just makes you friends: a request you both sent is a
@@ -581,11 +743,8 @@ export async function requestFriend(
 ): Promise<'ok' | 'accepted' | 'self' | 'no_user' | 'already' | 'down'> {
   if (!pool || !ready) return 'down';
   try {
-    const who = await pool.query(`SELECT sub FROM accounts WHERE username_fold = $1`, [
-      foldName(username),
-    ]);
-    if (who.rowCount !== 1) return 'no_user';
-    const other = who.rows[0].sub as string;
+    const other = await subForUsername(username);
+    if (!other) return 'no_user';
     if (other === sub) return 'self';
     const [lo, hi] = pairOf(sub, other);
     const cur = await pool.query(
@@ -596,17 +755,34 @@ export async function requestFriend(
       const row = cur.rows[0] as { status: string; asked_by: string };
       if (row.status === 'accepted') return 'already';
       if (row.asked_by === sub) return 'already';
-      await pool.query(
-        `UPDATE friends SET status = 'accepted' WHERE lo_sub = $1 AND hi_sub = $2`,
-        [lo, hi],
+      // Only accept a row that is still pending and still theirs to accept:
+      // between the read and the write they may have cancelled it.
+      const upd = await pool.query(
+        `UPDATE friends SET status = 'accepted'
+         WHERE lo_sub = $1 AND hi_sub = $2 AND status = 'pending' AND asked_by <> $3`,
+        [lo, hi, sub],
       );
+      if (upd.rowCount !== 1) return 'already';
       event('friend_accepted');
       return 'accepted';
     }
-    await pool.query(
-      `INSERT INTO friends (lo_sub, hi_sub, status, asked_by) VALUES ($1,$2,'pending',$3)`,
+    // Two people can press add on each other in the same second. Without this
+    // the loser of that race hits the primary key and gets told the store is
+    // down, which is both wrong and unfixable by retrying.
+    const ins = await pool.query(
+      `INSERT INTO friends (lo_sub, hi_sub, status, asked_by) VALUES ($1,$2,'pending',$3)
+       ON CONFLICT (lo_sub, hi_sub) DO NOTHING`,
       [lo, hi, sub],
     );
+    if (ins.rowCount === 0) {
+      // They got there first, so their pending row exists: accept it instead.
+      const upd = await pool.query(
+        `UPDATE friends SET status = 'accepted'
+         WHERE lo_sub = $1 AND hi_sub = $2 AND status = 'pending' AND asked_by <> $3`,
+        [lo, hi, sub],
+      );
+      return upd.rowCount === 1 ? 'accepted' : 'already';
+    }
     event('friend_requested');
     return 'ok';
   } catch (err) {
@@ -615,56 +791,61 @@ export async function requestFriend(
   }
 }
 
+/** What a write to the friends table did. 'down' has to be distinguishable
+    from 'no_user': telling someone their friend does not exist because our
+    database blinked is a lie the user cannot debug. */
+export type FriendWrite = 'ok' | 'no_user' | 'nothing' | 'down';
+
 /** Accept a pending request. Only the person who did NOT ask can accept. */
-export async function acceptFriend(sub: string, username: string): Promise<boolean> {
-  if (!pool || !ready) return false;
+export async function acceptFriend(sub: string, username: string): Promise<FriendWrite> {
+  if (!pool || !ready) return 'down';
   try {
-    const who = await pool.query(`SELECT sub FROM accounts WHERE username_fold = $1`, [
-      foldName(username),
-    ]);
-    if (who.rowCount !== 1) return false;
-    const [lo, hi] = pairOf(sub, who.rows[0].sub as string);
+    const other = await subForUsername(username);
+    if (!other) return 'no_user';
+    const [lo, hi] = pairOf(sub, other);
     const res = await pool.query(
       `UPDATE friends SET status = 'accepted'
        WHERE lo_sub = $1 AND hi_sub = $2 AND status = 'pending' AND asked_by <> $3`,
       [lo, hi, sub],
     );
     if (res.rowCount === 1) event('friend_accepted');
-    return res.rowCount === 1;
+    return res.rowCount === 1 ? 'ok' : 'nothing';
   } catch (err) {
     console.error('[store] acceptFriend failed:', err);
-    return false;
+    return 'down';
   }
 }
 
 /** Remove a friend, decline a request, or cancel one you sent: all one row. */
-export async function removeFriend(sub: string, username: string): Promise<boolean> {
-  if (!pool || !ready) return false;
+export async function removeFriend(sub: string, username: string): Promise<FriendWrite> {
+  if (!pool || !ready) return 'down';
   try {
-    const who = await pool.query(`SELECT sub FROM accounts WHERE username_fold = $1`, [
-      foldName(username),
-    ]);
-    if (who.rowCount !== 1) return false;
-    const [lo, hi] = pairOf(sub, who.rows[0].sub as string);
+    const other = await subForUsername(username);
+    if (!other) return 'no_user';
+    const [lo, hi] = pairOf(sub, other);
     const res = await pool.query(`DELETE FROM friends WHERE lo_sub = $1 AND hi_sub = $2`, [lo, hi]);
-    return (res.rowCount ?? 0) > 0;
+    return (res.rowCount ?? 0) > 0 ? 'ok' : 'nothing';
   } catch (err) {
     console.error('[store] removeFriend failed:', err);
-    return false;
+    return 'down';
   }
 }
 
-/** Everyone attached to you: accepted friends and both directions of pending. */
-export async function listFriends(sub: string): Promise<FriendRow[]> {
-  if (!pool || !ready) return [];
+/** Everyone attached to you: accepted friends and both directions of pending.
+    Returns null when the store is unreachable, because an empty array renders
+    as the cheerful "nobody here yet" empty state and makes a database blip
+    look like you have no friends. */
+export async function listFriends(sub: string): Promise<FriendRow[] | null> {
+  if (!pool || !ready) return null;
   try {
     const res = await pool.query(
-      `SELECT f.status, f.asked_by, a.sub AS other, a.username, a.player_id, p.rating
+      `SELECT f.status, f.asked_by, a.sub AS other, a.username, a.player_id,
+              p.rating, COALESCE(p.wins, 0) + COALESCE(p.losses, 0) AS games
        FROM friends f
        JOIN accounts a ON a.sub = CASE WHEN f.lo_sub = $1 THEN f.hi_sub ELSE f.lo_sub END
        LEFT JOIN players p ON p.id = a.player_id
        WHERE (f.lo_sub = $1 OR f.hi_sub = $1) AND a.username IS NOT NULL
-       ORDER BY f.status DESC, a.username ASC
+       ORDER BY a.username ASC
        LIMIT 200`,
       [sub],
     );
@@ -676,18 +857,20 @@ export async function listFriends(sub: string): Promise<FriendRow[]> {
         username: string;
         player_id: string;
         rating: number | null;
+        games: string | number | null;
       }) => ({
         sub: r.other,
         username: r.username,
         playerId: r.player_id,
-        rating: r.rating ?? 1000,
+        rating: r.rating ?? SEED_RATING,
+        placed: Number(r.games ?? 0) >= PLACEMENT_MATCHES,
         pending: r.status === 'pending',
         incoming: r.status === 'pending' && r.asked_by !== sub,
       }),
     );
   } catch (err) {
     console.error('[store] listFriends failed:', err);
-    return [];
+    return null;
   }
 }
 
@@ -752,6 +935,8 @@ export interface MatchRow {
   myTotal: number;
   theirTotal: number;
   opponent: string;
+  /** Did this move a rating? The bot daily cap reads this back. */
+  rated?: boolean;
   verdict: unknown;
   transcript: unknown;
 }
@@ -761,8 +946,8 @@ export async function saveMatch(m: MatchRow): Promise<void> {
   try {
     await pool.query(
       `INSERT INTO matches
-         (player_id, mode, topic, my_side, won, my_total, their_total, opponent, verdict, transcript)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
+         (player_id, mode, topic, my_side, won, my_total, their_total, opponent, rated, verdict, transcript)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
       [
         m.playerId.slice(0, 64),
         m.mode,
@@ -772,6 +957,7 @@ export async function saveMatch(m: MatchRow): Promise<void> {
         m.myTotal,
         m.theirTotal,
         m.opponent.slice(0, 24),
+        Boolean(m.rated),
         JSON.stringify(m.verdict),
         JSON.stringify(m.transcript),
       ],

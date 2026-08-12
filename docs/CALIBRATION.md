@@ -7,7 +7,47 @@ becomes true here without someone noticing.
 
 ## The scale
 
-Humans start at **1000**. Bot ratings are **fixed** and never move.
+Humans start at **700**. Bot ratings are **fixed** and never move.
+
+700 comes from the ladder, not from chess: at 700 you are a 57% favourite over
+Pip (650) and a 30% underdog to Cappy (850), so your first rated match is
+probably a win and not certainly one. The old seed of 1000 was wrong for a
+specific reason. 1000 *is Vivi*, rank 3 of 6, so every new account was handed
+the claim that it could already take half the ladder.
+
+Chess.com has the same shape: its bots start at 250 and a self-declared beginner
+starts at 400, so a newcomer has one rung below them and a long way up. (Its bot
+personalities top out at 2450 and the raw engine slider goes to 3200; there is
+no bot at 100.)
+
+## Bot matches are RATED
+
+This is the load-bearing decision. In a pool of twenty friends, human-only Elo
+is closed and zero-sum: your number encodes your rank among those twenty and
+nothing else, and with two active players it is two people passing the same
+points back and forth.
+
+Rated bot matches break that open. Points enter and leave the human pool
+against six fixed, measured, published opponents, so "you are 1100" becomes a
+claim about debating that you can go falsify in five minutes.
+
+Farming is handled by the maths rather than by a rule. Against Pip (650):
+
+| your rating | a win pays | a loss costs |
+| --- | --- | --- |
+| 700 | +14 | -13 |
+| 850 | +6 | -21 |
+| 1050 | +2 | -22 |
+
+You asymptote at your true level against that bot and stop. The fixed anchor is
+not a farming risk, it *is* the anti-farming mechanism. The guards on top are
+belt and braces: three rated matches per bot per day, a forty-word minimum
+before a match can count, and sparring available unrated and unlimited.
+
+**Accepted tradeoff:** every human rating now inherits the bot calibration
+error. It is common-mode, so the order among humans is untouched, but a future
+recalibration means a one-time shift of every human rating. That is a named,
+expected event, not a surprise.
 
 A rating gap means one thing and nothing else:
 
@@ -72,8 +112,20 @@ Two stages, following the only published methodology in this space
 | 2 | Cappy | 1/3 | −2 | 850 |
 | 3 | Vivi | 0/3 | −11 | 1000 |
 | 4 | Ozzy | 0/3 | −27 | 1200 |
-| 5 | Brutus | not re-run | (−31 pre-fix) | 1350 |
-| 6 | Gigi | not re-run | (−32 pre-fix) | 1500 |
+| 5 | Brutus | 0/3 | −25 | 1350 |
+| 6 | Gigi | 0/3 | −29 | 1500 |
+
+The "strong" profile, same run: 0/3 against Brutus (−19) and 0/3 against Gigi
+(−24).
+
+**What this instrument cannot resolve.** Above rung 4 both scripted profiles
+lose every match, so the margin stops discriminating: −27, −25, −29 for rungs
+4, 5, 6 is a ceiling effect, not a measured ordering. The only consistent
+signal up there is that Gigi beats both profiles by about 5 more points than
+Brutus does, in both profiles. So the ordering of the top three is design
+intent (each rung has a named extra skill) plus a weak measurement, and the
+gaps between 1200 / 1350 / 1500 are the least trustworthy numbers on the
+ladder. Resolving them needs a stronger test profile, not more runs of this one.
 
 The margin curve is what matters: +30 → −2 → −11 → −27 is a ladder. The run
 before this one read +27 → +12 → −12 → −13, with ranks 3 and 4 statistically

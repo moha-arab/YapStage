@@ -71,6 +71,8 @@ import {
   loadMatch,
   loadReports,
   PLACEMENT_MATCHES,
+  RATED_BOT_MATCHES_PER_DAY,
+  ratedBotMatchesToday,
   recentRanked,
   recordDrill,
   recordShutdown,
@@ -78,7 +80,9 @@ import {
   requestFriend,
   saveCard,
   saveReport,
+  SEED_RATING,
   storeReady,
+  subForUsername,
 } from './store.js';
 import { TOPIC_BY_ID, TOPIC_CATEGORIES } from './topics.js';
 import { event, recentEvents, statsSnapshot } from './stats.js';
@@ -198,8 +202,9 @@ app.get('/feed', async () => ({
 app.get<{ Querystring: { playerId?: string } }>('/rating', async (req) => {
   const id = String(req.query.playerId ?? '').slice(0, 64);
   if (!id) return { rating: null };
-  const row = await getRating(id);
-  if (!row) return { rating: null };
+  // No row yet is not "no rating": it is a player at the seed with nothing
+  // played. Saying so lets the chip read "placing, 0 of 5" instead of vanishing.
+  const row = (await getRating(id)) ?? { rating: SEED_RATING, wins: 0, losses: 0 };
   const games = row.wins + row.losses;
   return {
     rating: row.rating,
@@ -269,6 +274,9 @@ app.get('/friends', async (req, reply) => {
   const s = readSession(req);
   if (!s) return reply.code(401).send({ friends: [] });
   const rows = await listFriends(s.sub);
+  // A database blip is not an empty friends list. Say so, or the screen tells
+  // a lie the user cannot tell apart from the truth.
+  if (rows === null) return reply.code(503).send({ error: 'store_down' });
   return {
     friends: rows.map(({ sub, playerId, ...safe }) => ({
       ...safe,
@@ -285,13 +293,30 @@ app.post<{ Body: { username?: string; action?: string } }>('/friends', async (re
   }
   const username = String(req.body?.username ?? '').trim();
   if (!username || username.length > 16) return reply.code(400).send({ error: 'bad_request' });
+  // Poke every tab the other person has open. Without this a request just sits
+  // in a table: the friends screen only fetches on mount, so the person you
+  // added sees nothing until they happen to reopen the page, which reads as
+  // "the friend system does not work".
+  const poke = async (): Promise<void> => {
+    const sub = await subForUsername(username);
+    if (sub) io.to(`acct:${sub}`).emit('friend:changed');
+  };
   switch (req.body?.action) {
-    case 'add':
-      return { result: await requestFriend(s.sub, username) };
-    case 'accept':
-      return { result: (await acceptFriend(s.sub, username)) ? 'ok' : 'no_user' };
-    case 'remove':
-      return { result: (await removeFriend(s.sub, username)) ? 'ok' : 'no_user' };
+    case 'add': {
+      const result = await requestFriend(s.sub, username);
+      if (result === 'ok' || result === 'accepted') await poke();
+      return { result };
+    }
+    case 'accept': {
+      const result = await acceptFriend(s.sub, username);
+      if (result === 'ok') await poke();
+      return { result };
+    }
+    case 'remove': {
+      const result = await removeFriend(s.sub, username);
+      if (result === 'ok') await poke();
+      return { result };
+    }
     default:
       return reply.code(400).send({ error: 'bad_request' });
   }
@@ -716,10 +741,16 @@ io.on('connection', (socket) => {
   // signed-in socket's name and playerId come from the signed cookie, never
   // from the payload. Signed-out sockets behave exactly as they always did.
   const sess = readSessionCookie(socket.handshake.headers.cookie);
-  if (sess?.name) {
+  if (sess) {
     socket.data.account = { sub: sess.sub, playerId: sess.playerId, name: sess.name };
     // Presence: one room per account, so a friend list can ask "are they here"
     // and a challenge can reach every tab they have open.
+    //
+    // This deliberately does NOT require a claimed yap name. It used to, and
+    // that made a brand new account invisible: you sign in, claim your name,
+    // and your ALREADY-CONNECTED socket still carries the pre-name cookie, so
+    // it never joined the room and no friend could ever call you out. Presence
+    // is a property of the account, not of the name.
     void socket.join(`acct:${sess.sub}`);
     // Locker: your saved mask follows you into every mode, including training,
     // which has no green room to pick one in.
@@ -727,8 +758,9 @@ io.on('connection', (socket) => {
       if (socket.data.account) socket.data.locker = l;
     });
   }
-  /** The name this socket is allowed to use. */
-  const nameOf = (claimed: string): string => socket.data.account?.name ?? claimed;
+  /** The name this socket is allowed to use. An account with no claimed name
+      yet falls back to the payload, exactly as a signed-out socket does. */
+  const nameOf = (claimed: string): string => socket.data.account?.name || claimed;
   /** The ladder identity this socket is allowed to use. */
   const idOf = (claimed: string): string => socket.data.account?.playerId ?? claimed;
   /** Seat defaults from the locker: the mask you saved, and whether you'd
@@ -741,7 +773,10 @@ io.on('connection', (socket) => {
   socket.on('lobby:create', (p, cb) => {
     if (typeof cb !== 'function') return;
     // Friendly ceiling: two friends never hit this; a lobby-spam script does.
-    if (!FAST && !allow(`create:${ipOf(socket)}`, 10, 5 * 60_000)) {
+    // Its OWN bucket, separate from solo play. These used to share one, so an
+    // evening of bot debates silently used up the budget for opening a room
+    // and "call out a friend" then did nothing at all, with no message.
+    if (!FAST && !allow(`create:${ipOf(socket)}`, 20, 5 * 60_000)) {
       return cb({ ok: false, error: 'rate_limited' });
     }
     const name = nameOf(String(p?.name ?? '').trim());
@@ -1076,6 +1111,26 @@ io.on('connection', (socket) => {
     acceptChunk(lobby, me, chunk);
   });
 
+  // Walk out of a room you have not started debating in. The green room had no
+  // exit at all: creating a lobby was a one-way door out of the app, and the
+  // only escape was a refresh, which the unload warning argues with.
+  socket.on('lobby:leave', () => {
+    const lobby = socket.data.code ? getLobby(socket.data.code) : undefined;
+    if (!lobby) return;
+    // Only before the debate. Mid-debate leaving is the disconnect path, which
+    // has grace timers and a peer to notify.
+    if (lobby.status !== 'waiting' && lobby.status !== 'greenroom') return;
+    const me = participantOf(lobby, socket.id);
+    if (!me) return;
+    // The person who stayed gets told why the room vanished; the person who
+    // pressed leave already knows, so they get no banner about their own click.
+    socket.to(lobby.code).emit('lobby:closed', { reason: 'closedPeerLeft' });
+    socket.emit('lobby:closed', { reason: '' });
+    destroyLobby(lobby.code);
+    io.socketsLeave(lobby.code);
+    socket.data.code = undefined;
+  });
+
   // Anti-cheat bookkeeping. Capped per turn so a spoofed flood cannot inflate
   // someone else's number, and only counted for the side whose turn it is.
   socket.on('turn:away', (p) => {
@@ -1282,7 +1337,7 @@ io.on('connection', (socket) => {
     void (async () => {
       // Only actual friends, checked server-side: an invite you can send to any
       // username is a way to spam strangers.
-      const friends = await listFriends(me.sub);
+      const friends = (await listFriends(me.sub)) ?? [];
       const target = friends.find((f) => !f.pending && foldName(f.username) === foldName(to));
       if (!target) return cb({ ok: false, error: 'not_friends' });
       const room = io.sockets.adapter.rooms.get(`acct:${target.sub}`);
@@ -1298,8 +1353,12 @@ io.on('connection', (socket) => {
     if (typeof cb !== 'function') return;
     const me = socket.data.account;
     if (!me) return cb({ ok: false, online: [] });
+    // Rate limited like every other store-touching handler: this is a query per
+    // emit against a pool shared with ELO, matches and reports. A legitimate
+    // client asks every 20 seconds.
+    if (!allow(`presence:${me.sub}`, 20, 60_000)) return cb({ ok: false, online: [] });
     void (async () => {
-      const friends = await listFriends(me.sub);
+      const friends = (await listFriends(me.sub)) ?? [];
       const online = friends
         .filter((f) => !f.pending && (io.sockets.adapter.rooms.get(`acct:${f.sub}`)?.size ?? 0) > 0)
         .map((f) => f.username);
@@ -1343,7 +1402,7 @@ io.on('connection', (socket) => {
 
   socket.on('bot:start', async (p, cb) => {
     if (typeof cb !== 'function') return;
-    if (!FAST && !allow(`create:${ipOf(socket)}`, 10, 5 * 60_000)) {
+    if (!FAST && !allow(`solo:${ipOf(socket)}`, 20, 5 * 60_000)) {
       return cb({ ok: false, error: 'rate_limited' });
     }
     const name = nameOf(String(p?.name ?? '').trim());
@@ -1395,10 +1454,30 @@ io.on('connection', (socket) => {
     lobby.pace = pace;
     lobby.bot = { id: bot.id, name: bot.name, difficulty: bot.difficulty, rank: bot.rank, side: botSide, lang };
     if (playerId) lobby.campaign = { playerId, botRank: bot.rank };
+
+    // Does this one count? The bots have fixed, measured ratings, so a rated
+    // result against them is the only thing that makes a human rating mean
+    // anything in a pool this small. Sparring stays available and unrated,
+    // because practice should never be stressful. Decided BEFORE the debate:
+    // a retroactive "that did not count" is the worst thing a ladder can do.
+    const wantsRated = p?.rated !== false && Boolean(socket.data.account) && Boolean(playerId);
+    if (wantsRated) {
+      const already = await ratedBotMatchesToday(playerId, bot.name);
+      if (!io.sockets.sockets.get(socket.id)) return;
+      lobby.botRated =
+        already < RATED_BOT_MATCHES_PER_DAY
+          ? { playerId, name, botElo: bot.elo }
+          : undefined;
+      if (!lobby.botRated) lobby.botUnratedReason = 'cap';
+    } else if (p?.rated !== false) {
+      // Signed out: nothing to attach a rating to.
+      lobby.botUnratedReason = 'account';
+    }
+
     socket.data.code = lobby.code;
     socket.data.role = 'host';
     void socket.join(lobby.code);
-    cb({ ok: true });
+    cb({ ok: true, rated: Boolean(lobby.botRated), reason: lobby.botUnratedReason });
     startBotDebate(io, lobby, topic, humanSide);
   });
 
@@ -1452,7 +1531,7 @@ io.on('connection', (socket) => {
   // every round first), light practice motion, no judge at the end.
   socket.on('tutorial:start', (p, cb) => {
     if (typeof cb !== 'function') return;
-    if (!FAST && !allow(`create:${ipOf(socket)}`, 10, 5 * 60_000)) {
+    if (!FAST && !allow(`solo:${ipOf(socket)}`, 20, 5 * 60_000)) {
       return cb({ ok: false, error: 'rate_limited' });
     }
     const name = nameOf(String(p?.name ?? '').trim());

@@ -9,7 +9,7 @@
 //   4. Your record is a real screen you can open, filter, and read — not a
 //      collapsed box wedged under the fold.
 import { useEffect, useState } from 'react';
-import { NAME_RE, type JoinError, type LobbyUpdate } from '../../../server/src/protocol';
+import { NAME_RE, tierFor, type JoinError, type LobbyUpdate } from '../../../server/src/protocol';
 import { session, socket } from '../socket';
 import { playerId, signIn, signOut, whoAmI, type Account } from '../player';
 import { unlockSpectateAudio } from '../specaudio';
@@ -74,6 +74,7 @@ export default function Home({ notice, onEntered, onPlayBot, onSpectate, onMatch
     rating: number;
     provisional: boolean;
     placementsLeft: number;
+    games: number;
   } | null>(null);
   useEffect(() => {
     void fetch(`/rating?playerId=${encodeURIComponent(playerId())}`)
@@ -82,6 +83,26 @@ export default function Home({ notice, onEntered, onPlayBot, onSpectate, onMatch
         if (typeof d?.rating === 'number') setRank(d);
       })
       .catch(() => {});
+  }, [account.signedIn]);
+
+  // Friend requests waiting on you, refreshed when the server says the list
+  // changed. Without this the only way to discover a request is to go looking
+  // for one.
+  const [waiting, setWaiting] = useState(0);
+  useEffect(() => {
+    if (!account.signedIn) return;
+    const count = () =>
+      void fetch('/friends')
+        .then((r) => (r.ok ? r.json() : { friends: [] }))
+        .then((d: { friends?: { pending: boolean; incoming: boolean }[] }) =>
+          setWaiting((d.friends ?? []).filter((f) => f.pending && f.incoming).length),
+        )
+        .catch(() => {});
+    count();
+    socket.on('friend:changed', count);
+    return () => {
+      socket.off('friend:changed', count);
+    };
   }, [account.signedIn]);
 
   const [authNote] = useState(() => new URLSearchParams(window.location.search).get('auth'));
@@ -371,10 +392,12 @@ export default function Home({ notice, onEntered, onPlayBot, onSpectate, onMatch
               {rank ? (
                 <span className="rating-chip" title={t('yourRating')}>
                   {rank.provisional ? (
-                    t('placeIn', { n: rank.placementsLeft })
+                    t('placingChip', { n: rank.games ?? 0 })
                   ) : (
                     <>
-                      <span className="rating-chip-label">{t('yourRating')}</span>
+                      {/* Tier first: a number is a rank among twenty strangers,
+                          a tier is a claim you can go test against a bot. */}
+                      <span className="rating-chip-label">{t(`tier_${tierFor(rank.rating).key}`)}</span>
                       <span className="elo">{rank.rating}</span>
                     </>
                   )}
@@ -382,6 +405,8 @@ export default function Home({ notice, onEntered, onPlayBot, onSpectate, onMatch
               ) : null}
               <button className="btn btn-small ghost" onClick={onFriends}>
                 {t('friendsPillHome')}
+                {/* A request nobody can see is a request that did not arrive. */}
+                {waiting > 0 ? <span className="badge">{waiting}</span> : null}
               </button>
               <button className="btn btn-small ghost" onClick={onLocker}>
                 {t('lockerPill')}

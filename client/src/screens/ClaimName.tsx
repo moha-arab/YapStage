@@ -3,6 +3,7 @@
 // once and it's yours. Uniqueness is decided by the server, never guessed here.
 import { useState } from 'react';
 import { nameProblem } from '../../../server/src/protocol';
+import { socket } from '../socket';
 import { useI18n } from '../i18n';
 import Mask, { MASK_IDS } from '../Mask';
 
@@ -31,7 +32,15 @@ export default function ClaimName({ onClaimed }: Props) {
         body: JSON.stringify({ name }),
       });
       const out = (await res.json()) as { ok?: boolean; error?: string; name?: string };
-      if (out.ok && out.name) return onClaimed(out.name);
+      if (out.ok && out.name) {
+        // The socket connected with the pre-name cookie, and the server reads
+        // the session ONCE at connect. Without this bounce your first session
+        // runs as a nameless account: seats fall back to the typed name and
+        // your friends cannot see you online. Same fix as the locker's.
+        socket.disconnect();
+        socket.connect();
+        return onClaimed(out.name);
+      }
       setError(
         out.error === 'taken'
           ? 'nameTaken'

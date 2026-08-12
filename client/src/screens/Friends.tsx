@@ -10,6 +10,8 @@ import { useI18n } from '../i18n';
 export interface Friend {
   username: string;
   rating: number;
+  /** False until they finish placements: their rating is not a fact yet. */
+  placed: boolean;
   pending: boolean;
   incoming: boolean;
   online: boolean;
@@ -17,8 +19,9 @@ export interface Friend {
 
 interface Props {
   onBack: () => void;
-  /** Open a room and hand back its code, so we can push it to a friend. */
-  onChallenge: (username: string) => void;
+  /** Open a room and invite them. Resolves to an i18n key when something went
+      wrong, or null on success, so the friends screen can SAY what happened. */
+  onChallenge: (username: string) => Promise<string | null>;
 }
 
 export default function Friends({ onBack, onChallenge }: Props) {
@@ -27,14 +30,47 @@ export default function Friends({ onBack, onChallenge }: Props) {
   const [add, setAdd] = useState('');
   const [note, setNote] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  /** Which row is mid-request, so a click has visible feedback. */
+  const [pending, setPending] = useState<string | null>(null);
+
+  const [signedOut, setSignedOut] = useState(false);
+  /** The list could not be fetched. Different from having no friends. */
+  const [down, setDown] = useState(false);
 
   function load() {
     void fetch('/friends')
-      .then((r) => (r.ok ? r.json() : { friends: [] }))
-      .then((d: { friends?: Friend[] }) => setFriends(d.friends ?? []))
-      .catch(() => setFriends([]));
+      .then(async (r) => {
+        // A 401 is not an empty friends list. Rendering "nobody here yet" to a
+        // signed-out visitor is how you get told the feature is broken.
+        if (r.status === 401) {
+          setSignedOut(true);
+          return { friends: [] };
+        }
+        setSignedOut(false);
+        if (!r.ok) throw new Error(String(r.status));
+        return (await r.json()) as { friends?: Friend[] };
+      })
+      .then((d: { friends?: Friend[] }) => {
+        setDown(false);
+        setFriends(d.friends ?? []);
+      })
+      .catch(() => {
+        // Keep whatever list we already had rather than blanking it.
+        setDown(true);
+        setFriends((cur) => cur ?? []);
+      });
   }
   useEffect(load, []);
+
+  // The list is live: the server pokes every tab of whoever you added, and the
+  // poke is what turns "I sent a request and nothing happened" into a request
+  // appearing on their screen while they are looking at it.
+  useEffect(() => {
+    socket.on('friend:changed', load);
+    return () => {
+      socket.off('friend:changed', load);
+    };
+  }, []);
 
   // Presence is a live thing, so it is asked over the socket rather than baked
   // into the page at load. Every 20s is often enough to feel true and rare
@@ -51,18 +87,23 @@ export default function Friends({ onBack, onChallenge }: Props) {
     return () => window.clearInterval(id);
   }, []);
 
+  /** Every action reports, not just 'add'. A failed accept that says nothing is
+      indistinguishable from a button that does not work. */
   function act(action: 'add' | 'accept' | 'remove', username: string) {
     if (busy) return;
     setBusy(true);
     setNote(null);
+    setPending(username);
     void fetch('/friends', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ action, username }),
     })
-      .then((r) => (r.ok ? r.json() : { result: 'down' }))
+      .then((r) => (r.ok ? r.json() : { result: r.status === 429 ? 'rate_limited' : 'down' }))
       .then((d: { result?: string }) => {
         setBusy(false);
+        setPending(null);
+        const ok = d.result === 'ok' || d.result === 'accepted';
         if (action === 'add') {
           setNote(
             d.result === 'ok'
@@ -75,14 +116,40 @@ export default function Friends({ onBack, onChallenge }: Props) {
                     ? t('friendSelf')
                     : d.result === 'already'
                       ? t('friendAlready')
-                      : t('friendDown'),
+                      : d.result === 'rate_limited'
+                        ? t('errRateLimited')
+                        : t('friendDown'),
           );
-          if (d.result === 'ok' || d.result === 'accepted') setAdd('');
+          if (ok) setAdd('');
+        } else if (!ok) {
+          // 'nothing' means the row moved under us: they cancelled, or another
+          // tab already handled it. Reloading the list is the honest answer.
+          setNote(d.result === 'nothing' ? t('friendMoved') : t('friendDown'));
         }
         load();
       })
       .catch(() => {
         setBusy(false);
+        setPending(null);
+        setNote(t('friendDown'));
+      });
+  }
+
+  /** Open a room for a friend, and report what happened to the invite. */
+  function challenge(username: string) {
+    if (busy) return;
+    setBusy(true);
+    setPending(username);
+    setNote(null);
+    void onChallenge(username)
+      .then((problem) => {
+        setBusy(false);
+        setPending(null);
+        if (problem) setNote(t(problem, { x: username }));
+      })
+      .catch(() => {
+        setBusy(false);
+        setPending(null);
         setNote(t('friendDown'));
       });
   }
@@ -107,6 +174,16 @@ export default function Friends({ onBack, onChallenge }: Props) {
       <h1 className="display page-title">{t('friendsTitle')}</h1>
       {accepted.length > 0 ? (
         <p className="page-sub">{t('friendsOnline', { n: online, total: accepted.length })}</p>
+      ) : null}
+
+      {signedOut ? (
+        <p className="error" role="alert">
+          {t('friendsSignedOut')}
+        </p>
+      ) : down ? (
+        <p className="error" role="alert">
+          {t('friendDown')}
+        </p>
       ) : null}
 
       <div className="card friends-add">
@@ -139,10 +216,14 @@ export default function Friends({ onBack, onChallenge }: Props) {
             {incoming.map((f) => (
               <li key={f.username}>
                 <span className="friend-name">{f.username}</span>
-                <button className="btn btn-small btn-primary" onClick={() => act('accept', f.username)}>
-                  {t('friendAccept')}
+                <button
+                  className="btn btn-small btn-primary"
+                  disabled={busy}
+                  onClick={() => act('accept', f.username)}
+                >
+                  {pending === f.username ? t('loading') : t('friendAccept')}
                 </button>
-                <button className="btn btn-small ghost" onClick={() => act('remove', f.username)}>
+                <button className="btn btn-small ghost" disabled={busy} onClick={() => act('remove', f.username)}>
                   {t('friendDecline')}
                 </button>
               </li>
@@ -167,16 +248,19 @@ export default function Friends({ onBack, onChallenge }: Props) {
               <li key={f.username}>
                 <span className={`dot ${f.online ? 'dot-on' : ''}`} aria-hidden="true" />
                 <span className="friend-name">{f.username}</span>
-                <span className="friend-elo elo">{f.rating}</span>
+                <span className="friend-elo elo">{f.placed ? f.rating : t('unrated')}</span>
+                {/* Calling out an offline friend still opens the room and still
+                    gives you a code to send them. Disabling the button just
+                    left you with no way to invite anyone who was not already
+                    staring at the app. */}
                 <button
                   className="btn btn-small btn-primary"
-                  disabled={!f.online}
-                  title={f.online ? '' : t('friendOffline')}
-                  onClick={() => onChallenge(f.username)}
+                  disabled={busy}
+                  onClick={() => challenge(f.username)}
                 >
-                  {t('friendChallenge')}
+                  {pending === f.username ? t('loading') : f.online ? t('friendChallenge') : t('friendChallengeOffline')}
                 </button>
-                <button className="btn btn-small ghost" onClick={() => act('remove', f.username)}>
+                <button className="btn btn-small ghost" disabled={busy} onClick={() => act('remove', f.username)}>
                   {t('friendRemove')}
                 </button>
               </li>
@@ -193,7 +277,7 @@ export default function Friends({ onBack, onChallenge }: Props) {
               <li key={f.username}>
                 <span className="friend-name friend-muted">{f.username}</span>
                 <span className="friend-wait">{t('friendWaiting')}</span>
-                <button className="btn btn-small ghost" onClick={() => act('remove', f.username)}>
+                <button className="btn btn-small ghost" disabled={busy} onClick={() => act('remove', f.username)}>
                   {t('friendCancel')}
                 </button>
               </li>

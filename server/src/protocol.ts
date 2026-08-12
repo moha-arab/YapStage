@@ -21,6 +21,37 @@ export type Difficulty = 'easy' | 'medium' | 'hard';
 // maximums everywhere: "pass the mic" ends a turn early.
 export type Pace = 'standard' | 'blitz' | 'long';
 
+/** Tiers, and every boundary is a bot.
+    A number is a rank among twenty strangers and carries a ±200 error bar.
+    A tier is a falsifiable claim with a named opponent you can go fight right
+    now: "Contender" means you can take Vivi, and the way to argue with it is
+    to go and beat Vivi. That is the one thing a debate app with six calibrated
+    bots can say that no generic Bronze/Silver ladder can. */
+export const TIERS = [
+  { min: 0, key: 'heckler', beats: null },
+  { min: 650, key: 'yapper', beats: 'Pip' },
+  { min: 850, key: 'scrapper', beats: 'Cappy' },
+  { min: 1000, key: 'contender', beats: 'Vivi' },
+  { min: 1200, key: 'closer', beats: 'Ozzy' },
+  { min: 1350, key: 'headliner', beats: 'Brutus' },
+  { min: 1500, key: 'silvertongue', beats: 'Gigi' },
+] as const;
+
+export type Tier = (typeof TIERS)[number];
+export type TierKey = Tier['key'];
+
+export function tierFor(rating: number): Tier {
+  let out: Tier = TIERS[0];
+  for (const t of TIERS) if (rating >= t.min) out = t;
+  return out;
+}
+
+/** The next tier up and how far away it is, for "40 points to Closer". */
+export function nextTier(rating: number): { tier: Tier; away: number } | null {
+  const up: Tier | undefined = TIERS.find((t) => t.min > rating);
+  return up ? { tier: up, away: up.min - rating } : null;
+}
+
 /** Public bot info for the pick screen (no prompt/voice secrets). */
 export interface BotInfo {
   id: string;
@@ -167,8 +198,9 @@ export interface DebateStart {
   names: Record<Side, string>;
   startsAt: number; // epoch ms: reveal countdown ends and step 0 begins
   serverNow: number;
-  /** Present only in bots mode — the opponent is this AI, not a human peer. */
-  bot?: { id: string; name: string; color: string };
+  /** Present only in bots mode — the opponent is this AI, not a human peer.
+      `elo` rides along so the verdict can explain the size of the movement. */
+  bot?: { id: string; name: string; color: string; elo?: number };
   /** Human debaters' masks by side. In ranked these are the only faces. */
   avatars?: Partial<Record<Side, AvatarId>>;
   /** Dispute mode only: the argument and each side's position, shown instead of
@@ -292,6 +324,8 @@ export interface ClientToServer {
   ) => void;
   /** Anti-cheat: you left the tab for `ms` while it was your turn to speak. */
   'turn:away': (p: { ms: number }) => void;
+  /** Walk out of a room before the debate starts. */
+  'lobby:leave': () => void;
   'spectate:leave': () => void;
   /** Push your room code to a friend who is online right now. Friends only,
       checked server-side. */
@@ -327,8 +361,16 @@ export interface ClientToServer {
       /** Campaign identity: bots above your unlocked level are refused
           ('locked'). Absent (old clients) or store-down means no gate. */
       playerId?: string;
+      /** Default true: the ladder counts. false = sparring, unrated. */
+      rated?: boolean;
     },
-    cb: (res: { ok: boolean; error?: JoinError }) => void,
+    cb: (res: {
+      ok: boolean;
+      error?: JoinError;
+      /** Whether this debate will move your rating, decided before it starts. */
+      rated?: boolean;
+      reason?: 'account' | 'cap' | 'spar' | 'quiet';
+    }) => void,
   ) => void;
   /** Where this player's campaign stands: the highest bot rank they may face.
       level 0 = only the tutorial; null = the store is down (client fails open). */
@@ -348,6 +390,8 @@ export interface ClientToServer {
 
 export interface ServerToClient {
   'lobby:update': (u: LobbyUpdate) => void;
+  /** Your friends list changed (request, accept, or removal): refetch it. */
+  'friend:changed': () => void;
   /** A friend called you out: their room is open and waiting for you. */
   'friend:invited': (p: { from: string; code: string }) => void;
   'lobby:closed': (p: { reason: string; vars?: Record<string, string> }) => void;

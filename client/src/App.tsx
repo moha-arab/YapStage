@@ -110,6 +110,10 @@ export default function App() {
   const [viewingLocker, setViewingLocker] = useState(false);
   const [viewingFriends, setViewingFriends] = useState(false);
   const [viewingDrill, setViewingDrill] = useState(false);
+  /** How the call-out that opened this room went, shown in the green room. */
+  const [inviteNote, setInviteNote] = useState<{ key: string; x?: string } | null>(null);
+  /** Bot mode: whether this debate is on the ladder, decided at start. */
+  const [botStake, setBotStake] = useState<{ rated: boolean; reason?: string } | null>(null);
   /** A friend's open room, pushed to every tab you have. Survives screens. */
   const [callout, setCallout] = useState<{ from: string; code: string } | null>(null);
   // Signed-out visitors land on Welcome; 'continue as guest' dismisses it for
@@ -201,7 +205,15 @@ export default function App() {
 
   useEffect(() => {
     socket.on('lobby:update', (u) => setLobby(u));
-    socket.on('friend:invited', (p) => setCallout(p));
+    // A call-out is a live invitation, not a message. If you were mid-debate
+    // when it arrived, the room it points at is probably long finished by the
+    // time you surface, so it expires rather than lying to you later.
+    socket.on('friend:invited', (p) => {
+      setCallout(p);
+      window.setTimeout(() => {
+        setCallout((cur) => (cur?.code === p.code ? null : cur));
+      }, 3 * 60_000);
+    });
     // Spectator plumbing: the snapshot (kept here so the Spectate screen can
     // mount with it instead of racing the event) and the watcher count that
     // debaters must always see.
@@ -682,18 +694,34 @@ export default function App() {
       room is real either way, so a friend who is asleep still leaves you with
       a lobby you can share by hand. */
   const challengeFriend = useCallback(
-    (username: string) => {
-      const name = account?.name ?? '';
-      if (!name) return;
-      socket.emit('lobby:create', { sessionId: session.id, name }, (res) => {
-        if (!res.ok) return;
-        setViewingFriends(false);
-        handleEntered(res.update);
-        socket.emit('friend:invite', { username, code: res.update.code }, (r) => {
-          setNotice(r?.ok ? null : 'friendInviteOffline');
+    (username: string): Promise<string | null> =>
+      new Promise((resolve) => {
+        const name = account?.name ?? '';
+        if (!name) return resolve('friendDown');
+        socket.emit('lobby:create', { sessionId: session.id, name }, (res) => {
+          // A create that fails (rate limit, bad name, server full) used to
+          // resolve into nothing at all: the button simply did not work.
+          if (!res.ok) return resolve(res.error === 'rate_limited' ? 'errRateLimited' : 'friendDown');
+          socket.emit('friend:invite', { username, code: res.update.code }, (r) => {
+            // The room is real either way, so an offline friend still leaves
+            // you with a code to send by hand. Walk into it, and carry the
+            // outcome onto that screen rather than onto the one we just left.
+            const key = r?.ok
+              ? 'friendInviteSent'
+              : r?.error === 'offline'
+                ? 'friendInviteOffline'
+                : r?.error === 'not_friends'
+                  ? 'friendNotFriends'
+                  : r?.error === 'rate_limited'
+                    ? 'errRateLimited'
+                    : 'friendDown';
+            setInviteNote({ key, x: username });
+            setViewingFriends(false);
+            handleEntered(res.update);
+            resolve(null);
+          });
         });
-      });
-    },
+      }),
     [account?.name, handleEntered],
   );
 
@@ -746,7 +774,13 @@ export default function App() {
         'bot:start',
         { sessionId: session.id, name: botName, lang: langRef.current, playerId: playerId(), ...c },
         (res) => {
-          if (res.ok) return; // debate:start arrives next and renders the debate
+          if (res.ok) {
+            // Whether the ladder is armed is decided server-side (account, the
+            // daily cap, your spar choice). Keep it so the verdict can say what
+            // happened instead of silently not moving a number.
+            setBotStake({ rated: Boolean(res.rated), reason: res.reason });
+            return; // debate:start arrives next and renders the debate
+          }
           const map: Record<string, string> = {
             rate_limited: 'errRateLimited',
             bad_name: 'errBadName',
@@ -880,6 +914,8 @@ export default function App() {
         ranked={Boolean(lobby?.ranked)}
         unlocked={unlocked}
         avatars={start?.avatars ?? null}
+        botStake={start?.bot ? botStake : null}
+        opponentRating={start?.bot?.elo}
       />
     );
   } else if (start) {
@@ -951,6 +987,7 @@ export default function App() {
         speechSupported={speechSupported}
         rtcState={rtcState}
         onRetryMedia={retryMedia}
+        notice={inviteNote}
       />
     );
   } else if (account && account.google && !account.signedIn && !guestMode) {
@@ -982,7 +1019,10 @@ export default function App() {
     <>
       <LangToggle />
       {content}
-      {callout && !lobby ? (
+      {/* Never over a live debate. `lobby` is null in BOT and TUTORIAL modes,
+          so gating on it alone let this bar sit on top of a running debate and
+          hijack the socket if you tapped it. Gate on "am I in anything". */}
+      {callout && !lobby && !start && !spectating ? (
         <CallOut
           callout={callout}
           onJoin={() => {
@@ -994,11 +1034,22 @@ export default function App() {
               (res) => {
                 setCallout(null);
                 if (res.ok) {
+                  // Whatever screen you were on, the room is where you go.
                   setViewingFriends(false);
                   setViewingMatches(false);
+                  setViewingLocker(false);
+                  setViewingDrill(false);
+                  setBotPicking(false);
                   handleEntered(res.update);
                 } else {
-                  setNotice('errNotFound');
+                  // Their room can be full, already debating, or long gone.
+                  setNotice(
+                    res.error === 'full'
+                      ? 'errFull'
+                      : res.error === 'in_progress'
+                        ? 'errInProgress'
+                        : 'calloutGone',
+                  );
                 }
               },
             );

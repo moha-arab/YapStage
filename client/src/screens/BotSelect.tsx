@@ -15,6 +15,8 @@ export interface BotStartConfig {
   topicId?: string;
   side: Side | 'random';
   pace: Pace;
+  /** Ladder (rated) or spar (unrated). Decided before the debate starts. */
+  rated: boolean;
 }
 
 interface Props {
@@ -39,6 +41,11 @@ export default function BotSelect({ localStream, mediaError, onRetryMedia, onSta
   const [topicId, setTopicId] = useState<string | null>(null);
   const [side, setSide] = useState<Side | 'random'>('random');
   const [pace, setPace] = useState<Pace>('standard');
+  // The ladder counts by default. Sparring exists so practice never has to be
+  // stressful, and the choice is made HERE, before anyone speaks: a debate that
+  // turns out not to have counted is the worst thing a ladder can do to you.
+  const [rated, setRated] = useState(true);
+  const [rank, setRank] = useState<{ rating: number; provisional: boolean } | null>(null);
   // Campaign frontier: the highest rank you may face. null = unknown (store
   // down or old server) — fail OPEN, the ladder is never bricked by a database.
   const [level, setLevel] = useState<number | null>(null);
@@ -55,6 +62,12 @@ export default function BotSelect({ localStream, mediaError, onRetryMedia, onSta
     socket.emit('campaign:get', { playerId: playerId() }, (res) => {
       setLevel(res?.level ?? null);
     });
+    void fetch(`/rating?playerId=${encodeURIComponent(playerId())}`)
+      .then((r) => r.json())
+      .then((d) => {
+        if (typeof d?.rating === 'number') setRank(d);
+      })
+      .catch(() => {});
   }, []);
 
   const maxRank = bots.reduce((m, b) => Math.max(m, b.rank), 6);
@@ -85,6 +98,7 @@ export default function BotSelect({ localStream, mediaError, onRetryMedia, onSta
       topicId: mode === 'agree' ? (topicId ?? undefined) : undefined,
       side,
       pace,
+      rated,
     });
   }
 
@@ -266,6 +280,32 @@ export default function BotSelect({ localStream, mediaError, onRetryMedia, onSta
           </button>
         </div>
       ) : null}
+
+      {/* What is at stake, in one line, before the mic opens. */}
+      <div className="stakes">
+        <div className="chip-row">
+          {([true, false] as const).map((r) => (
+            <button
+              key={String(r)}
+              className={`cat-tab ${rated === r ? 'cat-active' : ''}`}
+              onClick={() => setRated(r)}
+            >
+              {t(r ? 'stakeRated' : 'stakeSpar')}
+            </button>
+          ))}
+        </div>
+        <p className="stakes-line">
+          {rated
+            ? chosen
+              ? t('stakeRatedLine', {
+                  x: chosen.name,
+                  n: chosen.elo,
+                  you: rank && !rank.provisional ? String(rank.rating) : t('unrated'),
+                })
+              : t('stakeRatedPick')
+            : t('stakeSparLine')}
+        </p>
+      </div>
 
       <button className="btn btn-primary btn-wide bot-go" disabled={!ready} onClick={start}>
         {chosen ? t('debateName', { x: chosen.name }) : t('pickABot')}

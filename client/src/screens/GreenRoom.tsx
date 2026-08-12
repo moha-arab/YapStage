@@ -20,6 +20,10 @@ interface Props {
   speechSupported: boolean;
   rtcState: RTCPeerConnectionState | null;
   onRetryMedia: () => void;
+  /** Outcome of the invite that opened this room, when it came from a call-out.
+      It has to render HERE, because this is the screen the caller lands on: a
+      message set on the friends screen is a message nobody ever sees. */
+  notice?: { key: string; x?: string } | null;
 }
 
 export default function GreenRoom({
@@ -30,6 +34,7 @@ export default function GreenRoom({
   speechSupported,
   rtcState,
   onRetryMedia,
+  notice,
 }: Props) {
   const { lang, t } = useI18n();
   const [consent, setConsent] = useState(false);
@@ -170,12 +175,16 @@ export default function GreenRoom({
   return (
     <div className="stage green-room">
       <header className="topbar">
-        <span className="brand">
-          YAP<span className="logo-accent">STAGE</span>
-        </span>
+        {/* There was no way out of this screen except a page refresh, which
+            the unload warning then argued with. */}
+        <button className="btn btn-small" onClick={() => socket.emit('lobby:leave')}>
+          {t('leaveRoom')}
+        </button>
         <span className="pill">{t('greenRoom')}</span>
         <span className="pill pill-code">{lobby.code}</span>
       </header>
+
+      {notice ? <div className="banner">{t(notice.key, { x: notice.x ?? '' })}</div> : null}
 
       {waiting ? (
         <>

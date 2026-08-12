@@ -8,6 +8,7 @@
 // learns the shape of the thing, and the ladder always has the bots on it.
 import { useEffect, useState } from 'react';
 import { useI18n } from './i18n';
+import { playerId } from './player';
 
 interface Result {
   topic: string;
@@ -45,6 +46,17 @@ export default function HomeFeed() {
   const [top, setTop] = useState<Rung[]>([]);
   const [bots, setBots] = useState<Bot[]>([]);
 
+  // Your own rating, only so the ladder can name the next bot above you.
+  const [mine, setMine] = useState<number | null>(null);
+  useEffect(() => {
+    void fetch(`/rating?playerId=${encodeURIComponent(playerId())}`)
+      .then((r) => r.json())
+      .then((d) => {
+        if (typeof d?.rating === 'number' && !d.provisional) setMine(d.rating);
+      })
+      .catch(() => {});
+  }, []);
+
   useEffect(() => {
     void fetch('/feed')
       .then((r) => r.json())
@@ -70,6 +82,9 @@ export default function HomeFeed() {
     .slice(0, 10);
 
   const headline = recent && recent.length > 0 ? recent[0]! : null;
+  // The lowest bot you have not passed yet: the next rung, never the boss.
+  const target =
+    mine === null ? null : ([...bots].sort((a, b) => a.elo - b.elo).find((b) => b.elo > mine) ?? null);
 
   return (
     <section className="feed">
@@ -137,6 +152,12 @@ export default function HomeFeed() {
             </li>
           ))}
         </ol>
+        {/* The one call to action on this page that needs nobody else awake. */}
+        {target ? (
+          <p className="ladder-target">
+            {t('nextTarget', { x: target.name, n: target.elo - (mine ?? 0) })}
+          </p>
+        ) : null}
         <p className="ladder-note">{t('ladderNote')}</p>
       </div>
     </section>
