@@ -20,34 +20,30 @@ starts at 400, so a newcomer has one rung below them and a long way up. (Its bot
 personalities top out at 2450 and the raw engine slider goes to 3200; there is
 no bot at 100.)
 
-## Bot matches are RATED
+## Bot matches are UNRATED
 
-This is the load-bearing decision. In a pool of twenty friends, human-only Elo
-is closed and zero-sum: your number encodes your rank among those twenty and
-nothing else, and with two active players it is two people passing the same
-points back and forth.
+Ranked means humans, the same rule chess.com runs. This was briefly reversed
+(bot matches rated against the fixed bot ratings) to solve the cold-start
+problem in a twenty-person pool, and reverted 2026-08-12. Two reasons, and both
+outrank the cold-start argument:
 
-Rated bot matches break that open. Points enter and leave the human pool
-against six fixed, measured, published opponents, so "you are 1100" becomes a
-claim about debating that you can go falsify in five minutes.
+1. **A bot is a fixed strategy.** Ozzy never weighs impacts. Once you learn
+   that, you beat Ozzy forever with the same move, and a rating would climb
+   while your debating did not. Elo assumes an opponent whose strength is
+   stable across all players; a prompt is not that.
+2. **A bot match has no witness.** Rating movement against one is the cheapest
+   possible farm for anyone with a chatbot open in the next tab. Unobserved
+   rating movement is the last place it belongs, and this app has an anti-cheat
+   file precisely because of that.
 
-Farming is handled by the maths rather than by a rule. Against Pip (650):
+The cold-start problem is real: in a closed human-only pool your number encodes
+your rank among twenty friends and little else. The answer is to fix placement
+(three matches, not five, so the threshold is reachable) and to keep the bot
+ladder as a published yardstick you measure yourself against, not as a source
+of rating.
 
-| your rating | a win pays | a loss costs |
-| --- | --- | --- |
-| 700 | +14 | -13 |
-| 850 | +6 | -21 |
-| 1050 | +2 | -22 |
-
-You asymptote at your true level against that bot and stop. The fixed anchor is
-not a farming risk, it *is* the anti-farming mechanism. The guards on top are
-belt and braces: three rated matches per bot per day, a forty-word minimum
-before a match can count, and sparring available unrated and unlimited.
-
-**Accepted tradeoff:** every human rating now inherits the bot calibration
-error. It is common-mode, so the order among humans is untouched, but a future
-recalibration means a one-time shift of every human rating. That is a named,
-expected event, not a surprise.
+So the bot ratings on this page are a scale you can compare yourself to. They
+are not something you can win or lose.
 
 A rating gap means one thing and nothing else:
 
