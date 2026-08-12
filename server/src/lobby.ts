@@ -112,11 +112,6 @@ export interface Lobby {
   stepStartedAt: number; // epoch ms of the last phase transition
   /** stepIndex -> when that turn opened. Anti-cheat reads dead air from this. */
   turnStarts: Map<number, number>;
-  /** Set when THIS bot debate moves the human rating: who to move and against
-      what fixed number. Absent means sparring. */
-  botRated?: { playerId: string; name: string; botElo: number };
-  /** Why a bot debate is not rated, so the UI can say so BEFORE it starts. */
-  botUnratedReason?: 'account' | 'cap' | 'spar' | 'quiet';
   /** Per-side tab-blur time reported by the client, for the anti-cheat file. */
   blur: Record<Side, { blurMs: number; blurCount: number }>;
   finishedAt?: number; // epoch ms when step 5 ended

@@ -5,7 +5,7 @@ import { destroyLobby, touch } from './lobby.js';
 import type { Io } from './debate.js';
 import { event } from './stats.js';
 import { synthesize } from './tts.js';
-import { advanceCampaign, applyBotResult, applyRankedResult, campaignLocksOn, getCampaign, saveCheatFlag, saveMatch } from './store.js';
+import { advanceCampaign, applyRankedResult, campaignLocksOn, getCampaign, saveCheatFlag, saveMatch } from './store.js';
 import { FLAG_AT, analyze } from './cheat.js';
 import { drillMeta, type DrillType } from './drills.js';
 import { BOTS } from './bots.js';
@@ -493,31 +493,16 @@ function emitVerdict(io: Io, lobby: Lobby, to: string): void {
 
 /** Ranked: move both ratings on the result. Fail-soft — a dead database costs
     the rating update, never the verdict. */
-/** A rated bot debate moves the human against the bot's FIXED number. This is
-    what makes a rating mean something in a twenty-person app: most of your
-    signal comes from six measured, published opponents instead of from whoever
-    happened to be awake. */
-async function applyBotElo(lobby: Lobby): Promise<void> {
-  const rated = lobby.botRated;
-  if (!rated || !lobby.bot || !lobby.sides || !lobby.verdict) return;
-  const humanSide: Side = lobby.bot.side === 'FOR' ? 'AGAINST' : 'FOR';
+async function applyElo(lobby: Lobby): Promise<void> {
+  // Ranked means humans. Bot debates never move a rating: a bot is a fixed
+  // strategy you can learn to beat permanently, and a bot match has no witness,
+  // which is the last place unobserved rating movement belongs.
+  if (lobby.bot) return;
+  if (!lobby.ranked || !lobby.sides || !lobby.verdict) return;
   // Silence is not a result. If the mic never reached us the debate was not
   // played, and charging someone rating for our outage is indefensible.
-  const heard = heardCounts(lobby)[humanSide];
-  if (heard < MIN_RATED_WORDS) {
-    lobby.botUnratedReason = 'quiet';
-    return;
-  }
-  const won = lobby.verdict.winner === humanSide;
-  const moved = await applyBotResult(rated.playerId, rated.name, rated.botElo, won);
-  if (!moved) return;
-  lobby.eloResult = { [humanSide]: moved } as Record<Side, { before: number; after: number }>;
-  event('elo_bot', { code: lobby.code, delta: moved.after - moved.before, won });
-}
-
-async function applyElo(lobby: Lobby): Promise<void> {
-  if (lobby.bot) return applyBotElo(lobby);
-  if (!lobby.ranked || !lobby.sides || !lobby.verdict) return;
+  const heard = heardCounts(lobby);
+  if (heard.FOR < MIN_RATED_WORDS || heard.AGAINST < MIN_RATED_WORDS) return;
   const winnerIsHost = lobby.sides.host === lobby.verdict.winner;
   const winnerId = winnerIsHost ? lobby.ranked.host : lobby.ranked.guest;
   const loserId = winnerIsHost ? lobby.ranked.guest : lobby.ranked.host;
@@ -578,7 +563,8 @@ async function fileMatch(lobby: Lobby, verdict: Verdict): Promise<void> {
       opponent: names[other],
       // Ranked human matches always count; bot matches count when the ladder
       // was armed. The row remembers, because the daily cap reads it back.
-      rated: mode === 'ranked' || Boolean(lobby.botRated),
+      // Ranked human matches are the only rated thing in the app.
+      rated: mode === 'ranked',
       verdict,
       transcript: lobby.transcript,
     });

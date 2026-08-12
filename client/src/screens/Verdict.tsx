@@ -48,8 +48,6 @@ interface Props {
   /** Masks by side (an entry = that side is masked), so the post-verdict call
       still shows a face for players who never had a camera. */
   avatars?: Partial<Record<Side, string>> | null;
-  /** Bot mode: whether the ladder was armed, and why not when it wasn't. */
-  botStake?: { rated: boolean; reason?: string } | null;
   /** What the opponent was rated, so the delta can explain its own size. */
   opponentRating?: number;
 }
@@ -205,7 +203,6 @@ export default function VerdictScreen({
   unlocked,
   avatars,
   framing,
-  botStake,
   opponentRating,
 }: Props) {
   const { lang, t } = useI18n();
@@ -705,13 +702,6 @@ export default function VerdictScreen({
               won={youWon}
               opponentRating={opponentRating}
             />
-          ) : botStake && !botStake.rated ? (
-            // Say WHY it did not count, and never as a surprise: the same
-            // reason was on the pick screen before the debate started.
-            <p className="elo-line">
-              {t('eloNotRated')}{' '}
-              {botStake.reason ? t(`eloReason_${botStake.reason}`) : ''}
-            </p>
           ) : null}
         </>
       ) : null}

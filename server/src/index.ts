@@ -71,8 +71,6 @@ import {
   loadMatch,
   loadReports,
   PLACEMENT_MATCHES,
-  RATED_BOT_MATCHES_PER_DAY,
-  ratedBotMatchesToday,
   recentRanked,
   recordDrill,
   recordShutdown,
@@ -1455,29 +1453,20 @@ io.on('connection', (socket) => {
     lobby.bot = { id: bot.id, name: bot.name, difficulty: bot.difficulty, rank: bot.rank, side: botSide, lang };
     if (playerId) lobby.campaign = { playerId, botRank: bot.rank };
 
-    // Does this one count? The bots have fixed, measured ratings, so a rated
-    // result against them is the only thing that makes a human rating mean
-    // anything in a pool this small. Sparring stays available and unrated,
-    // because practice should never be stressful. Decided BEFORE the debate:
-    // a retroactive "that did not count" is the worst thing a ladder can do.
-    const wantsRated = p?.rated !== false && Boolean(socket.data.account) && Boolean(playerId);
-    if (wantsRated) {
-      const already = await ratedBotMatchesToday(playerId, bot.name);
-      if (!io.sockets.sockets.get(socket.id)) return;
-      lobby.botRated =
-        already < RATED_BOT_MATCHES_PER_DAY
-          ? { playerId, name, botElo: bot.elo }
-          : undefined;
-      if (!lobby.botRated) lobby.botUnratedReason = 'cap';
-    } else if (p?.rated !== false) {
-      // Signed out: nothing to attach a rating to.
-      lobby.botUnratedReason = 'account';
-    }
-
+    // BOT MATCHES ARE UNRATED, the same rule chess.com runs, and the reasons
+    // are stronger here than the cold-start argument that briefly overrode
+    // them. A bot is a FIXED strategy: Ozzy never weighs impacts, so once you
+    // learn that you beat Ozzy forever with the same move and a rating would
+    // climb while your debating did not. Elo assumes an opponent whose
+    // strength is stable across all players, and a prompt is not. Worse, a bot
+    // match has no witness, so rating movement against one is the cheapest
+    // possible farm for anyone with a chatbot open in the next tab.
+    // The bot ladder is a yardstick you measure yourself against, not a source
+    // of rating. Ranked means humans.
     socket.data.code = lobby.code;
     socket.data.role = 'host';
     void socket.join(lobby.code);
-    cb({ ok: true, rated: Boolean(lobby.botRated), reason: lobby.botUnratedReason });
+    cb({ ok: true });
     startBotDebate(io, lobby, topic, humanSide);
   });
 

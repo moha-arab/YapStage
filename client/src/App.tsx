@@ -112,8 +112,6 @@ export default function App() {
   const [viewingDrill, setViewingDrill] = useState(false);
   /** How the call-out that opened this room went, shown in the green room. */
   const [inviteNote, setInviteNote] = useState<{ key: string; x?: string } | null>(null);
-  /** Bot mode: whether this debate is on the ladder, decided at start. */
-  const [botStake, setBotStake] = useState<{ rated: boolean; reason?: string } | null>(null);
   /** A friend's open room, pushed to every tab you have. Survives screens. */
   const [callout, setCallout] = useState<{ from: string; code: string } | null>(null);
   // Signed-out visitors land on Welcome; 'continue as guest' dismisses it for
@@ -774,13 +772,7 @@ export default function App() {
         'bot:start',
         { sessionId: session.id, name: botName, lang: langRef.current, playerId: playerId(), ...c },
         (res) => {
-          if (res.ok) {
-            // Whether the ladder is armed is decided server-side (account, the
-            // daily cap, your spar choice). Keep it so the verdict can say what
-            // happened instead of silently not moving a number.
-            setBotStake({ rated: Boolean(res.rated), reason: res.reason });
-            return; // debate:start arrives next and renders the debate
-          }
+          if (res.ok) return; // debate:start arrives next and renders the debate
           const map: Record<string, string> = {
             rate_limited: 'errRateLimited',
             bad_name: 'errBadName',
@@ -914,7 +906,6 @@ export default function App() {
         ranked={Boolean(lobby?.ranked)}
         unlocked={unlocked}
         avatars={start?.avatars ?? null}
-        botStake={start?.bot ? botStake : null}
         opponentRating={start?.bot?.elo}
       />
     );

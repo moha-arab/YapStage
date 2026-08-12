@@ -177,8 +177,7 @@ export async function initStore(): Promise<void> {
     await pool.query(
       `CREATE INDEX IF NOT EXISTS matches_player_at ON matches (player_id, at DESC)`,
     );
-    // Bot matches are rated now, so a match row has to remember whether it
-    // counted. Sparring rows stay false and the daily cap ignores them.
+    // Whether the match moved a rating. Only ranked human matches do.
     await pool.query(`ALTER TABLE matches ADD COLUMN IF NOT EXISTS rated boolean NOT NULL DEFAULT false`);
     // One-time data changes that cannot be expressed as CREATE IF NOT EXISTS.
     await pool.query(`
@@ -331,12 +330,11 @@ export async function getRating(id: string): Promise<PlayerRow | null> {
 
 /** Matches you must finish before your rating is a number and not a guess.
     Chess.com hides the rating for 5 games; Lichess shows "?" until its
-    deviation settles. Same idea: don't show a number you don't believe yet. */
-export const PLACEMENT_MATCHES = 5;
-
-/** Rated matches per bot per day. A guard, not a leash: six bots times three
-    is ninety minutes of debating, so a real player will never see it. */
-export const RATED_BOT_MATCHES_PER_DAY = 3;
+    deviation settles. Same idea: do not show a number you do not believe yet.
+    THREE, not five, because only ranked matches against humans count and this
+    pool is tiny: a threshold nobody can reach hides the rating forever, which
+    is worse than showing one that is still moving. */
+export const PLACEMENT_MATCHES = 3;
 
 /** Where a new player starts.
     700 was chosen from the bot ladder, not from chess. At 700 you are a 57%
@@ -369,67 +367,12 @@ function kFor(games: number): number {
 /** Expected score for A against B, the only thing a rating gap ever means. */
 const expected = (a: number, b: number): number => 1 / (1 + Math.pow(10, (b - a) / 400));
 
-/** A rated match against a FIXED-rating bot. The bot never moves, which is the
-    entire point: it is an external anchor, so points enter and leave the human
-    pool against a measured opponent instead of circulating among twenty
-    friends. That is what turns "you are 1100" from a claim about your rank
-    among strangers into a claim about debating.
+/** ELO for a ranked HUMAN match, the only thing in the app that moves a rating.
+    Bot debates are deliberately unrated: a bot is a fixed strategy you can
+    learn to beat forever, and a bot match has no witness.
 
-    Farming is handled by the maths rather than by a rule: at 700 a win over
-    Pip pays +14, at 850 it pays +6, at 1050 it pays +2 while a loss costs 22.
-    You asymptote at your true level against that bot and stop. */
-export async function applyBotResult(
-  playerId: string,
-  name: string,
-  botRating: number,
-  won: boolean,
-): Promise<{ before: number; after: number } | null> {
-  if (!pool || !ready) return null;
-  try {
-    const row = await getPlayer(playerId, name);
-    if (!row) return null;
-    const games = row.wins + row.losses;
-    // A bot plays a scripted ceiling, so a result against one says a little
-    // less about you than a live human who adapts. Same idea as chess.com
-    // valuing games against a high-uncertainty opponent less.
-    const k = kFor(games) * 0.75;
-    const e = expected(row.rating, botRating);
-    const delta = Math.round(k * ((won ? 1 : 0) - e));
-    const after = Math.max(RATING_FLOOR, row.rating + delta);
-    await pool.query(
-      `UPDATE players SET rating = $2, wins = wins + $3, losses = losses + $4, updated_at = now()
-       WHERE id = $1`,
-      [playerId.slice(0, 64), after, won ? 1 : 0, won ? 0 : 1],
-    );
-    return { before: row.rating, after };
-  } catch (err) {
-    console.error('[store] applyBotResult failed:', err);
-    return null;
-  }
-}
-
-/** Rated matches this player has already had against this bot today. The cap
-    is a guard, not a leash: six bots times three is ninety minutes of debating,
-    so a real player will never see it. */
-export async function ratedBotMatchesToday(playerId: string, opponent: string): Promise<number> {
-  if (!pool || !ready) return 0;
-  try {
-    const res = await pool.query(
-      `SELECT COUNT(*)::int AS n FROM matches
-       WHERE player_id = $1 AND mode = 'bots' AND rated = true
-         AND opponent = $2 AND at > now() - interval '24 hours'`,
-      [playerId.slice(0, 64), opponent.slice(0, 24)],
-    );
-    return res.rows[0]?.n ?? 0;
-  } catch (err) {
-    console.error('[store] ratedBotMatchesToday failed:', err);
-    return 0;
-  }
-}
-
-/** ELO with a placement-aware K. Returns both movements, or null if the store
-    is down. The two players can move by DIFFERENT amounts — that is deliberate
-    and is how a settled rating survives a rush of new accounts. */
+    The two players can move by DIFFERENT amounts, which is deliberate and is
+    how a settled rating survives a rush of new accounts. */
 export async function applyRankedResult(
   winnerId: string,
   loserId: string,
@@ -445,9 +388,9 @@ export async function applyRankedResult(
     const rl = rows.get(loserId)?.rating ?? SEED_RATING;
     const gw = (rows.get(winnerId)?.wins ?? 0) + (rows.get(winnerId)?.losses ?? 0);
     const gl = (rows.get(loserId)?.wins ?? 0) + (rows.get(loserId)?.losses ?? 0);
-    const expected = 1 / (1 + Math.pow(10, (rl - rw) / 400));
-    const gain = Math.max(1, Math.round(kFor(gw) * (1 - expected)));
-    const drop = Math.max(1, Math.round(kFor(gl) * (1 - expected)));
+    const e = expected(rw, rl);
+    const gain = Math.max(1, Math.round(kFor(gw) * (1 - e)));
+    const drop = Math.max(1, Math.round(kFor(gl) * (1 - e)));
     // A floor, not a kindness: it stops the pool leaking points out the bottom
     // when someone tilts through ten losses and never comes back.
     const after = { winner: rw + gain, loser: Math.max(RATING_FLOOR, rl - drop) };
