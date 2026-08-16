@@ -1,6 +1,23 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-label="YapStage">
+  <title>YapStage</title>
+  <!-- THE MARK. Dark backgrounds and app tiles.
+
+       The letter is drawn rather than set in Ultra, and that is deliberate.
+       Ultra is the wordmark face and its Y is wide, stubby and shallow-forked:
+       tested at 150px it reads as a goblet, and at 16px it is a smear. A
+       monogram has to survive alone, so it gets its own drawing in the same
+       slab-serif family. The wordmark keeps real Ultra, where the letter has
+       neighbours to be read with.
+
+       The idea rides on COLOUR, not on extra shapes: the left arm is FOR, the
+       right arm is AGAINST, and the stem they share is the stage. That is why
+       it still reads in a browser tab, where every version with a gavel, a
+       microphone or speech bubbles turned to mush. -->
   <rect width="64" height="64" fill="#141210"/>
-  <!-- blocky Y, hard-shadow brand style: red offset behind gold -->
-  <polygon points="17,13 27,13 35,27 43,13 53,13 40,35 40,57 30,57 30,35" fill="#ff4d2e"/>
-  <polygon points="14,10 24,10 32,24 40,10 50,10 37,32 37,54 27,54 27,32" fill="#ffc72e"/>
+  <defs><clipPath id="y"><path d="M8 11 h18 v7 h-4 l8 14 l8 -14 h-4 v-7 h18 v7 h-5 l-11 19 v13 h5 v7 h-22 v-7 h5 v-13 l-11 -19 h-5 z"/></clipPath></defs>
+  <g clip-path="url(#y)">
+    <rect x="0" y="0" width="32" height="32" fill="#ff4d2e"/>
+    <rect x="32" y="0" width="32" height="32" fill="#33b6ff"/>
+    <rect x="0" y="32" width="64" height="32" fill="#ffc72e"/>
+  </g>
 </svg>

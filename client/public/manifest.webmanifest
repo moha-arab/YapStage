@@ -1,7 +1,7 @@
 {
   "name": "YapStage",
   "short_name": "YapStage",
-  "description": "1v1 video debates with an AI judge. Grab a friend, pick a fight, crown a YapMaster.",
+  "description": "1v1 video debates with an AI judge. Call out a friend, take on a stranger, or climb the bot ladder.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
@@ -23,10 +23,16 @@
       "purpose": "any"
     },
     {
-      "src": "/og.png",
-      "sizes": "1200x630",
+      "src": "/icon-512.png",
+      "sizes": "512x512",
       "type": "image/png",
       "purpose": "any"
+    },
+    {
+      "src": "/icon-maskable.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
     }
   ]
 }
