@@ -26,6 +26,89 @@ export function getStoredLang(): Lang {
 type Dict = Record<string, string>;
 
 const en: Dict = {
+  /* ---- THE LOBBY (2026-08-21 rebuild) ----------------------------------
+     English only, on purpose. Arabic is parked (ARABIC_ENABLED above) and
+     t() already falls back to the English entry, so inventing translations
+     for a language nobody can switch to would be work with a shelf life of
+     zero. When Arabic comes back these get translated in one pass.
+
+     Copy rules for this block: lowercase, no em dashes, and every line has
+     to survive being read aloud by somebody who has never seen the app. */
+  lbYou: 'you',
+  lbYourOpponent: 'your opponent',
+  lbSearching: 'looking for someone',
+  sideFor: 'FOR',
+  sideAgainst: 'AGAINST',
+  vs: 'vs',
+
+  lbDock_ranked: 'find an opponent',
+  lbDock_friend: 'play a friend',
+  lbDock_bot: 'play a bot',
+  lbDock_drill: 'daily drill',
+  lbDock_watch: 'watch a match',
+
+  lbGoRanked: 'find an opponent',
+  lbGoFriend: 'call out {x}',
+  lbGoBot: 'debate {x}',
+  lbGoTutor: 'start the lesson',
+  lbGoDrill: 'start the drill',
+  lbGoWatch: 'watch',
+  lbWaitFriend: 'pick a friend first',
+  lbWaitBot: 'pick a bot first',
+  lbWaitWatch: 'nothing live right now',
+
+  lbPickFriend: 'pick a<br>friend',
+  lbSendCode: 'send a<br>code',
+  lbPickBot: 'pick a<br>bot',
+  lbNobodyOnline: 'none of your friends are on right now.',
+  lbFriendsNeedAccount: 'sign in to play your friends.',
+  lbRoomForGuests: 'open a room and send someone the code.',
+  lbGoRoom: 'open a room',
+  lbAddFriends: 'add friends',
+  lbNoFriendsYet: 'nobody here yet.',
+  lbNOnline: '{n} online',
+  lbOffline: 'offline',
+  lbUnplaced: 'not placed yet',
+  lbCallOut: 'call out',
+  lbLearn: 'learn',
+  lbFree: 'lesson',
+  lbYapMaster: 'the yapmaster',
+
+  lbDrillToday: "today's drill",
+  lbDrillSub: 'one skill, scored out of 100',
+  lbTodaysSkill: "TODAY'S SKILL",
+  lbStreak: 'streak {n}',
+
+  lbNLive: '{n}<br>live',
+  lbNLiveShort: '{n} live',
+  lbNobodyLive: 'nothing<br>on yet',
+  lbWatchSub: 'a real ranked debate, right now',
+  lbWatchEmptySub: 'check back in a bit',
+
+  lbCap_ranked:
+    'a stranger, a random topic, <b>five minutes</b>. the coin picks your side, the judge picks the winner. <b>this one counts toward your rating.</b>',
+  lbCap_friend:
+    'you pick the topic, the coin picks the sides. <b>they get a code and walk straight in.</b> friendly matches do not move your rating.',
+  lbCapFriendPicked:
+    '<b>{x}</b> gets a knock on the door and lands in your room. you pick the topic, the coin picks the sides, and <b>nobody’s rating moves.</b>',
+  lbCap_bot:
+    'six bots, easiest to hardest, each with a <b>fixed rating</b>. beat the one above you to climb. bot matches do not move your rating.',
+  lbCapBotPicked:
+    '<b>{x}</b>, {tagline}: {blurb} rated <b>{n}</b>. this one does not move your rating.',
+  lbCapTutor:
+    'the yapmaster walks you through one short debate and tells you what to fix. <b>no rating, no clock pressure.</b>',
+  lbCap_drill:
+    '<b>thirty seconds</b> on one skill, the same one for everybody today. scored out of 100 by the judge. <b>keep the streak alive.</b>',
+  lbCap_watch:
+    'drop into a live ranked debate. you see the masks, hear the argument, and get the verdict when it lands. <b>they cannot see you.</b>',
+
+  lbHouseRule:
+    '<b>no reading off a chatbot.</b> it shows in how you talk, and you will get caught.',
+
+  /* the match screen's paper panel */
+  liveNow: 'LIVE',
+  theMotion: 'the motion',
+
   kicker: '1v1 video debates · ai judge · one yap name',
   homeSubtitle: 'call out a friend, spar the bots, or take on a stranger. the judge hears everything and crowns a yapmaster.',
   nameFirst: 'name first, champ',

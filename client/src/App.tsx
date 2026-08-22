@@ -723,12 +723,6 @@ export default function App() {
     [account?.name, handleEntered],
   );
 
-  const onPlayBot = useCallback((name: string) => {
-    setNotice(null);
-    setBotName(name);
-    setBotPicking(true);
-  }, []);
-
   const onTutorial = useCallback((name: string) => {
     setNotice(null);
     setBotName(name);
@@ -766,11 +760,16 @@ export default function App() {
     setBotPicking(true);
   }, []);
 
-  const startBot = useCallback(
-    (c: BotStartConfig) => {
+  /** Start a bot debate under an explicit name. The lobby picks the bot itself
+      now, so it has the name in hand and does not need the two-step dance
+      through botName state that the old BotSelect screen relied on. */
+  const startBotAs = useCallback(
+    (who: string, c: BotStartConfig) => {
+      setNotice(null);
+      setBotName(who);
       socket.emit(
         'bot:start',
-        { sessionId: session.id, name: botName, lang: langRef.current, playerId: playerId(), ...c },
+        { sessionId: session.id, name: who, lang: langRef.current, playerId: playerId(), ...c },
         (res) => {
           if (res.ok) return; // debate:start arrives next and renders the debate
           const map: Record<string, string> = {
@@ -782,8 +781,10 @@ export default function App() {
         },
       );
     },
-    [botName, resetToHome],
+    [resetToHome],
   );
+
+  const startBot = useCallback((c: BotStartConfig) => startBotAs(botName, c), [botName, startBotAs]);
 
   // Dead local track with a live call: re-acquire and hot-swap (replaceTrack,
   // no renegotiation). Without a prior stream, fall back to the full retry
@@ -993,7 +994,6 @@ export default function App() {
       <Home
         notice={notice}
         onEntered={handleEntered}
-        onPlayBot={onPlayBot}
         onSpectate={(code, feed) => {
           setSpectating(code);
           setSpecFeed(feed);
@@ -1002,6 +1002,9 @@ export default function App() {
         onLocker={() => setViewingLocker(true)}
         onFriends={() => setViewingFriends(true)}
         onDrill={() => setViewingDrill(true)}
+        onBotStart={startBotAs}
+        onTutorial={onTutorial}
+        onChallenge={challengeFriend}
       />
     );
   }

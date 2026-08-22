@@ -1,0 +1,997 @@
+/* ============================================================================
+   THE LOBBY
+   ----------------------------------------------------------------------------
+   The home screen, rebuilt 2026-08-21 as a game lobby rather than a form.
+
+   Shape: a bar, a lit stage with you on one side and whatever you picked on
+   the other, your friends standing in the wings, and a dock of five verbs
+   along the bottom. Tapping a verb re-dresses the stage; the button under the
+   VS is the one thing that starts anything. One navigation, no glossary.
+
+   Rules learned the hard way over ten rounds of mockups:
+     - Each fighter carries its OWN light cone. One shared background drawing
+       drifts off-centre the moment the two sides are different widths.
+     - Nothing is pre-picked. A bot highlighted before you chose it reads as
+       the app deciding for you.
+     - A mode is explained ONCE, in the caption above the dock. Never on the
+       button and again after you press it.
+     - Every class here is lb- prefixed. styles.css is still 3800 lines long
+       and already owns .stage, .fighter, .card and .dot.
+   ========================================================================= */
+
+.lb {
+  height: 100vh;
+  overflow: hidden;
+  display: grid;
+  /* minmax(0, 1fr), never a bare 1fr or an implicit auto column: those size to
+     MAX-CONTENT, so one long caption makes the whole lobby wider than the
+     phone it is on and every row quietly starts scrolling sideways. */
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: 60px 1fr auto;
+  background: var(--house);
+  color: var(--paper);
+}
+
+@supports (height: 100dvh) {
+  .lb {
+    height: 100dvh;
+  }
+}
+
+/* :where() on purpose: this is a RESET, so it must have zero specificity.
+   Written as `.lb button` it out-specifies every single-class rule below it
+   (0,1,1 beats 0,1,0) and silently strips the background off the go button
+   and every tile in the dock. That exact bug shipped once already. */
+:where(.lb) button {
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  background: none;
+  border: 0;
+  padding: 0;
+  text-align: left;
+}
+
+.lb-lab {
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+/* ---- the bar ---- */
+
+.lb-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 clamp(14px, 3vw, 32px);
+  border-bottom: 1px solid var(--house-3);
+  min-width: 0;
+}
+
+.lb-lock {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: none;
+}
+
+.lb-word {
+  font-family: 'Ultra', serif;
+  font-size: 21px;
+}
+
+.lb-places {
+  margin-inline-start: auto;
+  display: flex;
+  gap: 22px;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--muted);
+  margin-inline-end: 26px;
+}
+
+.lb-places button:hover {
+  color: var(--paper);
+}
+
+.lb-who {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: none;
+}
+
+.lb-name {
+  font-weight: 700;
+  font-size: 15px;
+  max-width: 12ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lb-tier {
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  padding: 5px 10px;
+  border: 1px solid var(--amber);
+  border-radius: 3px;
+  color: var(--amber);
+  white-space: nowrap;
+}
+
+.lb-tier .lb-elo {
+  font-family: var(--mono);
+  letter-spacing: 0;
+}
+
+/* Provisional ratings do not get a badge. A number still swinging 64 points a
+   match is a guess, and a guess dressed as a measurement is how a ladder
+   loses trust. */
+.lb-tier-provisional {
+  border-color: var(--house-3);
+  color: var(--muted);
+}
+
+.lb-signin {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--amber);
+}
+
+.lb-signout {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.lb-signout:hover {
+  color: var(--paper);
+}
+
+.lb-badge {
+  display: inline-block;
+  min-width: 17px;
+  padding: 0 4px;
+  margin-inline-start: 5px;
+  border-radius: 9px;
+  background: var(--amber);
+  color: #241203;
+  font-family: var(--mono);
+  font-size: 11px;
+  text-align: center;
+}
+
+/* ---- the stage ---- */
+
+.lb-stage {
+  position: relative;
+  overflow: hidden;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 232px;
+  min-height: 0;
+}
+
+.lb-select {
+  /* One number drives the mask, the bot, the empty ring and the question mark,
+     and it answers to BOTH axes: a laptop in landscape runs out of height long
+     before it runs out of width. */
+  --art: clamp(104px, min(20vw, 27vh), 230px);
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr) auto;
+  align-items: center;
+  padding: 0 clamp(8px, 2vw, 30px);
+  min-height: 0;
+  min-width: 0;
+}
+
+/* A picker row under the opponent costs about 90px of height, so both faces
+   come down together. Shrinking only the side with the picker would leave two
+   different-sized fighters staring at each other. */
+.lb-select-compact {
+  --art: clamp(88px, min(15vw, 19vh), 176px);
+}
+
+.lb-fighter {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  height: 100%;
+  justify-content: center;
+  min-width: 0;
+  padding: 8px 0;
+}
+
+/* The light belongs to the fighter, not to the stage. A single background
+   drawing behind both of them drifts off-centre the moment one side is a
+   230px mask and the other is a row of six bots. */
+.lb-cone {
+  position: absolute;
+  left: 50%;
+  top: 0;
+  height: 100%;
+  width: min(100%, 420px);
+  transform: translateX(-50%);
+  z-index: 0;
+  pointer-events: none;
+}
+
+.lb-fighter > *:not(.lb-cone) {
+  position: relative;
+  z-index: 1;
+}
+
+.lb-art {
+  position: relative;
+  filter: drop-shadow(0 18px 22px rgba(0, 0, 0, 0.45));
+  line-height: 0;
+}
+
+/* The pool of light they are standing in. */
+.lb-art::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  bottom: 6px;
+  width: 106%;
+  height: 20px;
+  transform: translateX(-50%);
+  border-radius: 50%;
+  background: var(--glow);
+  opacity: 0.28;
+  z-index: -1;
+}
+
+.lb-fighter-a {
+  --glow: var(--amber);
+}
+
+.lb-fighter-b {
+  --glow: var(--turq);
+}
+
+.lb-fname {
+  font-family: 'Ultra', serif;
+  font-size: clamp(19px, 2.6vw, 30px);
+  margin-top: 12px;
+  text-align: center;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lb-frating {
+  font-family: var(--mono);
+  font-size: 0.55em;
+  color: var(--muted);
+  margin-inline-start: 6px;
+}
+
+.lb-side {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+}
+
+.lb-fighter-a .lb-side {
+  color: var(--amber);
+}
+
+.lb-fighter-b .lb-side {
+  color: var(--turq);
+}
+
+.lb-soft {
+  color: var(--muted);
+  font-weight: 600;
+  font-size: 15px;
+  margin-top: 12px;
+  text-align: center;
+}
+
+/* The empty corner: a ring that is obviously waiting for somebody. */
+.lb-empty {
+  width: var(--art);
+  height: var(--art);
+  border-radius: 50%;
+  border: 2px dashed rgba(31, 194, 212, 0.5);
+  display: grid;
+  place-items: center;
+  text-align: center;
+}
+
+.lb-empty-q {
+  font-family: 'Ultra', serif;
+  font-size: calc(var(--art) * 0.43);
+  color: rgba(31, 194, 212, 0.5);
+  line-height: 1;
+}
+
+.lb-empty-pick {
+  font-family: 'Ultra', serif;
+  font-size: max(12px, calc(var(--art) * 0.115));
+  color: var(--turq);
+  line-height: 1.05;
+  padding: 0 10px;
+}
+
+.lb-vs {
+  font-family: 'Ultra', serif;
+  font-size: clamp(22px, 3.4vw, 44px);
+  align-self: center;
+  padding: 0 clamp(4px, 1.5vw, 16px) 60px;
+}
+
+.lb-vs-hidden {
+  visibility: hidden;
+}
+
+/* ---- the one button that starts anything ---- */
+
+.lb-go {
+  grid-column: 1 / -1;
+  justify-self: center;
+  margin: 0 0 clamp(10px, 2.4vh, 22px);
+  background: var(--amber);
+  color: #241203;
+  font-family: 'Ultra', serif;
+  font-size: clamp(17px, 2vw, 24px);
+  padding: 15px clamp(24px, 4vw, 44px);
+  border-radius: 4px;
+  position: relative;
+  z-index: 2;
+  text-align: center;
+  transition: background 0.12s ease;
+}
+
+.lb-go:hover:not(:disabled) {
+  background: #ff8f28;
+}
+
+.lb-go:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+/* Not disabled-looking. WAITING-looking: it says what is missing. */
+.lb-go-wait,
+.lb-go-wait:hover:not(:disabled) {
+  background: transparent;
+  color: var(--muted);
+  box-shadow: inset 0 0 0 1px var(--house-3);
+  font-family: 'Libre Franklin', system-ui, sans-serif;
+  font-weight: 700;
+  font-size: 15px;
+  padding: 15px 30px;
+}
+
+/* Cancelling a search must be as loud as starting one. */
+.lb-go-cancel,
+.lb-go-cancel:hover:not(:disabled) {
+  background: transparent;
+  color: var(--paper);
+  box-shadow: inset 0 0 0 1px var(--house-3);
+  font-family: 'Libre Franklin', system-ui, sans-serif;
+  font-weight: 700;
+  font-size: 15px;
+  padding: 15px 30px;
+}
+
+/* ---- the picker row on the turquoise side ---- */
+
+.lb-choices {
+  display: flex;
+  gap: 6px;
+  justify-content: center;
+  flex-wrap: wrap;
+  /* Seven chips (the lesson plus six rungs) at 56px plus gaps. One pixel
+     under and Gigi wraps onto her own line looking like an afterthought. */
+  max-width: 452px;
+  margin-top: 12px;
+}
+
+.lb-choice {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  width: 56px;
+  padding: 6px 2px;
+  border-radius: 6px;
+  transition: background 0.12s ease;
+}
+
+.lb-choice:hover {
+  background: var(--house-2);
+}
+
+.lb-choice-av {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: var(--house-3);
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  position: relative;
+  line-height: 0;
+}
+
+.lb-choice-n {
+  font-size: 10.5px;
+  font-weight: 700;
+  line-height: 1.1;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lb-choice-r {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--muted);
+}
+
+.lb-choice-on {
+  box-shadow: inset 0 0 0 2px var(--turq);
+}
+
+.lb-choice-tutor .lb-choice-av {
+  box-shadow: inset 0 0 0 1px var(--paper);
+}
+
+.lb-dot {
+  position: absolute;
+  inset-inline-end: 1px;
+  bottom: 1px;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--live);
+  border: 2px solid var(--house);
+}
+
+.lb-none {
+  color: var(--muted);
+  font-size: 13px;
+  margin-top: 14px;
+  text-align: center;
+  max-width: 320px;
+  line-height: 1.5;
+}
+
+.lb-none button {
+  color: var(--amber);
+  font-weight: 700;
+}
+
+/* ---- the drill takes over the turquoise side ---- */
+
+.lb-drill {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  text-align: center;
+}
+
+.lb-drill-clock {
+  font-family: var(--mono);
+  font-size: clamp(52px, 8vw, 88px);
+  line-height: 1;
+  color: var(--turq);
+}
+
+.lb-drill-t {
+  font-family: 'Ultra', serif;
+  font-size: clamp(19px, 2.6vw, 30px);
+  margin-top: 6px;
+}
+
+.lb-drill-s {
+  font-size: 13px;
+  color: var(--muted);
+  max-width: 280px;
+}
+
+/* ---- the wings ---- */
+
+.lb-wings {
+  position: relative;
+  border-inline-start: 1px solid var(--house-3);
+  padding: 20px 18px 0 20px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-height: 0;
+}
+
+.lb-wings-hd {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 6px;
+  flex: none;
+}
+
+.lb-wings-n {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--live);
+}
+
+.lb-wings-list {
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-bottom: 34px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--house-3) transparent;
+}
+
+.lb-friend {
+  display: grid;
+  grid-template-columns: 38px 1fr;
+  gap: 10px;
+  align-items: center;
+  padding: 7px 0;
+}
+
+.lb-friend-av {
+  position: relative;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: var(--house-3);
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  line-height: 0;
+}
+
+.lb-friend-n {
+  font-weight: 700;
+  font-size: 13.5px;
+  line-height: 1.15;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lb-friend-t {
+  font-size: 11.5px;
+  color: var(--muted);
+}
+
+.lb-friend-call {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--amber);
+  margin-top: 2px;
+  display: block;
+}
+
+.lb-friend-call:hover {
+  text-decoration: underline;
+}
+
+.lb-friend-off {
+  opacity: 0.42;
+}
+
+.lb-fade {
+  position: absolute;
+  inset-inline: 0;
+  bottom: 0;
+  height: 38px;
+  background: linear-gradient(to bottom, transparent, var(--house));
+  pointer-events: none;
+}
+
+.lb-wings-empty {
+  font-size: 12.5px;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.lb-wings-empty button {
+  color: var(--amber);
+  font-weight: 700;
+}
+
+/* ---- the footer: one caption, five verbs, one rule ---- */
+
+.lb-caption {
+  text-align: center;
+  padding: 12px clamp(16px, 5vw, 60px) 11px;
+  border-top: 1px solid var(--house-3);
+  font-size: 13.5px;
+  color: var(--muted);
+  min-height: 44px;
+}
+
+.lb-caption b {
+  color: var(--paper);
+  font-weight: 600;
+}
+
+.lb-dock {
+  display: grid;
+  grid-template-columns: 1.3fr 1fr 1fr 1fr 1fr;
+  gap: 8px;
+  padding: 0 clamp(10px, 3vw, 32px);
+}
+
+.lb-act {
+  background: var(--house-2);
+  border-radius: 4px;
+  padding: 15px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 62px;
+  transition: background 0.12s ease, color 0.12s ease;
+}
+
+.lb-act:hover {
+  background: var(--house-3);
+}
+
+.lb-act-t {
+  font-family: 'Ultra', serif;
+  font-size: clamp(14px, 1.5vw, 21px);
+  line-height: 1;
+}
+
+.lb-act-on,
+.lb-act-on:hover {
+  background: var(--paper);
+  color: #101018;
+}
+
+.lb-act-k {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.lb-act-on .lb-act-k {
+  color: var(--paper-dim);
+}
+
+.lb-act-live {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--live);
+  font-weight: 700;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.lb-act-live i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--live);
+  display: inline-block;
+}
+
+.lb-act-on .lb-act-live {
+  color: #0f7a42;
+}
+
+.lb-act-on .lb-act-live i {
+  background: #0f7a42;
+}
+
+/* The house rule. Not "cheating is not tolerated", which is a sign on a wall
+   nobody reads: name the actual cheat and the actual consequence. */
+.lb-rule {
+  text-align: center;
+  padding: 11px 16px 13px;
+  font-size: 12.5px;
+  color: var(--muted);
+}
+
+.lb-rule b {
+  color: var(--paper);
+  font-weight: 600;
+}
+
+/* ---- states that sit over the stage ---- */
+
+.lb-notice {
+  position: absolute;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 4;
+  background: var(--house-2);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 9px 16px;
+  font-size: 13.5px;
+  max-width: min(560px, 92vw);
+  text-align: center;
+}
+
+.lb-notice-warn {
+  border-color: rgba(255, 91, 91, 0.5);
+  color: #ffb3b3;
+}
+
+.lb-err {
+  grid-column: 1 / -1;
+  color: #ffb3b3;
+  font-size: 13px;
+  text-align: center;
+  margin: -4px 0 8px;
+  z-index: 2;
+}
+
+/* Searching: the empty corner starts breathing. */
+.lb-searching {
+  animation: lbPulse 1.6s ease-in-out infinite;
+}
+
+@keyframes lbPulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.4;
+  }
+}
+
+/* Guests type a name before anything starts. Inline, on the stage, right by
+   the button they are trying to press. */
+.lb-guest {
+  grid-column: 1 / -1;
+  justify-self: center;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 10px;
+  z-index: 2;
+}
+
+.lb-guest .input {
+  width: 210px;
+}
+
+/* Somebody sent a code. Until it is used or dismissed, it is the only thing
+   on this screen that matters. */
+.lb-ticket {
+  grid-column: 1 / -1;
+  justify-self: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 14px;
+  z-index: 2;
+}
+
+.lb-ticket-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.lb-ticket-head {
+  font-size: 13.5px;
+  color: var(--muted);
+  margin: 0;
+}
+
+.lb-ticket-head b {
+  color: var(--paper);
+}
+
+/* The join-by-code box that lives under the friend picker. Quiet: most people
+   are here to tap a face, not to type six letters. */
+.lb-codebox {
+  margin-top: 12px;
+  opacity: 0.8;
+}
+
+.lb-codebox .input {
+  height: 34px;
+  padding: 6px 10px;
+  font-size: 13px;
+}
+
+/* ---- mobile: the wings fold down into a strip, the dock scrolls ---- */
+
+@media (max-width: 900px) {
+  .lb-stage {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr) auto;
+  }
+
+  .lb-wings {
+    border-inline-start: 0;
+    border-top: 1px solid var(--house-3);
+    padding: 9px clamp(10px, 3vw, 20px) 8px;
+    max-height: 96px;
+  }
+
+  /* A phone has no room to spend 90px telling you that a list you have not
+     built yet is empty. The dock's "play a friend" already says friends
+     exist; on a laptop the wings are free real estate, so they stay. */
+  .lb-wings-nobody {
+    display: none;
+  }
+
+  .lb-wings-hd {
+    margin-bottom: 4px;
+  }
+
+  /* Sideways: faces first, names under them, and it scrolls. */
+  .lb-wings-list {
+    display: flex;
+    gap: 14px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding-bottom: 2px;
+  }
+
+  .lb-friend {
+    grid-template-columns: none;
+    grid-template-rows: auto auto;
+    justify-items: center;
+    gap: 3px;
+    padding: 0;
+    flex: none;
+    width: 58px;
+  }
+
+  .lb-friend-t,
+  .lb-friend-call {
+    display: none;
+  }
+
+  .lb-friend-n {
+    font-size: 11px;
+    max-width: 58px;
+    text-align: center;
+  }
+
+  .lb-fade {
+    display: none;
+  }
+
+  .lb-dock {
+    display: flex;
+    overflow-x: auto;
+    gap: 6px;
+    scroll-snap-type: x mandatory;
+    padding-bottom: 2px;
+  }
+
+  .lb-act {
+    flex: 0 0 auto;
+    scroll-snap-align: center;
+    min-height: 52px;
+    padding: 11px 14px;
+    flex-direction: column;
+    align-items: flex-start;
+    justify-content: center;
+    gap: 2px;
+  }
+
+  .lb-act-t {
+    font-size: 15px;
+  }
+
+  /* A picker column is only ~168px wide on a phone, so seven bot chips would
+     stack three rows deep and push the ring off the top of the stage. One
+     scrolling row instead, and both fighters come down to match. */
+  .lb-select-compact {
+    --art: clamp(72px, 22vw, 104px);
+  }
+
+  .lb-select-compact .lb-choices {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    justify-content: flex-start;
+    max-width: 100%;
+    margin-top: 8px;
+    padding-bottom: 2px;
+    scroll-snap-type: x proximity;
+  }
+
+  .lb-select-compact .lb-choice {
+    flex: 0 0 auto;
+    scroll-snap-align: center;
+  }
+
+  .lb-caption {
+    font-size: 12.5px;
+    padding: 10px 16px 9px;
+    min-height: 0;
+  }
+
+  .lb-rule {
+    font-size: 11.5px;
+    padding: 9px 14px 11px;
+  }
+}
+
+@media (max-width: 620px) {
+  .lb {
+    grid-template-rows: 54px 1fr auto;
+  }
+
+  .lb-bar {
+    gap: 8px;
+  }
+
+  .lb-word {
+    display: none;
+  }
+
+  .lb-places {
+    gap: 14px;
+    margin-inline-end: 12px;
+    font-size: 12.5px;
+  }
+
+  .lb-name {
+    display: none;
+  }
+
+  .lb-select {
+    padding: 0 6px;
+  }
+
+  .lb-vs {
+    padding-bottom: 46px;
+  }
+
+  .lb-choices {
+    max-width: 100%;
+    gap: 2px;
+  }
+
+  .lb-choice {
+    width: 48px;
+  }
+
+  .lb-choice-av {
+    width: 34px;
+    height: 34px;
+  }
+}
+
+/* A short landscape phone has no room for a stage at all: let the whole thing
+   scroll rather than clipping the go button off the bottom. */
+@media (max-height: 560px) {
+  .lb {
+    height: auto;
+    min-height: 100vh;
+    overflow: auto;
+    grid-template-rows: 54px auto auto;
+  }
+
+  .lb-stage {
+    overflow: visible;
+  }
+
+  .lb-wings {
+    max-height: none;
+  }
+}

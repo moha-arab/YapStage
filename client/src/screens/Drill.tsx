@@ -9,6 +9,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { setSpeechSink, speechSupported, startTurn, stopTurn } from '../speech';
 import { useI18n } from '../i18n';
+import Brand from '../Brand';
 
 interface DrillInfo {
   day: string;
@@ -133,9 +134,7 @@ export default function Drill({ onBack }: Props) {
         <button className="btn btn-small" onClick={onBack}>
           {t('back')}
         </button>
-        <span className="brand">
-          YAP<span className="logo-accent">STAGE</span>
-        </span>
+        <Brand />
         <span className="pill">{t('drillPill')}</span>
       </header>
 

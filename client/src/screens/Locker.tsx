@@ -6,6 +6,7 @@ import Mask, { MASK_IDS } from '../Mask';
 import { socket } from '../socket';
 import { saveLocker, type Account } from '../player';
 import { useI18n } from '../i18n';
+import Brand from '../Brand';
 
 interface Props {
   account: Account;
@@ -42,9 +43,7 @@ export default function Locker({ account, onSaved, onBack }: Props) {
         <button className="btn btn-small" onClick={onBack}>
           {t('back')}
         </button>
-        <span className="brand">
-          YAP<span className="logo-accent">STAGE</span>
-        </span>
+        <Brand />
         <span className="pill">{t('lockerPill')}</span>
       </header>
 

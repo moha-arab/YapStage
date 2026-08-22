@@ -182,6 +182,38 @@ app.get<{ Querystring: { not?: string } }>('/spectate/random', async (req) => {
   return { code: live[Math.floor(Math.random() * live.length)].code };
 });
 
+// How many ranked debates are on right now, and how many of those still have a
+// seat left in the crowd. Same filter as /spectate/random on purpose: the
+// lobby's watch button must never advertise a debate that endpoint would then
+// refuse to hand back. Not lobbyCount() — that counts green rooms, bot bouts
+// and stale waiting rooms, which would triple the number for free.
+app.get('/live', async () => {
+  const ranked = allLobbies().filter((l) => Boolean(l.ranked) && l.status === 'in_debate');
+  const open = ranked.filter((l) => spectatorCount(l.code) < SPECTATOR_CAP);
+  // One featured bout, so the lobby's watch state can put two real faces on
+  // the stage instead of a placeholder. Everything here is already public to
+  // any spectator (spectateStateFor sends the same fields the moment you
+  // join); no player ids, no transcript.
+  const f = open[0];
+  return {
+    live: ranked.length,
+    watchable: open.length,
+    featured:
+      f && f.sides
+        ? {
+            code: f.code,
+            names: namesOf(f),
+            avatars: {
+              ...(f.host && f.sides.host ? { [f.sides.host]: f.host.avatarId } : {}),
+              ...(f.guest && f.sides.guest ? { [f.sides.guest]: f.guest.avatarId } : {}),
+            },
+            phase: f.lastPhase?.phase ?? null,
+            watchers: spectatorCount(f.code),
+          }
+        : null,
+  };
+});
+
 // ---- match history (signed-in players only) ----
 // Every route here scopes to the caller's own player id from the session, so
 // a guessed match id can never open somebody else's debate.
@@ -1306,7 +1338,10 @@ io.on('connection', (socket) => {
         sessionId: String(p?.sessionId ?? '').slice(0, 64),
         playerId,
         name,
-        rating: row?.rating ?? 1000,
+        // SEED_RATING, not a hardcoded 1000: that was the seed before the
+        // rating_seed_700 migration, and it made a store blip queue a brand
+        // new player as if they were 300 points better than they are.
+        rating: row?.rating ?? SEED_RATING,
       });
       event('queue_joined', { waiting: rankedQueue.length });
       cb({ ok: true });

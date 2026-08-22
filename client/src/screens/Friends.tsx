@@ -6,6 +6,7 @@
 import { useEffect, useState } from 'react';
 import { socket } from '../socket';
 import { useI18n } from '../i18n';
+import Brand from '../Brand';
 
 export interface Friend {
   username: string;
@@ -165,9 +166,7 @@ export default function Friends({ onBack, onChallenge }: Props) {
         <button className="btn btn-small" onClick={onBack}>
           {t('back')}
         </button>
-        <span className="brand">
-          YAP<span className="logo-accent">STAGE</span>
-        </span>
+        <Brand />
         <span className="pill">{t('friendsPill')}</span>
       </header>
 

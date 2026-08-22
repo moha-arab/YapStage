@@ -103,17 +103,30 @@ export const MASK_IDS = Object.keys(MASKS);
 interface Props {
   id: string;
   speaking?: boolean;
-  size?: number;
-  /** Poster accent for the frame (the debater's side color). */
+  size?: number | string;
+  /** Accent for the frame (the debater's side colour). */
   color?: string;
+  /** No frame, no background: just the drawing. The lobby stands its fighters
+      in a cone of light, and a bordered box around the face kills that. */
+  bare?: boolean;
 }
 
-export default function Mask({ id, speaking, size = 120, color }: Props) {
+export default function Mask({ id, speaking, size = 120, color, bare }: Props) {
   const svg = MASKS[id] ?? MASKS.luchador;
+  if (bare) {
+    return (
+      <svg
+        viewBox="0 0 100 100"
+        style={{ width: size, height: size, display: 'block' }}
+        aria-hidden="true"
+        dangerouslySetInnerHTML={{ __html: svg }}
+      />
+    );
+  }
   return (
     <div
       className={`bot-avatar mask-avatar ${speaking ? 'bot-speaking' : ''}`}
-      style={{ width: size, height: size, borderColor: color ?? 'var(--gold)' }}
+      style={{ width: size, height: size, borderColor: color ?? 'var(--house-3)' }}
     >
       <svg
         viewBox="0 0 100 100"

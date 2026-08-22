@@ -654,6 +654,11 @@ export interface FriendRow {
   pending: boolean;
   /** True when THEY asked YOU: your side of a pending row has a button. */
   incoming: boolean;
+  /** The mask from their locker, so the lobby can show your friends' real
+      faces instead of a row of identical placeholders. Null until they pick
+      one. Public by nature: it is what they wear on camera in front of
+      spectators. */
+  mask: string | null;
 }
 
 const pairOf = (a: string, b: string): [string, string] => (a < b ? [a, b] : [b, a]);
@@ -782,7 +787,7 @@ export async function listFriends(sub: string): Promise<FriendRow[] | null> {
   if (!pool || !ready) return null;
   try {
     const res = await pool.query(
-      `SELECT f.status, f.asked_by, a.sub AS other, a.username, a.player_id,
+      `SELECT f.status, f.asked_by, a.sub AS other, a.username, a.player_id, a.mask,
               p.rating, COALESCE(p.wins, 0) + COALESCE(p.losses, 0) AS games
        FROM friends f
        JOIN accounts a ON a.sub = CASE WHEN f.lo_sub = $1 THEN f.hi_sub ELSE f.lo_sub END
@@ -799,12 +804,14 @@ export async function listFriends(sub: string): Promise<FriendRow[] | null> {
         other: string;
         username: string;
         player_id: string;
+        mask: string | null;
         rating: number | null;
         games: string | number | null;
       }) => ({
         sub: r.other,
         username: r.username,
         playerId: r.player_id,
+        mask: r.mask || null,
         rating: r.rating ?? SEED_RATING,
         placed: Number(r.games ?? 0) >= PLACEMENT_MATCHES,
         pending: r.status === 'pending',

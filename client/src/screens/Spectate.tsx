@@ -11,6 +11,7 @@ import { formatClock, useCountdown } from '../useCountdown';
 import { enqueueSpectateAudio, stopSpectateAudio } from '../specaudio';
 import BotAvatar from '../BotAvatar';
 import Mask from '../Mask';
+import Brand from '../Brand';
 
 interface Props {
   code: string;
@@ -121,9 +122,7 @@ export default function Spectate({ code, initial, onLeave, onNext }: Props) {
   return (
     <div className="stage center-col spectate">
       <header className="topbar spec-topbar">
-        <span className="brand">
-          YAP<span className="logo-accent">STAGE</span>
-        </span>
+        <Brand />
         <span className="tape spec-live-tape">{t('specLive')}</span>
         <span className="spec-watchers">{t('specWatching', { n: watchers })}</span>
       </header>

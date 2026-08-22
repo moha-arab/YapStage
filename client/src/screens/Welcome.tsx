@@ -8,6 +8,7 @@ import { signIn } from '../player';
 import BotAvatar from '../BotAvatar';
 import Mask from '../Mask';
 import HomeFeed from '../HomeFeed';
+import Brand from '../Brand';
 
 interface Props {
   /** Skip the account and go straight in, guest-style. */
@@ -21,17 +22,15 @@ export default function Welcome({ onGuest, invited }: Props) {
   return (
     <div className="stage welcome">
       <div className="welcome-hero">
-        <h1 className="display logo">
-          YAP<span className="logo-accent">STAGE</span>
-        </h1>
+        <Brand size={64} />
         <p className="welcome-line">{t('welcomeLine')}</p>
       </div>
 
-      {/* Show the thing rather than describe it: two faces, a clock, a verdict. */}
+      {/* Show the thing rather than describe it: two faces under two lights. */}
       <div className="welcome-stage" aria-hidden="true">
-        <Mask id="luchador" size={78} />
-        <span className="welcome-vs">VS</span>
-        <BotAvatar botId="giraffe" color="gold" size={78} />
+        <Mask id="luchador" size={96} bare />
+        <span className="welcome-vs">{t('vs')}</span>
+        <BotAvatar botId="giraffe" color="ink" size={96} bare />
       </div>
 
       <p className="welcome-beats">{t('welcomeHow')}</p>

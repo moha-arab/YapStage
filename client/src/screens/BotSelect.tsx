@@ -7,6 +7,7 @@ import { initAudio } from '../sound';
 import { unlockBotVoice } from '../botvoice';
 import BotAvatar from '../BotAvatar';
 import VideoTile from '../VideoTile';
+import Brand from '../Brand';
 
 export interface BotStartConfig {
   botId: string;
@@ -101,9 +102,7 @@ export default function BotSelect({ localStream, mediaError, onRetryMedia, onSta
         <button className="btn btn-small" onClick={onBack}>
           {t('back')}
         </button>
-        <span className="brand">
-          YAP<span className="logo-accent">STAGE</span>
-        </span>
+        <Brand />
         <span className="pill">{t('vsBot')}</span>
       </header>
 

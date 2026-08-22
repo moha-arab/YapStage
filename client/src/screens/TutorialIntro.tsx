@@ -6,6 +6,7 @@ import { initAudio } from '../sound';
 import { unlockBotVoice } from '../botvoice';
 import BotAvatar from '../BotAvatar';
 import VideoTile from '../VideoTile';
+import Brand from '../Brand';
 
 interface Props {
   localStream: MediaStream | null;
@@ -34,9 +35,7 @@ export default function TutorialIntro({ localStream, mediaError, onRetryMedia, o
         <button className="btn btn-small" onClick={onBack}>
           {t('back')}
         </button>
-        <span className="brand">
-          YAP<span className="logo-accent">STAGE</span>
-        </span>
+        <Brand />
         <span className="pill">{t('tutorialPill')}</span>
       </header>
 

@@ -7,3 +7,6 @@ scripts/stt-probe.wav
 
 restart.log
 *-tmp.mjs
+
+# design screenshots (scripts/shot.mjs writes here)
+.shots/

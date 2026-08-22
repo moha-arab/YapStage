@@ -4,6 +4,10 @@ import App from './App';
 import { LangProvider } from './i18n';
 import { installErrorBeacon } from './errbeacon';
 import './styles.css';
+// The lobby is its own sheet, loaded second so its lb- rules win any tie with
+// the older stylesheet. Keeping it separate is also the only reason the home
+// rebuild did not have to fight 3800 lines of existing cascade.
+import './lobby.css';
 
 installErrorBeacon();
 

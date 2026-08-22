@@ -1,8 +1,6 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-label="YapStage">
-  <title>YapStage</title>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-label="YapStage"><title>YapStage</title>
   <!-- One colour, transparent ground: a stamp, an embroidery file, a favicon
-       mask, or anywhere the three brand colours cannot go. INLINE it for currentColor to work: an SVG
-       loaded through <img> is isolated and cannot inherit colour, so it will
-       render black. For an <img> use logo-mark-mono-gold.svg. -->
-  <path fill="currentColor" d="M8 11 h18 v7 h-4 l8 14 l8 -14 h-4 v-7 h18 v7 h-5 l-11 19 v13 h5 v7 h-22 v-7 h5 v-13 l-11 -19 h-5 z"/>
+       mask. INLINE it for currentColor to work — an SVG loaded through <img>
+       is isolated and renders black. -->
+  <g fill="currentColor"><path d="M8 14 h20 v20 q0 12 -14 16 v-8 q7 -3 7 -8 h-13 z"/><path d="M56 50 h-20 v-20 q0 -12 14 -16 v8 q-7 3 -7 8 h13 z"/></g>
 </svg>

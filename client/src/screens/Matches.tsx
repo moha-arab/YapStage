@@ -5,6 +5,7 @@
 import { useEffect, useState } from 'react';
 import type { CategoryScores, Side, Verdict as VerdictData } from '../../../server/src/protocol';
 import { useI18n } from '../i18n';
+import Brand from '../Brand';
 
 export interface MatchRow {
   id: number;
@@ -62,9 +63,7 @@ export default function Matches({ onBack }: Props) {
         <button className="btn btn-small" onClick={onBack}>
           {t('back')}
         </button>
-        <span className="brand">
-          YAP<span className="logo-accent">STAGE</span>
-        </span>
+        <Brand />
         <span className="pill">{t('matchesPill')}</span>
       </header>
 
@@ -165,9 +164,7 @@ function MatchDetail({ match, onBack }: { match: FullMatch; onBack: () => void }
         <button className="btn btn-small" onClick={onBack}>
           {t('back')}
         </button>
-        <span className="brand">
-          YAP<span className="logo-accent">STAGE</span>
-        </span>
+        <Brand />
         <span className="pill">{t(`filter_${match.mode}`)}</span>
       </header>
 

@@ -7,6 +7,7 @@ import MicMeter from '../MicMeter';
 import VideoTile from '../VideoTile';
 import BotAvatar from '../BotAvatar';
 import ReportFlag from '../Report';
+import Brand from '../Brand';
 
 interface Props {
   start: DebateStart;
@@ -128,24 +129,26 @@ export default function Debate({
 
   return (
     <div className="stage debate">
+      {/* The motion moved into the paper panel, so the bar carries what the bar
+          is for: where you are, and who is watching. */}
       <header className="topbar">
-        <span className="brand">
-          YAP<span className="logo-accent">STAGE</span>
+        <Brand />
+        <span className="live-tag">
+          <i />
+          {t('liveNow')}
         </span>
-        <span className="motion-banner">{start.topic[lang]}</span>
+        {watchers > 0 ? (
+          <span className="watch-pill">{t('specWatching', { n: watchers })}</span>
+        ) : null}
       </header>
 
+      {/* Inside a match the house goes dark and ONE warm panel carries the
+          motion, the round, the clock and what you are supposed to be doing.
+          It used to be six separate strips stacked down the page, each with
+          its own border, none of them obviously more important than the rest.
+          Now the two faces and one sheet of paper are the whole screen. */}
       <div className="arena">
-      <div className="round-card">
-        {PHASES.map((p) => (
-          <span key={p.key} className={`round ${phase.phase === p.key ? 'round-now' : ''}`}>
-            {t(p.labelKey)}
-          </span>
-        ))}
-        <span className="round-step">{t('turnOf', { n: phase.stepIndex + 1 })}</span>
-        {watchers > 0 ? <span className="watch-pill">{t('specWatching', { n: watchers })}</span> : null}
-      </div>
-
+      <div className="match">
       <div className="tiles">
         <div className="tile-stack">
           <VideoTile
@@ -198,12 +201,22 @@ export default function Debate({
         )}
       </div>
 
-      <div className="clock-row">
-        <div className={`speaker-chip ${phase.activeSpeaker === 'FOR' ? 'for' : 'against'}`}>
-          {start.names[phase.activeSpeaker]}
-          {myTurn ? t('goSuffix') : t('hasTheMic')}
+      <aside className="bill">
+        <div className="bill-sec">{t('theMotion')}</div>
+        <p className="bill-motion display">{start.topic[lang]}</p>
+
+        <div className="bill-round">
+          <b>{t(PHASES.find((p) => p.key === phase.phase)?.labelKey ?? 'openings')}</b>
+          <span>{t('turnOf', { n: phase.stepIndex + 1 })}</span>
         </div>
-        <div className={`shot-clock ${botFailed ? 'clock-failed' : danger ? 'clock-danger' : ''}`}>
+
+        {/* "thinking..." set at 56px mono is wider than the panel it lives in,
+            so anything that is not a clock reads as a line of type instead. */}
+        <div
+          className={`shot-clock ${phase.activeSpeaker === 'FOR' ? 'clock-for' : 'clock-against'} ${
+            botFailed || botThinking ? 'clock-word' : ''
+          } ${botFailed ? 'clock-failed' : danger ? 'clock-danger' : ''}`}
+        >
           {botFailed
             ? t('botFailedShort')
             : botThinking
@@ -212,11 +225,53 @@ export default function Debate({
               ? formatClock(0) // bot just yielded; next turn lands in a beat
               : formatClock(clockMs)}
         </div>
+
+        <div className="clock-track">
+          <div
+            className={`clock-fill ${phase.activeSpeaker === 'FOR' ? 'fill-for' : 'fill-against'}`}
+            style={{
+              // While the bot thinks there's no clock to drain — the bar waits
+              // full until it starts talking, then ticks down like anyone else's.
+              width: botThinking
+                ? '100%'
+                : isBot && !myTurn && !botOnClock
+                  ? '0%'
+                  : `${Math.min(100, (clockMs / (clockTotalSec * 1000)) * 100)}%`,
+            }}
+          />
+        </div>
+
+        <div className={`bill-who ${phase.activeSpeaker === 'FOR' ? 'for' : 'against'}`}>
+          {start.names[phase.activeSpeaker]}
+          {myTurn ? t('goSuffix') : t('hasTheMic')}
+        </div>
+
+        {/* What to actually SAY this round. A first-timer's hardest moment is a
+            live mic and a blank mind, so the shape of the turn goes on screen
+            while they speak.
+
+            Always on screen, never only on your turn: when the opponent takes
+            two turns in a row (their rebuttal, then their defense) a beginner
+            has no idea what they are watching. On their turn it describes the
+            round; on yours it tells you what to do. */}
+        {botFailed ? (
+          <p className="bill-how bill-how-failed">
+            {t('botFailed', { x: botOpponent?.name ?? '' })}
+          </p>
+        ) : (
+          <p className="bill-how">{t(myTurn ? `howto_${phase.phase}` : `whatis_${phase.phase}`)}</p>
+        )}
+
+        {/* AGAINST opens the closings so FOR gets the final word — flag it once
+            so the order doesn't read as a bug. */}
+        {phase.stepIndex === 6 ? <p className="bill-how">{t('closingOrderNote')}</p> : null}
+
         {/* "recording" only ever meant audio was being captured, which is what
             made a dead pipeline look healthy: the level bar bounced, the chip
-            said recording, and the judge received nothing. This now flips only
+            said recording, and the judge received nothing. This flips only
             once real words have come back from transcription. */}
-        <div className={`mic-chip ${myTurn ? (heardWords > 0 ? 'mic-heard' : 'mic-live') : 'mic-off'}`}>
+        <div className={`bill-mic ${myTurn ? (heardWords > 0 ? 'mic-heard' : 'mic-live') : 'mic-off'}`}>
+          <i />
           {myTurn
             ? sttServer
               ? heardWords > 0
@@ -231,56 +286,18 @@ export default function Debate({
                 : t('micLive')
             : t('micOff')}
         </div>
-      </div>
 
-      <div className="clock-track">
-        <div
-          className={`clock-fill ${phase.activeSpeaker === 'FOR' ? 'fill-for' : 'fill-against'}`}
-          style={{
-            // While the bot thinks there's no clock to drain — the bar waits
-            // full until it starts talking, then ticks down like anyone else's.
-            width: botThinking
-              ? '100%'
-              : isBot && !myTurn && !botOnClock
-                ? '0%'
-                : `${Math.min(100, (clockMs / (clockTotalSec * 1000)) * 100)}%`,
-          }}
-        />
-      </div>
-
-      {/* What to actually SAY this round. A first-timer's hardest moment is a
-          live mic and a blank mind, so the shape of the turn goes on screen
-          while they speak. The defense line doubles as an early warning that
-          new arguments are about to stop being allowed. */}
-      {/* Always on screen, never only on your turn: when the opponent takes two
-          turns in a row (their rebuttal, then their defense) a beginner has no
-          idea what they're watching. On their turn it describes the round; on
-          yours it tells you what to do. */}
-      {botFailed ? (
-        <p className="phase-rule phase-rule-failed">
-          {t('botFailed', { x: botOpponent?.name ?? '' })}
-        </p>
-      ) : (
-        <p className={`phase-rule ${myTurn && phase.phase === 'closing' ? 'phase-rule-live' : ''}`}>
-          {t(myTurn ? `howto_${phase.phase}` : `whatis_${phase.phase}`)}
-        </p>
-      )}
-
-      {/* AGAINST opens the closings so FOR gets the final word — flag it once
-          so the order doesn't read as a bug. */}
-      {phase.stepIndex === 6 ? <p className="phase-rule">{t('closingOrderNote')}</p> : null}
-
-      {myTurn ? (
-        <div className="pass-row">
+        {myTurn ? (
           <button
-            className="btn btn-small pass-mic"
+            className="btn pass-mic"
             disabled={!passArmed}
             onClick={() => onPassMic(phase.stepIndex)}
           >
             {t('passMic')}
           </button>
-        </div>
-      ) : null}
+        ) : null}
+      </aside>
+      </div>
 
       {mediaError ? (
         <div className="banner banner-error">

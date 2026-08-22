@@ -2,10 +2,13 @@
 // the frame and works the mouth during the bot's turn. The SVGs are static and
 // self-authored, so dangerouslySetInnerHTML is safe here and keeps them legible.
 
+// The frame colour. `gold` no longer resolves to gold: gold is the prize in
+// this app — a win, a rank-up, a tier chip — and three of the seven bots were
+// wearing it before anybody had beaten anything.
 const COLOR: Record<string, string> = {
   for: 'var(--for)',
   against: 'var(--against)',
-  gold: 'var(--gold)',
+  gold: 'var(--paper)',
   ink: 'var(--ink)',
 };
 
@@ -99,12 +102,24 @@ interface Props {
   botId: string;
   color: string;
   speaking?: boolean;
-  size?: number;
+  size?: number | string;
+  /** No frame, no background: just the drawing, for the lobby's lit stage. */
+  bare?: boolean;
 }
 
-export default function BotAvatar({ botId, color, speaking, size = 120 }: Props) {
-  const c = COLOR[color] ?? 'var(--gold)';
+export default function BotAvatar({ botId, color, speaking, size = 120, bare }: Props) {
+  const c = COLOR[color] ?? 'var(--paper)';
   const svg = ANIMALS[botId] ?? ANIMALS.owl;
+  if (bare) {
+    return (
+      <svg
+        viewBox="0 0 100 100"
+        style={{ width: size, height: size, display: 'block' }}
+        aria-hidden="true"
+        dangerouslySetInnerHTML={{ __html: svg }}
+      />
+    );
+  }
   return (
     <div
       className={`bot-avatar ${speaking ? 'bot-speaking' : ''}`}
