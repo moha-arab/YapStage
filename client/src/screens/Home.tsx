@@ -26,8 +26,10 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { NAME_RE, tierFor, type JoinError, type LobbyUpdate } from '../../../server/src/protocol';
 import type { BotStartConfig } from './BotSelect';
 import { session, socket } from '../socket';
-import { playerId, signIn, signOut, whoAmI, type Account } from '../player';
+import { playerId, signIn, signOut, type Account } from '../player';
 import { unlockSpectateAudio } from '../specaudio';
+import { unlockBotVoice } from '../botvoice';
+import { initAudio } from '../sound';
 import { useI18n } from '../i18n';
 import Mask from '../Mask';
 import BotAvatar from '../BotAvatar';
@@ -66,6 +68,12 @@ interface Friend {
 }
 
 interface Props {
+  /** App's boot /auth/me answer, passed down so the lobby never re-fetches it.
+      The old screen ran its own whoAmI and rendered the guest state (name box,
+      "sign in to play your friends") for the frames it took to resolve — a
+      signed-in user watched themselves get logged out and back in on every
+      visit. */
+  account: Account;
   notice: string | null;
   onEntered: (u: LobbyUpdate) => void;
   onSpectate: (code: string, feed: boolean) => void;
@@ -96,6 +104,7 @@ function Cone({ color, id }: { color: string; id: string }) {
 }
 
 export default function Home({
+  account,
   notice,
   onEntered,
   onSpectate,
@@ -126,10 +135,6 @@ export default function Home({
   const [queueing, setQueueing] = useState(false);
   const [queueInfo, setQueueInfo] = useState<{ waiting: number; rating: number } | null>(null);
 
-  const [account, setAccount] = useState<Account>({ signedIn: false, google: false });
-  useEffect(() => {
-    void whoAmI().then(setAccount);
-  }, []);
   const needAccount = account.google && !account.signedIn;
 
   /* ---- everything the stage needs to know ---- */
@@ -315,6 +320,15 @@ export default function Home({
 
   function startBot() {
     if (!pickedBot || !requireName()) return;
+    // Both of these must happen INSIDE this tap, and losing them is exactly
+    // how the redesign brought the robot voice back: initAudio unlocks the
+    // AudioContext and speech synthesis, unlockBotVoice unlocks the one
+    // long-lived <audio> element that plays the bot's REAL voice — browsers
+    // grant playback to an element a user has touched, so an element that was
+    // never played inside a gesture rejects play() when the mp3 arrives and
+    // the client silently falls back to the browser's robotic speech.
+    initAudio();
+    unlockBotVoice();
     if (pickedBot === 'tutor') return onTutorial(effName);
     // Sane defaults, so picking a bot is one tap instead of a settings page.
     // Everything here is still adjustable inside the room.

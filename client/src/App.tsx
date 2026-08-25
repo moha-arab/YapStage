@@ -982,7 +982,13 @@ export default function App() {
         notice={inviteNote}
       />
     );
-  } else if (account && account.google && !account.signedIn && !guestMode) {
+  } else if (!account) {
+    // The boot /auth/me has not answered yet, so we do not know whether this
+    // person gets Welcome or the lobby. Render the empty house instead of
+    // guessing: guessing the lobby meant every signed-out visitor watched the
+    // stage flash for a frame before Welcome replaced it.
+    content = <div className="lb" aria-hidden="true" />;
+  } else if (account.google && !account.signedIn && !guestMode) {
     content = (
       <Welcome
         onGuest={() => setGuestMode(true)}
@@ -992,6 +998,7 @@ export default function App() {
   } else {
     content = (
       <Home
+        account={account}
         notice={notice}
         onEntered={handleEntered}
         onSpectate={(code, feed) => {
