@@ -114,11 +114,10 @@ export default function App() {
   const [inviteNote, setInviteNote] = useState<{ key: string; x?: string } | null>(null);
   /** A friend's open room, pushed to every tab you have. Survives screens. */
   const [callout, setCallout] = useState<{ from: string; code: string } | null>(null);
-  // Signed-out visitors land on Welcome; 'continue as guest' dismisses it for
-  // the session. Invite links skip it — they were sent here to play, now.
-  const [guestMode, setGuestMode] = useState(
-    () => new URLSearchParams(window.location.search).get('code') !== null,
-  );
+  // Guest mode is GONE (his call, 2026-08-22): playing requires a Google
+  // account, full stop. Invite links included — signIn() stashes the code in
+  // sessionStorage so it survives the OAuth round trip and the invited player
+  // still lands in their friend's room, just with a name that is theirs.
   const [debrief, setDebrief] = useState<DebriefInfo | null>(null);
   // Campaign: a win at the frontier unlocked the next opponent.
   const [unlocked, setUnlocked] = useState<{ level: number; unlocked: string | null } | null>(null);
@@ -988,12 +987,9 @@ export default function App() {
     // guessing: guessing the lobby meant every signed-out visitor watched the
     // stage flash for a frame before Welcome replaced it.
     content = <div className="lb" aria-hidden="true" />;
-  } else if (account.google && !account.signedIn && !guestMode) {
+  } else if (account.google && !account.signedIn) {
     content = (
-      <Welcome
-        onGuest={() => setGuestMode(true)}
-        invited={new URLSearchParams(window.location.search).get('code') !== null}
-      />
+      <Welcome invited={new URLSearchParams(window.location.search).get('code') !== null} />
     );
   } else {
     content = (

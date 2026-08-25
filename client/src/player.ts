@@ -75,8 +75,18 @@ export async function whoAmI(): Promise<Account> {
 }
 
 /** Send the browser to Google, carrying this device's id so a first sign-in
-    adopts progress already earned here instead of starting from zero. */
+    adopts progress already earned here instead of starting from zero.
+
+    An invite code in the URL is stashed first: the OAuth round trip lands back
+    on a bare `/?auth=ok`, and without this the person a friend called out
+    signs in and finds themselves in an empty lobby instead of the room. */
 export function signIn(): void {
+  try {
+    const code = new URLSearchParams(window.location.search).get('code');
+    if (code) sessionStorage.setItem('yapstage.pendingCode', code.toUpperCase());
+  } catch {
+    // storage blocked: they sign in and paste the code by hand, which works
+  }
   window.location.assign(`/auth/google?claim=${encodeURIComponent(playerId())}`);
 }
 

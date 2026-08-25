@@ -127,7 +127,7 @@ const SCREENS: Record<string, () => JSX.Element> = {
       onBack={noop}
     />
   ),
-  welcome: () => <Welcome onGuest={noop} />,
+  welcome: () => <Welcome />,
   claimName: () => <ClaimName onClaimed={noop} />,
   botSelect: () => (
     <BotSelect

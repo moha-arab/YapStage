@@ -125,12 +125,23 @@ export default function Home({
   const [busy, setBusy] = useState(false);
 
   const [name, setName] = useState('');
-  const [code, setCode] = useState(
-    () => new URLSearchParams(window.location.search).get('code')?.toUpperCase() ?? '',
-  );
-  const [invited, setInvited] = useState(
-    () => new URLSearchParams(window.location.search).get('code') !== null,
-  );
+  // The invite code arrives one of two ways: in the URL, or stashed in
+  // sessionStorage by signIn() because the Google round trip strips the URL.
+  // Read once, then clear the stash so a code cannot haunt a later visit.
+  const [arrival] = useState(() => {
+    const fromUrl = new URLSearchParams(window.location.search).get('code');
+    let stashed: string | null = null;
+    try {
+      stashed = sessionStorage.getItem('yapstage.pendingCode');
+      if (stashed) sessionStorage.removeItem('yapstage.pendingCode');
+    } catch {
+      // storage blocked: the URL path still works
+    }
+    const c = (fromUrl ?? stashed ?? '').toUpperCase();
+    return { code: c, invited: c !== '' };
+  });
+  const [code, setCode] = useState(arrival.code);
+  const [invited, setInvited] = useState(arrival.invited);
 
   const [queueing, setQueueing] = useState(false);
   const [queueInfo, setQueueInfo] = useState<{ waiting: number; rating: number } | null>(null);
