@@ -3954,111 +3954,142 @@ html[dir='rtl'] .meter-hint {
   margin-top: 4px;
 }
 
-/* Welcome: what a signed-out visitor sees. Two doors, nothing else. */
-.stage.welcome {
+/* ============================== THE MARQUEE ==============================
+   What a signed-out visitor sees: an empty house, two stage lights crossing
+   on the name, one sentence, one door. His pick (option D) from the four
+   landing directions of 2026-08-22.
+
+   The discipline that makes it work is that NOTHING else is on the screen.
+   No feature list, no fake verdicts, no leaderboard of bots pretending to be
+   a community. The one live thing it may show — "a ranked debate is live
+   right now" — renders only when it is actually true. */
+.marquee-welcome {
+  position: relative;
+  height: 100vh;
+  overflow: hidden;
+  background: var(--house);
+  display: grid;
+  place-items: center;
+}
+
+@supports (height: 100dvh) {
+  .marquee-welcome {
+    height: 100dvh;
+  }
+}
+
+.mq-lights {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.mq-mid {
+  position: relative;
+  text-align: center;
+  padding: 0 20px;
+  max-width: 680px;
+}
+
+.mq-lockup {
   display: flex;
-  flex-direction: column;
   align-items: center;
   justify-content: center;
-  min-height: 100vh;
-  gap: 18px;
-  text-align: center;
+  gap: clamp(12px, 2vw, 20px);
+  margin-bottom: 18px;
 }
 
-.welcome-hero .brand-lockup {
-  gap: 16px;
+.mq-lockup svg {
+  width: clamp(40px, 6vw, 72px);
+  height: auto;
+  flex: none;
 }
 
-.welcome-line {
-  color: var(--paper);
-  max-width: 460px;
-  margin: 14px auto 0;
-  font-size: 18px;
-}
-
-/* The two of them under their own lights, the same pairing the lobby uses. */
-.welcome-stage {
-  display: flex;
-  align-items: center;
-  gap: 40px;
-  padding: 22px 30px 30px;
-}
-
-.welcome-stage > * {
-  position: relative;
-  filter: drop-shadow(0 14px 18px rgba(0, 0, 0, 0.45));
-}
-
-/* The pool of light each of them stands in — the lobby's move, at landing-page
-   size, so the first screen and the second look like the same product. */
-.welcome-stage > :first-child::after,
-.welcome-stage > :last-child::after {
-  content: '';
-  position: absolute;
-  left: 50%;
-  bottom: -14px;
-  width: 128%;
-  height: 22px;
-  transform: translateX(-50%);
-  border-radius: 50%;
-  z-index: -1;
-  opacity: 0.32;
-}
-
-.welcome-stage > :first-child::after {
-  background: var(--amber);
-}
-
-.welcome-stage > :last-child::after {
-  background: var(--turq);
-}
-
-.welcome-vs {
+.mq-word {
   font-family: 'Ultra', serif;
+  font-size: clamp(42px, 7vw, 84px);
+  line-height: 1;
   color: var(--paper);
-  font-size: 26px;
 }
 
-.welcome-beats {
-  margin: 0;
+.mq-line {
   color: var(--muted);
-  font-size: var(--t4);
-  max-width: 440px;
+  font-size: clamp(15px, 1.6vw, 18px);
+  margin: 0 0 30px;
   text-wrap: pretty;
 }
 
-/* The quiet way past a primary action. A second filled button next to the
-   first makes neither of them the answer. */
-.link-btn {
-  background: none;
-  border: none;
-  color: var(--muted);
+.mq-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--amber);
+  color: #241203;
+  border: 0;
+  border-radius: 6px;
   font: inherit;
-  font-size: var(--t3);
-  text-decoration: underline;
-  text-underline-offset: 4px;
+  font-weight: 700;
+  font-size: 17px;
+  padding: 16px 34px;
   cursor: pointer;
-  padding: var(--s2);
-  min-height: var(--ctl-sm);
-}
-.link-btn:hover {
-  color: var(--ink);
+  transition: background 0.12s ease;
 }
 
-.welcome-doors {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  width: min(320px, 86vw);
-  margin-top: 4px;
+.mq-cta:hover {
+  background: #ff8f28;
 }
 
-.welcome-fine {
-  max-width: 380px;
-  margin-top: 6px;
-  text-transform: none;
-  letter-spacing: 0;
-  font-size: 12px;
+.mq-cta .mq-g {
+  display: inline-grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: #fff;
+  flex: none;
+}
+
+.mq-fine {
+  color: var(--muted);
+  font-size: 12.5px;
+  margin: 10px 0 0;
+}
+
+.mq-live {
+  margin: 26px 0 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--live);
+  font-weight: 600;
+}
+
+.mq-live i {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--live);
+  animation: livePulse 1.6s ease-in-out infinite;
+}
+
+.mq-rule {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  text-align: center;
+  font-size: 12.5px;
+  color: var(--muted);
+  padding: 14px 16px;
+  margin: 0;
+}
+
+.mq-rule b {
+  color: var(--paper);
+  font-weight: 600;
 }
 
 /* Spectate: the ranked feed sits above the code box */
