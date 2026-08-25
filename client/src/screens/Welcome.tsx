@@ -1,29 +1,31 @@
-// THE MARQUEE. What a signed-out visitor sees: an empty house, two stage
-// lights crossing on the name, one sentence, one door. His pick (option D)
-// from the four landing directions of 2026-08-22, replacing the screen he
-// called "a student project".
+// THE LANDING. What a signed-out visitor sees: the pitch and one door on the
+// left, the real match screen framed on the right. His pick (option B, "the
+// product shot") from the four rendered directions of 2026-08-22, after he
+// called the old screen "a student project".
 //
-// What made the old one read that way, so nobody rebuilds it: a ghost "last
-// verdict" for a match that never happened, a leaderboard of six bots dressed
-// as a community, a guest link diluting the one action, and a centered column
-// of small print. The fix is not more — it is one confident thing.
-//
-// The single live element ("a ranked debate is live right now") renders ONLY
-// when it is actually true. Fake liveliness is the student-project tell.
-import { useEffect, useState } from 'react';
+// Rules of this screen, learned from his own edits:
+//   - ONE door. sign in with google. Guest mode is gone.
+//   - No fine print. He struck "your rating and record follow you everywhere"
+//     by hand: "when you add unnecessary stuff like that... I want to make it
+//     look clean." A line has to survive that sentence to be added here.
+//   - No fake proof and no live counters. The screenshot is presented as an
+//     illustration of the product, which is honest; a ghost verdict or an
+//     unexplained "live now" is not.
 import { useI18n } from '../i18n';
 import { signIn } from '../player';
+import Mask from '../Mask';
+import Brand from '../Brand';
 
 interface Props {
   /** Arrived on an invite link — the friend who called you out is waiting. */
   invited?: boolean;
 }
 
-/** Google's four-colour G, per their sign-in branding. Drawn inline: an <img>
-    would be one more request on the first screen anyone ever sees. */
+/** Google's four-colour G, per their sign-in branding. Inline: an <img> would
+    be one more request on the first screen anyone ever sees. */
 function GoogleG() {
   return (
-    <span className="mq-g" aria-hidden="true">
+    <span className="ld-g" aria-hidden="true">
       <svg viewBox="0 0 18 18" width="13" height="13">
         <path
           fill="#4285F4"
@@ -35,7 +37,7 @@ function GoogleG() {
         />
         <path
           fill="#FBBC05"
-          d="M3.964 10.71A5.41 5.41 0 0 1 3.682 9c0-.593.102-1.17.282-1.71V4.958H.957A8.996 8.996 0 0 0 0 9c0 1.452.348 2.827.957 4.042l3.007-3.332z"
+          d="M3.964 10.71A5.41 5.41 0 0 1 3.682 9c0-.593.102-1.17.282-1.71V4.958H.957A8.996 8.996 0 0 0 0 9c0 1.452.348 2.827.957 4.042l3.007-2.332z"
         />
         <path
           fill="#EA4335"
@@ -49,61 +51,73 @@ function GoogleG() {
 export default function Welcome({ invited }: Props) {
   const { t } = useI18n();
 
-  const [live, setLive] = useState(0);
-  useEffect(() => {
-    void fetch('/live')
-      .then((r) => r.json())
-      .then((d: { live?: number }) => setLive(d.live ?? 0))
-      .catch(() => {});
-  }, []);
-
   return (
-    <div className="marquee-welcome">
-      <svg className="mq-lights" viewBox="0 0 1440 900" preserveAspectRatio="none" aria-hidden="true">
-        <defs>
-          <linearGradient id="mqa" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0" stopColor="#F0821E" stopOpacity="0.34" />
-            <stop offset="0.75" stopColor="#F0821E" stopOpacity="0" />
-          </linearGradient>
-          <linearGradient id="mqb" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0" stopColor="#1FC2D4" stopOpacity="0.3" />
-            <stop offset="0.75" stopColor="#1FC2D4" stopOpacity="0" />
-          </linearGradient>
-        </defs>
-        {/* Blurred on purpose: hard-edged gradient polygons read as brown
-            triangles, not light. The blur is what makes them beams. */}
-        <g style={{ filter: 'blur(30px)' }}>
-          <polygon points="480,-40 620,-40 900,940 220,940" fill="url(#mqa)" />
-          <polygon points="820,-40 960,-40 1220,940 540,940" fill="url(#mqb)" />
-        </g>
-      </svg>
+    <div className="landing">
+      <header className="ld-bar">
+        <Brand size={26} />
+      </header>
 
-      <div className="mq-mid">
-        <div className="mq-lockup">
-          <svg viewBox="0 0 64 64" role="img" aria-label="YapStage">
-            <path d="M8 14 h20 v20 q0 12 -14 16 v-8 q7 -3 7 -8 h-13 z" fill="var(--amber)" />
-            <path d="M56 50 h-20 v-20 q0 -12 14 -16 v8 q-7 3 -7 8 h13 z" fill="var(--turq)" />
-          </svg>
-          <span className="mq-word">YAPSTAGE</span>
+      <div className="ld-split">
+        <div>
+          <h1 className="ld-h1">{t('landH1')}</h1>
+          <p className="ld-sub">{invited ? t('welcomeInvitedLine') : t('welcomeLine')}</p>
+          <button className="ld-cta" onClick={signIn}>
+            <GoogleG />
+            {t('signInGoogle')}
+          </button>
+          <ul className="ld-steps">
+            {(['landStep1', 'landStep2', 'landStep3'] as const).map((k, i) => (
+              <li key={k}>
+                <span className="ld-k">{i + 1}</span>
+                <span dangerouslySetInnerHTML={{ __html: t(k) }} />
+              </li>
+            ))}
+          </ul>
         </div>
 
-        <p className="mq-line">{invited ? t('welcomeInvitedLine') : t('welcomeLine')}</p>
-
-        <button className="mq-cta" onClick={signIn}>
-          <GoogleG />
-          {t('signInGoogle')}
-        </button>
-        <p className="mq-fine">{t('welcomeFine')}</p>
-
-        {live > 0 ? (
-          <p className="mq-live">
-            <i />
-            {live === 1 ? t('welcomeLiveOne') : t('welcomeLiveMany', { n: live })}
-          </p>
-        ) : null}
+        {/* The real match screen, framed: two debaters, the motion, the clock.
+            Sample names on sample data, the way every product screenshot works
+            — what it never does is claim somebody is playing right now. */}
+        <div className="ld-shotwrap" aria-hidden="true">
+          <div className="ld-glow" />
+          <div className="ld-shot">
+            <div className="ld-chrome">
+              <i />
+              <i />
+              <i />
+            </div>
+            <div className="ld-app">
+              <div className="ld-tile">
+                <div className="ld-face">
+                  <Mask id="luchador" size="100%" bare />
+                </div>
+                <div className="ld-tag">zorvint · {t('sideFor')}</div>
+              </div>
+              <div className="ld-tile ld-tile-on">
+                <div className="ld-face">
+                  <Mask id="kitsune" size="100%" bare />
+                </div>
+                <div className="ld-tag">goat · {t('sideAgainst')}</div>
+                <div className="ld-pill">{t('onTheMic')}</div>
+              </div>
+              <div className="ld-bill">
+                <div className="sec">{t('theMotion')}</div>
+                <div className="mot">{t('landShotMotion')}</div>
+                <div className="rnd">
+                  <b>{t('rebuttals')}</b>
+                  <span>{t('turnOf', { n: 4 })}</span>
+                </div>
+                <div className="clk">0:31</div>
+                <div className="trk">
+                  <i />
+                </div>
+                <div className="who">{t('landShotWho')}</div>
+                <p className="how">{t('landShotHow')}</p>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
-
-      <p className="mq-rule" dangerouslySetInnerHTML={{ __html: t('lbHouseRule') }} />
     </div>
   );
 }
