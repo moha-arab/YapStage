@@ -102,7 +102,7 @@ const en: Dict = {
   lbCap_watch:
     'Drop into a live ranked debate. You see the masks, hear the argument, and get the verdict when it lands. <b>They cannot see you.</b>',
 
-  lbHouseRule: '<b>Reading off a chatbot gets you banned.</b> You will get caught.',
+  lbHouseRule: '<b>Reading off a chatbot gets you banned.</b>',
 
   /* the match screen's paper panel */
   liveNow: 'LIVE',
