@@ -989,7 +989,10 @@ export default function App() {
     content = <div className="lb" aria-hidden="true" />;
   } else if (account.google && !account.signedIn) {
     content = (
-      <Welcome invited={new URLSearchParams(window.location.search).get('code') !== null} />
+      <Welcome
+        prelaunch={Boolean(account.prelaunch)}
+        invited={new URLSearchParams(window.location.search).get('code') !== null}
+      />
     );
   } else {
     content = (

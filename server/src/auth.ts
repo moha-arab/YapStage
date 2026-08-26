@@ -9,7 +9,7 @@ import crypto from 'node:crypto';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { event } from './stats.js';
 import { AVATAR_IDS, nameProblem } from './protocol.js';
-import { claimUsername, getLocker, linkAccount, setLocker, type AccountRow } from './store.js';
+import { accountExists, claimUsername, getLocker, linkAccount, setLocker, type AccountRow } from './store.js';
 
 const AUTH_URL = 'https://accounts.google.com/o/oauth2/v2/auth';
 const TOKEN_URL = 'https://oauth2.googleapis.com/token';
@@ -27,9 +27,18 @@ export function googleConfigured(): boolean {
     third env var. Derivation is domain-separated, and the fallback is stable
     across deploys — a random per-boot key would log everyone out on every
     push. Set SESSION_SECRET when you want to rotate sessions independently. */
+/** PRE-LAUNCH (2026-08-22, his call): the doors are closed. New Google
+    sign-ins are refused at the callback — only accounts that ALREADY exist
+    (his two, after the prune) can get back in. The public page collects
+    emails instead. Flip to false at release and everything reopens. */
+export const PRELAUNCH = true;
+
 function sessionKey(): Buffer {
   const base = process.env.SESSION_SECRET || process.env.GOOGLE_CLIENT_SECRET || '';
-  return crypto.createHash('sha256').update(`yapstage-session-v1:${base}`).digest();
+  // v2 on 2026-08-22: bumping this string invalidates every cookie ever
+  // issued — the "sign out everybody" for the pre-launch fresh start. The mac
+  // simply stops verifying; nobody's cookie needs touching.
+  return crypto.createHash('sha256').update(`yapstage-session-v2:${base}`).digest();
 }
 
 function b64url(buf: Buffer | string): string {
@@ -178,6 +187,14 @@ export function registerAuth(app: FastifyInstance): void {
         if (!claims.sub) throw new Error('no sub');
         if (claims.aud !== process.env.GOOGLE_CLIENT_ID) throw new Error('aud mismatch');
 
+        // Pre-launch: the club is members-only. An account that already
+        // exists (survived the prune) signs in normally; a new Google
+        // identity is turned away to the waitlist instead of being created.
+        if (PRELAUNCH && !(await accountExists(claims.sub))) {
+          event('auth_waitlisted');
+          return reply.redirect('/?auth=waitlist');
+        }
+
         const account = await linkAccount({
           sub: claims.sub,
           email: claims.email ?? '',
@@ -212,7 +229,7 @@ export function registerAuth(app: FastifyInstance): void {
       the one-time yap-name claim: a fresh account can't play until it lands. */
   app.get('/auth/me', async (req) => {
     const s = readSession(req);
-    if (!s) return { signedIn: false, google: googleConfigured() };
+    if (!s) return { signedIn: false, google: googleConfigured(), prelaunch: PRELAUNCH };
     const locker = await getLocker(s.sub);
     return {
       signedIn: true,

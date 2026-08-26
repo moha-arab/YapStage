@@ -167,12 +167,17 @@ export default function Debate({
         {isBot && botOpponent ? (
           <div className="tile-stack">
             <div className={`tile bot-tile tile-${peerSide === 'FOR' ? 'for' : 'against'} ${!myTurn ? 'tile-active' : ''}`}>
-              <BotAvatar
-                botId={botOpponent.id}
-                color={botOpponent.color}
-                speaking={Boolean(botSpeaking) && !myTurn}
-                size={200}
-              />
+              {/* Scales with the tile, like the masks — a fixed 200px bot in a
+                  600px tile was the same "too small" problem twice. */}
+              <div className="tile-mask-wrap">
+                <BotAvatar
+                  botId={botOpponent.id}
+                  color={botOpponent.color}
+                  speaking={Boolean(botSpeaking) && !myTurn}
+                  size="100%"
+                  bare
+                />
+              </div>
               <div className="tag">
                 <span className="tag-name">{botOpponent.name}</span>
                 <span className="tag-sub">{label(peerSide)}</span>

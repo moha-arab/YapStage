@@ -110,13 +110,11 @@ export default function VideoTile(props: Props) {
         {props.stream && !props.muted ? (
           <audio ref={audioRef} autoPlay playsInline />
         ) : null}
+        {/* bare + percentage-sized: the face SCALES WITH THE TILE. The old
+            fixed 132px made the mask a sticker in the corner of a 600px tile,
+            which is the "masks are too small" he reported. */}
         <div className="tile-mask-wrap">
-          <Mask
-            id={props.maskId ?? 'luchador'}
-            size={132}
-            speaking={loud}
-            color={props.side === 'FOR' ? 'var(--for)' : props.side === 'AGAINST' ? 'var(--against)' : undefined}
-          />
+          <Mask id={props.maskId ?? 'luchador'} size="100%" speaking={loud} bare />
         </div>
         <div className="tag">
           <span className="tag-name">{props.label}</span>

@@ -114,6 +114,9 @@ export default function BotAvatar({ botId, color, speaking, size = 120, bare }: 
     return (
       <svg
         viewBox="0 0 100 100"
+        // Same trick as Mask: the mouth selector needs .bot-speaking somewhere
+        // above .bot-mouth, and bare renders no frame div to carry it.
+        className={speaking ? 'bot-speaking' : undefined}
         style={{ width: size, height: size, display: 'block' }}
         aria-hidden="true"
         dangerouslySetInnerHTML={{ __html: svg }}

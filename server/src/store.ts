@@ -208,6 +208,14 @@ export async function initStore(): Promise<void> {
           ELSE mask END
         WHERE mask IN ('kitsune','goalie','masque','knight','astro','boxer')`);
     });
+    // The pre-launch waitlist: an email, a timestamp, nothing else — read it
+    // at GET /waitlist?key=STATS_KEY.
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS waitlist (
+        email text PRIMARY KEY,
+        at    timestamptz NOT NULL DEFAULT now()
+      )
+    `);
     // Reports keep the debate's words as evidence — the one deliberate
     // exception to "transcripts die with the lobby", disclosed in the UI.
     await pool.query(`
@@ -452,6 +460,90 @@ export async function getLocker(sub: string): Promise<{ mask: string | null; mas
     return { mask: (r.rows[0].mask as string) || null, maskDefault: Boolean(r.rows[0].mask_default) };
   } catch {
     return { mask: null, maskDefault: false };
+  }
+}
+
+/** Does this Google identity already own an account? Pre-launch, this IS the
+    guest list: the callback refuses anyone it does not find. */
+export async function accountExists(sub: string): Promise<boolean> {
+  if (!pool || !ready) return false;
+  try {
+    const r = await pool.query(`SELECT 1 FROM accounts WHERE sub = $1`, [sub]);
+    return r.rowCount === 1;
+  } catch (err) {
+    console.error('[store] accountExists failed:', err);
+    return false;
+  }
+}
+
+/** The pre-launch waitlist: an email and nothing else. */
+export async function addWaitlist(email: string): Promise<'ok' | 'already' | 'down'> {
+  if (!pool || !ready) return 'down';
+  try {
+    const r = await pool.query(
+      `INSERT INTO waitlist (email) VALUES ($1) ON CONFLICT (email) DO NOTHING`,
+      [email],
+    );
+    return r.rowCount === 1 ? 'ok' : 'already';
+  } catch (err) {
+    console.error('[store] addWaitlist failed:', err);
+    return 'down';
+  }
+}
+
+export async function listWaitlist(): Promise<{ email: string; at: string }[]> {
+  if (!pool || !ready) return [];
+  try {
+    const r = await pool.query(`SELECT email, at FROM waitlist ORDER BY at DESC LIMIT 5000`);
+    return r.rows as { email: string; at: string }[];
+  } catch (err) {
+    console.error('[store] listWaitlist failed:', err);
+    return [];
+  }
+}
+
+/** The fresh start (2026-08-22, his explicit instruction): delete every
+    account except his two, and everything those deleted accounts owned —
+    players, ratings, friendships, match history. REFUSES to run unless BOTH
+    keep-names are found, so a misremembered username deletes nothing. Behind
+    the STATS_KEY admin route, never automatic. */
+export async function prelaunchPrune(
+  keep: string[],
+): Promise<
+  | { ok: true; kept: string[]; deleted: Record<string, number> }
+  | { ok: false; error: string; found: string[] }
+> {
+  if (!pool || !ready) return { ok: false, error: 'store_down', found: [] };
+  try {
+    const folds = keep.map((k) => k.toLowerCase());
+    const found = await pool.query(
+      `SELECT username, sub, player_id FROM accounts WHERE username_fold = ANY($1)`,
+      [folds],
+    );
+    if (found.rowCount !== keep.length) {
+      return {
+        ok: false,
+        error: `expected ${keep.length} keep-accounts, found ${found.rowCount}`,
+        found: found.rows.map((r: { username: string }) => r.username),
+      };
+    }
+    const keepSubs = found.rows.map((r: { sub: string }) => r.sub);
+    const keepPlayers = found.rows.map((r: { player_id: string }) => r.player_id);
+
+    const deleted: Record<string, number> = {};
+    const run = async (label: string, sql: string, params: unknown[]) => {
+      const r = await pool!.query(sql, params);
+      deleted[label] = r.rowCount ?? 0;
+    };
+    await run('friends', `DELETE FROM friends WHERE NOT (lo_sub = ANY($1) AND hi_sub = ANY($1))`, [keepSubs]);
+    await run('matches', `DELETE FROM matches WHERE NOT (player_id = ANY($1))`, [keepPlayers]);
+    await run('players', `DELETE FROM players WHERE NOT (id = ANY($1))`, [keepPlayers]);
+    await run('accounts', `DELETE FROM accounts WHERE NOT (sub = ANY($1))`, [keepSubs]);
+    await run('cheat_flags', `DELETE FROM cheat_flags WHERE NOT (player_id = ANY($1))`, [keepPlayers]);
+    return { ok: true, kept: found.rows.map((r: { username: string }) => r.username), deleted };
+  } catch (err) {
+    console.error('[store] prelaunchPrune failed:', err);
+    return { ok: false, error: String(err).slice(0, 200), found: [] };
   }
 }
 

@@ -2241,10 +2241,13 @@ html[dir='rtl'] .meter-hint {
 
 .match {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 340px;
+  /* 1240 and not wider: at full 1600 the paper panel drifted to the far
+     right of a big monitor and the whole match read as pushed to one side
+     (his report). Capped and centered, the three pieces read as one stage. */
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 300px;
   gap: 14px;
-  align-items: start;
-  max-width: 1600px;
+  align-items: stretch;
+  max-width: 1240px;
   margin: 0 auto;
 }
 
@@ -3540,7 +3543,9 @@ html[dir='rtl'] .meter-hint {
   align-items: center;
   justify-content: center;
   height: 100%;
-  padding: 12px;
+  /* enough air that the face reads as standing in the frame, not taped
+     over it — but the face IS most of the tile now */
+  padding: 6% 0;
 }
 
 .face-controls {

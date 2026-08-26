@@ -76,6 +76,10 @@ export default function Mask({ id, speaking, size = 120, color, bare }: Props) {
     return (
       <svg
         viewBox="0 0 100 100"
+        // bot-speaking on the svg itself: the mouth animation's selector is
+        // `.bot-speaking .bot-mouth`, and bare masks have no frame div to
+        // carry the class — without this a bare mask's mouth never moves.
+        className={speaking ? 'bot-speaking' : undefined}
         style={{ width: size, height: size, display: 'block' }}
         aria-hidden="true"
         dangerouslySetInnerHTML={{ __html: svg }}

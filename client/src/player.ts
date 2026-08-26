@@ -36,6 +36,8 @@ export function adoptPlayerId(id: string): void {
 
 export interface Account {
   signedIn: boolean;
+  /** Pre-launch: the doors are closed, the landing collects emails. */
+  prelaunch?: boolean;
   /** Whether sign-in is even available on this deployment. */
   google: boolean;
   name?: string;

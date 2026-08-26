@@ -8,6 +8,7 @@ import './styles.css';
 // the older stylesheet. Keeping it separate is also the only reason the home
 // rebuild did not have to fight 3800 lines of existing cascade.
 import './lobby.css';
+import './landing-pre.css';
 
 installErrorBeacon();
 
