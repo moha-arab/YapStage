@@ -337,3 +337,232 @@
 .ldp-signin:hover {
   color: var(--paper);
 }
+
+/* ============================== THE CRAFT PASS ==============================
+   Motion and depth, added 2026-08-22 ("make it look really cool... really
+   polished and spent time on"). The budget: every effect must be something a
+   person notices as care, not as noise. Everything here respects
+   prefers-reduced-motion — that respect is itself a professionalism tell. */
+
+/* The ground is not flat: a faint warm dome behind the hero, a cool floor.
+   Gradients at 3% are atmosphere; gradients at 20% are a nightclub. */
+.ldp {
+  background:
+    radial-gradient(1100px 520px at 50% -80px, rgba(240, 130, 30, 0.07), transparent 70%),
+    radial-gradient(900px 600px at 85% 30%, rgba(31, 194, 212, 0.045), transparent 70%),
+    linear-gradient(180deg, #191a30 0%, var(--house) 34%, var(--house) 78%, #131424 100%);
+}
+
+/* ---- entrances: the hero rises in once, staggered ---- */
+
+.rise {
+  opacity: 0;
+  transform: translateY(16px);
+  animation: ldpRise 0.65s cubic-bezier(0.2, 0.7, 0.2, 1) forwards;
+}
+
+.rise-1 {
+  animation-delay: 0.05s;
+}
+
+.rise-2 {
+  animation-delay: 0.16s;
+}
+
+.rise-3 {
+  animation-delay: 0.27s;
+}
+
+.rise-4 {
+  animation-delay: 0.42s;
+}
+
+@keyframes ldpRise {
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ---- reveal on scroll: sections drift up as you reach them ---- */
+
+.rv {
+  opacity: 0;
+  transform: translateY(22px);
+  transition: opacity 0.6s ease, transform 0.6s cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+
+.rv.is-in {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* ---- the lights breathe, barely ---- */
+
+.ldp-lights g {
+  animation: ldpBreathe 9s ease-in-out infinite alternate;
+  transform-origin: 50% 0;
+}
+
+@keyframes ldpBreathe {
+  from {
+    opacity: 0.85;
+  }
+  to {
+    opacity: 1.15;
+  }
+}
+
+/* ---- the product shot floats, and leans toward the cursor (see useTilt) ---- */
+
+.ldp-shot .ld-shotwrap {
+  transition: transform 0.25s ease-out;
+  will-change: transform;
+  animation: ldpFloat 8s ease-in-out infinite;
+}
+
+@keyframes ldpFloat {
+  0%,
+  100% {
+    translate: 0 0;
+  }
+  50% {
+    translate: 0 -8px;
+  }
+}
+
+/* ---- hover states: everything touchable answers the hand ---- */
+
+.ld-cta {
+  transition: background 0.12s ease, transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.ld-cta:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 8px 24px rgba(240, 130, 30, 0.3);
+}
+
+.ld-cta:active:not(:disabled) {
+  transform: translateY(0);
+  box-shadow: none;
+}
+
+.ld-email {
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.ld-email:focus {
+  box-shadow: 0 0 0 3px rgba(240, 130, 30, 0.22);
+}
+
+.ldp-tier,
+.ldp-bot {
+  transition: transform 0.18s ease;
+}
+
+.ldp-tier:hover,
+.ldp-bot:hover {
+  transform: translateY(-4px);
+}
+
+.ldp-mask {
+  transition: transform 0.18s ease;
+}
+
+.ldp-mask:hover {
+  transform: translateY(-4px) scale(1.04);
+}
+
+.ldp-mask::after {
+  transition: opacity 0.18s ease;
+}
+
+.ldp-mask:hover::after {
+  opacity: 0.4;
+}
+
+.ldp-cat {
+  transition: transform 0.18s ease, border-color 0.18s ease;
+}
+
+.ldp-cat:hover {
+  transform: translateY(-2px);
+  border-color: #33345e;
+}
+
+.ldp-card {
+  transition: transform 0.18s ease, border-color 0.18s ease;
+}
+
+.ldp-card:hover {
+  transform: translateY(-3px);
+  border-color: #33345e;
+}
+
+/* ---- section numbers: the editorial spine ---- */
+
+.ldp-num {
+  display: block;
+  font-family: var(--mono);
+  font-size: 12px;
+  letter-spacing: 0.3em;
+  color: var(--amber);
+  margin-bottom: 10px;
+}
+
+.ldp-num::after {
+  content: '';
+  display: block;
+  width: 26px;
+  height: 1px;
+  background: rgba(240, 130, 30, 0.4);
+  margin: 10px auto 0;
+}
+
+/* ---- the "opening soon" chip pulses at the pace of a heartbeat ---- */
+
+.ldp-soon {
+  animation: ldpSoon 3.2s ease-in-out infinite;
+}
+
+@keyframes ldpSoon {
+  0%,
+  100% {
+    border-color: rgba(240, 130, 30, 0.45);
+  }
+  50% {
+    border-color: rgba(240, 130, 30, 0.85);
+  }
+}
+
+.ldp-copy {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+/* ---- and all of it stands still for those who ask it to ---- */
+
+@media (prefers-reduced-motion: reduce) {
+  .rise,
+  .rv {
+    opacity: 1;
+    transform: none;
+    animation: none;
+    transition: none;
+  }
+
+  .ldp-lights g,
+  .ldp-shot .ld-shotwrap,
+  .ldp-soon {
+    animation: none;
+  }
+
+  .ldp-tier:hover,
+  .ldp-bot:hover,
+  .ldp-mask:hover,
+  .ldp-cat:hover,
+  .ldp-card:hover,
+  .ld-cta:hover:not(:disabled) {
+    transform: none;
+  }
+}

@@ -235,7 +235,7 @@ const en: Dict = {
   /* ---- the pre-launch waitlist page. Every line 100% true of the build. ---- */
   wlSoon: 'Opening soon',
   wlHeroSub:
-    'YapStage is a 1v1 video debate arena with an AI judge that hears every word. It has not opened yet. Leave an email and be first through the doors.',
+    'A 1v1 video debate arena, judged by an AI that hears every word. It has not opened yet.',
   wlPlaceholder: 'you@email.com',
   wlJoin: 'Notify me at launch',
   wlDone: "You're on the list. We'll email you when it releases.",
@@ -245,16 +245,16 @@ const en: Dict = {
   wlHowTitle: 'how a match works',
   wlJudgeTitle: 'an AI judge, not a like count',
   wlJudgeLede:
-    'The judge hears every word of all four rounds, scores both sides across four categories, names a winner, and tells each of you the one thing to fix.',
+    'It hears all four rounds, scores both sides across four categories, names a winner, and hands each of you the one thing to fix.',
   wlCatArgument: 'Made your case',
   wlCatEvidence: 'Backed it up',
   wlCatClash: 'Fought back',
   wlCatDelivery: 'Used your time',
   wlLadderTitle: 'a ladder you can feel',
   wlLadderLede:
-    'Eight tiers, and every boundary up to Master is a bot you can actually challenge. Beat the one above you and the next tier stops being a rumour.',
+    'Eight tiers. Every boundary up to Master is a bot you can challenge right now.',
   wlMaskTitle: 'ranked is masked',
-  wlMaskLede: 'Your argument does the fighting, not your face. Pick a mask; it speaks when you do.',
+  wlMaskLede: 'Pick one in the locker. It speaks when you speak.',
   wlDrillK: 'The daily drill',
   wlDrillLine: 'Thirty seconds on one skill, the same one for everybody, scored out of 100. Streaks are real.',
   wlWatchK: 'Watch it live',

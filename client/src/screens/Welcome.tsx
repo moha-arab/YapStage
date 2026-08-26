@@ -12,13 +12,68 @@
 //
 // Standing rules for this screen, from his own edits: one action, no fine
 // print, no fake proof, no unexplained live counters.
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useI18n } from '../i18n';
 import { signIn } from '../player';
 import Mask from '../Mask';
 import Brand from '../Brand';
 import BotAvatar from '../BotAvatar';
 import TierBadge from '../TierBadge';
+
+/** Reveal-on-scroll: sections rise in as they enter the viewport, once.
+    IntersectionObserver, no scroll listener, and prefers-reduced-motion is
+    honoured in the CSS — the observer still fires, the transition is just
+    instant there. */
+function useReveal() {
+  const root = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = root.current;
+    if (!el || !('IntersectionObserver' in window)) return;
+    const io = new IntersectionObserver(
+      (entries) => {
+        for (const e of entries) {
+          if (e.isIntersecting) {
+            e.target.classList.add('is-in');
+            io.unobserve(e.target);
+          }
+        }
+      },
+      { threshold: 0.18 },
+    );
+    el.querySelectorAll('.rv').forEach((n) => io.observe(n));
+    return () => io.disconnect();
+  }, []);
+  return root;
+}
+
+/** Pointer tilt for the product shot: the frame leans a few degrees toward
+    the cursor, which is the cheapest way a page says "this was made by hand".
+    Touch devices and reduced-motion get the static frame. */
+function useTilt() {
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    if (window.matchMedia('(pointer: coarse)').matches) return;
+    const move = (ev: MouseEvent) => {
+      const r = el.getBoundingClientRect();
+      const x = (ev.clientX - r.left) / r.width - 0.5;
+      const y = (ev.clientY - r.top) / r.height - 0.5;
+      el.style.transform = `perspective(1100px) rotateY(${x * 4}deg) rotateX(${y * -3}deg)`;
+    };
+    const leave = () => {
+      el.style.transform = 'perspective(1100px) rotateY(0deg) rotateX(0deg)';
+    };
+    el.addEventListener('mousemove', move);
+    el.addEventListener('mouseleave', leave);
+    return () => {
+      el.removeEventListener('mousemove', move);
+      el.removeEventListener('mouseleave', leave);
+    };
+  }, []);
+  return ref;
+}
 
 interface Props {
   prelaunch?: boolean;
@@ -56,8 +111,9 @@ function GoogleG() {
 /** The framed product shot: the real match screen on sample data. */
 function ProductShot() {
   const { t } = useI18n();
+  const tilt = useTilt();
   return (
-    <div className="ld-shotwrap" aria-hidden="true">
+    <div className="ld-shotwrap" aria-hidden="true" ref={tilt}>
       <div className="ld-glow" />
       <div className="ld-shot">
         <div className="ld-chrome">
@@ -155,6 +211,7 @@ function EmailCapture() {
 
 export default function Welcome({ prelaunch, invited }: Props) {
   const { t } = useI18n();
+  const reveal = useReveal();
   // A refused Google sign-in lands back here with ?auth=waitlist.
   const [turnedAway] = useState(
     () => new URLSearchParams(window.location.search).get('auth') === 'waitlist',
@@ -208,7 +265,7 @@ export default function Welcome({ prelaunch, invited }: Props) {
   }
 
   return (
-    <div className="landing ldp">
+    <div className="landing ldp" ref={reveal}>
       <header className="ld-bar">
         <Brand size={26} />
         <span className="ldp-soon">{t('wlSoon')}</span>
@@ -234,18 +291,21 @@ export default function Welcome({ prelaunch, invited }: Props) {
             <polygon points="880,-40 1010,-40 1280,740 610,740" fill="url(#wlb)" />
           </g>
         </svg>
-        <h1 className="ldp-h1">{t('landH1')}</h1>
-        <p className="ldp-sub">{t('wlHeroSub')}</p>
-        <EmailCapture />
+        <h1 className="ldp-h1 rise rise-1">{t('landH1')}</h1>
+        <p className="ldp-sub rise rise-2">{t('wlHeroSub')}</p>
+        <div className="rise rise-3">
+          <EmailCapture />
+        </div>
       </section>
 
       {/* ---- the product, shown not described ---- */}
-      <section className="ldp-shot">
+      <section className="ldp-shot rise rise-4">
         <ProductShot />
       </section>
 
       {/* ---- how a match works ---- */}
-      <section className="ldp-sec">
+      <section className="ldp-sec rv">
+        <span className="ldp-num">01</span>
         <h2 className="ldp-h2">{t('wlHowTitle')}</h2>
         <ul className="ld-steps ldp-steps">
           {(['landStep1', 'landStep2', 'landStep3'] as const).map((k, i) => (
@@ -258,7 +318,8 @@ export default function Welcome({ prelaunch, invited }: Props) {
       </section>
 
       {/* ---- the judge ---- */}
-      <section className="ldp-sec ldp-alt">
+      <section className="ldp-sec ldp-alt rv">
+        <span className="ldp-num">02</span>
         <h2 className="ldp-h2">{t('wlJudgeTitle')}</h2>
         <p className="ldp-lede">{t('wlJudgeLede')}</p>
         <div className="ldp-cats">
@@ -272,7 +333,8 @@ export default function Welcome({ prelaunch, invited }: Props) {
       </section>
 
       {/* ---- the ladder ---- */}
-      <section className="ldp-sec">
+      <section className="ldp-sec rv">
+        <span className="ldp-num">03</span>
         <h2 className="ldp-h2">{t('wlLadderTitle')}</h2>
         <p className="ldp-lede">{t('wlLadderLede')}</p>
         <div className="ldp-tiers">
@@ -295,7 +357,8 @@ export default function Welcome({ prelaunch, invited }: Props) {
       </section>
 
       {/* ---- masks ---- */}
-      <section className="ldp-sec ldp-alt">
+      <section className="ldp-sec ldp-alt rv">
+        <span className="ldp-num">04</span>
         <h2 className="ldp-h2">{t('wlMaskTitle')}</h2>
         <p className="ldp-lede">{t('wlMaskLede')}</p>
         <div className="ldp-masks">
@@ -308,7 +371,7 @@ export default function Welcome({ prelaunch, invited }: Props) {
       </section>
 
       {/* ---- drill + watch ---- */}
-      <section className="ldp-sec ldp-duo">
+      <section className="ldp-sec ldp-duo rv">
         <div className="ldp-card">
           <span className="ldp-card-k">{t('wlDrillK')}</span>
           <p>{t('wlDrillLine')}</p>
@@ -323,7 +386,9 @@ export default function Welcome({ prelaunch, invited }: Props) {
           two (his catch). No sign-in on this page at all: existing accounts
           use /auth/google directly, a URL, not a button. */}
       <footer className="ldp-foot">
+        <Brand size={18} />
         <p className="ldp-rule" dangerouslySetInnerHTML={{ __html: t('lbHouseRule') }} />
+        <span className="ldp-copy">© 2026 YapStage</span>
       </footer>
     </div>
   );

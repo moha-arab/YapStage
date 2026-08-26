@@ -227,6 +227,7 @@
    drawing behind both of them drifts off-centre the moment one side is a
    230px mask and the other is a row of six bots. */
 .lb-cone {
+  animation: lbBreathe 9s ease-in-out infinite alternate;
   position: absolute;
   left: 50%;
   top: 0;
@@ -363,11 +364,13 @@
   position: relative;
   z-index: 2;
   text-align: center;
-  transition: background 0.12s ease;
+  transition: background 0.12s ease, transform 0.15s ease, box-shadow 0.15s ease;
 }
 
 .lb-go:hover:not(:disabled) {
   background: #ff8f28;
+  transform: translateY(-1px);
+  box-shadow: 0 8px 24px rgba(240, 130, 30, 0.28);
 }
 
 .lb-go:disabled {
@@ -650,6 +653,7 @@
   background: var(--house-2);
   border-radius: 4px;
   padding: 15px 16px;
+  transition: background 0.12s ease, transform 0.15s ease;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -660,6 +664,7 @@
 
 .lb-act:hover {
   background: var(--house-3);
+  transform: translateY(-2px);
 }
 
 .lb-act-t {
@@ -1031,5 +1036,25 @@
 
   .lb-wings {
     max-height: none;
+  }
+}
+
+@keyframes lbBreathe {
+  from {
+    opacity: 0.85;
+  }
+  to {
+    opacity: 1.1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lb-cone {
+    animation: none;
+  }
+
+  .lb-act:hover,
+  .lb-go:hover:not(:disabled) {
+    transform: none;
   }
 }
