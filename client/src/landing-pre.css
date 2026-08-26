@@ -192,27 +192,23 @@
 /* the tier rail + the bot row */
 .ldp-tiers {
   display: flex;
-  gap: 6px;
+  gap: clamp(4px, 1.4vw, 14px);
   justify-content: center;
   flex-wrap: wrap;
   margin-bottom: 26px;
 }
 
 .ldp-tier {
-  font-size: 11px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 7px;
+  font-size: 10.5px;
   font-weight: 700;
   letter-spacing: 0.12em;
   text-transform: uppercase;
   color: var(--muted);
-  border: 1px solid var(--house-3);
-  border-radius: 3px;
-  padding: 5px 10px;
-}
-
-/* the top of the ladder is the one gold thing on this page */
-.ldp-tier-top {
-  color: var(--gold);
-  border-color: rgba(255, 199, 46, 0.5);
+  width: 74px;
 }
 
 .ldp-bots {
@@ -300,10 +296,6 @@
   color: var(--muted);
   font-size: 14px;
   line-height: 1.55;
-}
-
-.ldp-last {
-  padding-bottom: 10px;
 }
 
 /* ---- footer ---- */

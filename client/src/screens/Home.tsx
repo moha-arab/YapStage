@@ -33,6 +33,7 @@ import { initAudio } from '../sound';
 import { useI18n } from '../i18n';
 import Mask from '../Mask';
 import BotAvatar from '../BotAvatar';
+import TierBadge from '../TierBadge';
 
 const ERROR_KEYS: Record<JoinError, string> = {
   not_found: 'errNotFound',
@@ -725,6 +726,7 @@ export default function Home({
       </span>
     ) : (
       <span className="lb-tier">
+        <TierBadge tier={tierFor(rank.rating).key} size={15} />
         {t(`tier_${tierFor(rank.rating).key}`)} · <span className="lb-elo">{rank.rating}</span>
       </span>
     )

@@ -27,14 +27,21 @@ export type Pace = 'standard' | 'blitz' | 'long';
     now: "Contender" means you can take Vivi, and the way to argue with it is
     to go and beat Vivi. That is the one thing a debate app with six calibrated
     bots can say that no generic Bronze/Silver ladder can. */
+/* Renamed to the metal ladder 2026-08-22, his call: the invented names read
+   as jargon to anyone arriving from a game with ranks, and iron-to-master is
+   a vocabulary every gamer already speaks. The one brand word survives at the
+   summit — above Master there is HEADLINER, the name on the marquee. The
+   bot-anchoring stayed: every boundary up to Master is still a bot you can
+   actually go fight, which no generic ladder can claim. */
 export const TIERS = [
-  { min: 0, key: 'heckler', beats: null },
-  { min: 650, key: 'yapper', beats: 'Pip' },
-  { min: 850, key: 'scrapper', beats: 'Cappy' },
-  { min: 1000, key: 'contender', beats: 'Vivi' },
-  { min: 1200, key: 'closer', beats: 'Ozzy' },
-  { min: 1350, key: 'headliner', beats: 'Brutus' },
-  { min: 1500, key: 'silvertongue', beats: 'Gigi' },
+  { min: 0, key: 'iron', beats: null },
+  { min: 650, key: 'bronze', beats: 'Pip' },
+  { min: 850, key: 'silver', beats: 'Cappy' },
+  { min: 1000, key: 'gold', beats: 'Vivi' },
+  { min: 1200, key: 'platinum', beats: 'Ozzy' },
+  { min: 1350, key: 'diamond', beats: 'Brutus' },
+  { min: 1500, key: 'master', beats: 'Gigi' },
+  { min: 1700, key: 'headliner', beats: null },
 ] as const;
 
 export type Tier = (typeof TIERS)[number];

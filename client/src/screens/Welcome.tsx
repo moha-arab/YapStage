@@ -18,6 +18,7 @@ import { signIn } from '../player';
 import Mask from '../Mask';
 import Brand from '../Brand';
 import BotAvatar from '../BotAvatar';
+import TierBadge from '../TierBadge';
 
 interface Props {
   prelaunch?: boolean;
@@ -165,15 +166,7 @@ export default function Welcome({ prelaunch, invited }: Props) {
     { k: 'wlCatClash', max: 30 },
     { k: 'wlCatDelivery', max: 20 },
   ];
-  const TIER_KEYS = [
-    'heckler',
-    'yapper',
-    'scrapper',
-    'contender',
-    'closer',
-    'headliner',
-    'silvertongue',
-  ];
+  const TIER_KEYS = ['iron', 'bronze', 'silver', 'gold', 'platinum', 'diamond', 'master', 'headliner'];
   const BOTS: { id: string; name: string; elo: number }[] = [
     { id: 'duckling', name: 'Pip', elo: 650 },
     { id: 'capybara', name: 'Cappy', elo: 850 },
@@ -283,10 +276,11 @@ export default function Welcome({ prelaunch, invited }: Props) {
         <h2 className="ldp-h2">{t('wlLadderTitle')}</h2>
         <p className="ldp-lede">{t('wlLadderLede')}</p>
         <div className="ldp-tiers">
-          {TIER_KEYS.map((k, i) => (
-            <span key={k} className={`ldp-tier ${i === TIER_KEYS.length - 1 ? 'ldp-tier-top' : ''}`}>
-              {t(`tier_${k}`)}
-            </span>
+          {TIER_KEYS.map((k) => (
+            <div key={k} className="ldp-tier">
+              <TierBadge tier={k} size={46} />
+              <span>{t(`tier_${k}`)}</span>
+            </div>
           ))}
         </div>
         <div className="ldp-bots">
@@ -325,18 +319,11 @@ export default function Welcome({ prelaunch, invited }: Props) {
         </div>
       </section>
 
-      {/* ---- the bottom ask + the rule ---- */}
-      <section className="ldp-sec ldp-last">
-        <h2 className="ldp-h2">{t('wlLastTitle')}</h2>
-        <EmailCapture />
-      </section>
-
+      {/* One email ask only, in the hero — a second one at the bottom made it
+          two (his catch). No sign-in on this page at all: existing accounts
+          use /auth/google directly, a URL, not a button. */}
       <footer className="ldp-foot">
         <p className="ldp-rule" dangerouslySetInnerHTML={{ __html: t('lbHouseRule') }} />
-        {/* The one quiet door for accounts that already exist. */}
-        <button className="ldp-signin" onClick={signIn}>
-          {t('signInGoogle')}
-        </button>
       </footer>
     </div>
   );

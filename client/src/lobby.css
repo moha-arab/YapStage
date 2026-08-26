@@ -124,6 +124,9 @@
 }
 
 .lb-tier {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   font-size: 10.5px;
   font-weight: 700;
   letter-spacing: 0.14em;

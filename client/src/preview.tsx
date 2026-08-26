@@ -24,6 +24,7 @@ import ClaimName from './screens/ClaimName';
 import BotSelect from './screens/BotSelect';
 import Spectate from './screens/Spectate';
 import type { Side, Verdict as VerdictData } from '../../server/src/protocol';
+import TierBadge from './TierBadge';
 
 const noop = () => {};
 
@@ -126,6 +127,22 @@ const SCREENS: Record<string, () => JSX.Element> = {
       onStart={noop}
       onBack={noop}
     />
+  ),
+  badges: () => (
+    <div style={{ padding: 40, display: 'flex', flexDirection: 'column', gap: 28 }}>
+      {[72, 36, 20].map((s) => (
+        <div key={s} style={{ display: 'flex', gap: 24, alignItems: 'center' }}>
+          {['iron', 'bronze', 'silver', 'gold', 'platinum', 'diamond', 'master', 'headliner'].map(
+            (k) => (
+              <div key={k} style={{ textAlign: 'center', color: '#9A97B0', fontSize: 11 }}>
+                <TierBadge tier={k} size={s} />
+                {s === 72 ? <div style={{ marginTop: 6 }}>{k}</div> : null}
+              </div>
+            ),
+          )}
+        </div>
+      ))}
+    </div>
   ),
   welcome: () => <Welcome prelaunch />,
   welcomeRelease: () => <Welcome />,
