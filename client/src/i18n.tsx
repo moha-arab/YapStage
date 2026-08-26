@@ -237,9 +237,9 @@ const en: Dict = {
   wlHeroSub:
     'YapStage is a 1v1 video debate arena with an AI judge that hears every word. It has not opened yet. Leave an email and be first through the doors.',
   wlPlaceholder: 'you@email.com',
-  wlJoin: 'Get early access',
-  wlDone: "You're on the list. One email at launch, nothing else.",
-  wlAlready: "You're already on the list.",
+  wlJoin: 'Save my seat',
+  wlDone: 'Seat saved. One email at launch, nothing else.',
+  wlAlready: 'You already have a seat.',
   wlError: 'That email does not look right. Try again?',
   wlTurnedAway: 'YapStage has not opened yet, and that Google account is not on the list. Leave an email below and we will call you in at launch.',
   wlHowTitle: 'how a match works',
