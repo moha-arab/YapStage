@@ -470,7 +470,7 @@ export default function Home({
         {chosenFriend ? (
           <>
             <div className="lb-art">
-              <Mask id={chosenFriend.mask ?? 'masque'} size="var(--art)" bare />
+              <Mask id={chosenFriend.mask ?? 'oni'} size="var(--art)" bare />
             </div>
             <div className="lb-fname">
               {chosenFriend.username}
@@ -500,7 +500,7 @@ export default function Home({
                 onClick={() => setPickedFriend(f.username)}
               >
                 <span className="lb-choice-av">
-                  <Mask id={f.mask ?? 'masque'} size={38} bare />
+                  <Mask id={f.mask ?? 'oni'} size={38} bare />
                   <i className="lb-dot" />
                 </span>
                 <span className="lb-choice-n">{f.username}</span>
@@ -610,7 +610,7 @@ export default function Home({
     opponent = (
       <>
         <div className="lb-art">
-          <Mask id={live.featured.avatars.AGAINST ?? 'masque'} size="var(--art)" bare />
+          <Mask id={live.featured.avatars.AGAINST ?? 'oni'} size="var(--art)" bare />
         </div>
         <div className="lb-fname">{live.featured.names.AGAINST}</div>
         <div className="lb-side">{t('sideAgainst')}</div>
@@ -732,11 +732,6 @@ export default function Home({
 
   return (
     <div className="lb">
-      {/* The one rule, where nobody can miss it. It lived under the dock and
-          he called that confusing (caption above the dock, rule below it, two
-          strips of text saying different things). Now the caption owns the
-          bottom and the rule owns the top. */}
-      <p className="lb-warn" dangerouslySetInnerHTML={{ __html: t('lbHouseRule') }} />
       <header className="lb-bar">
         <div className="lb-lock">
           <svg viewBox="0 0 64 64" width="28" height="28" aria-label="YapStage">
@@ -776,6 +771,12 @@ export default function Home({
         </div>
       </header>
 
+      {/* The one rule. On a wide screen it floats centered INSIDE the bar
+          (absolute, out of flow — a dedicated strip read as clutter, his
+          call); on a narrow one the bar has no room, so it becomes a slim
+          line under the bar instead of disappearing (also his call). */}
+      <p className="lb-warn" dangerouslySetInnerHTML={{ __html: t('lbHouseRule') }} />
+
       <main className="lb-stage">
         {notice || (authNote && authNote !== 'ok') ? (
           <div className="lb-notice lb-notice-warn">
@@ -801,7 +802,7 @@ export default function Home({
             {watchingFeatured ? (
               <>
                 <div className="lb-art">
-                  <Mask id={watchingFeatured.avatars.FOR ?? 'masque'} size="var(--art)" bare />
+                  <Mask id={watchingFeatured.avatars.FOR ?? 'oni'} size="var(--art)" bare />
                 </div>
                 <div className="lb-fname">{watchingFeatured.names.FOR}</div>
                 <div className="lb-side">{t('sideFor')}</div>
@@ -913,7 +914,7 @@ export default function Home({
                 .map((f) => (
                   <div key={f.username} className={`lb-friend ${f.online ? '' : 'lb-friend-off'}`}>
                     <span className="lb-friend-av">
-                      <Mask id={f.mask ?? 'masque'} size={36} bare />
+                      <Mask id={f.mask ?? 'oni'} size={36} bare />
                       {f.online ? <i className="lb-dot" /> : null}
                     </span>
                     <div>

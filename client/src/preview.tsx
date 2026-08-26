@@ -75,7 +75,7 @@ const SCREENS: Record<string, () => JSX.Element> = {
       onRematch={noop}
       rematch={null}
       ranked
-      avatars={{ FOR: 'luchador', AGAINST: 'kitsune' }}
+      avatars={{ FOR: 'luchador', AGAINST: 'calavera' }}
       opponentRating={1180}
     />
   ),
@@ -156,7 +156,7 @@ const SCREENS: Record<string, () => JSX.Element> = {
           serverNow: Date.now(),
         },
         watchers: 3,
-        avatars: { FOR: 'luchador', AGAINST: 'kitsune' },
+        avatars: { FOR: 'luchador', AGAINST: 'calavera' },
       }}
       onLeave={noop}
     />

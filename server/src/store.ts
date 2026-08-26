@@ -193,6 +193,21 @@ export async function initStore(): Promise<void> {
       await pool!.query(`ALTER TABLE players ALTER COLUMN rating SET DEFAULT ${SEED_RATING}`);
       await pool!.query(`UPDATE players SET rating = GREATEST(${RATING_FLOOR}, rating - 300)`);
     });
+    await runOnce('mask_roster_4', async () => {
+      // The mask set went from eight to four (his picks). Anyone who saved a
+      // removed mask gets the nearest survivor rather than a broken locker:
+      // whites to the new white, the armored to the ninja, the rest home.
+      await pool!.query(`
+        UPDATE accounts SET mask = CASE mask
+          WHEN 'kitsune' THEN 'calavera'
+          WHEN 'goalie'  THEN 'calavera'
+          WHEN 'masque'  THEN 'oni'
+          WHEN 'knight'  THEN 'ninja'
+          WHEN 'astro'   THEN 'ninja'
+          WHEN 'boxer'   THEN 'luchador'
+          ELSE mask END
+        WHERE mask IN ('kitsune','goalie','masque','knight','astro','boxer')`);
+    });
     // Reports keep the debate's words as evidence — the one deliberate
     // exception to "transcripts die with the lobby", disclosed in the UI.
     await pool.query(`

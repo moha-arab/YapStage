@@ -130,19 +130,14 @@ export interface Framing {
   said: Record<Side, string>;
 }
 
-/** The founding mask set — humans wear masks, bots are animals, so who's a
-    machine is legible at a glance. Ids are the shared contract; the art
-    lives client-side. Forever-free defaults; rarity comes from future drops. */
-export const AVATAR_IDS = [
-  'luchador',
-  'kitsune',
-  'oni',
-  'masque',
-  'knight',
-  'boxer',
-  'goalie',
-  'astro',
-] as const;
+/** The mask set — humans wear masks, bots are animals, so who's a machine is
+    legible at a glance. Ids are the shared contract; the art lives
+    client-side. CUT FROM EIGHT TO FOUR 2026-08-22, his picks: the weak
+    drawings (masque, boxer) diluted the strong ones, and knight read as a
+    robot, which broke the humans-wear-masks rule from the other side.
+    Accounts that saved a removed mask are migrated in store.ts
+    (mask_roster_4) — do not re-add an id here without art for it. */
+export const AVATAR_IDS = ['luchador', 'oni', 'calavera', 'ninja'] as const;
 export type AvatarId = (typeof AVATAR_IDS)[number];
 
 export interface LobbyUpdate {

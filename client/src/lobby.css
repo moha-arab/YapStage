@@ -20,6 +20,7 @@
    ========================================================================= */
 
 .lb {
+  position: relative;
   height: 100vh;
   overflow: hidden;
   display: grid;
@@ -27,9 +28,17 @@
      MAX-CONTENT, so one long caption makes the whole lobby wider than the
      phone it is on and every row quietly starts scrolling sideways. */
   grid-template-columns: minmax(0, 1fr);
-  grid-template-rows: auto 60px minmax(0, 1fr) auto;
+  /* under 1181px a fourth row appears: the rule drops out of the bar into
+     its own slim line (see .lb-warn) */
+  grid-template-rows: 60px minmax(0, 1fr) auto;
   background: var(--house);
   color: var(--paper);
+}
+
+@media (max-width: 1180px) {
+  .lb {
+    grid-template-rows: 60px auto minmax(0, 1fr) auto;
+  }
 }
 
 @supports (height: 100dvh) {
@@ -63,6 +72,7 @@
 /* ---- the bar ---- */
 
 .lb-bar {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 10px;
@@ -698,22 +708,45 @@
   background: #0f7a42;
 }
 
-/* The house rule, at the very top where nobody can miss it. Not "cheating
-   is not tolerated", which is a sign on a wall nobody reads: name the actual
-   cheat and the actual consequence. */
+/* The one rule. Wide screens: floated into the bar's empty middle (absolute,
+   out of flow — a dedicated strip read as clutter, his call). Narrow screens:
+   the bar has no empty middle, so it becomes a slim line under the bar rather
+   than disappearing — he wants it visible everywhere. */
 .lb-warn {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  height: 60px;
+  display: flex;
+  align-items: center;
   margin: 0;
-  text-align: center;
-  padding: 7px 16px;
   font-size: 12px;
   color: var(--muted);
-  background: var(--house-2);
-  border-bottom: 1px solid var(--house-3);
+  white-space: nowrap;
+  pointer-events: none;
+  z-index: 5;
 }
 
 .lb-warn b {
   color: var(--amber);
   font-weight: 700;
+}
+
+@media (max-width: 1180px) {
+  .lb-warn {
+    position: static;
+    transform: none;
+    height: auto;
+    display: block;
+    white-space: normal;
+    text-align: center;
+    font-size: 11px;
+    padding: 6px 14px;
+    background: var(--house-2);
+    border-bottom: 1px solid var(--house-3);
+    pointer-events: auto;
+  }
 }
 
 /* ---- states that sit over the stage ---- */
@@ -931,15 +964,11 @@
     min-height: 0;
   }
 
-  .lb-warn {
-    font-size: 11px;
-    padding: 6px 12px;
-  }
 }
 
 @media (max-width: 620px) {
   .lb {
-    grid-template-rows: auto 54px minmax(0, 1fr) auto;
+    grid-template-rows: 54px auto minmax(0, 1fr) auto;
   }
 
   .lb-bar {
@@ -990,7 +1019,7 @@
     height: auto;
     min-height: 100vh;
     overflow: auto;
-    grid-template-rows: auto 54px auto auto;
+    grid-template-rows: 54px auto auto auto;
   }
 
   .lb-stage {

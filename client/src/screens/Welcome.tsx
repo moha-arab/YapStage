@@ -95,7 +95,7 @@ export default function Welcome({ invited }: Props) {
               </div>
               <div className="ld-tile ld-tile-on">
                 <div className="ld-face">
-                  <Mask id="kitsune" size="100%" bare />
+                  <Mask id="calavera" size="100%" bare />
                 </div>
                 <div className="ld-tag">goat · {t('sideAgainst')}</div>
                 <div className="ld-pill">{t('onTheMic')}</div>
