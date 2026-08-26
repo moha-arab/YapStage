@@ -732,6 +732,11 @@ export default function Home({
 
   return (
     <div className="lb">
+      {/* The one rule, where nobody can miss it. It lived under the dock and
+          he called that confusing (caption above the dock, rule below it, two
+          strips of text saying different things). Now the caption owns the
+          bottom and the rule owns the top. */}
+      <p className="lb-warn" dangerouslySetInnerHTML={{ __html: t('lbHouseRule') }} />
       <header className="lb-bar">
         <div className="lb-lock">
           <svg viewBox="0 0 64 64" width="28" height="28" aria-label="YapStage">
@@ -961,7 +966,6 @@ export default function Home({
             </button>
           ))}
         </div>
-        <p className="lb-rule" dangerouslySetInnerHTML={{ __html: t('lbHouseRule') }} />
       </footer>
     </div>
   );

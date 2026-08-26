@@ -159,9 +159,11 @@ export default function GreenRoom({
               {t('faceMask')}
             </button>
           </div>
-        ) : (
-          <span className="mode-hint">{t('rankedMasked')}</span>
-        )}
+        ) : null}
+        {/* Ranked used to explain itself here ("ranked is masked. nobody sees
+            your face...") — but the mask IS on screen in the mirror tile, so
+            the sentence was narrating the obvious. His rule: text that tells
+            you what you are already looking at goes. */}
         {masked ? (
           <MaskPicker
             value={lobby.yourAvatar}
@@ -193,7 +195,9 @@ export default function GreenRoom({
               <div className="ticket-main">
                 <p className="ticket-label">{t('ticketLabel')}</p>
                 <p className="ticket-code">{lobby.code}</p>
-                <p className="ticket-fine">{t('ticketFine')}</p>
+                {/* "section yap · row 1 · no refunds" lived here. Joke fine
+                    print is still fine print — his call: cut the text that
+                    exists to be text. */}
               </div>
               <div className="ticket-stub" aria-hidden="true" />
             </div>

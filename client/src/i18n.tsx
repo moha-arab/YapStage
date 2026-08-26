@@ -102,15 +102,13 @@ const en: Dict = {
   lbCap_watch:
     'drop into a live ranked debate. you see the masks, hear the argument, and get the verdict when it lands. <b>they cannot see you.</b>',
 
-  lbHouseRule:
-    '<b>no reading off a chatbot.</b> it shows in how you talk, and you will get caught.',
+  lbHouseRule: '<b>reading off a chatbot gets you banned.</b> you will get caught.',
 
   /* the match screen's paper panel */
   liveNow: 'LIVE',
   theMotion: 'the motion',
 
   kicker: '1v1 video debates · ai judge · one yap name',
-  homeSubtitle: 'call out a friend, spar the bots, or take on a stranger. the judge hears everything and crowns a yapmaster.',
   nameFirst: 'name first, champ',
   startSomething: 'pick your game',
   drillPill: 'daily drill',
@@ -156,7 +154,6 @@ const en: Dict = {
   eloReason_spar: 'sparring, by your choice.',
   eloReason_quiet: 'we barely heard you, so it stays off your record.',
   placingChip: 'placing · {n} of 5',
-  houseRules: 'house rules: speak your own words. no reading off a chatbot. the judge scores what you say, not how neat it sounds.',
   friendsPill: 'friends',
   friendsTitle: 'YOUR PEOPLE',
   friendsOnline: '{n} of {total} here right now',
@@ -239,7 +236,6 @@ const en: Dict = {
   landShotMotion: 'college is no longer worth it',
   landShotWho: 'goat has the mic',
   landShotHow: 'answer what they actually said. take their strongest point first.',
-  welcomeHow: 'four rounds. you talk, they talk, then the judge picks a winner and tells you what to fix.',
   welcomeInvitedLine: 'a friend called you out. sign in and you walk straight into their room.',
   lockerPill: 'locker',
   lockerTitle: 'YOUR LOCKER',
@@ -486,7 +482,6 @@ const en: Dict = {
   waitCategory: 'waiting on {x} to pick a category',
   startRandomDebate: 'lock it in',
   ticketLabel: 'yapstage · admit two',
-  ticketFine: 'section yap · row 1 · no refunds',
   copyInvite: 'copy invite link',
   copied: 'copied.',
   sendToOne: 'send it to exactly one friend. the confident one.',
@@ -651,7 +646,6 @@ const en: Dict = {
 
 const ar: Dict = {
   kicker: 'مناظرات فيديو ١ ضد ١ · حَكَم ذكاء اصطناعي · بدون حسابات',
-  homeSubtitle: 'تحدَّ صديقاً أو تدرّب ضد البوتات. الحكم يسمع كل شيء ويتوّج الياب ماستر.',
   nameFirst: 'الاسم أولاً يا بطل',
   startSomething: 'اختر لعبتك',
   drillPill: 'تمرين اليوم',
@@ -697,7 +691,6 @@ const ar: Dict = {
   eloReason_spar: 'تدريب، باختيارك.',
   eloReason_quiet: 'بالكاد سمعناك، فلن تُحتسب.',
   placingChip: 'التصنيف · {n} من ٥',
-  houseRules: 'قواعد البيت: تكلّم بكلماتك. ممنوع القراءة من روبوت محادثة. الحكم يقيّم ما تقوله لا مدى تنميقه.',
   friendsPill: 'الأصدقاء',
   friendsTitle: 'أصدقاؤك',
   friendsOnline: '{n} من {total} متصلون الآن',
@@ -773,7 +766,6 @@ const ar: Dict = {
   tutorialHow4: 'انتهيت مبكراً؟ مرّر المايك. الثرثرة تخسرك نقاطاً، وتجاهل أقوى نقطة عند خصمك يخسرك أكثر.',
   tutorialTitle2: 'الياب ماستر يعلّمك',
   welcomeLine: 'ناظِر أي أحد. حكم ذكي يسمع كل كلمة ويتوّج ياب ماستر.',
-  welcomeHow: 'أربع جولات. تتكلم ويتكلم، ثم يختار الحكم الفائز ويخبرك بما تصلحه.',
   lockerPill: 'الخزانة',
   lockerTitle: 'خزانتك',
   lockerSub: 'اختر الوجه الذي تقاتل خلفه. يرافقك في كل الأوضاع.',
@@ -1007,7 +999,6 @@ const ar: Dict = {
   waitCategory: 'بانتظار {x} ليختار فئة',
   startRandomDebate: 'أكّدها',
   ticketLabel: 'يابستيج · دخول لشخصين',
-  ticketFine: 'قسم ياب · صف ١ · لا استرجاع',
   copyInvite: 'انسخ رابط الدعوة',
   copied: 'تم النسخ.',
   sendToOne: 'أرسله لصديق واحد بالضبط. الواثق منهم.',

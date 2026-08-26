@@ -99,7 +99,10 @@ export default function VideoTile(props: Props) {
   if (props.maskId || (props.stream && !hasVideo)) {
     // The mouth moves whenever the mic moves. Gating it on `active` made the
     // mask look dead everywhere except your own turn — which is most of the app.
-    const loud = (props.level ?? 0) > 0.05;
+    // 0.12, not 0.05: with the fast-release level, real speech clears this
+    // instantly and a laptop fan or an idle room never does. The old low bar
+    // is why the mouth kept chewing after he stopped talking.
+    const loud = (props.level ?? 0) > 0.12;
     return (
       <div className={`tile tile-masked ${sideClass} ${props.active ? 'tile-active' : ''}`}>
         {/* The <video> element we're NOT rendering was also what played the
