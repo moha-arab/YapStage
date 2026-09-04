@@ -115,9 +115,7 @@ export default function App() {
   /** A friend's open room, pushed to every tab you have. Survives screens. */
   const [callout, setCallout] = useState<{ from: string; code: string } | null>(null);
   // Guest mode is GONE (his call, 2026-08-22): playing requires a Google
-  // account, full stop. Invite links included — signIn() stashes the code in
-  // sessionStorage so it survives the OAuth round trip and the invited player
-  // still lands in their friend's room, just with a name that is theirs.
+  // account, full stop.
   const [debrief, setDebrief] = useState<DebriefInfo | null>(null);
   // Campaign: a win at the frontier unlocked the next opponent.
   const [unlocked, setUnlocked] = useState<{ level: number; unlocked: string | null } | null>(null);
@@ -687,9 +685,9 @@ export default function App() {
     setLobby(u);
   }, []);
 
-  /** Call out a friend: open a room, then push its code straight to them. The
-      room is real either way, so a friend who is asleep still leaves you with
-      a lobby you can share by hand. */
+  /** Call out a friend: open a room, then push its code straight to them.
+      Invite-only since 2026-09-04: the code never shows in the UI, so a friend
+      who is asleep leaves you with a room to walk back out of. */
   const challengeFriend = useCallback(
     (username: string): Promise<string | null> =>
       new Promise((resolve) => {
@@ -989,10 +987,7 @@ export default function App() {
     content = <div className="lb" aria-hidden="true" />;
   } else if (account.google && !account.signedIn) {
     content = (
-      <Welcome
-        prelaunch={Boolean(account.prelaunch)}
-        invited={new URLSearchParams(window.location.search).get('code') !== null}
-      />
+      <Welcome />
     );
   } else {
     content = (

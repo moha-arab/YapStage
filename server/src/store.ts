@@ -208,14 +208,11 @@ export async function initStore(): Promise<void> {
           ELSE mask END
         WHERE mask IN ('kitsune','goalie','masque','knight','astro','boxer')`);
     });
-    // The pre-launch waitlist: an email, a timestamp, nothing else — read it
-    // at GET /waitlist?key=STATS_KEY.
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS waitlist (
-        email text PRIMARY KEY,
-        at    timestamptz NOT NULL DEFAULT now()
-      )
-    `);
+    // The pre-launch waitlist (2026-08-22 to 2026-09-04) is gone with the
+    // page that fed it. It only ever held one test row.
+    await runOnce('drop_waitlist', async () => {
+      await pool!.query(`DROP TABLE IF EXISTS waitlist`);
+    });
     // Reports keep the debate's words as evidence — the one deliberate
     // exception to "transcripts die with the lobby", disclosed in the UI.
     await pool.query(`
@@ -460,45 +457,6 @@ export async function getLocker(sub: string): Promise<{ mask: string | null; mas
     return { mask: (r.rows[0].mask as string) || null, maskDefault: Boolean(r.rows[0].mask_default) };
   } catch {
     return { mask: null, maskDefault: false };
-  }
-}
-
-/** Does this Google identity already own an account? Pre-launch, this IS the
-    guest list: the callback refuses anyone it does not find. */
-export async function accountExists(sub: string): Promise<boolean> {
-  if (!pool || !ready) return false;
-  try {
-    const r = await pool.query(`SELECT 1 FROM accounts WHERE sub = $1`, [sub]);
-    return r.rowCount === 1;
-  } catch (err) {
-    console.error('[store] accountExists failed:', err);
-    return false;
-  }
-}
-
-/** The pre-launch waitlist: an email and nothing else. */
-export async function addWaitlist(email: string): Promise<'ok' | 'already' | 'down'> {
-  if (!pool || !ready) return 'down';
-  try {
-    const r = await pool.query(
-      `INSERT INTO waitlist (email) VALUES ($1) ON CONFLICT (email) DO NOTHING`,
-      [email],
-    );
-    return r.rowCount === 1 ? 'ok' : 'already';
-  } catch (err) {
-    console.error('[store] addWaitlist failed:', err);
-    return 'down';
-  }
-}
-
-export async function listWaitlist(): Promise<{ email: string; at: string }[]> {
-  if (!pool || !ready) return [];
-  try {
-    const r = await pool.query(`SELECT email, at FROM waitlist ORDER BY at DESC LIMIT 5000`);
-    return r.rows as { email: string; at: string }[];
-  } catch (err) {
-    console.error('[store] listWaitlist failed:', err);
-    return [];
   }
 }
 

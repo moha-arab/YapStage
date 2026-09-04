@@ -1058,3 +1058,327 @@
     transform: none;
   }
 }
+
+/* ---- the picked bot is a button: tap it to change your mind ---- */
+
+.lb-picked {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  border-radius: 12px;
+  padding: 4px 12px 8px;
+  transition: background 0.15s ease;
+}
+
+.lb-picked:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.lb-change {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-top: 2px;
+}
+
+.lb-picked:hover .lb-change {
+  color: var(--turq);
+}
+
+/* In bot mode the empty ring is the door to the roster. */
+.lb-empty-btn {
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease, transform 0.15s ease;
+}
+
+.lb-empty-btn:hover {
+  border-style: solid;
+  background: rgba(31, 194, 212, 0.07);
+  transform: scale(1.03);
+}
+
+/* ============================================================================
+   THE BOT ROSTER (BotRoster.tsx)
+   Press "pick a bot" and the whole ladder walks out: a takeover over the
+   stage, seven cards in ladder order, big art, one line of personality, and
+   the tier each one guards. Replaced a row of 40px chips under the slot.
+   ========================================================================= */
+
+.lb-roster {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(10, 11, 22, 0.74);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  animation: lbFade 0.18s ease-out;
+}
+
+.lb-roster-panel {
+  position: relative;
+  width: min(1180px, 100%);
+  max-height: 100%;
+  overflow: auto;
+  overscroll-behavior: contain;
+  background: var(--house-2);
+  border: 1px solid var(--house-3);
+  border-radius: 14px;
+  padding: 24px 26px 26px;
+  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.55);
+  animation: lbPop 0.24s cubic-bezier(0.2, 0.9, 0.3, 1.15);
+}
+
+.lb-roster-hd {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  column-gap: 16px;
+  margin-bottom: 18px;
+}
+
+.lb-roster-t {
+  font-family: 'Ultra', serif;
+  font-weight: 400;
+  font-size: clamp(24px, 3vw, 34px);
+  line-height: 1;
+  margin: 0;
+}
+
+.lb-roster-sub {
+  grid-column: 1;
+  margin: 8px 0 0;
+  font-size: 14px;
+  color: var(--muted);
+}
+
+.lb-roster-x {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: var(--house-3);
+  display: grid;
+  place-items: center;
+  transition: background 0.12s ease, transform 0.12s ease;
+}
+
+.lb-roster-x:hover {
+  background: #33345e;
+  transform: rotate(90deg);
+}
+
+.lb-roster-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.lb-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 5px;
+  padding: 18px 10px 14px;
+  border-radius: 10px;
+  background: var(--house);
+  border: 1px solid var(--house-3);
+  transition: transform 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
+  animation: lbCardIn 0.38s ease-out both;
+  animation-delay: calc(var(--i) * 45ms);
+}
+
+.lb-card:hover {
+  transform: translateY(-4px);
+  border-color: rgba(31, 194, 212, 0.55);
+  box-shadow: 0 14px 30px rgba(0, 0, 0, 0.35);
+}
+
+.lb-card-on,
+.lb-card-on:hover {
+  border-color: var(--turq);
+  box-shadow:
+    inset 0 0 0 1px var(--turq),
+    0 14px 30px rgba(0, 0, 0, 0.35);
+}
+
+.lb-card-n {
+  position: absolute;
+  top: 10px;
+  left: 12px;
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.2em;
+  color: var(--muted);
+}
+
+.lb-card-art {
+  position: relative;
+  width: 100%;
+  max-width: 118px;
+  aspect-ratio: 1;
+  margin-top: 10px;
+  line-height: 0;
+  filter: drop-shadow(0 12px 16px rgba(0, 0, 0, 0.45));
+}
+
+/* The pool of light under each one, turquoise: they all stand on the
+   opponent's side of the stage. */
+.lb-card-art::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  bottom: 4px;
+  width: 100%;
+  height: 16px;
+  transform: translateX(-50%);
+  border-radius: 50%;
+  background: var(--turq);
+  opacity: 0.22;
+  z-index: -1;
+}
+
+.lb-card-tutor .lb-card-art::after {
+  background: var(--paper);
+  opacity: 0.16;
+}
+
+.lb-card-name {
+  font-family: 'Ultra', serif;
+  font-size: 20px;
+  margin-top: 6px;
+  line-height: 1.1;
+}
+
+.lb-card-tag {
+  font-size: 12.5px;
+  font-style: italic;
+  color: var(--muted);
+}
+
+.lb-card-blurb {
+  margin: 4px 0 0;
+  font-size: 12.5px;
+  line-height: 1.4;
+  color: var(--paper);
+  opacity: 0.82;
+  display: -webkit-box;
+  -webkit-line-clamp: 4;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.lb-card-foot {
+  margin-top: auto;
+  padding-top: 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.lb-card-foot-lesson {
+  color: var(--paper);
+}
+
+.lb-card-elo {
+  font-family: var(--mono);
+  font-weight: 400;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--muted);
+}
+
+@keyframes lbFade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes lbPop {
+  from {
+    opacity: 0;
+    transform: translateY(14px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes lbCardIn {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (max-width: 1180px) {
+  .lb-roster-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 720px) {
+  .lb-roster {
+    padding: 10px;
+  }
+
+  .lb-roster-panel {
+    padding: 18px 14px 16px;
+    border-radius: 12px;
+  }
+
+  .lb-roster-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  .lb-card {
+    padding: 16px 8px 12px;
+  }
+
+  .lb-card-art {
+    max-width: 96px;
+  }
+
+  .lb-card-name {
+    font-size: 18px;
+  }
+
+  .lb-card-blurb {
+    -webkit-line-clamp: 2;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lb-roster,
+  .lb-roster-panel,
+  .lb-card {
+    animation: none;
+  }
+
+  .lb-card:hover,
+  .lb-empty-btn:hover,
+  .lb-roster-x:hover {
+    transform: none;
+  }
+}

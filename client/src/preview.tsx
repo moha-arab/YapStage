@@ -144,8 +144,7 @@ const SCREENS: Record<string, () => JSX.Element> = {
       ))}
     </div>
   ),
-  welcome: () => <Welcome prelaunch />,
-  welcomeRelease: () => <Welcome />,
+  welcome: () => <Welcome />,
   claimName: () => <ClaimName onClaimed={noop} />,
   botSelect: () => (
     <BotSelect

@@ -19,12 +19,21 @@
 //      chatbot) and the actual consequence, rather than saying "cheating is
 //      not tolerated", which is a sign nobody reads.
 //
-// The bot picker used to be a whole separate screen (BotSelect). It still
-// exists for the tutorial hand-off, but the normal path is right here with
-// sane defaults: random topic, standard pace, the coin picks your side.
+// The bot picker is BotRoster: press "pick a bot" and the ladder walks out as
+// a character select (2026-09-04, replacing a row of 40px chips under the
+// slot that he called "too small, looks weird"). The old BotSelect screen
+// survives only for the tutorial hand-off. Picking uses sane defaults: random
+// topic, standard pace, the coin picks your side.
+//
+// "Play a friend" is INVITE-ONLY (2026-09-04, his call): you call a friend
+// out and they walk in. The six-letter code and its input box are gone from
+// the UI ("it became complicated... a code mechanism and an inviting-a-friend
+// mechanism"). The server still speaks codes, so bringing them back is a UI
+// change, not a protocol one.
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { NAME_RE, tierFor, type JoinError, type LobbyUpdate } from '../../../server/src/protocol';
 import type { BotStartConfig } from './BotSelect';
+import BotRoster from './BotRoster';
 import { session, socket } from '../socket';
 import { playerId, signIn, signOut, type Account } from '../player';
 import { unlockSpectateAudio } from '../specaudio';
@@ -126,23 +135,8 @@ export default function Home({
   const [busy, setBusy] = useState(false);
 
   const [name, setName] = useState('');
-  // The invite code arrives one of two ways: in the URL, or stashed in
-  // sessionStorage by signIn() because the Google round trip strips the URL.
-  // Read once, then clear the stash so a code cannot haunt a later visit.
-  const [arrival] = useState(() => {
-    const fromUrl = new URLSearchParams(window.location.search).get('code');
-    let stashed: string | null = null;
-    try {
-      stashed = sessionStorage.getItem('yapstage.pendingCode');
-      if (stashed) sessionStorage.removeItem('yapstage.pendingCode');
-    } catch {
-      // storage blocked: the URL path still works
-    }
-    const c = (fromUrl ?? stashed ?? '').toUpperCase();
-    return { code: c, invited: c !== '' };
-  });
-  const [code, setCode] = useState(arrival.code);
-  const [invited, setInvited] = useState(arrival.invited);
+  /** The bot roster is open over the stage. */
+  const [roster, setRoster] = useState(false);
 
   const [queueing, setQueueing] = useState(false);
   const [queueInfo, setQueueInfo] = useState<{ waiting: number; rating: number } | null>(null);
@@ -352,36 +346,6 @@ export default function Home({
     });
   }
 
-  /** Open a room and get a code to send by hand. This is the path for someone
-      with no friends on the app yet, and it is the ONLY path signed out — a
-      lobby that can only be reached through a friends list nobody has built
-      yet is a lobby with no door. */
-  function openRoom() {
-    if (busy || !requireName()) return;
-    setBusy(true);
-    setError(null);
-    socket.emit('lobby:create', { sessionId: session.id, name: effName }, (res) => {
-      setBusy(false);
-      if (!res.ok) return setError(ERROR_KEYS[res.error]);
-      onEntered(res.update);
-    });
-  }
-
-  function join() {
-    if (busy || !requireName()) return;
-    if (code.trim().length !== 6) return setError('errCodeLen');
-    setBusy(true);
-    socket.emit(
-      'lobby:join',
-      { code: code.trim().toUpperCase(), sessionId: session.id, name: effName },
-      (res) => {
-        setBusy(false);
-        if (res.ok) return onEntered(res.update);
-        setError(ERROR_KEYS[res.error]);
-      },
-    );
-  }
-
   const [watching, setWatching] = useState(false);
   /** Watch a random LIVE ranked debate. Ranked is public by consent, so this
       needs no code — which is the point: a code was only ever the key to a
@@ -418,6 +382,13 @@ export default function Home({
     setMode(next);
     setPickedBot(null);
     setPickedFriend(null);
+    setRoster(false);
+  }
+
+  const closeRoster = useCallback(() => setRoster(false), []);
+  function pickBot(id: string) {
+    setPickedBot(id);
+    setRoster(false);
   }
 
   // On a phone the dock and the picker row both scroll sideways, so whatever
@@ -443,9 +414,11 @@ export default function Home({
   const chosenBot = ladder.find((b) => b.id === pickedBot) ?? null;
   const chosenFriend = accepted.find((f) => f.username === pickedFriend) ?? null;
   const watchingFeatured = mode === 'watch' ? live.featured : null;
-  // The picker rows eat vertical space, so both fighters shrink together. Two
-  // different-sized faces facing each other reads as a bug, not a hierarchy.
-  const compact = mode === 'friend' || mode === 'bot';
+  // The friend picker row eats vertical space, so both fighters shrink
+  // together: two different-sized faces facing each other reads as a bug, not
+  // a hierarchy. The bot roster is an overlay, so bot mode keeps the full
+  // stage.
+  const compact = mode === 'friend';
 
   let opponent;
   if (mode === 'ranked') {
@@ -482,12 +455,14 @@ export default function Home({
           </>
         ) : (
           <div className="lb-empty">
-            {/* "pick a friend" is a lie when there is nobody to pick. With an
-                empty list the corner asks for the other thing instead. */}
+            {/* "pick a friend" is a lie when there is nobody to pick. Signed
+                out, the button under the stage is the door, so the ring does
+                not repeat it. */}
             <span
               className="lb-empty-pick"
               dangerouslySetInnerHTML={{
-                __html: online.length > 0 ? t('lbPickFriend') : t('lbSendCode'),
+                __html:
+                  online.length > 0 || !account.signedIn ? t('lbPickFriend') : t('lbNobodyOn'),
               }}
             />
           </div>
@@ -508,87 +483,47 @@ export default function Home({
               </button>
             ))}
           </div>
-        ) : (
+        ) : account.signedIn ? (
           <p className="lb-none">
-            {account.signedIn ? t('lbNobodyOnline') : t('lbRoomForGuests')}{' '}
-            {account.signedIn ? <button onClick={onFriends}>{t('lbAddFriends')}</button> : null}
+            {t('lbNobodyOnline')} <button onClick={onFriends}>{t('lbAddFriends')}</button>
           </p>
-        )}
-        {/* Somebody sent you six letters: this is where they go. Always
-            available in this mode, not only when you arrived on a link. */}
-        <div className="lb-ticket-row lb-codebox">
-          <input
-            className="input input-code"
-            placeholder={t('codePlaceholder')}
-            maxLength={6}
-            value={code}
-            onChange={(e) => {
-              setCode(e.target.value.toUpperCase());
-              setError(null);
-            }}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') join();
-            }}
-          />
-          <button className="btn btn-small" disabled={busy || code.trim().length !== 6} onClick={join}>
-            {t('walkIn')}
-          </button>
-        </div>
+        ) : null}
         <div className="lb-side">{t('sideAgainst')}</div>
       </>
     );
   } else if (mode === 'bot') {
+    // The picked bot stands in the slot and is itself the way to change your
+    // mind: tap it and the roster comes back out.
+    const picked = chosenBot ? (
+      <>
+        <div className="lb-art">
+          <BotAvatar botId={chosenBot.id} color={chosenBot.color} size="var(--art)" bare />
+        </div>
+        <div className="lb-fname">
+          {chosenBot.name}
+          <span className="lb-frating">{chosenBot.elo}</span>
+        </div>
+      </>
+    ) : pickedBot === 'tutor' ? (
+      <>
+        <div className="lb-art">
+          <BotAvatar botId="tutor" color="ink" size="var(--art)" bare />
+        </div>
+        <div className="lb-fname">{t('lbYapMaster')}</div>
+      </>
+    ) : null;
     opponent = (
       <>
-        {chosenBot ? (
-          <>
-            <div className="lb-art">
-              <BotAvatar botId={chosenBot.id} color={chosenBot.color} size="var(--art)" bare />
-            </div>
-            <div className="lb-fname">
-              {chosenBot.name}
-              <span className="lb-frating">{chosenBot.elo}</span>
-            </div>
-          </>
-        ) : pickedBot === 'tutor' ? (
-          <>
-            <div className="lb-art">
-              <BotAvatar botId="tutor" color="ink" size="var(--art)" bare />
-            </div>
-            <div className="lb-fname">{t('lbYapMaster')}</div>
-          </>
-        ) : (
-          <div className="lb-empty">
-            <span className="lb-empty-pick" dangerouslySetInnerHTML={{ __html: t('lbPickBot') }} />
-          </div>
-        )}
-        <div className="lb-choices">
-          {/* The tutorial is not a mode, it is rung zero of this ladder — which
-              is where a beginner is already looking. */}
-          <button
-            className={`lb-choice lb-choice-tutor ${pickedBot === 'tutor' ? 'lb-choice-on' : ''}`}
-            onClick={() => setPickedBot('tutor')}
-          >
-            <span className="lb-choice-av">
-              <BotAvatar botId="tutor" color="ink" size={38} bare />
-            </span>
-            <span className="lb-choice-n">{t('lbLearn')}</span>
-            <span className="lb-choice-r">{t('lbFree')}</span>
+        {picked ? (
+          <button className="lb-picked" onClick={() => setRoster(true)}>
+            {picked}
+            <span className="lb-change">{t('lbChangeBot')}</span>
           </button>
-          {ladder.map((b) => (
-            <button
-              key={b.id}
-              className={`lb-choice ${pickedBot === b.id ? 'lb-choice-on' : ''}`}
-              onClick={() => setPickedBot(b.id)}
-            >
-              <span className="lb-choice-av">
-                <BotAvatar botId={b.id} color={b.color} size={38} bare />
-              </span>
-              <span className="lb-choice-n">{b.name}</span>
-              <span className="lb-choice-r">{b.elo}</span>
-            </button>
-          ))}
-        </div>
+        ) : (
+          <button className="lb-empty lb-empty-btn" onClick={() => setRoster(true)}>
+            <span className="lb-empty-pick" dangerouslySetInnerHTML={{ __html: t('lbPickBot') }} />
+          </button>
+        )}
         <div className="lb-side">{t('sideAgainst')}</div>
       </>
     );
@@ -653,11 +588,20 @@ export default function Home({
       <button className="lb-go lb-go-wait" disabled>
         {t('lbWaitFriend')}
       </button>
+    ) : !account.signedIn && account.google ? (
+      // Friends are an account feature, so the button IS the door.
+      <button className="lb-go" onClick={signIn}>
+        {t('signInGoogle')}
+      </button>
+    ) : account.signedIn && accepted.length === 0 ? (
+      // Nobody to call out yet: the button does the other thing rather than
+      // sitting there greyed out telling you to do something you cannot do.
+      <button className="lb-go" onClick={onFriends}>
+        {t('lbGoAddFriends')}
+      </button>
     ) : (
-      // Nobody to tap, so the button does the other thing rather than sitting
-      // there greyed out telling you to do something you cannot do.
-      <button className="lb-go" disabled={busy} onClick={openRoom}>
-        {t('lbGoRoom')}
+      <button className="lb-go lb-go-wait" disabled>
+        {t('lbWaitNobodyOn')}
       </button>
     );
   } else if (mode === 'bot') {
@@ -668,8 +612,10 @@ export default function Home({
           : t('lbGoBot', { x: chosenBot?.name ?? '' })}
       </button>
     ) : (
-      <button className="lb-go lb-go-wait" disabled>
-        {t('lbWaitBot')}
+      // His spec, verbatim: "you press the pick a bot button and then all the
+      // bots come out."
+      <button className="lb-go" onClick={() => setRoster(true)}>
+        {t('lbGoPickBot')}
       </button>
     );
   } else if (mode === 'drill') {
@@ -850,45 +796,13 @@ export default function Home({
             </div>
           ) : null}
 
-          {/* Someone sent a code. Until it is used or waved off, it is the only
-              thing on this screen that matters, so the mode's own button steps
-              aside for it. */}
-          {invited ? (
-            <div className="lb-ticket">
-              <p className="lb-ticket-head">
-                <b>{t('calledOut')}</b> {t('invitedLine')}
-              </p>
-              <div className="lb-ticket-row">
-                <input
-                  className="input input-code"
-                  placeholder={t('codePlaceholder')}
-                  maxLength={6}
-                  value={code}
-                  onChange={(e) => {
-                    setCode(e.target.value.toUpperCase());
-                    setError(null);
-                  }}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') join();
-                  }}
-                />
-                <button className="btn btn-primary" disabled={busy} onClick={join}>
-                  {t('walkIn')}
-                </button>
-                <button className="btn btn-small ghost" onClick={() => setInvited(false)}>
-                  {t('orStartOwn')}
-                </button>
-              </div>
-            </div>
-          ) : null}
-
           {error ? (
             <p className="lb-err" role="alert">
               {t(error)}
             </p>
           ) : null}
 
-          {invited ? null : go}
+          {go}
         </div>
 
         <aside className={`lb-wings ${accepted.length === 0 ? 'lb-wings-nobody' : ''}`}>
@@ -970,6 +884,10 @@ export default function Home({
           ))}
         </div>
       </footer>
+
+      {roster ? (
+        <BotRoster bots={ladder} picked={pickedBot} onPick={pickBot} onClose={closeRoster} />
+      ) : null}
     </div>
   );
 }

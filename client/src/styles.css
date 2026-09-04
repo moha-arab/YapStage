@@ -4033,11 +4033,18 @@ html[dir='rtl'] .meter-hint {
   font-size: 17px;
   padding: 16px 34px;
   cursor: pointer;
-  transition: background 0.12s ease;
+  transition: background 0.12s ease, transform 0.15s ease, box-shadow 0.15s ease;
 }
 
 .ld-cta:hover {
   background: #ff8f28;
+  transform: translateY(-1px);
+  box-shadow: 0 8px 24px rgba(240, 130, 30, 0.3);
+}
+
+.ld-cta:active {
+  transform: translateY(0);
+  box-shadow: none;
 }
 
 .ld-g {
@@ -4087,6 +4094,9 @@ html[dir='rtl'] .meter-hint {
 .ld-shotwrap {
   position: relative;
   padding: 10px;
+  /* leans toward the cursor, see useTilt in Welcome.tsx */
+  transition: transform 0.25s ease-out;
+  will-change: transform;
 }
 
 /* The two stage lights, soft, behind the window: the same gels the whole app
@@ -4288,4 +4298,38 @@ html[dir='rtl'] .meter-hint {
   justify-content: center;
   flex-wrap: wrap;
   margin-top: 10px;
+}
+
+/* Green room, invite-only: the seat your friend is about to take. */
+.wait-ring {
+  width: 120px;
+  height: 120px;
+  border-radius: 50%;
+  border: 2px dashed rgba(31, 194, 212, 0.5);
+  display: grid;
+  place-items: center;
+  animation: waitRing 2.4s ease-in-out infinite;
+}
+
+.wait-ring span {
+  font-family: 'Ultra', serif;
+  font-size: 52px;
+  line-height: 1;
+  color: rgba(31, 194, 212, 0.5);
+}
+
+@keyframes waitRing {
+  0%,
+  100% {
+    border-color: rgba(31, 194, 212, 0.35);
+  }
+  50% {
+    border-color: rgba(31, 194, 212, 0.75);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wait-ring {
+    animation: none;
+  }
 }

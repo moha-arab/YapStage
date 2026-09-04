@@ -81,8 +81,6 @@ import {
   SEED_RATING,
   storeReady,
   subForUsername,
-  addWaitlist,
-  listWaitlist,
   prelaunchPrune,
 } from './store.js';
 import { TOPIC_BY_ID, TOPIC_CATEGORIES } from './topics.js';
@@ -215,38 +213,6 @@ app.get('/live', async () => {
           }
         : null,
   };
-});
-
-// ---- the pre-launch waitlist ----
-
-/** Join the list. An email and nothing else — no name, no tracking. */
-app.post<{ Body: { email?: string } }>('/waitlist', { bodyLimit: 2048 }, async (req, reply) => {
-  if (!allow(`wl:${req.ip}`, 6, 10 * 60_000)) {
-    return reply.code(429).send({ error: 'rate_limited' });
-  }
-  const email = String(req.body?.email ?? '')
-    .trim()
-    .toLowerCase()
-    .slice(0, 320);
-  // Not RFC 5322 — nobody's is. Enough shape to catch typos, not enough to
-  // reject a real address.
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) {
-    return reply.code(400).send({ error: 'bad_email' });
-  }
-  const result = await addWaitlist(email);
-  if (result === 'down') return reply.code(503).send({ error: 'store_down' });
-  event('waitlist_joined');
-  return { ok: true, already: result === 'already' };
-});
-
-/** Read the list. Keyed like /stats, fail-closed: without STATS_KEY set this
-    route does not exist. */
-app.get<{ Querystring: { key?: string } }>('/waitlist', async (req, reply) => {
-  if (!process.env.STATS_KEY || req.query.key !== process.env.STATS_KEY) {
-    return reply.code(404).send({ error: 'Not Found' });
-  }
-  const rows = await listWaitlist();
-  return { count: rows.length, emails: rows };
 });
 
 /** The fresh start, on demand and NEVER automatic: deletes every account

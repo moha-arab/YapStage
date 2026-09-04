@@ -38,11 +38,9 @@ export default function GreenRoom({
 }: Props) {
   const { lang, t } = useI18n();
   const [consent, setConsent] = useState(false);
-  const [copied, setCopied] = useState(false);
   const [cat, setCat] = useState(0);
   const [draft, setDraft] = useState('');
   const waiting = lobby.participantCount === 1;
-  const link = `${window.location.origin}/?code=${lobby.code}`;
   const connected = rtcState === 'connected';
   const { pick, deck } = lobby;
   const peer = lobby.peerName ?? '...';
@@ -66,13 +64,6 @@ export default function GreenRoom({
     const id = setInterval(() => setMicSilent(maxLocal.current < 0.04), 2500);
     return () => clearInterval(id);
   }, [localStream]);
-
-  function copyLink() {
-    void navigator.clipboard.writeText(link).then(() => {
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1500);
-    });
-  }
 
   function sendDispute() {
     const text = draft.trim();
@@ -183,28 +174,19 @@ export default function GreenRoom({
           {t('leaveRoom')}
         </button>
         <span className="pill">{t('greenRoom')}</span>
-        <span className="pill pill-code">{lobby.code}</span>
       </header>
 
       {notice ? <div className="banner">{t(notice.key, { x: notice.x ?? '' })}</div> : null}
 
       {waiting ? (
         <>
+          {/* Invite-only (2026-09-04): no code, no link. The friend you called
+              out has the door; nobody else does. */}
           <div className="invite-block">
-            <div className="ticket">
-              <div className="ticket-main">
-                <p className="ticket-label">{t('ticketLabel')}</p>
-                <p className="ticket-code">{lobby.code}</p>
-                {/* "section yap · row 1 · no refunds" lived here. Joke fine
-                    print is still fine print — his call: cut the text that
-                    exists to be text. */}
-              </div>
-              <div className="ticket-stub" aria-hidden="true" />
+            <div className="wait-ring" aria-hidden="true">
+              <span>?</span>
             </div>
-            <button className="btn" onClick={copyLink}>
-              {copied ? t('copied') : t('copyInvite')}
-            </button>
-            <p className="subtitle">{t('sendToOne')}</p>
+            <p className="subtitle">{t('waitingForFriend')}</p>
           </div>
           {selfTile}
         </>

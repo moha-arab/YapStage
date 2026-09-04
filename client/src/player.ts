@@ -36,8 +36,6 @@ export function adoptPlayerId(id: string): void {
 
 export interface Account {
   signedIn: boolean;
-  /** Pre-launch: the doors are closed, the landing collects emails. */
-  prelaunch?: boolean;
   /** Whether sign-in is even available on this deployment. */
   google: boolean;
   name?: string;
@@ -83,12 +81,6 @@ export async function whoAmI(): Promise<Account> {
     on a bare `/?auth=ok`, and without this the person a friend called out
     signs in and finds themselves in an empty lobby instead of the room. */
 export function signIn(): void {
-  try {
-    const code = new URLSearchParams(window.location.search).get('code');
-    if (code) sessionStorage.setItem('yapstage.pendingCode', code.toUpperCase());
-  } catch {
-    // storage blocked: they sign in and paste the code by hand, which works
-  }
   window.location.assign(`/auth/google?claim=${encodeURIComponent(playerId())}`);
 }
 
