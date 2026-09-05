@@ -9,7 +9,7 @@
 import pg from 'pg';
 import { sanitizeCard, type Card } from './share.js';
 import { event } from './stats.js';
-import { foldName } from './protocol.js';
+import { PACES, foldName, type Pace } from './protocol.js';
 
 let pool: pg.Pool | null = null;
 let ready = false;
@@ -155,6 +155,19 @@ export async function initStore(): Promise<void> {
     await pool.query(
       `ALTER TABLE players ADD COLUMN IF NOT EXISTS campaign integer NOT NULL DEFAULT 0`,
     );
+    // One ladder per pace (his call 2026-09-04: "like chess has different elo
+    // for different modes"). The original rating/wins/losses trio IS the
+    // standard ladder and keeps every value it has; blitz and long each get
+    // their own trio, seeded like a new player.
+    for (const pace of PACES) {
+      if (pace === 'standard') continue;
+      const c = paceCols(pace);
+      await pool.query(
+        `ALTER TABLE players ADD COLUMN IF NOT EXISTS ${c.rating} integer NOT NULL DEFAULT ${SEED_RATING}`,
+      );
+      await pool.query(`ALTER TABLE players ADD COLUMN IF NOT EXISTS ${c.wins} integer NOT NULL DEFAULT 0`);
+      await pool.query(`ALTER TABLE players ADD COLUMN IF NOT EXISTS ${c.losses} integer NOT NULL DEFAULT 0`);
+    }
     // Match history: the account's own debates, so a verdict is re-openable
     // and the coach can still read the transcript days later. Disclosed at
     // sign-up; his call 2026-08-08 (save by default).
@@ -179,6 +192,9 @@ export async function initStore(): Promise<void> {
     );
     // Whether the match moved a rating. Only ranked human matches do.
     await pool.query(`ALTER TABLE matches ADD COLUMN IF NOT EXISTS rated boolean NOT NULL DEFAULT false`);
+    // Which pace it was played at, which is also which ladder a rated one
+    // moved. Everything filed before paces had ladders was standard.
+    await pool.query(`ALTER TABLE matches ADD COLUMN IF NOT EXISTS pace text NOT NULL DEFAULT 'standard'`);
     // One-time data changes that cannot be expressed as CREATE IF NOT EXISTS.
     await pool.query(`
       CREATE TABLE IF NOT EXISTS migrations (
@@ -207,6 +223,17 @@ export async function initStore(): Promise<void> {
           WHEN 'boxer'   THEN 'luchador'
           ELSE mask END
         WHERE mask IN ('kitsune','goalie','masque','knight','astro','boxer')`);
+    });
+    await runOnce('mask_roster_basic', async () => {
+      // The roster turned over again 2026-09-04: hood and bandit came in, the
+      // oni and the calavera went to the vault for a later drop. Same rule as
+      // last time for a saved locker: the nearest survivor, never a hole.
+      await pool!.query(`
+        UPDATE accounts SET mask = CASE mask
+          WHEN 'calavera' THEN 'luchador'
+          WHEN 'oni'      THEN 'ninja'
+          ELSE mask END
+        WHERE mask IN ('calavera','oni')`);
     });
     // The pre-launch waitlist (2026-08-22 to 2026-09-04) is gone with the
     // page that fed it. It only ever held one test row.
@@ -308,10 +335,51 @@ export async function lastShutdown(): Promise<Record<string, unknown> | null> {
 // accounts ever land. All calls fail soft — a dead database costs a rating
 // update, never a debate.
 
-export interface PlayerRow {
+/** One ladder's worth of a player: where they stand and how many games it
+    took to get there. */
+export interface PaceRating {
   rating: number;
   wins: number;
   losses: number;
+}
+
+/** A player's standing on every ladder. Ratings are PER PACE: a blitz record
+    says nothing about how you argue with three minutes on the clock, so each
+    pace is placed, rated and floored on its own. */
+export type PlayerRow = Record<Pace, PaceRating>;
+
+/** The three columns that hold a pace's ladder. Standard is the original
+    trio, so its names carry no suffix; the other paces are suffixed. EVERY
+    piece of SQL that touches a rating names its columns through here, so no
+    pace can be spelled two ways. Unknown input maps to standard: the names
+    are interpolated into SQL and must never come from the wire. */
+function paceCols(pace: Pace): { rating: string; wins: string; losses: string } {
+  const sfx = (PACES as readonly string[]).includes(pace) && pace !== 'standard' ? `_${pace}` : '';
+  return { rating: `rating${sfx}`, wins: `wins${sfx}`, losses: `losses${sfx}` };
+}
+
+/** Every ladder column, for a SELECT or RETURNING that wants the whole player. */
+const LADDER_COLS = PACES.map((p) => Object.values(paceCols(p)).join(', ')).join(', ');
+
+/** A player's rating on the ladder a match row was played on (`m.pace`), for
+    queries that join matches m against players p. */
+const RATING_AT_MATCH_PACE = `CASE m.pace ${PACES.filter((p) => p !== 'standard')
+  .map((p) => `WHEN '${p}' THEN p.${paceCols(p).rating}`)
+  .join(' ')} ELSE p.${paceCols('standard').rating} END`;
+
+/** Shape a raw players row into per-pace standings. A column that is somehow
+    missing reads as a fresh ladder, never as a crash. */
+function ladderOf(row: Record<string, unknown>): PlayerRow {
+  const out = {} as PlayerRow;
+  for (const pace of PACES) {
+    const c = paceCols(pace);
+    out[pace] = {
+      rating: Number(row[c.rating] ?? SEED_RATING),
+      wins: Number(row[c.wins] ?? 0),
+      losses: Number(row[c.losses] ?? 0),
+    };
+  }
+  return out;
 }
 
 /** Fetch (creating if new) a player's ladder row, refreshing their name. */
@@ -321,10 +389,10 @@ export async function getPlayer(id: string, name: string): Promise<PlayerRow | n
     const res = await pool.query(
       `INSERT INTO players (id, name) VALUES ($1, $2)
        ON CONFLICT (id) DO UPDATE SET name = $2, updated_at = now()
-       RETURNING rating, wins, losses`,
+       RETURNING ${LADDER_COLS}`,
       [id.slice(0, 64), name.slice(0, 24)],
     );
-    return res.rows[0] as PlayerRow;
+    return ladderOf(res.rows[0] as Record<string, unknown>);
   } catch (err) {
     console.error('[store] getPlayer failed:', err);
     return null;
@@ -338,10 +406,10 @@ export async function getPlayer(id: string, name: string): Promise<PlayerRow | n
 export async function getRating(id: string): Promise<PlayerRow | null> {
   if (!pool || !ready) return null;
   try {
-    const res = await pool.query(`SELECT rating, wins, losses FROM players WHERE id = $1`, [
+    const res = await pool.query(`SELECT ${LADDER_COLS} FROM players WHERE id = $1`, [
       id.slice(0, 64),
     ]);
-    return res.rowCount === 1 ? (res.rows[0] as PlayerRow) : null;
+    return res.rowCount === 1 ? ladderOf(res.rows[0] as Record<string, unknown>) : null;
   } catch (err) {
     console.error('[store] getRating failed:', err);
     return null;
@@ -392,16 +460,24 @@ const expected = (a: number, b: number): number => 1 / (1 + Math.pow(10, (b - a)
     learn to beat forever, and a bot match has no witness.
 
     The two players can move by DIFFERENT amounts, which is deliberate and is
-    how a settled rating survives a rush of new accounts. */
+    how a settled rating survives a rush of new accounts.
+
+    `pace` is which ladder moves: the match's own pace, never anything else.
+    Placement (K) counts that ladder's games alone, so a settled standard
+    player is still a newcomer at blitz, exactly as they should be. */
 export async function applyRankedResult(
   winnerId: string,
   loserId: string,
+  pace: Pace = 'standard',
 ): Promise<{ winner: { before: number; after: number }; loser: { before: number; after: number } } | null> {
   if (!pool || !ready) return null;
   try {
-    const res = await pool.query(`SELECT id, rating, wins, losses FROM players WHERE id = ANY($1)`, [
-      [winnerId, loserId],
-    ]);
+    const c = paceCols(pace);
+    const res = await pool.query(
+      `SELECT id, ${c.rating} AS rating, ${c.wins} AS wins, ${c.losses} AS losses
+       FROM players WHERE id = ANY($1)`,
+      [[winnerId, loserId]],
+    );
     type R = { id: string; rating: number; wins: number; losses: number };
     const rows = new Map(res.rows.map((r: R) => [r.id, r]));
     const rw = rows.get(winnerId)?.rating ?? SEED_RATING;
@@ -415,11 +491,11 @@ export async function applyRankedResult(
     // when someone tilts through ten losses and never comes back.
     const after = { winner: rw + gain, loser: Math.max(RATING_FLOOR, rl - drop) };
     await pool.query(
-      `UPDATE players SET rating = $2, wins = wins + 1, updated_at = now() WHERE id = $1`,
+      `UPDATE players SET ${c.rating} = $2, ${c.wins} = ${c.wins} + 1, updated_at = now() WHERE id = $1`,
       [winnerId, after.winner],
     );
     await pool.query(
-      `UPDATE players SET rating = $2, losses = losses + 1, updated_at = now() WHERE id = $1`,
+      `UPDATE players SET ${c.rating} = $2, ${c.losses} = ${c.losses} + 1, updated_at = now() WHERE id = $1`,
       [loserId, after.loser],
     );
     return {
@@ -851,6 +927,8 @@ export async function removeFriend(sub: string, username: string): Promise<Frien
 export async function listFriends(sub: string): Promise<FriendRow[] | null> {
   if (!pool || !ready) return null;
   try {
+    // The friends strip shows the STANDARD ladder: one number per face, and
+    // standard is the pace strangers are sent to by default.
     const res = await pool.query(
       `SELECT f.status, f.asked_by, a.sub AS other, a.username, a.player_id, a.mask,
               p.rating, COALESCE(p.wins, 0) + COALESCE(p.losses, 0) AS games
@@ -952,6 +1030,8 @@ export interface MatchRow {
   opponent: string;
   /** Did this move a rating? The bot daily cap reads this back. */
   rated?: boolean;
+  /** The pace it was played at, which is also the ladder a rated one moved. */
+  pace: Pace;
   verdict: unknown;
   transcript: unknown;
 }
@@ -961,8 +1041,8 @@ export async function saveMatch(m: MatchRow): Promise<void> {
   try {
     await pool.query(
       `INSERT INTO matches
-         (player_id, mode, topic, my_side, won, my_total, their_total, opponent, rated, verdict, transcript)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
+         (player_id, mode, topic, my_side, won, my_total, their_total, opponent, rated, pace, verdict, transcript)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
       [
         m.playerId.slice(0, 64),
         m.mode,
@@ -973,6 +1053,7 @@ export async function saveMatch(m: MatchRow): Promise<void> {
         m.theirTotal,
         m.opponent.slice(0, 24),
         Boolean(m.rated),
+        (PACES as readonly string[]).includes(m.pace) ? m.pace : 'standard',
         JSON.stringify(m.verdict),
         JSON.stringify(m.transcript),
       ],
@@ -985,12 +1066,16 @@ export async function saveMatch(m: MatchRow): Promise<void> {
 /** The ladder, top N. Only players who have actually placed appear: a
     leaderboard full of 1-0 accounts is noise, and an empty one is worse than
     no leaderboard at all, which is why the bots sit on it too (client-side). */
-export async function leaderboard(limit = 10): Promise<Record<string, unknown>[]> {
+export async function leaderboard(
+  limit = 10,
+  pace: Pace = 'standard',
+): Promise<Record<string, unknown>[]> {
   if (!pool || !ready) return [];
   try {
+    const c = paceCols(pace);
     const res = await pool.query(
-      `SELECT name, rating, wins, losses FROM players
-       WHERE wins + losses >= $2 ORDER BY rating DESC, wins DESC LIMIT $1`,
+      `SELECT name, ${c.rating} AS rating, ${c.wins} AS wins, ${c.losses} AS losses FROM players
+       WHERE ${c.wins} + ${c.losses} >= $2 ORDER BY ${c.rating} DESC, ${c.wins} DESC LIMIT $1`,
       [Math.min(limit, 50), PLACEMENT_MATCHES],
     );
     return res.rows;
@@ -1007,7 +1092,8 @@ export async function recentRanked(limit = 6): Promise<Record<string, unknown>[]
   try {
     const res = await pool.query(
       `SELECT m.topic, m.my_total AS won_total, m.their_total AS lost_total,
-              m.opponent AS loser, p.name AS winner, p.rating AS winner_rating, m.at
+              m.opponent AS loser, p.name AS winner, m.pace,
+              ${RATING_AT_MATCH_PACE} AS winner_rating, m.at
        FROM matches m JOIN players p ON p.id = m.player_id
        WHERE m.mode = 'ranked' AND m.won = true
        ORDER BY m.at DESC LIMIT $1`,
@@ -1029,12 +1115,12 @@ export async function listMatches(
   try {
     const res = mode
       ? await pool.query(
-          `SELECT id, mode, topic, my_side, won, my_total, their_total, opponent, at
+          `SELECT id, mode, pace, topic, my_side, won, my_total, their_total, opponent, at
            FROM matches WHERE player_id = $1 AND mode = $2 ORDER BY at DESC LIMIT 100`,
           [playerId.slice(0, 64), mode],
         )
       : await pool.query(
-          `SELECT id, mode, topic, my_side, won, my_total, their_total, opponent, at
+          `SELECT id, mode, pace, topic, my_side, won, my_total, their_total, opponent, at
            FROM matches WHERE player_id = $1 ORDER BY at DESC LIMIT 100`,
           [playerId.slice(0, 64)],
         );
@@ -1053,7 +1139,7 @@ export async function loadMatch(
   if (!pool || !ready) return null;
   try {
     const res = await pool.query(
-      `SELECT id, mode, topic, my_side, won, my_total, their_total, opponent, verdict, transcript, at
+      `SELECT id, mode, pace, topic, my_side, won, my_total, their_total, opponent, verdict, transcript, at
        FROM matches WHERE id = $1 AND player_id = $2`,
       [id, playerId.slice(0, 64)],
     );

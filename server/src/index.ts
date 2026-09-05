@@ -8,10 +8,12 @@ import { Server } from 'socket.io';
 import {
   AVATAR_IDS,
   NAME_RE,
+  PACES,
   foldName,
   type AvatarId,
   type ClientToServer,
   type LobbyUpdate,
+  type Pace,
   type ServerToClient,
   type SocketData,
   type TopicText,
@@ -247,18 +249,28 @@ app.get<{ Querystring: { playerId?: string } }>('/rating', async (req) => {
   if (!id) return { rating: null };
   // No row yet is not "no rating": it is a player at the seed with nothing
   // played. Saying so lets the chip read "placing, 0 of 5" instead of vanishing.
-  const row = (await getRating(id)) ?? { rating: SEED_RATING, wins: 0, losses: 0 };
-  const games = row.wins + row.losses;
-  return {
-    rating: row.rating,
-    wins: row.wins,
-    losses: row.losses,
-    games,
-    // Below placement the number exists but is not shown: it is still moving
-    // 64 points a match and would be a lie dressed as a measurement.
-    provisional: games < PLACEMENT_MATCHES,
-    placementsLeft: Math.max(0, PLACEMENT_MATCHES - games),
+  const row = await getRating(id);
+  const standing = (pace: Pace) => {
+    const r = row?.[pace] ?? { rating: SEED_RATING, wins: 0, losses: 0 };
+    const games = r.wins + r.losses;
+    return {
+      rating: r.rating,
+      wins: r.wins,
+      losses: r.losses,
+      games,
+      // Below placement the number exists but is not shown: it is still moving
+      // 64 points a match and would be a lie dressed as a measurement.
+      provisional: games < PLACEMENT_MATCHES,
+      placementsLeft: Math.max(0, PLACEMENT_MATCHES - games),
+    };
   };
+  // One ladder per pace. The top-level fields ARE the standard ladder, kept
+  // where older clients expect them; `paces` carries all three.
+  const paces = Object.fromEntries(PACES.map((p) => [p, standing(p)])) as Record<
+    Pace,
+    ReturnType<typeof standing>
+  >;
+  return { ...paces.standard, paces };
 });
 
 // ---- the daily drill ----
@@ -538,9 +550,16 @@ interface QueueEntry {
   sessionId: string;
   playerId: string;
   name: string;
+  /** Which queue this is, and which ladder the result moves. A pace only
+      ever pairs with itself; the queues share an array, nothing else. */
+  pace: Pace;
+  /** Their rating on THAT pace's ladder, for the waiting screen. */
   rating: number;
 }
 const rankedQueue: QueueEntry[] = [];
+
+/** How many are waiting for a game at this pace. */
+const waitingAt = (pace: Pace): number => rankedQueue.filter((q) => q.pace === pace).length;
 
 function dropFromQueue(socketId: string): void {
   const i = rankedQueue.findIndex((q) => q.socketId === socketId);
@@ -549,41 +568,54 @@ function dropFromQueue(socketId: string): void {
 
 function broadcastQueue(): void {
   for (const q of rankedQueue) {
-    io.to(q.socketId).emit('queue:update', { waiting: rankedQueue.length, rating: q.rating });
+    // Your count is your pace's count: a blitz player waiting alone must not
+    // read "3 waiting" because three people want a long game.
+    io.to(q.socketId).emit('queue:update', { waiting: waitingAt(q.pace), rating: q.rating, pace: q.pace });
   }
 }
 
-/** Pair the two longest-waiting players into a ranked green room. */
+/** Pair the two longest-waiting players AT EACH PACE into a ranked green
+    room. The paces are separate queues that happen to share an array. */
 function tryMatch(): void {
-  while (rankedQueue.length >= 2) {
-    const a = rankedQueue.shift()!;
+  for (const pace of PACES) tryMatchAt(pace);
+  broadcastQueue();
+}
+
+function tryMatchAt(pace: Pace): void {
+  for (;;) {
+    const ai = rankedQueue.findIndex((q) => q.pace === pace);
+    if (ai < 0) return;
+    const a = rankedQueue[ai]!;
     // Never pair someone with themselves. A signed-in player has one stable
     // playerId across tabs, so without this two tabs are an ELO printing press
     // and the judge ends up scoring one person arguing both sides. Take the
-    // first entry that is genuinely somebody else; if there is none, put A back
-    // and wait for a real opponent rather than inventing one.
-    const otherAt = rankedQueue.findIndex(
-      (q) => q.playerId !== a.playerId && q.sessionId !== a.sessionId,
+    // first entry AT THIS PACE that is genuinely somebody else; if there is
+    // none, leave A in line and wait for a real opponent rather than
+    // inventing one.
+    const bi = rankedQueue.findIndex(
+      (q, i) => i !== ai && q.pace === pace && q.playerId !== a.playerId && q.sessionId !== a.sessionId,
     );
-    if (otherAt < 0) {
-      rankedQueue.unshift(a);
-      break;
-    }
-    const b = rankedQueue.splice(otherAt, 1)[0]!;
+    if (bi < 0) return;
+    const b = rankedQueue[bi]!;
     const sa = io.sockets.sockets.get(a.socketId);
     const sb = io.sockets.sockets.get(b.socketId);
-    // A ghost entry (socket died between heartbeats) must not eat a real one.
+    // A ghost entry (socket died between heartbeats) must not eat a real one:
+    // the ghost leaves the line, the living player keeps their place in it.
     if (!sa || !sb) {
-      if (sa) rankedQueue.unshift(a);
-      if (sb) rankedQueue.unshift(b);
+      if (!sb) dropFromQueue(b.socketId);
+      if (!sa) dropFromQueue(a.socketId);
       if (!sa && !sb) continue;
-      break;
+      return;
     }
+    // Higher index first so the lower one is still where we found it.
+    rankedQueue.splice(Math.max(ai, bi), 1);
+    rankedQueue.splice(Math.min(ai, bi), 1);
     const lobby = createLobby(a.socketId, a.sessionId, a.name);
     lobby.host!.playerId = a.playerId;
     lobby.guest = { socketId: b.socketId, sessionId: b.sessionId, name: b.name, avatarId: randomAvatar(), masked: false, playerId: b.playerId, rtcReady: false };
     lobby.status = 'greenroom';
     lobby.topicMode = 'random'; // strangers never negotiate a topic
+    lobby.pace = pace; // the queue they stood in is the ladder the verdict moves
     lobby.ranked = { host: a.playerId, guest: b.playerId };
     // Ranked is faceless by format: both strangers are behind masks.
     lobby.host!.masked = true;
@@ -594,11 +626,10 @@ function tryMatch(): void {
     sb.data.role = 'guest';
     void sa.join(lobby.code);
     void sb.join(lobby.code);
-    event('ranked_matched', { code: lobby.code });
+    event('ranked_matched', { code: lobby.code, pace });
     io.to(a.socketId).emit('queue:matched', { update: updateFor(lobby, lobby.host!) });
     io.to(b.socketId).emit('queue:matched', { update: updateFor(lobby, lobby.guest!) });
   }
-  broadcastQueue();
 }
 
 // ---- spectators ----
@@ -806,13 +837,18 @@ io.on('connection', (socket) => {
   const nameOf = (claimed: string): string => socket.data.account?.name || claimed;
   /** The ladder identity this socket is allowed to use. */
   const idOf = (claimed: string): string => socket.data.account?.playerId ?? claimed;
-  /** Seat defaults from the locker: the mask you saved, and whether you'd
-      rather wear it than show a camera. Ranked forces masked regardless; this
-      is what finally gives TRAINING a mask, since it has no green room. */
-  const seatLook = (): { avatarId: AvatarId; masked: boolean } => ({
-    avatarId: (socket.data.locker?.mask as AvatarId) ?? randomAvatar(),
-    masked: Boolean(socket.data.locker?.maskDefault),
-  });
+  /** Seat defaults: the mask you saved (or a random one), WORN. Every room
+      starts masked (his call 2026-09-04): a camera is something you switch
+      on in the green room (pick:mask false), never something a stranger gets
+      by default. The locker's mask_default is still stored and still
+      accepted, but no seat reads it any more: the room decides, not the
+      account. A saved mask that has since left the roster is ignored rather
+      than worn as a blank. */
+  const seatLook = (): { avatarId: AvatarId; masked: boolean } => {
+    const saved = socket.data.locker?.mask;
+    const onRoster = saved && (AVATAR_IDS as readonly string[]).includes(saved);
+    return { avatarId: onRoster ? (saved as AvatarId) : randomAvatar(), masked: true };
+  };
   socket.on('lobby:create', (p, cb) => {
     if (typeof cb !== 'function') return;
     // Friendly ceiling: two friends never hit this; a lobby-spam script does.
@@ -983,7 +1019,8 @@ io.on('connection', (socket) => {
     broadcastLobbyUpdate(lobby);
   });
 
-  // Mask instead of camera. Custom only (ranked is masked by format) and
+  // Mask or camera. Every seat starts masked, so `false` here is how a player
+  // turns their camera on. Custom only (ranked is masked by format) and
   // pre-debate only: flipping mid-debate would need a WebRTC renegotiation.
   socket.on('pick:mask', (on) => {
     if (!allow(`pick:${socket.id}`, 60, 10_000)) return;
@@ -1323,8 +1360,9 @@ io.on('connection', (socket) => {
     });
   });
 
-  // Ranked: enter the queue. Rating is looked up (or created at 1000) so the
-  // waiting screen can show it; pairing is first-come-first-served.
+  // Ranked: enter the queue for ONE pace. The rating on that pace's ladder is
+  // looked up (or created at the seed) so the waiting screen can show it;
+  // pairing is first-come-first-served within the pace.
   socket.on('queue:join', (p, cb) => {
     if (typeof cb !== 'function') return;
     if (!FAST && !allow(`join:${ipOf(socket)}`, 30, 5 * 60_000)) {
@@ -1334,7 +1372,12 @@ io.on('connection', (socket) => {
     if (!NAME_RE.test(name)) return cb({ ok: false, error: 'bad_name' });
     const playerId = idOf(String(p?.playerId ?? '').slice(0, 64));
     if (!playerId) return cb({ ok: false, error: 'bad_name' });
-    if (rankedQueue.some((q) => q.socketId === socket.id)) return cb({ ok: true });
+    // Same shape as pick:pace, except an unknown pace means standard rather
+    // than nothing: old clients never send one and still deserve a game.
+    const pace: Pace = p?.pace === 'blitz' || p?.pace === 'long' ? p.pace : 'standard';
+    // Already in THIS queue: nothing to do. A different pace means they
+    // changed their mind, and they move lines below.
+    if (rankedQueue.some((q) => q.socketId === socket.id && q.pace === pace)) return cb({ ok: true });
     releasePreviousSeat(socket);
     dropFromQueue(socket.id);
     // One slot per PLAYER, not per socket. A second tab takes over the queue
@@ -1351,12 +1394,13 @@ io.on('connection', (socket) => {
         sessionId: String(p?.sessionId ?? '').slice(0, 64),
         playerId,
         name,
+        pace,
         // SEED_RATING, not a hardcoded 1000: that was the seed before the
         // rating_seed_700 migration, and it made a store blip queue a brand
         // new player as if they were 300 points better than they are.
-        rating: row?.rating ?? SEED_RATING,
+        rating: row?.[pace].rating ?? SEED_RATING,
       });
-      event('queue_joined', { waiting: rankedQueue.length });
+      event('queue_joined', { waiting: waitingAt(pace), pace });
       cb({ ok: true });
       tryMatch();
     });

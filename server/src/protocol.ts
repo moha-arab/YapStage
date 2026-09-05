@@ -19,7 +19,10 @@ export type Difficulty = 'easy' | 'medium' | 'hard';
 
 // Debate pacing — the same four-round format at three sizes. Turn lengths are
 // maximums everywhere: "pass the mic" ends a turn early.
-export type Pace = 'standard' | 'blitz' | 'long';
+// Each pace is ALSO its own ladder, the way chess keeps bullet, blitz and
+// classical apart: a rating, a record and a placement run per pace.
+export const PACES = ['standard', 'blitz', 'long'] as const;
+export type Pace = (typeof PACES)[number];
 
 /** Tiers, and every boundary is a bot.
     A number is a rank among twenty strangers and carries a ±200 error bar.
@@ -143,8 +146,11 @@ export interface Framing {
     drawings (masque, boxer) diluted the strong ones, and knight read as a
     robot, which broke the humans-wear-masks rule from the other side.
     Accounts that saved a removed mask are migrated in store.ts
-    (mask_roster_4) — do not re-add an id here without art for it. */
-export const AVATAR_IDS = ['luchador', 'oni', 'calavera', 'ninja'] as const;
+    (mask_roster_4) — do not re-add an id here without art for it.
+    TURNED OVER AGAIN 2026-09-04: hood and bandit came in; the oni and the
+    calavera went to the vault, art intact, for a later drop. Saved lockers
+    follow the same nearest-survivor rule (mask_roster_basic). */
+export const AVATAR_IDS = ['luchador', 'ninja', 'hood', 'bandit'] as const;
 export type AvatarId = (typeof AVATAR_IDS)[number];
 
 export interface LobbyUpdate {
@@ -312,9 +318,11 @@ export interface ClientToServer {
   'verdict:retry': () => void;
   'rematch': () => void; // want to run it back with the same person
   /** Ranked: enter the matchmaking queue. playerId is a persistent per-device
-      identity (localStorage), which is what the rating is keyed to. */
+      identity (localStorage), which is what the rating is keyed to. `pace`
+      picks WHICH queue you stand in and which ladder the result moves; a
+      pace only ever pairs with itself. Absent or unknown means standard. */
   'queue:join': (
-    p: { sessionId: string; playerId: string; name: string },
+    p: { sessionId: string; playerId: string; name: string; pace?: Pace },
     cb: (res: { ok: boolean; error?: JoinError }) => void,
   ) => void;
   'queue:leave': () => void;
@@ -417,7 +425,8 @@ export interface ServerToClient {
         heard them — which must be said out loud, not left to look like a
         crushing defeat they earned. */
     heard?: Record<Side, number>;
-    /** Ranked only: what the match did to each side's rating. */
+    /** Ranked only: what the match did to each side's rating on the ladder
+        of the pace it was played at (the lobby's pace). */
     elo?: Record<Side, { before: number; after: number }>;
   }) => void;
   /** Rematch handshake state (per recipient's own view). */
@@ -429,8 +438,10 @@ export interface ServerToClient {
   /** What we have transcribed of YOUR current turn so far. Sent only to the
       speaker. Proof, while you talk, that the judge is receiving you. */
   'caption': (p: { stepIndex: number; text: string }) => void;
-  /** Ranked queue heartbeat: how many are waiting, and your current rating. */
-  'queue:update': (p: { waiting: number; rating: number }) => void;
+  /** Ranked queue heartbeat: how many are waiting IN YOUR PACE (the other
+      queues are invisible to you), your rating on that pace's ladder, and
+      the pace itself so the waiting screen can name it. */
+  'queue:update': (p: { waiting: number; rating: number; pace: Pace }) => void;
   /** Paired: both players land in a ranked green room together. */
   'queue:matched': (p: { update: LobbyUpdate }) => void;
   /** Snapshot for a spectator (sent on join and on debate start). Live updates

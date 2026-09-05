@@ -657,14 +657,22 @@ console.log('\n=== Scenario 9: ranked + spectate ===');
 
   const m1 = once(r1, 'queue:matched', 15000);
   const m2 = once(r2, 'queue:matched', 15000);
+  const hb = once(r1, 'queue:update', 4000);
   const q1 = await emitP(r1, 'queue:join', { sessionId: 'rk-1', playerId: 'pid-rk-1', name: 'rankedone' });
   check('queue: first join accepted', q1.ok === true);
+  const beat = await hb;
+  check(
+    'queue: heartbeat carries waiting, rating and pace',
+    beat.waiting === 1 && typeof beat.rating === 'number' && beat.pace === 'standard',
+  );
   const q2 = await emitP(r2, 'queue:join', { sessionId: 'rk-2', playerId: 'pid-rk-2', name: 'rankedtwo' });
   check('queue: second join accepted', q2.ok === true);
   const [u1, u2] = await Promise.all([m1, m2]);
   check('queue: both matched into the same lobby', u1.update.code === u2.update.code);
   check('queue: lobby is flagged ranked', u1.update.ranked === true && u2.update.ranked === true);
   check('queue: ranked topic mode is random', u1.update.topicMode === 'random');
+  check('queue: no pace asked means standard', u1.update.pace === 'standard');
+  check('queue: ranked seats are masked', u1.update.yourMasked === true && u1.update.peerMasked === true);
   const code9 = u1.update.code;
 
   // Ranked settings are fixed: a host trying to slow the game down is ignored.
@@ -804,6 +812,118 @@ console.log('\n=== Scenario 11: no self-play ===');
   });
   check('custom: a real guest still joins', realJoin.ok === true);
   [t1, t2, t3, h, g].forEach((s) => s.disconnect());
+}
+
+// ---------- Scenario 12: one queue (and one ladder) per pace ----------
+// Like chess: blitz and classical are different games with different ratings.
+// A blitz player and a long player never meet; each pace pairs on its own,
+// and the room they land in runs at the pace they queued for.
+console.log('\n=== Scenario 12: one queue per pace ===');
+{
+  const bz = connect();
+  const lg = connect();
+  let crossed = false;
+  const cross = () => { crossed = true; };
+  bz.on('queue:matched', cross);
+  lg.on('queue:matched', cross);
+
+  const bzBeat = once(bz, 'queue:update', 4000);
+  await emitP(bz, 'queue:join', { sessionId: 'pc-1', playerId: 'pid-pc-1', name: 'blitzer', pace: 'blitz' });
+  const b0 = await bzBeat;
+  check('pace queue: heartbeat names your pace', b0.pace === 'blitz' && b0.waiting === 1);
+  const lgBeat = once(lg, 'queue:update', 4000);
+  await emitP(lg, 'queue:join', { sessionId: 'pc-2', playerId: 'pid-pc-2', name: 'longhaul', pace: 'long' });
+  const l0 = await lgBeat;
+  check('pace queue: waiting counts only your own pace', l0.pace === 'long' && l0.waiting === 1);
+  await new Promise((r) => setTimeout(r, 1200));
+  check('pace queue: blitz and long never meet', crossed === false);
+  bz.off('queue:matched', cross);
+  lg.off('queue:matched', cross);
+
+  // A second blitz player: the blitz pair forms, the long player stays alone.
+  const bz2 = connect();
+  const mb1 = once(bz, 'queue:matched', 8000);
+  const mb2 = once(bz2, 'queue:matched', 8000);
+  const lgStill = once(lg, 'queue:update', 4000);
+  await emitP(bz2, 'queue:join', { sessionId: 'pc-3', playerId: 'pid-pc-3', name: 'blitzertwo', pace: 'blitz' });
+  const [b1, b2] = await Promise.all([mb1, mb2]);
+  check('pace queue: the same pace matches', b1.update.code === b2.update.code);
+  check(
+    'pace queue: the ranked room runs at the queued pace',
+    b1.update.pace === 'blitz' && b2.update.pace === 'blitz' && b1.update.ranked === true,
+  );
+  const l1 = await lgStill;
+  check('pace queue: the long player is still waiting, still alone', l1.pace === 'long' && l1.waiting === 1);
+
+  // ...and the long queue pairs on its own.
+  const lg2 = connect();
+  const ml1 = once(lg, 'queue:matched', 8000);
+  const ml2 = once(lg2, 'queue:matched', 8000);
+  await emitP(lg2, 'queue:join', { sessionId: 'pc-4', playerId: 'pid-pc-4', name: 'longtwo', pace: 'long' });
+  const [x1, x2] = await Promise.all([ml1, ml2]);
+  check('pace queue: the long queue pairs on its own', x1.update.code === x2.update.code && x1.update.pace === 'long');
+
+  // An unknown pace is standard, the same as sending none (old clients).
+  const s1 = connect();
+  const s2 = connect();
+  const ms1 = once(s1, 'queue:matched', 8000);
+  const ms2 = once(s2, 'queue:matched', 8000);
+  await emitP(s1, 'queue:join', { sessionId: 'pc-5', playerId: 'pid-pc-5', name: 'stdone', pace: 'hyper' });
+  await emitP(s2, 'queue:join', { sessionId: 'pc-6', playerId: 'pid-pc-6', name: 'stdtwo' });
+  const [y1] = await Promise.all([ms1, ms2]);
+  check('pace queue: an unknown pace falls back to standard', y1.update.pace === 'standard');
+
+  // The rating endpoint: one standing per pace, standard mirrored on top for
+  // older clients. No DATABASE_URL locally, so everyone is at the seed with
+  // nothing played, on every ladder.
+  const rt = await fetch(`${URL}/rating?playerId=pid-pc-1`).then((r) => r.json());
+  const PACES = ['standard', 'blitz', 'long'];
+  check(
+    'rating: three ladders, one per pace',
+    PACES.every((p) => typeof rt.paces?.[p]?.rating === 'number' && typeof rt.paces[p].placementsLeft === 'number'),
+  );
+  check(
+    'rating: top-level fields mirror the standard ladder',
+    rt.rating === rt.paces?.standard?.rating && rt.games === rt.paces?.standard?.games &&
+      rt.provisional === rt.paces?.standard?.provisional,
+  );
+  check(
+    'rating: nothing played means provisional on every ladder',
+    PACES.every((p) => rt.paces?.[p]?.games === 0 && rt.paces[p].provisional === true && rt.paces[p].placementsLeft > 0),
+  );
+  [bz, lg, bz2, lg2, s1, s2].forEach((s) => s.disconnect());
+}
+
+// ---------- Scenario 13: every room starts masked ----------
+// The camera is opt-in: a seat is masked the moment it is taken, and the green
+// room toggle (pick:mask false) is how a face comes on. The roster is the four
+// current masks; a vaulted id is refused, not worn.
+console.log('\n=== Scenario 13: rooms start masked ===');
+{
+  const ROSTER = ['luchador', 'ninja', 'hood', 'bandit'];
+  const h = connect();
+  const g = connect();
+  const made = await emitP(h, 'lobby:create', { sessionId: 'mk-h', name: 'maskhost' });
+  check('mask: a fresh room seats the host masked', made.ok && made.update.yourMasked === true);
+  check('mask: the seat wears a mask from the current roster', ROSTER.includes(made.update.yourAvatar));
+  const came = await emitP(g, 'lobby:join', { code: made.update.code, sessionId: 'mk-g', name: 'maskguest' });
+  check(
+    'mask: the guest arrives masked and sees a masked host',
+    came.ok && came.update.yourMasked === true && came.update.peerMasked === true,
+  );
+  await new Promise((r) => setTimeout(r, 300));
+  let last = null;
+  const track = (u) => { last = u; };
+  g.on('lobby:update', track);
+  h.emit('pick:mask', false); // the host turns their camera on
+  h.emit('pick:avatar', 'oni'); // vaulted: must be refused
+  h.emit('pick:avatar', 'hood'); // on the roster: worn
+  await new Promise((r) => setTimeout(r, 500));
+  g.off('lobby:update', track);
+  check('mask: the toggle is how a camera comes on', last?.peerMasked === false && last?.yourMasked === true);
+  check('mask: a vaulted id is refused, a roster id is worn', last?.peerAvatar === 'hood');
+  h.disconnect();
+  g.disconnect();
 }
 
 console.log(`\n${failures === 0 ? 'ALL CHECKS PASSED' : failures + ' CHECK(S) FAILED'}`);

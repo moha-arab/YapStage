@@ -245,8 +245,10 @@ export function registerAuth(app: FastifyInstance): void {
     return { ok: true, name };
   });
 
-  /** The locker: your mask, and whether you want it instead of a camera by
-      default. Ranked ignores maskDefault (it is always masked). */
+  /** The locker: your mask, plus the older "mask by default" flag. The flag
+      is still stored and accepted (the client still sends it) but no seat
+      reads it since 2026-09-04: every room starts masked and the green room
+      toggle is how a camera comes on. */
   app.post<{ Body: { mask?: string; maskDefault?: boolean } }>('/auth/locker', async (req, reply) => {
     const s = readSession(req);
     if (!s) return reply.code(401).send({ ok: false });
