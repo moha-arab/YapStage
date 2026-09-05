@@ -147,10 +147,10 @@ export interface Framing {
     robot, which broke the humans-wear-masks rule from the other side.
     Accounts that saved a removed mask are migrated in store.ts
     (mask_roster_4) — do not re-add an id here without art for it.
-    TURNED OVER AGAIN 2026-09-04: hood and bandit came in; the oni and the
+    TURNED OVER AGAIN 2026-09-04: hockey and domino came in; the oni and the
     calavera went to the vault, art intact, for a later drop. Saved lockers
     follow the same nearest-survivor rule (mask_roster_basic). */
-export const AVATAR_IDS = ['luchador', 'ninja', 'hood', 'bandit'] as const;
+export const AVATAR_IDS = ['luchador', 'ninja', 'hockey', 'domino'] as const;
 export type AvatarId = (typeof AVATAR_IDS)[number];
 
 export interface LobbyUpdate {

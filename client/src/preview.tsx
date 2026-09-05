@@ -143,7 +143,7 @@ const SCREENS: Record<string, () => JSX.Element> = {
     <div style={{ padding: 32, background: 'var(--house)', minHeight: '100vh', color: 'var(--muted)' }}>
       {[200, 110, 54, 36].map((s) => (
         <div key={s} style={{ display: 'flex', gap: s > 100 ? 28 : 16, alignItems: 'flex-end', marginBottom: 26 }}>
-          {['luchador', 'ninja', 'azul', 'shade', 'oni', 'calavera', 'tengu', 'plague', 'tiki', 'alien'].map((id) => (
+          {['luchador', 'ninja', 'hockey', 'domino', 'oni', 'calavera', 'tengu', 'plague', 'tiki', 'alien'].map((id) => (
             <div key={id} style={{ textAlign: 'center', fontSize: 12 }}>
               <Mask id={id} size={s} bare />
               {s === 200 ? <div style={{ marginTop: 8, fontFamily: 'Ultra, serif', fontSize: 16, color: 'var(--paper)' }}>{id}</div> : null}
@@ -201,7 +201,7 @@ const SCREENS: Record<string, () => JSX.Element> = {
           serverNow: Date.now(),
         },
         watchers: 3,
-        avatars: { FOR: 'luchador', AGAINST: 'calavera' },
+        avatars: { FOR: 'luchador', AGAINST: 'domino' },
       }}
       onLeave={noop}
     />
