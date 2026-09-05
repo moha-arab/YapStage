@@ -1,46 +1,40 @@
 // THE LOBBY. Rebuilt 2026-08-21 after "a lot of people have been telling me
-// the site looks really bad, it's so obviously AI".
+// the site looks really bad, it's so obviously AI", and cut down again on
+// 2026-09-04 when he walked it as a new user.
 //
-// What changed and why, so nobody re-adds it:
+// What is here and why, so nobody re-adds what he removed:
 //
-//   1. ONE navigation. The old screen had a row of mode tiles AND a panel that
-//      changed under them AND a top bar of links, and his review of it was "I
-//      don't really understand what's going on". Now: five verbs in a dock
-//      along the bottom, and the stage above shows what you picked.
-//   2. A mode is explained ONCE — in the caption above the dock. It used to be
-//      described on the tile and then again in the panel after you tapped it,
-//      which he called redundant, correctly.
-//   3. NOTHING IS PRE-PICKED. Landing on "play a bot" with Pip already
-//      highlighted reads as the app choosing for you. You pick, then the bot
-//      walks on stage, then the button says its name.
-//   4. Friends live in the wings, beside the empty opponent slot, because the
-//      empty slot is exactly where a friend goes. Calling one out fills it.
-//   5. The house rule at the bottom names the actual cheat (reading off a
-//      chatbot) and the actual consequence, rather than saying "cheating is
-//      not tolerated", which is a sign nobody reads.
-//
-// The bot picker is BotRoster: press "pick a bot" and the ladder walks out as
-// a character select (2026-09-04, replacing a row of 40px chips under the
-// slot that he called "too small, looks weird"). The old BotSelect screen
-// survives only for the tutorial hand-off. Picking uses sane defaults: random
-// topic, standard pace, the coin picks your side.
-//
-// "Play a friend" is INVITE-ONLY (2026-09-04, his call): you call a friend
-// out and they walk in. The six-letter code and its input box are gone from
-// the UI ("it became complicated... a code mechanism and an inviting-a-friend
-// mechanism"). The server still speaks codes, so bringing them back is a UI
-// change, not a protocol one.
+//   1. ONE navigation. Five verbs in a dock along the bottom, in HIS order
+//      (play online · play bots · play a friend · watch a match · daily
+//      drill), and the stage above shows what you picked. The bar carries
+//      only the mark, the house rule, your name, previous matches, sign out.
+//   2. A mode is explained ONCE, in the caption above the dock.
+//   3. NOTHING IS PRE-PICKED. You pick, the bot walks on, the button says it.
+//   4. NO FRIENDS LIST (2026-09-04, his call: "overcomplicating it"). Play a
+//      friend is a code and a link, full stop. The server still has friends;
+//      the UI does not. "Maybe we can look at it later."
+//   5. NO SIDES IN THE LOBBY. You were always drawn as FOR, and he asked why
+//      ("isn't that kind of weird?"). The coin deals sides when the match
+//      starts; here it is just you and whoever is opposite. Watch mode is the
+//      one exception: those two really are FOR and AGAINST.
+//   6. NO LOCKER SCREEN. Tap your own mask (or "change mask" under it) and the
+//      roster walks out, same shape as the bot roster.
+//   7. RATING LIVES IN THE RANKED MODE, per length. Blitz, standard and long
+//      each carry their own rating, like chess.com's time controls, and the
+//      chip under your name shows the one for the length you picked.
+//      "Placing · 1 of 3" belongs there too, not in the bar.
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { NAME_RE, tierFor, type JoinError, type LobbyUpdate } from '../../../server/src/protocol';
+import { NAME_RE, tierFor, type JoinError, type LobbyUpdate, type Pace } from '../../../server/src/protocol';
 import type { BotStartConfig } from './BotSelect';
 import BotRoster from './BotRoster';
+import MaskRoster from './MaskRoster';
 import { session, socket } from '../socket';
-import { playerId, signIn, signOut, type Account } from '../player';
+import { playerId, saveLocker, signIn, signOut, type Account } from '../player';
 import { unlockSpectateAudio } from '../specaudio';
 import { unlockBotVoice } from '../botvoice';
 import { initAudio } from '../sound';
 import { useI18n } from '../i18n';
-import Mask from '../Mask';
+import Mask, { MASK_IDS } from '../Mask';
 import BotAvatar from '../BotAvatar';
 import TierBadge from '../TierBadge';
 
@@ -54,9 +48,17 @@ const ERROR_KEYS: Record<JoinError, string> = {
   self: 'errSelf',
 };
 
-type Mode = 'ranked' | 'friend' | 'bot' | 'drill' | 'watch';
+type Mode = 'ranked' | 'bot' | 'friend' | 'watch' | 'drill';
 // His order (2026-09-04): online, bots, a friend, watch, drill.
 const MODES: Mode[] = ['ranked', 'bot', 'friend', 'watch', 'drill'];
+
+/** Match length per pace, in minutes, for the chip. Eight turns at the
+    scripted seconds (debate.ts): blitz ~3, standard 5, long ~8. */
+const PACES: { id: Pace; minutes: number }[] = [
+  { id: 'blitz', minutes: 3 },
+  { id: 'standard', minutes: 5 },
+  { id: 'long', minutes: 8 },
+];
 
 interface Bot {
   id: string;
@@ -68,38 +70,30 @@ interface Bot {
   blurb: string;
 }
 
-interface Friend {
-  username: string;
+interface Rank {
   rating: number;
-  placed: boolean;
-  pending: boolean;
-  incoming: boolean;
-  online: boolean;
-  mask: string | null;
+  provisional: boolean;
+  placementsLeft: number;
+  games: number;
 }
 
 interface Props {
-  /** App's boot /auth/me answer, passed down so the lobby never re-fetches it.
-      The old screen ran its own whoAmI and rendered the guest state (name box,
-      "sign in to play your friends") for the frames it took to resolve — a
-      signed-in user watched themselves get logged out and back in on every
-      visit. */
+  /** App's boot /auth/me answer, passed down so the lobby never re-fetches it. */
   account: Account;
   notice: string | null;
   onEntered: (u: LobbyUpdate) => void;
   onSpectate: (code: string, feed: boolean) => void;
   onMatches: () => void;
-  onLocker: () => void;
-  onFriends: () => void;
   onDrill: () => void;
   onBotStart: (name: string, config: BotStartConfig) => void;
   onTutorial: (name: string) => void;
-  onChallenge: (username: string) => Promise<string | null>;
+  /** The mask was saved to the account; App keeps its copy in step. */
+  onMaskSaved: (mask: string) => void;
 }
 
 /** The light each fighter stands in. It belongs to the fighter, not to the
     stage: one shared drawing behind both of them drifts off-centre the moment
-    one side is a mask and the other is a row of six bots. */
+    one side is a mask and the other is an empty ring. */
 function Cone({ color, id }: { color: string; id: string }) {
   return (
     <svg className="lb-cone" viewBox="0 0 300 560" preserveAspectRatio="none" aria-hidden="true">
@@ -114,52 +108,81 @@ function Cone({ color, id }: { color: string; id: string }) {
   );
 }
 
+function readPace(): Pace {
+  try {
+    const p = localStorage.getItem('yapstage.pace');
+    if (p === 'blitz' || p === 'long' || p === 'standard') return p;
+  } catch {
+    // storage blocked
+  }
+  return 'standard';
+}
+
 export default function Home({
   account,
   notice,
   onEntered,
   onSpectate,
   onMatches,
-  onLocker,
-  onFriends,
   onDrill,
   onBotStart,
   onTutorial,
-  onChallenge,
+  onMaskSaved,
 }: Props) {
   const { t } = useI18n();
 
-  const [mode, setMode] = useState<Mode>('ranked');
+  // A code in the URL (or stashed by signIn() across the Google round trip)
+  // means a friend sent a link: open on the friend mode with it typed in.
+  const [arrival] = useState(() => {
+    const fromUrl = new URLSearchParams(window.location.search).get('code');
+    let stashed: string | null = null;
+    try {
+      stashed = sessionStorage.getItem('yapstage.pendingCode');
+      if (stashed) sessionStorage.removeItem('yapstage.pendingCode');
+    } catch {
+      // storage blocked: the URL path still works
+    }
+    return (fromUrl ?? stashed ?? '').toUpperCase().slice(0, 6);
+  });
+
+  const [mode, setMode] = useState<Mode>(arrival ? 'friend' : 'ranked');
   const [pickedBot, setPickedBot] = useState<string | null>(null);
-  const [pickedFriend, setPickedFriend] = useState<string | null>(null);
+  const [roster, setRoster] = useState(false);
+  const [maskRoster, setMaskRoster] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-
   const [name, setName] = useState('');
-  /** The bot roster is open over the stage. */
-  const [roster, setRoster] = useState(false);
+  const [pace, setPaceState] = useState<Pace>(readPace);
+  const setPace = (p: Pace) => {
+    setPaceState(p);
+    try {
+      localStorage.setItem('yapstage.pace', p);
+    } catch {
+      // storage blocked: it just will not stick
+    }
+  };
 
   const [queueing, setQueueing] = useState(false);
-  const [queueInfo, setQueueInfo] = useState<{ waiting: number; rating: number } | null>(null);
+  const [queueInfo, setQueueInfo] = useState<{ waiting: number } | null>(null);
 
   const needAccount = account.google && !account.signedIn;
 
   /* ---- everything the stage needs to know ---- */
 
-  const [rank, setRank] = useState<{
-    rating: number;
-    provisional: boolean;
-    placementsLeft: number;
-    games: number;
-  } | null>(null);
+  // One rating per length. The server answers with `paces`; a build that
+  // predates it answers with the standard numbers at the top level, and the
+  // fallback reads those so the chip never goes blank mid-deploy.
+  const [ranks, setRanks] = useState<Partial<Record<Pace, Rank>> | null>(null);
   useEffect(() => {
     void fetch(`/rating?playerId=${encodeURIComponent(playerId())}`)
       .then((r) => r.json())
       .then((d) => {
-        if (typeof d?.rating === 'number') setRank(d);
+        if (d && typeof d === 'object' && d.paces) return setRanks(d.paces);
+        if (typeof d?.rating === 'number') setRanks({ standard: d, blitz: d, long: d });
       })
       .catch(() => {});
   }, [account.signedIn]);
+  const rank = ranks?.[pace] ?? null;
 
   const [bots, setBots] = useState<Bot[]>([]);
   useEffect(() => {
@@ -168,45 +191,6 @@ export default function Home({
       .then((d: { bots?: Bot[] }) => setBots(d.bots ?? []))
       .catch(() => {});
   }, []);
-
-  const [friends, setFriends] = useState<Friend[] | null>(null);
-  const [friendsDown, setFriendsDown] = useState(false);
-  const loadFriends = useCallback(() => {
-    if (!account.signedIn) return;
-    void fetch('/friends')
-      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
-      .then((d: { friends?: Friend[] }) => {
-        setFriends(d.friends ?? []);
-        setFriendsDown(false);
-      })
-      .catch(() => setFriendsDown(true));
-  }, [account.signedIn]);
-
-  useEffect(() => {
-    loadFriends();
-    socket.on('friend:changed', loadFriends);
-    return () => {
-      socket.off('friend:changed', loadFriends);
-    };
-  }, [loadFriends]);
-
-  // Presence, refreshed on a timer. The server's own comment puts a legitimate
-  // client at every 20 seconds and rate limits the event at 20 per minute, so
-  // this is deliberately slower than it could be.
-  useEffect(() => {
-    if (!account.signedIn) return;
-    const tick = () => {
-      socket.emit('friend:presence', {}, (res: { ok: boolean; online: string[] }) => {
-        if (!res?.ok) return;
-        const on = new Set(res.online);
-        setFriends((prev) =>
-          prev ? prev.map((f) => ({ ...f, online: on.has(f.username) })) : prev,
-        );
-      });
-    };
-    const timer = setInterval(tick, 20000);
-    return () => clearInterval(timer);
-  }, [account.signedIn]);
 
   const [drill, setDrill] = useState<{ skill: string; streak: number; doneToday: boolean } | null>(
     null,
@@ -221,8 +205,6 @@ export default function Home({
   }, [account.signedIn]);
 
   // How many ranked debates are on right now, plus one to put on the stage.
-  // Cheap (an in-memory Map on the server), so it can poll while the lobby is
-  // open without a rate limit in sight.
   const [live, setLive] = useState<{
     live: number;
     watchable: number;
@@ -250,7 +232,7 @@ export default function Home({
   /* ---- the ranked queue ---- */
 
   useEffect(() => {
-    const onUpdate = (p: { waiting: number; rating: number }) => setQueueInfo(p);
+    const onUpdate = (p: { waiting: number }) => setQueueInfo(p);
     const onMatched = (p: { update: LobbyUpdate }) => {
       setQueueing(false);
       onEntered(p.update);
@@ -276,7 +258,9 @@ export default function Home({
 
   const effName = account.signedIn && account.name ? account.name : name;
   const validName = NAME_RE.test(effName);
-  const myMask = account.mask ?? 'luchador';
+  // Signed out (a deployment without Google) the pick lives in this tab only.
+  const [guestMask, setGuestMask] = useState(MASK_IDS[0]);
+  const myMask = account.signedIn ? (account.mask ?? MASK_IDS[0]) : guestMask;
 
   function requireName(): boolean {
     if (validName) return true;
@@ -285,28 +269,96 @@ export default function Home({
     return false;
   }
 
-  /** RANKED ONLY. Everything else is playable signed out, deliberately: a wall
-      before anyone has felt the product costs the try, and a bot debate that
-      ends in a real verdict is the best account pitch we have. */
+  /** RANKED ONLY. Everything else is playable signed out, deliberately. */
   function requireAccount(): boolean {
     if (!needAccount) return true;
     setError('signInRanked');
     return false;
   }
 
-  /* ---- the five things the go button can do ---- */
+  /* ---- the friend room: a code, made the moment you pick the mode ---- */
+
+  // The room is opened when you land on "play a friend", so the code is on
+  // the stage without another tap (his spec). It is left again when you pick
+  // another mode. It is NOT left on unmount: the friend walking in is what
+  // unmounts this screen, and leaving then would slam the door on them.
+  const [room, setRoom] = useState<{ code: string } | null>(null);
+  const [joinCode, setJoinCode] = useState(arrival);
+  const [copied, setCopied] = useState(false);
+  const opening = useRef(false);
+
+  const openRoom = useCallback(() => {
+    if (opening.current || !validName) return;
+    opening.current = true;
+    setError(null);
+    socket.emit('lobby:create', { sessionId: session.id, name: effName }, (res) => {
+      opening.current = false;
+      if (!res.ok) return setError(ERROR_KEYS[res.error]);
+      setRoom({ code: res.update.code });
+    });
+  }, [effName, validName]);
+
+  useEffect(() => {
+    // Arriving on a link, you are the one walking in, not the one opening.
+    if (mode === 'friend' && !room && !arrival) openRoom();
+  }, [mode, room, arrival, openRoom]);
+
+  useEffect(() => {
+    // The server closed it (idle timeout) while we sat here holding the code.
+    const onClosed = () => setRoom(null);
+    socket.on('lobby:closed', onClosed);
+    return () => {
+      socket.off('lobby:closed', onClosed);
+    };
+  }, []);
+
+  function leaveRoom() {
+    if (!room) return;
+    socket.emit('lobby:leave');
+    setRoom(null);
+  }
+
+  function copyLink() {
+    if (!room) return;
+    const link = `${window.location.origin}/?code=${room.code}`;
+    void navigator.clipboard
+      .writeText(link)
+      .then(() => {
+        setCopied(true);
+        setTimeout(() => setCopied(false), 1500);
+      })
+      .catch(() => {});
+  }
+
+  function join() {
+    if (busy || !requireName()) return;
+    if (joinCode.trim().length !== 6) return setError('errCodeLen');
+    setBusy(true);
+    // Walking into someone else's room means giving up your own.
+    leaveRoom();
+    socket.emit(
+      'lobby:join',
+      { code: joinCode.trim().toUpperCase(), sessionId: session.id, name: effName },
+      (res) => {
+        setBusy(false);
+        if (res.ok) return onEntered(res.update);
+        setError(ERROR_KEYS[res.error]);
+      },
+    );
+  }
+
+  /* ---- the things the go button can do ---- */
 
   function joinQueue() {
     if (queueing || !requireAccount() || !requireName()) return;
     setError(null);
-    socket.emit(
-      'queue:join',
-      { sessionId: session.id, playerId: playerId(), name: effName },
-      (res) => {
-        if (!res.ok) return setError(ERROR_KEYS[res.error ?? 'rate_limited']);
-        setQueueing(true);
-      },
-    );
+    // A plain object, not a literal in the call: the pace field is new and a
+    // client built against the older event type must still compile.
+    const payload = { sessionId: session.id, playerId: playerId(), name: effName, pace };
+    socket.emit('queue:join', payload, (res) => {
+      if (!res.ok) return setError(ERROR_KEYS[res.error ?? 'rate_limited']);
+      setQueueing(true);
+    });
   }
 
   function leaveQueue() {
@@ -315,30 +367,15 @@ export default function Home({
     setQueueInfo(null);
   }
 
-  function callOut(username: string) {
-    if (busy) return;
-    setBusy(true);
-    setError(null);
-    void onChallenge(username).then((err) => {
-      setBusy(false);
-      if (err) setError(err);
-    });
-  }
-
   function startBot() {
     if (!pickedBot || !requireName()) return;
     // Both of these must happen INSIDE this tap, and losing them is exactly
     // how the redesign brought the robot voice back: initAudio unlocks the
     // AudioContext and speech synthesis, unlockBotVoice unlocks the one
-    // long-lived <audio> element that plays the bot's REAL voice — browsers
-    // grant playback to an element a user has touched, so an element that was
-    // never played inside a gesture rejects play() when the mp3 arrives and
-    // the client silently falls back to the browser's robotic speech.
+    // long-lived <audio> element that plays the bot's REAL voice.
     initAudio();
     unlockBotVoice();
     if (pickedBot === 'tutor') return onTutorial(effName);
-    // Sane defaults, so picking a bot is one tap instead of a settings page.
-    // Everything here is still adjustable inside the room.
     onBotStart(effName, {
       botId: pickedBot,
       topicMode: 'random',
@@ -348,9 +385,7 @@ export default function Home({
   }
 
   const [watching, setWatching] = useState(false);
-  /** Watch a random LIVE ranked debate. Ranked is public by consent, so this
-      needs no code — which is the point: a code was only ever the key to a
-      friend's room, never a way into the sport. */
+  /** Watch a random LIVE ranked debate. Ranked is public by consent. */
   function watchRanked() {
     if (watching) return;
     setWatching(true);
@@ -378,11 +413,12 @@ export default function Home({
   /* ---- picking a mode ---- */
 
   function pick(next: Mode) {
+    if (next === mode) return;
     if (queueing && next !== 'ranked') leaveQueue();
+    if (mode === 'friend' && next !== 'friend') leaveRoom();
     setError(null);
     setMode(next);
     setPickedBot(null);
-    setPickedFriend(null);
     setRoster(false);
   }
 
@@ -392,34 +428,65 @@ export default function Home({
     setRoster(false);
   }
 
-  // On a phone the dock and the picker row both scroll sideways, so whatever
-  // is selected has to be dragged into view or the tap looks like it missed.
+  const closeMaskRoster = useCallback(() => setMaskRoster(false), []);
+  function pickMask(id: string) {
+    setMaskRoster(false);
+    if (!account.signedIn) return setGuestMask(id);
+    if (id === account.mask) return;
+    void saveLocker(id, true).then((ok) => {
+      if (!ok) return;
+      onMaskSaved(id);
+      // The server reads your locker once, when the socket connects. Bounce
+      // it so the next seat wears the new mask. Not while holding a room:
+      // a bounce would give up the seat, and the green room has its own
+      // picker anyway.
+      if (!room && !queueing) {
+        socket.disconnect();
+        socket.connect();
+      }
+    });
+  }
+
+  // On a phone the dock scrolls sideways, so the selected verb is dragged
+  // into view or the tap looks like it missed.
   const dockRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     dockRef.current
       ?.querySelector('.lb-act-on')
       ?.scrollIntoView({ block: 'nearest', inline: 'center', behavior: 'smooth' });
   }, [mode]);
-  useEffect(() => {
-    document
-      .querySelector('.lb-choice-on')
-      ?.scrollIntoView({ block: 'nearest', inline: 'center', behavior: 'smooth' });
-  }, [pickedBot, pickedFriend]);
 
-  /* ---- what stands on the turquoise side ---- */
+  /* ---- what stands on each side ---- */
 
-  const online = (friends ?? []).filter((f) => !f.pending && f.online);
-  const accepted = (friends ?? []).filter((f) => !f.pending);
-  const requests = (friends ?? []).filter((f) => f.pending && f.incoming).length;
   const ladder = bots.filter((b) => b.id !== 'tutor').sort((a, b) => a.rank - b.rank);
   const chosenBot = ladder.find((b) => b.id === pickedBot) ?? null;
-  const chosenFriend = accepted.find((f) => f.username === pickedFriend) ?? null;
   const watchingFeatured = mode === 'watch' ? live.featured : null;
-  // The friend picker row eats vertical space, so both fighters shrink
-  // together: two different-sized faces facing each other reads as a bug, not
-  // a hierarchy. The bot roster is an overlay, so bot mode keeps the full
-  // stage.
-  const compact = mode === 'friend';
+
+  // YOU, on the amber side, in every mode but watch. Your mask is a button:
+  // tap it and the mask roster walks out.
+  const me = (
+    <>
+      <button className="lb-picked" onClick={() => setMaskRoster(true)}>
+        <div className="lb-art">
+          <Mask id={myMask} size="var(--art)" bare />
+        </div>
+        <div className="lb-fname">{effName || t('lbYou')}</div>
+        <span className="lb-change">{t('lbChangeMask')}</span>
+      </button>
+      {mode === 'ranked' && rank ? (
+        rank.provisional ? (
+          <span className="lb-tier lb-tier-provisional">
+            {t('lbPlacing', { n: rank.games, m: rank.games + rank.placementsLeft })}
+          </span>
+        ) : (
+          <span className="lb-tier">
+            <TierBadge tier={tierFor(rank.rating).key} size={15} />
+            {t(`tier_${tierFor(rank.rating).key}`)} · <span className="lb-elo">{rank.rating}</span>
+          </span>
+        )
+      ) : null}
+    </>
+  );
 
   let opponent;
   if (mode === 'ranked') {
@@ -436,65 +503,49 @@ export default function Home({
             </div>
           ) : null}
         </div>
-        <div className="lb-side">{t('sideAgainst')}</div>
       </>
     );
   } else if (mode === 'friend') {
     opponent = (
       <>
-        {chosenFriend ? (
-          <>
-            <div className="lb-art">
-              <Mask id={chosenFriend.mask ?? 'oni'} size="var(--art)" bare />
-            </div>
-            <div className="lb-fname">
-              {chosenFriend.username}
-              {chosenFriend.placed ? (
-                <span className="lb-frating">{chosenFriend.rating}</span>
-              ) : null}
-            </div>
-          </>
+        {room ? (
+          <div className="lb-ticket">
+            <span className="lb-lab">{t('lbUseCode')}</span>
+            <span className="lb-code">{room.code}</span>
+            <button className="lb-copy" onClick={copyLink}>
+              {copied ? t('copied') : t('lbCopyLink')}
+            </button>
+          </div>
         ) : (
           <div className="lb-empty">
-            {/* "pick a friend" is a lie when there is nobody to pick. Signed
-                out, the button under the stage is the door, so the ring does
-                not repeat it. */}
-            <span
-              className="lb-empty-pick"
-              dangerouslySetInnerHTML={{
-                __html:
-                  online.length > 0 || !account.signedIn ? t('lbPickFriend') : t('lbNobodyOn'),
-              }}
-            />
+            <span className="lb-empty-pick" dangerouslySetInnerHTML={{ __html: t('lbAFriend') }} />
           </div>
         )}
-        {online.length > 0 ? (
-          <div className="lb-choices">
-            {online.map((f) => (
-              <button
-                key={f.username}
-                className={`lb-choice ${pickedFriend === f.username ? 'lb-choice-on' : ''}`}
-                onClick={() => setPickedFriend(f.username)}
-              >
-                <span className="lb-choice-av">
-                  <Mask id={f.mask ?? 'oni'} size={38} bare />
-                  <i className="lb-dot" />
-                </span>
-                <span className="lb-choice-n">{f.username}</span>
-              </button>
-            ))}
+        {/* Somebody sent YOU six letters: this is where they go. */}
+        <div className="lb-join">
+          <span className="lb-lab">{t('lbGotCode')}</span>
+          <div className="lb-join-row">
+            <input
+              className="input input-code"
+              placeholder={t('codePlaceholder')}
+              maxLength={6}
+              value={joinCode}
+              onChange={(e) => {
+                setJoinCode(e.target.value.toUpperCase());
+                setError(null);
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') join();
+              }}
+            />
+            <button className="btn btn-small" disabled={busy || joinCode.trim().length !== 6} onClick={join}>
+              {t('walkIn')}
+            </button>
           </div>
-        ) : account.signedIn ? (
-          <p className="lb-none">
-            {t('lbNobodyOnline')} <button onClick={onFriends}>{t('lbAddFriends')}</button>
-          </p>
-        ) : null}
-        <div className="lb-side">{t('sideAgainst')}</div>
+        </div>
       </>
     );
   } else if (mode === 'bot') {
-    // The picked bot stands in the slot and is itself the way to change your
-    // mind: tap it and the roster comes back out.
     const picked = chosenBot ? (
       <>
         <div className="lb-art">
@@ -513,20 +564,15 @@ export default function Home({
         <div className="lb-fname">{t('lbYapMaster')}</div>
       </>
     ) : null;
-    opponent = (
-      <>
-        {picked ? (
-          <button className="lb-picked" onClick={() => setRoster(true)}>
-            {picked}
-            <span className="lb-change">{t('lbChangeBot')}</span>
-          </button>
-        ) : (
-          <button className="lb-empty lb-empty-btn" onClick={() => setRoster(true)}>
-            <span className="lb-empty-pick" dangerouslySetInnerHTML={{ __html: t('lbPickBot') }} />
-          </button>
-        )}
-        <div className="lb-side">{t('sideAgainst')}</div>
-      </>
+    opponent = picked ? (
+      <button className="lb-picked" onClick={() => setRoster(true)}>
+        {picked}
+        <span className="lb-change">{t('lbChangeBot')}</span>
+      </button>
+    ) : (
+      <button className="lb-empty lb-empty-btn" onClick={() => setRoster(true)}>
+        <span className="lb-empty-pick" dangerouslySetInnerHTML={{ __html: t('lbPickBot') }} />
+      </button>
     );
   } else if (mode === 'drill') {
     opponent = (
@@ -541,29 +587,22 @@ export default function Home({
         </div>
       </>
     );
-  } else if (live.featured) {
-    // A real bout, with the two people actually in it. Everything shown here
-    // is what any spectator sees the second they join.
+  } else if (watchingFeatured) {
+    // A real bout, with the two people actually in it, on their real sides.
     opponent = (
       <>
         <div className="lb-art">
-          <Mask id={live.featured.avatars.AGAINST ?? 'oni'} size="var(--art)" bare />
+          <Mask id={watchingFeatured.avatars.AGAINST ?? MASK_IDS[0]} size="var(--art)" bare />
         </div>
-        <div className="lb-fname">{live.featured.names.AGAINST}</div>
+        <div className="lb-fname">{watchingFeatured.names.AGAINST}</div>
         <div className="lb-side">{t('sideAgainst')}</div>
       </>
     );
   } else {
     opponent = (
-      <>
-        <div className="lb-empty">
-          <span
-            className="lb-empty-pick"
-            dangerouslySetInnerHTML={{ __html: t('lbNobodyLive') }}
-          />
-        </div>
-        <div className="lb-soft">{t('lbWatchEmptySub')}</div>
-      </>
+      <div className="lb-empty">
+        <span className="lb-empty-q">?</span>
+      </div>
     );
   }
 
@@ -581,40 +620,21 @@ export default function Home({
       </button>
     );
   } else if (mode === 'friend') {
-    go = chosenFriend ? (
-      <button className="lb-go" disabled={busy} onClick={() => callOut(chosenFriend.username)}>
-        {t('lbGoFriend', { x: chosenFriend.username })}
-      </button>
-    ) : online.length > 0 ? (
+    go = room ? (
       <button className="lb-go lb-go-wait" disabled>
-        {t('lbWaitFriend')}
-      </button>
-    ) : !account.signedIn && account.google ? (
-      // Friends are an account feature, so the button IS the door.
-      <button className="lb-go" onClick={signIn}>
-        {t('signInGoogle')}
-      </button>
-    ) : account.signedIn && accepted.length === 0 ? (
-      // Nobody to call out yet: the button does the other thing rather than
-      // sitting there greyed out telling you to do something you cannot do.
-      <button className="lb-go" onClick={onFriends}>
-        {t('lbGoAddFriends')}
+        {t('lbWaitRoom')}
       </button>
     ) : (
-      <button className="lb-go lb-go-wait" disabled>
-        {t('lbWaitNobodyOn')}
+      <button className="lb-go" disabled={busy} onClick={openRoom}>
+        {t('lbGoRoom')}
       </button>
     );
   } else if (mode === 'bot') {
     go = pickedBot ? (
       <button className="lb-go" onClick={startBot}>
-        {pickedBot === 'tutor'
-          ? t('lbGoTutor')
-          : t('lbGoBot', { x: chosenBot?.name ?? '' })}
+        {pickedBot === 'tutor' ? t('lbGoTutor') : t('lbGoBot', { x: chosenBot?.name ?? '' })}
       </button>
     ) : (
-      // His spec, verbatim: "you press the pick a bot button and then all the
-      // bots come out."
       <button className="lb-go" onClick={() => setRoster(true)}>
         {t('lbGoPickBot')}
       </button>
@@ -640,10 +660,6 @@ export default function Home({
 
   /* ---- the caption: each mode explained exactly once ---- */
 
-  // Captions carry <b> emphasis, so they are injected as HTML. Every string in
-  // them is ours (i18n entries and server-authored bot copy), but interpolated
-  // values still get escaped: the day one of these takes a user-typed value,
-  // this is the line that stops it from being an XSS hole.
   const esc = (s: string | number) =>
     String(s).replace(
       /[&<>"']/g,
@@ -660,24 +676,9 @@ export default function Home({
         })
       : mode === 'bot' && pickedBot === 'tutor'
         ? t('lbCapTutor')
-        : mode === 'friend' && chosenFriend
-          ? t('lbCapFriendPicked', { x: esc(chosenFriend.username) })
-          : t(`lbCap_${mode}`);
+        : t(`lbCap_${mode}`);
 
   /* ---- render ---- */
-
-  const tierChip = rank ? (
-    rank.provisional ? (
-      <span className="lb-tier lb-tier-provisional">
-        {t('placingChip', { n: rank.games ?? 0 })}
-      </span>
-    ) : (
-      <span className="lb-tier">
-        <TierBadge tier={tierFor(rank.rating).key} size={15} />
-        {t(`tier_${tierFor(rank.rating).key}`)} · <span className="lb-elo">{rank.rating}</span>
-      </span>
-    )
-  ) : null;
 
   return (
     <div className="lb">
@@ -690,24 +691,13 @@ export default function Home({
           <span className="lb-word">YAPSTAGE</span>
         </div>
 
-        <nav className="lb-places">
-          {account.signedIn ? (
-            <>
-              <button onClick={onMatches}>{t('myMatches')}</button>
-              <button onClick={onFriends}>
-                {t('friendsPillHome')}
-                {requests > 0 ? <span className="lb-badge">{requests}</span> : null}
-              </button>
-              <button onClick={onLocker}>{t('lockerPill')}</button>
-            </>
-          ) : null}
-        </nav>
-
         <div className="lb-who">
           {account.signedIn ? (
             <>
               <span className="lb-name">{account.name}</span>
-              {tierChip}
+              <button className="lb-place" onClick={onMatches}>
+                {t('myMatches')}
+              </button>
               <button className="lb-signout" onClick={() => void signOut()}>
                 {t('signOut')}
               </button>
@@ -720,10 +710,8 @@ export default function Home({
         </div>
       </header>
 
-      {/* The one rule. On a wide screen it floats centered INSIDE the bar
-          (absolute, out of flow — a dedicated strip read as clutter, his
-          call); on a narrow one the bar has no room, so it becomes a slim
-          line under the bar instead of disappearing (also his call). */}
+      {/* The one rule. Centered INSIDE the bar on a wide screen; a slim line
+          under it on a narrow one. */}
       <p className="lb-warn" dangerouslySetInnerHTML={{ __html: t('lbHouseRule') }} />
 
       <main className="lb-stage">
@@ -741,29 +729,24 @@ export default function Home({
           </div>
         ) : null}
 
-        <div className={`lb-select ${compact ? 'lb-select-compact' : ''}`}>
-          {/* In every mode but watch, the amber corner is YOU. In watch it is
-              one of the two people already arguing: you are in the crowd, not
-              in the fight, and pretending otherwise is the kind of lie that
-              makes a screen feel fake. */}
+        <div className="lb-select">
           <div className="lb-fighter lb-fighter-a">
             <Cone color="#F0821E" id="lbConeA" />
             {watchingFeatured ? (
               <>
                 <div className="lb-art">
-                  <Mask id={watchingFeatured.avatars.FOR ?? 'oni'} size="var(--art)" bare />
+                  <Mask id={watchingFeatured.avatars.FOR ?? MASK_IDS[0]} size="var(--art)" bare />
                 </div>
                 <div className="lb-fname">{watchingFeatured.names.FOR}</div>
                 <div className="lb-side">{t('sideFor')}</div>
               </>
+            ) : mode === 'watch' ? (
+              // In the crowd, not in the fight: nobody on this side either.
+              <div className="lb-empty lb-empty-a">
+                <span className="lb-empty-q">?</span>
+              </div>
             ) : (
-              <>
-                <div className="lb-art">
-                  <Mask id={myMask} size="var(--art)" bare />
-                </div>
-                <div className="lb-fname">{effName || t('lbYou')}</div>
-                <div className="lb-side">{t('sideFor')}</div>
-              </>
+              me
             )}
           </div>
 
@@ -774,10 +757,13 @@ export default function Home({
             {opponent}
           </div>
 
-          {/* Guests need a name before anything will start. It sits on the
-              stage, next to the button they are trying to press, and ABOVE the
-              invite ticket: walking into a room unnamed just bounces you. */}
-          {!account.signedIn ? (
+          {mode === 'watch' && !watchingFeatured ? (
+            <p className="lb-stage-note">{t('lbNobodyOnStage')}</p>
+          ) : null}
+
+          {/* Guests need a name before anything will start. Not for watching:
+              the crowd is anonymous. */}
+          {!account.signedIn && mode !== 'watch' ? (
             <div className="lb-guest">
               <label className="lb-lab" htmlFor="yapname">
                 {t('yourYapName')}
@@ -797,6 +783,25 @@ export default function Home({
             </div>
           ) : null}
 
+          {/* Ranked: pick a length. Each one is its own ladder. */}
+          {mode === 'ranked' ? (
+            <div className="lb-pace" role="radiogroup" aria-label={t('paceLabel')}>
+              {PACES.map((p) => (
+                <button
+                  key={p.id}
+                  className={`lb-pace-c ${pace === p.id ? 'lb-pace-on' : ''}`}
+                  role="radio"
+                  aria-checked={pace === p.id}
+                  disabled={queueing}
+                  onClick={() => setPace(p.id)}
+                >
+                  {t(`lbPace_${p.id}`)}
+                  <small>{t('lbPaceMin', { n: p.minutes })}</small>
+                </button>
+              ))}
+            </div>
+          ) : null}
+
           {error ? (
             <p className="lb-err" role="alert">
               {t(error)}
@@ -805,60 +810,6 @@ export default function Home({
 
           {go}
         </div>
-
-        <aside className={`lb-wings ${accepted.length === 0 ? 'lb-wings-nobody' : ''}`}>
-          <div className="lb-wings-hd">
-            <span className="lb-lab">{t('friendsPillHome')}</span>
-            {online.length > 0 ? (
-              <span className="lb-wings-n">{t('lbNOnline', { n: online.length })}</span>
-            ) : null}
-          </div>
-          <div className="lb-wings-list">
-            {!account.signedIn ? (
-              <p className="lb-wings-empty">
-                {t('lbFriendsNeedAccount')}{' '}
-                {account.google ? <button onClick={signIn}>{t('signInGoogle')}</button> : null}
-              </p>
-            ) : friendsDown ? (
-              <p className="lb-wings-empty">{t('friendDown')}</p>
-            ) : accepted.length === 0 ? (
-              <p className="lb-wings-empty">
-                {t('lbNoFriendsYet')} <button onClick={onFriends}>{t('lbAddFriends')}</button>
-              </p>
-            ) : (
-              [...accepted]
-                .sort((a, b) => Number(b.online) - Number(a.online))
-                .map((f) => (
-                  <div key={f.username} className={`lb-friend ${f.online ? '' : 'lb-friend-off'}`}>
-                    <span className="lb-friend-av">
-                      <Mask id={f.mask ?? 'oni'} size={36} bare />
-                      {f.online ? <i className="lb-dot" /> : null}
-                    </span>
-                    <div>
-                      <div className="lb-friend-n">{f.username}</div>
-                      <div className="lb-friend-t">
-                        {f.online
-                          ? f.placed
-                            ? `${t(`tier_${tierFor(f.rating).key}`)} · ${f.rating}`
-                            : t('lbUnplaced')
-                          : t('lbOffline')}
-                      </div>
-                      {f.online ? (
-                        <button
-                          className="lb-friend-call"
-                          disabled={busy}
-                          onClick={() => callOut(f.username)}
-                        >
-                          {t('lbCallOut')}
-                        </button>
-                      ) : null}
-                    </div>
-                  </div>
-                ))
-            )}
-          </div>
-          <div className="lb-fade" />
-        </aside>
       </main>
 
       <footer>
@@ -888,6 +839,9 @@ export default function Home({
 
       {roster ? (
         <BotRoster bots={ladder} picked={pickedBot} onPick={pickBot} onClose={closeRoster} />
+      ) : null}
+      {maskRoster ? (
+        <MaskRoster picked={myMask} onPick={pickMask} onClose={closeMaskRoster} />
       ) : null}
     </div>
   );

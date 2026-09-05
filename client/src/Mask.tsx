@@ -27,7 +27,6 @@ export const MASKS: Record<string, string> = {
     <circle cx="35" cy="44" r="4.5" fill="${D}"/><circle cx="65" cy="44" r="4.5" fill="${D}"/>
     <circle cx="36.5" cy="42.5" r="1.5" fill="#fff"/><circle cx="66.5" cy="42.5" r="1.5" fill="#fff"/>
     <path d="M50 52 L46 62 L54 62Z" fill="#8f1f1a"/>
-    <path d="M38 72 Q50 80 62 72 L62 76 Q50 84 38 76Z" fill="#2a1410"/>
     <path d="M30 20 L34 26 M70 20 L66 26" stroke="#f2e8d5" stroke-width="3" stroke-linecap="round"/>`,
   // Calavera: sugar skull. Festive-macabre, and the petal eyes carry the two
   // stage gels, so the roster wears the brand without being told to.
@@ -49,7 +48,6 @@ export const MASKS: Record<string, string> = {
     <circle cx="37.4" cy="44.6" r="1.6" fill="#fff"/><circle cx="65.4" cy="44.6" r="1.6" fill="#fff"/>
     <path d="M28 40 L42 43 M72 40 L58 43" stroke="${D}" stroke-width="2.5" stroke-linecap="round"/>
     <path d="M20 38 Q50 30 80 38 L80 42 Q50 34 20 42Z" fill="#F0821E"/>
-    <ellipse cx="50" cy="72" rx="9" ry="3" fill="#171b28"/>
     <path d="M78 40 L90 32 L88 42 L80 46Z" fill="#F0821E"/>`,
   // Oni: horned demon mask, angry brow, tusks. THE reference.
   oni: `
@@ -63,7 +61,28 @@ export const MASKS: Record<string, string> = {
     <path d="M34 68 Q50 82 66 68 Q50 76 34 68Z" fill="#2a1410"/>
     <path d="M38 70 L41 78 L44 70Z" fill="#f4efe4"/><path d="M56 70 L59 78 L62 70Z" fill="#f4efe4"/>`,
 
-  /* ---- candidates drawn 2026-09-04 in the oni/calavera register ---- */
+  // Azul: the second luchador. Same mask, blue, with a lightning panel where
+  // the red one has its V. Real rosters are mostly variations on the hood.
+  azul: `
+    <path d="M50 12 C72 12 84 28 84 50 C84 72 68 88 50 88 C32 88 16 72 16 50 C16 28 28 12 50 12Z" fill="#3a6fd0"/>
+    <path d="M47 12 L60 12 L53 30 L61 30 L44 58 L49 38 L41 38Z" fill="#f2e8d5"/>
+    <path d="M22 46 Q34 38 44 46 Q34 54 22 46Z" fill="#f2e8d5"/>
+    <path d="M78 46 Q66 38 56 46 Q66 54 78 46Z" fill="#f2e8d5"/>
+    <circle cx="35" cy="46" r="4.5" fill="${D}"/><circle cx="65" cy="46" r="4.5" fill="${D}"/>
+    <circle cx="36.5" cy="44.5" r="1.5" fill="#fff"/><circle cx="66.5" cy="44.5" r="1.5" fill="#fff"/>
+    <path d="M50 60 L46 70 L54 70Z" fill="#274d9a"/>
+    <path d="M30 20 L34 26 M70 20 L66 26" stroke="#f2e8d5" stroke-width="3" stroke-linecap="round"/>`,
+  // Shade: the second hood. Steel grey, the other gel on the band, a
+  // narrower slit and the tail on the other side.
+  shade: `
+    <path d="M50 10 C72 10 84 27 84 50 C84 73 70 90 50 90 C30 90 16 73 16 50 C16 27 28 10 50 10Z" fill="#4b525e"/>
+    <path d="M20 38 Q50 30 80 38 L80 52 Q50 58 20 52Z" fill="#e8dfc9"/>
+    <path d="M27 45 Q36 40 44 46 Q36 51 27 45Z" fill="${D}"/><path d="M73 45 Q64 40 56 46 Q64 51 73 45Z" fill="${D}"/>
+    <circle cx="37" cy="45.5" r="1.4" fill="#fff"/><circle cx="63" cy="45.5" r="1.4" fill="#fff"/>
+    <path d="M20 38 Q50 30 80 38 L80 42 Q50 34 20 42Z" fill="#1FC2D4"/>
+    <path d="M22 40 L10 32 L12 42 L20 46Z" fill="#1FC2D4"/>`,
+
+  /* ---- saved for later (2026-09-04, his call: too good for the free set) ---- */
 
   // Tengu: the red mountain goblin. Black hair, white fur brows and
   // moustache, and the long nose, which crosses the speaking ring.
@@ -115,7 +134,7 @@ export const MASKS: Record<string, string> = {
 
 /** The set the picker offers, in display order. Mirrors AVATAR_IDS. Explicit,
     not Object.keys: MASKS also holds candidates that are not on the roster. */
-export const MASK_IDS = ['luchador', 'calavera', 'ninja', 'oni'];
+export const MASK_IDS = ['luchador', 'ninja', 'azul', 'shade'];
 
 interface Props {
   id: string;

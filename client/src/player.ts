@@ -81,6 +81,14 @@ export async function whoAmI(): Promise<Account> {
     on a bare `/?auth=ok`, and without this the person a friend called out
     signs in and finds themselves in an empty lobby instead of the room. */
 export function signIn(): void {
+  // An invite link's code has to survive the Google round trip, which strips
+  // the URL. Stash it; the lobby reads it back once and clears it.
+  try {
+    const code = new URLSearchParams(window.location.search).get('code');
+    if (code) sessionStorage.setItem('yapstage.pendingCode', code.toUpperCase());
+  } catch {
+    // storage blocked: they sign in and type the code by hand, which works
+  }
   window.location.assign(`/auth/google?claim=${encodeURIComponent(playerId())}`);
 }
 

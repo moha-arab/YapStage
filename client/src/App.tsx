@@ -36,10 +36,9 @@ import TutorialIntro from './screens/TutorialIntro';
 import TutorialDone, { type DebriefInfo } from './screens/TutorialDone';
 import ClaimName from './screens/ClaimName';
 import Matches from './screens/Matches';
-import Locker from './screens/Locker';
-import Friends from './screens/Friends';
 import Drill from './screens/Drill';
 import Welcome from './screens/Welcome';
+import { MASK_IDS } from './Mask';
 import { playBotTurn, stopBotVoice } from './botvoice';
 
 interface VerdictInfo {
@@ -107,13 +106,7 @@ export default function App() {
   // Tutorial: the intro screen, then (after the lesson) the YapMaster's notes.
   const [tutoring, setTutoring] = useState(false);
   const [viewingMatches, setViewingMatches] = useState(false);
-  const [viewingLocker, setViewingLocker] = useState(false);
-  const [viewingFriends, setViewingFriends] = useState(false);
   const [viewingDrill, setViewingDrill] = useState(false);
-  /** How the call-out that opened this room went, shown in the green room. */
-  const [inviteNote, setInviteNote] = useState<{ key: string; x?: string } | null>(null);
-  /** A friend's open room, pushed to every tab you have. Survives screens. */
-  const [callout, setCallout] = useState<{ from: string; code: string } | null>(null);
   // Guest mode is GONE (his call, 2026-08-22): playing requires a Google
   // account, full stop.
   const [debrief, setDebrief] = useState<DebriefInfo | null>(null);
@@ -200,15 +193,6 @@ export default function App() {
 
   useEffect(() => {
     socket.on('lobby:update', (u) => setLobby(u));
-    // A call-out is a live invitation, not a message. If you were mid-debate
-    // when it arrived, the room it points at is probably long finished by the
-    // time you surface, so it expires rather than lying to you later.
-    socket.on('friend:invited', (p) => {
-      setCallout(p);
-      window.setTimeout(() => {
-        setCallout((cur) => (cur?.code === p.code ? null : cur));
-      }, 3 * 60_000);
-    });
     // Spectator plumbing: the snapshot (kept here so the Spectate screen can
     // mount with it instead of racing the event) and the watcher count that
     // debaters must always see.
@@ -400,8 +384,7 @@ export default function App() {
 
     return () => {
       socket.off('lobby:update');
-      socket.off('friend:invited');
-      socket.off('lobby:closed');
+        socket.off('lobby:closed');
       socket.off('rtc:go');
       socket.off('rtc:signal');
       socket.off('debate:start');
@@ -621,17 +604,16 @@ export default function App() {
   const maskedRef = useRef(false);
   useEffect(() => {
     // BOT and TUTORIAL modes have no lobby object on the client (bot:start goes
-    // straight to debate:start), so the lobby flag alone left training on
-    // camera no matter what the locker said. Fall back to the account's
-    // preference whenever there is no lobby to read.
-    const masked = lobby ? Boolean(lobby.yourMasked) : Boolean(account?.maskDefault);
+    // straight to debate:start). They are ALWAYS masked (2026-09-04, his
+    // call): the camera is a friend-room option, nothing else ever asks.
+    const masked = lobby ? Boolean(lobby.yourMasked) : true;
     if (masked === maskedRef.current) return;
     maskedRef.current = masked;
     setAudioOnly(masked);
     releaseMedia();
     setLocalStream(null);
     setMediaRetry((n) => n + 1);
-  }, [lobby?.yourMasked, lobby, account?.maskDefault]);
+  }, [lobby?.yourMasked, lobby]);
 
   useEffect(() => {
     if (!lobby && !botPicking && !tutoring && !start?.bot) return;
@@ -684,41 +666,6 @@ export default function App() {
     setNotice(null);
     setLobby(u);
   }, []);
-
-  /** Call out a friend: open a room, then push its code straight to them.
-      Invite-only since 2026-09-04: the code never shows in the UI, so a friend
-      who is asleep leaves you with a room to walk back out of. */
-  const challengeFriend = useCallback(
-    (username: string): Promise<string | null> =>
-      new Promise((resolve) => {
-        const name = account?.name ?? '';
-        if (!name) return resolve('friendDown');
-        socket.emit('lobby:create', { sessionId: session.id, name }, (res) => {
-          // A create that fails (rate limit, bad name, server full) used to
-          // resolve into nothing at all: the button simply did not work.
-          if (!res.ok) return resolve(res.error === 'rate_limited' ? 'errRateLimited' : 'friendDown');
-          socket.emit('friend:invite', { username, code: res.update.code }, (r) => {
-            // The room is real either way, so an offline friend still leaves
-            // you with a code to send by hand. Walk into it, and carry the
-            // outcome onto that screen rather than onto the one we just left.
-            const key = r?.ok
-              ? 'friendInviteSent'
-              : r?.error === 'offline'
-                ? 'friendInviteOffline'
-                : r?.error === 'not_friends'
-                  ? 'friendNotFriends'
-                  : r?.error === 'rate_limited'
-                    ? 'errRateLimited'
-                    : 'friendDown';
-            setInviteNote({ key, x: username });
-            setViewingFriends(false);
-            handleEntered(res.update);
-            resolve(null);
-          });
-        });
-      }),
-    [account?.name, handleEntered],
-  );
 
   const onTutorial = useCallback((name: string) => {
     setNotice(null);
@@ -806,18 +753,8 @@ export default function App() {
         onClaimed={(name) => setAccount({ ...account, name, needsName: false })}
       />
     );
-  } else if (viewingLocker && account) {
-    content = (
-      <Locker
-        account={account}
-        onSaved={(mask, maskDefault) => setAccount({ ...account, mask, maskDefault })}
-        onBack={() => setViewingLocker(false)}
-      />
-    );
   } else if (viewingDrill) {
     content = <Drill onBack={() => setViewingDrill(false)} />;
-  } else if (viewingFriends) {
-    content = <Friends onBack={() => setViewingFriends(false)} onChallenge={challengeFriend} />;
   } else if (viewingMatches) {
     content = <Matches onBack={() => setViewingMatches(false)} />;
   } else if (spectating) {
@@ -938,7 +875,7 @@ export default function App() {
         localStream={localStream}
         mediaError={mediaError}
         onRetryMedia={retryMedia}
-        selfMask={account?.maskDefault ? (account.mask ?? undefined) : undefined}
+        selfMask={account?.mask ?? MASK_IDS[0]}
         onStart={startBot}
         onTutorial={() => {
           setBotPicking(false);
@@ -957,7 +894,7 @@ export default function App() {
         localStream={localStream}
         mediaError={mediaError}
         onRetryMedia={retryMedia}
-        selfMask={account?.maskDefault ? (account.mask ?? undefined) : undefined}
+        selfMask={account?.mask ?? MASK_IDS[0]}
         onStart={startTutorial}
         onBack={() => {
           setTutoring(false);
@@ -976,7 +913,6 @@ export default function App() {
         speechSupported={speechSupported}
         rtcState={rtcState}
         onRetryMedia={retryMedia}
-        notice={inviteNote}
       />
     );
   } else if (!account) {
@@ -1000,12 +936,10 @@ export default function App() {
           setSpecFeed(feed);
         }}
         onMatches={() => setViewingMatches(true)}
-        onLocker={() => setViewingLocker(true)}
-        onFriends={() => setViewingFriends(true)}
+        onMaskSaved={(mask) => setAccount({ ...account, mask })}
         onDrill={() => setViewingDrill(true)}
         onBotStart={startBotAs}
         onTutorial={onTutorial}
-        onChallenge={challengeFriend}
       />
     );
   }
@@ -1014,69 +948,6 @@ export default function App() {
     <>
       <LangToggle />
       {content}
-      {/* Never over a live debate. `lobby` is null in BOT and TUTORIAL modes,
-          so gating on it alone let this bar sit on top of a running debate and
-          hijack the socket if you tapped it. Gate on "am I in anything". */}
-      {callout && !lobby && !start && !spectating ? (
-        <CallOut
-          callout={callout}
-          onJoin={() => {
-            const name = account?.name ?? '';
-            if (!name) return;
-            socket.emit(
-              'lobby:join',
-              { code: callout.code, sessionId: session.id, name },
-              (res) => {
-                setCallout(null);
-                if (res.ok) {
-                  // Whatever screen you were on, the room is where you go.
-                  setViewingFriends(false);
-                  setViewingMatches(false);
-                  setViewingLocker(false);
-                  setViewingDrill(false);
-                  setBotPicking(false);
-                  handleEntered(res.update);
-                } else {
-                  // Their room can be full, already debating, or long gone.
-                  setNotice(
-                    res.error === 'full'
-                      ? 'errFull'
-                      : res.error === 'in_progress'
-                        ? 'errInProgress'
-                        : 'calloutGone',
-                  );
-                }
-              },
-            );
-          }}
-          onDismiss={() => setCallout(null)}
-        />
-      ) : null}
     </>
-  );
-}
-
-/** The bar that drops in when a friend opens a room for you. It joins with the
-    account's own name, so there is nothing to type and nothing to get wrong. */
-function CallOut({
-  callout,
-  onJoin,
-  onDismiss,
-}: {
-  callout: { from: string; code: string };
-  onJoin: () => void;
-  onDismiss: () => void;
-}) {
-  const { t } = useI18n();
-  return (
-    <div className="callout" role="status">
-      <span className="callout-text">{t('friendCalledOut', { x: callout.from })}</span>
-      <button className="btn btn-small btn-primary" onClick={onJoin}>
-        {t('friendJoinNow')}
-      </button>
-      <button className="btn btn-small ghost" onClick={onDismiss}>
-        ✕
-      </button>
-    </div>
   );
 }

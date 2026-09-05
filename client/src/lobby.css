@@ -185,7 +185,8 @@
   position: relative;
   overflow: hidden;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 232px;
+  /* one column since the wings (friends list) came out, 2026-09-04 */
+  grid-template-columns: minmax(0, 1fr);
   min-height: 0;
 }
 
@@ -1098,6 +1099,249 @@
   border-style: solid;
   background: rgba(31, 194, 212, 0.07);
   transform: scale(1.03);
+}
+
+/* ---- the bar, trimmed (2026-09-04): name · previous matches · sign out ---- */
+
+.lb-who {
+  margin-inline-start: auto;
+}
+
+.lb-place {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.lb-place:hover {
+  color: var(--paper);
+}
+
+/* Your rating, for the length you picked, under your own name in ranked. */
+.lb-fighter .lb-tier {
+  margin-top: 8px;
+}
+
+/* ---- ranked: pick a length; each one is its own ladder ---- */
+
+.lb-pace {
+  grid-column: 1 / -1;
+  justify-self: center;
+  display: flex;
+  gap: 6px;
+  margin: 0 0 12px;
+  position: relative;
+  z-index: 2;
+}
+
+.lb-pace-c {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  min-width: 96px;
+  padding: 8px 14px;
+  border-radius: 4px;
+  box-shadow: inset 0 0 0 1px var(--house-3);
+  font-family: 'Ultra', serif;
+  font-size: 15px;
+  color: var(--muted);
+  transition: color 0.12s ease, box-shadow 0.12s ease, background 0.12s ease;
+}
+
+.lb-pace-c small {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.lb-pace-c:hover:not(:disabled) {
+  color: var(--paper);
+}
+
+.lb-pace-on,
+.lb-pace-on:hover:not(:disabled) {
+  background: var(--house-2);
+  color: var(--paper);
+  box-shadow: inset 0 0 0 1px var(--amber);
+}
+
+.lb-pace-c:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+/* ---- play a friend: the code on the stage ---- */
+
+.lb-ticket {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 18px 26px 16px;
+  border: 2px dashed rgba(31, 194, 212, 0.5);
+  border-radius: 12px;
+  text-align: center;
+}
+
+.lb-code {
+  font-family: var(--mono);
+  font-weight: 700;
+  font-size: clamp(30px, 4vw, 46px);
+  letter-spacing: 0.2em;
+  line-height: 1;
+  color: var(--turq);
+  padding-inline-start: 0.2em;
+}
+
+.lb-copy {
+  margin-top: 4px;
+  padding: 8px 14px;
+  border-radius: 4px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--turq);
+  box-shadow: inset 0 0 0 1px rgba(31, 194, 212, 0.5);
+  transition: background 0.12s ease;
+}
+
+.lb-copy:hover {
+  background: rgba(31, 194, 212, 0.1);
+}
+
+.lb-join {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  margin-top: 16px;
+}
+
+.lb-join-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.lb-join .input-code {
+  width: 120px;
+  text-align: center;
+  letter-spacing: 0.2em;
+  font-family: var(--mono);
+}
+
+/* ---- watch mode with nothing on: two empty rings, no "you" ---- */
+
+.lb-empty-a {
+  border-color: rgba(240, 130, 30, 0.5);
+}
+
+.lb-empty-a .lb-empty-q {
+  color: rgba(240, 130, 30, 0.5);
+}
+
+.lb-stage-note {
+  grid-column: 1 / -1;
+  justify-self: center;
+  margin: 0 0 12px;
+  color: var(--muted);
+  font-size: 14px;
+  position: relative;
+  z-index: 2;
+}
+
+/* ---- the mask roster shares the bot roster's clothes ---- */
+
+.lb-roster-masks {
+  width: min(760px, 100%);
+}
+
+/* Two selectors deep so it beats the seven-column bot grid below. */
+.lb-roster-masks .lb-roster-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.lb-card-mask .lb-card-art {
+  max-width: 132px;
+}
+
+/* You stand in amber, so your own picker rings in amber. */
+.lb-card-mask .lb-card-art::after {
+  background: var(--amber);
+}
+
+.lb-card-mask:hover {
+  border-color: rgba(240, 130, 30, 0.55);
+}
+
+.lb-card-mask.lb-card-on,
+.lb-card-mask.lb-card-on:hover {
+  border-color: var(--amber);
+  box-shadow:
+    inset 0 0 0 1px var(--amber),
+    0 14px 30px rgba(0, 0, 0, 0.35);
+}
+
+/* The walk-in button beside the code box. */
+.lb-join-row .btn {
+  padding: 10px 14px;
+  border-radius: 4px;
+  font-weight: 700;
+  font-size: 13px;
+  color: var(--paper);
+  box-shadow: inset 0 0 0 1px var(--house-3);
+}
+
+.lb-join-row .btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+@media (max-width: 720px) {
+  .lb-roster-masks .lb-roster-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  /* The ticket has half a phone to live in. */
+  .lb-ticket {
+    max-width: 100%;
+    padding: 12px 10px 10px;
+    gap: 6px;
+  }
+
+  .lb-code {
+    font-size: 24px;
+    letter-spacing: 0.12em;
+  }
+
+  .lb-copy {
+    padding: 7px 10px;
+    font-size: 12px;
+  }
+
+  .lb-join {
+    margin-top: 12px;
+  }
+
+  .lb-join-row {
+    gap: 6px;
+  }
+
+  .lb-join .input-code {
+    width: 88px;
+    font-size: 14px;
+  }
+
+  .lb-join-row .btn {
+    padding: 8px 10px;
+    white-space: nowrap;
+  }
+
+  .lb-pace-c {
+    min-width: 0;
+    padding: 7px 10px;
+    font-size: 14px;
+  }
 }
 
 /* ============================================================================

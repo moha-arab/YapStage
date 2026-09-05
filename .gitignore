@@ -10,3 +10,6 @@ restart.log
 
 # design screenshots (scripts/shot.mjs writes here)
 .shots/
+
+# agent worktrees
+.claude/worktrees/

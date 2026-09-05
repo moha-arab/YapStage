@@ -39,6 +39,14 @@ export default function GreenRoom({
   const { lang, t } = useI18n();
   const [consent, setConsent] = useState(false);
   const [cat, setCat] = useState(0);
+  const [copied, setCopied] = useState(false);
+  function copyLink() {
+    const link = `${window.location.origin}/?code=${lobby.code}`;
+    void navigator.clipboard.writeText(link).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    });
+  }
   const [draft, setDraft] = useState('');
   const waiting = lobby.participantCount === 1;
   const connected = rtcState === 'connected';
@@ -180,13 +188,20 @@ export default function GreenRoom({
 
       {waiting ? (
         <>
-          {/* Invite-only (2026-09-04): no code, no link. The friend you called
-              out has the door; nobody else does. */}
+          {/* The code again, in case they got here without copying it from
+              the lobby, and the link for the ones who will not type. */}
           <div className="invite-block">
-            <div className="wait-ring" aria-hidden="true">
-              <span>?</span>
+            <div className="ticket">
+              <div className="ticket-main">
+                <p className="ticket-label">{t('ticketLabel')}</p>
+                <p className="ticket-code">{lobby.code}</p>
+              </div>
+              <div className="ticket-stub" aria-hidden="true" />
             </div>
-            <p className="subtitle">{t('waitingForFriend')}</p>
+            <button className="btn" onClick={copyLink}>
+              {copied ? t('copied') : t('copyInvite')}
+            </button>
+            <p className="subtitle">{t('sendToOne')}</p>
           </div>
           {selfTile}
         </>
