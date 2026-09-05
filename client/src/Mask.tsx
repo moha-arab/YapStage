@@ -43,13 +43,13 @@ export const MASKS: Record<string, string> = {
     <circle cx="50" cy="17" r="4" fill="#1FC2D4"/><circle cx="42" cy="14" r="2.5" fill="#F0821E"/><circle cx="58" cy="14" r="2.5" fill="#e2574c"/>`,
   // Ninja: hood, eye slit, all business. The dark one the roster lacked.
   ninja: `
-    <path d="M50 10 C72 10 84 27 84 50 C84 73 70 90 50 90 C30 90 16 73 16 50 C16 27 28 10 50 10Z" fill="#2b3044"/>
+    <path d="M50 10 C72 10 84 27 84 50 C84 73 70 90 50 90 C30 90 16 73 16 50 C16 27 28 10 50 10Z" fill="#303650"/>
     <path d="M20 38 Q50 30 80 38 L80 54 Q50 60 20 54Z" fill="#e8dfc9"/>
     <circle cx="36" cy="46" r="4.5" fill="${D}"/><circle cx="64" cy="46" r="4.5" fill="${D}"/>
     <circle cx="37.4" cy="44.6" r="1.6" fill="#fff"/><circle cx="65.4" cy="44.6" r="1.6" fill="#fff"/>
     <path d="M28 40 L42 43 M72 40 L58 43" stroke="${D}" stroke-width="2.5" stroke-linecap="round"/>
     <path d="M20 38 Q50 30 80 38 L80 42 Q50 34 20 42Z" fill="#F0821E"/>
-    <path d="M78 40 L90 32 L88 42 L80 46Z" fill="#F0821E"/>`,
+    <path d="M78 40 L97 30 L92 38 L98 46 L80 46Z" fill="#F0821E"/>`,
   // Oni: horned demon mask, angry brow, tusks. THE reference.
   oni: `
     <path d="M24 22 Q18 10 30 8 Q34 16 32 24Z" fill="#e8d7b8"/>
@@ -61,6 +61,52 @@ export const MASKS: Record<string, string> = {
     <path d="M40 30 Q50 26 60 30" stroke="${D}" stroke-width="3" fill="none" stroke-linecap="round"/>
     <path d="M34 68 Q50 82 66 68 Q50 76 34 68Z" fill="#2a1410"/>
     <path d="M38 70 L41 78 L44 70Z" fill="#f4efe4"/><path d="M56 70 L59 78 L62 70Z" fill="#f4efe4"/>`,
+
+  /* ---- the basic four, take four (2026-09-04). What the ninja gets right
+     and every failed draft broke: full head coverage, ONLY the eyes showing,
+     one accent, and a shape you would see on a real person. ---- */
+
+  // Goggles: the snowboarder. Beanie with its cuff, goggles pushed up onto
+  // the beanie (dark frame, turquoise lens: the one accent), neck gaiter over
+  // the mouth. Eyes in the gap, the ninja's round eyes.
+  goggles: `
+    <path d="M50 8 C72 8 84 26 84 50 C84 72 70 90 50 90 C30 90 16 72 16 50 C16 26 28 8 50 8Z" fill="#e8dfc9"/>
+    <path d="M16 46 C16 22 30 8 50 8 C70 8 84 22 84 46Z" fill="#8f1f1a"/>
+    <path d="M14 40 H86 Q88 44 86 48 H14 Q12 44 14 40Z" fill="#a8281f"/>
+    <path d="M34 14 L36 22 M50 12 L50 20 M66 14 L64 22" stroke="#7a1a16" stroke-width="2.2" stroke-linecap="round"/>
+    <rect x="18" y="23" width="64" height="16" rx="8" fill="${D}"/>
+    <rect x="23" y="26" width="24" height="10" rx="5" fill="#1FC2D4"/><rect x="53" y="26" width="24" height="10" rx="5" fill="#1FC2D4"/>
+    <path d="M28 49 L42 51 M72 49 L58 51" stroke="${D}" stroke-width="2.5" stroke-linecap="round"/>
+    <circle cx="36" cy="55" r="4.5" fill="${D}"/><circle cx="64" cy="55" r="4.5" fill="${D}"/>
+    <circle cx="37.4" cy="53.6" r="1.6" fill="#fff"/><circle cx="65.4" cy="53.6" r="1.6" fill="#fff"/>
+    <path d="M17 66 Q50 60 83 66 L84 70 C84 80 70 90 50 90 C30 90 16 80 16 70Z" fill="#3b3b40"/>`,
+  // Hoodie: hood up, the hood itself pulled over the mouth like a snood,
+  // short drawstrings on the chest. Green, so it is not a grey ninja.
+  hoodie: `
+    <path d="M50 6 C76 6 90 26 90 52 C90 76 76 92 50 92 C24 92 10 76 10 52 C10 26 24 6 50 6Z" fill="#4f6b57"/>
+    <path d="M50 18 C66 18 76 32 76 50 C76 66 66 78 50 78 C34 78 24 66 24 50 C24 32 34 18 50 18Z" fill="#24352a"/>
+    <path d="M27 40 Q50 34 73 40 L73 60 Q50 66 27 60Z" fill="#e8dfc9"/>
+    <path d="M30 44 L44 46 M70 44 L56 46" stroke="${D}" stroke-width="2.5" stroke-linecap="round"/>
+    <circle cx="37" cy="50" r="4.5" fill="${D}"/><circle cx="63" cy="50" r="4.5" fill="${D}"/>
+    <circle cx="38.4" cy="48.6" r="1.6" fill="#fff"/><circle cx="64.4" cy="48.6" r="1.6" fill="#fff"/>
+    <path d="M25 60 Q50 54 75 60 L74 76 Q50 88 26 76Z" fill="#4f6b57"/>
+    <circle cx="42" cy="83" r="1.6" fill="#24352a"/><circle cx="58" cy="83" r="1.6" fill="#24352a"/>
+    <path d="M42 84 L40 97 M58 84 L61 93" stroke="#2b2f2b" stroke-width="2.2" stroke-linecap="round"/>
+    <circle cx="40" cy="97.5" r="1.5" fill="#8a8d90"/><circle cx="61" cy="93.5" r="1.5" fill="#8a8d90"/>`,
+  // Wrap: the desert scarf, wound round the head at an angle, the end of it
+  // hanging loose past the jaw. Diagonal folds, never bandage rings.
+  wrap: `
+    <path d="M74 36 L94 42 L97 92 L82 90Z" fill="#b8905c"/>
+    <path d="M86 56 Q90 70 88 84" stroke="#a67f4e" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+    <path d="M50 10 C72 10 84 27 84 50 C84 73 70 90 50 90 C30 90 16 73 16 50 C16 27 28 10 50 10Z" fill="#c9a06a"/>
+    <path d="M22 28 Q50 19 76 33 M20 62 Q50 76 80 64" stroke="#a67f4e" stroke-width="4.5" fill="none" stroke-linecap="round"/>
+    <path d="M17 37 Q50 28 83 37 L83 59 Q50 66 17 59Z" fill="#8c6a3e"/>
+    <path d="M22 41 Q50 34 78 41 L78 55 Q50 61 22 55Z" fill="#e8dfc9"/>
+    <path d="M28 44 L42 46 M72 44 L58 46" stroke="${D}" stroke-width="2.5" stroke-linecap="round"/>
+    <circle cx="36" cy="49" r="4.5" fill="${D}"/><circle cx="64" cy="49" r="4.5" fill="${D}"/>
+    <circle cx="37.4" cy="47.6" r="1.6" fill="#fff"/><circle cx="65.4" cy="47.6" r="1.6" fill="#fff"/>`,
+
+  /* ---- retired from the free set (2026-09-04) ---- */
 
   // Hockey: the goalie mask. White shell, the vent holes, the straps at the
   // sides. Everybody knows it, nobody has to be told what it is.
@@ -136,7 +182,7 @@ export const MASKS: Record<string, string> = {
 
 /** The set the picker offers, in display order. Mirrors AVATAR_IDS. Explicit,
     not Object.keys: MASKS also holds candidates that are not on the roster. */
-export const MASK_IDS = ['luchador', 'ninja', 'hockey', 'domino'];
+export const MASK_IDS = ['ninja', 'goggles', 'hoodie', 'wrap'];
 
 interface Props {
   id: string;

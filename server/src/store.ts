@@ -225,7 +225,7 @@ export async function initStore(): Promise<void> {
         WHERE mask IN ('kitsune','goalie','masque','knight','astro','boxer')`);
     });
     await runOnce('mask_roster_basic', async () => {
-      // The roster turned over again 2026-09-04: hockey and domino came in, the
+      // The roster turned over again 2026-09-04: goggles, hoodie and wrap came in, the
       // oni and the calavera went to the vault for a later drop. Same rule as
       // last time for a saved locker: the nearest survivor, never a hole.
       await pool!.query(`
@@ -234,6 +234,14 @@ export async function initStore(): Promise<void> {
           WHEN 'oni'      THEN 'ninja'
           ELSE mask END
         WHERE mask IN ('calavera','oni')`);
+    });
+    await runOnce('mask_roster_ninja', async () => {
+      // And once more the same evening: the free set is the ninja plus three
+      // drawn to its rule (goggles, hoodie, wrap). The luchador, hockey and
+      // domino went to the vault. Every saved one of those becomes the ninja.
+      await pool!.query(`
+        UPDATE accounts SET mask = 'ninja'
+        WHERE mask IN ('luchador','hockey','domino')`);
     });
     // The pre-launch waitlist (2026-08-22 to 2026-09-04) is gone with the
     // page that fed it. It only ever held one test row.

@@ -117,7 +117,7 @@ export default function VideoTile(props: Props) {
             which is the "masks are too small" he reported. */}
         <div className="tile-mask-wrap">
           <div className="mask-ring" style={{ '--lv': lv } as CSSProperties}>
-            <Mask id={props.maskId ?? 'luchador'} size="100%" bare />
+            <Mask id={props.maskId ?? 'ninja'} size="100%" bare />
           </div>
         </div>
         <div className="tag">

@@ -1101,20 +1101,49 @@
   transform: scale(1.03);
 }
 
-/* ---- the bar, trimmed (2026-09-04): name · previous matches · sign out ---- */
+/* ---- the bar, trimmed (2026-09-04): two buttons that look like buttons ---- */
 
 .lb-who {
   margin-inline-start: auto;
+  gap: 8px;
 }
 
-.lb-place {
-  font-size: 13.5px;
-  font-weight: 600;
+.lb-bar-btn {
+  padding: 8px 14px;
+  border-radius: 4px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--paper);
+  box-shadow: inset 0 0 0 1px var(--house-3);
+  transition: background 0.12s ease, box-shadow 0.12s ease;
+  white-space: nowrap;
+}
+
+.lb-bar-btn:hover {
+  background: var(--house-2);
+  box-shadow: inset 0 0 0 1px #33345e;
+}
+
+.lb-bar-btn-quiet {
   color: var(--muted);
 }
 
-.lb-place:hover {
+.lb-bar-btn-quiet:hover {
   color: var(--paper);
+}
+
+/* ---- play a friend: code, link and the box for someone else's code, all
+   in the middle under the stage (his call: "not on the blue") ---- */
+
+.lb-friend {
+  grid-column: 1 / -1;
+  justify-self: center;
+  display: flex;
+  align-items: center;
+  gap: 26px;
+  margin: 0 0 12px;
+  position: relative;
+  z-index: 2;
 }
 
 /* Your rating, for the length you picked, under your own name in ranked. */
@@ -1214,7 +1243,29 @@
   flex-direction: column;
   align-items: center;
   gap: 6px;
-  margin-top: 16px;
+}
+
+@media (max-width: 720px) {
+  .lb-friend {
+    flex-direction: column;
+    gap: 12px;
+    width: min(100%, 320px);
+  }
+
+  .lb-friend .lb-ticket {
+    width: 100%;
+    padding: 12px 14px 12px;
+  }
+
+  .lb-friend .lb-code {
+    font-size: 30px;
+    letter-spacing: 0.18em;
+  }
+
+  .lb-friend .lb-lab,
+  .lb-friend .lb-copy {
+    white-space: nowrap;
+  }
 }
 
 .lb-join-row {

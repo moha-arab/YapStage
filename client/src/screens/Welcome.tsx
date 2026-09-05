@@ -86,7 +86,7 @@ function ProductShot() {
         <div className="ld-app">
           <div className="ld-tile">
             <div className="ld-face">
-              <Mask id="luchador" size="100%" bare />
+              <Mask id="hoodie" size="100%" bare />
             </div>
             <div className="ld-tag">zorvint · {t('sideFor')}</div>
           </div>

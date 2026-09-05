@@ -137,13 +137,34 @@ const SCREENS: Record<string, () => JSX.Element> = {
     </div>
   ),
   welcome: () => <Welcome />,
+  /* The lobby bar as a signed-in player sees it: mark, rule, two buttons. */
+  bar: () => (
+    <div className="lb" style={{ height: 200 }}>
+      <header className="lb-bar">
+        <div className="lb-lock">
+          <svg viewBox="0 0 64 64" width="28" height="28" aria-label="YapStage">
+            <path d="M8 14 h20 v20 q0 12 -14 16 v-8 q7 -3 7 -8 h-13 z" fill="var(--amber)" />
+            <path d="M56 50 h-20 v-20 q0 -12 14 -16 v8 q-7 3 -7 8 h13 z" fill="var(--turq)" />
+          </svg>
+          <span className="lb-word">YAPSTAGE</span>
+        </div>
+        <div className="lb-who">
+          <button className="lb-bar-btn">Previous matches</button>
+          <button className="lb-bar-btn lb-bar-btn-quiet">Sign out</button>
+        </div>
+      </header>
+      <p className="lb-warn">
+        <b>Reading off a chatbot gets you banned.</b>
+      </p>
+    </div>
+  ),
   /* The mask sheet: the two he kept beside the four candidates, at the sizes
      they actually ship at (lobby stage, spectate, picker, friends list). */
   masks: () => (
     <div style={{ padding: 32, background: 'var(--house)', minHeight: '100vh', color: 'var(--muted)' }}>
       {[200, 110, 54, 36].map((s) => (
         <div key={s} style={{ display: 'flex', gap: s > 100 ? 28 : 16, alignItems: 'flex-end', marginBottom: 26 }}>
-          {['luchador', 'ninja', 'hockey', 'domino', 'oni', 'calavera', 'tengu', 'plague', 'tiki', 'alien'].map((id) => (
+          {['ninja', 'goggles', 'hoodie', 'wrap', 'oni', 'calavera', 'tengu', 'plague', 'tiki', 'alien'].map((id) => (
             <div key={id} style={{ textAlign: 'center', fontSize: 12 }}>
               <Mask id={id} size={s} bare />
               {s === 200 ? <div style={{ marginTop: 8, fontFamily: 'Ultra, serif', fontSize: 16, color: 'var(--paper)' }}>{id}</div> : null}
@@ -201,7 +222,7 @@ const SCREENS: Record<string, () => JSX.Element> = {
           serverNow: Date.now(),
         },
         watchers: 3,
-        avatars: { FOR: 'luchador', AGAINST: 'domino' },
+        avatars: { FOR: 'goggles', AGAINST: 'hoodie' },
       }}
       onLeave={noop}
     />

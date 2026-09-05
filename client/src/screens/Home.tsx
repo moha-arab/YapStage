@@ -506,43 +506,15 @@ export default function Home({
       </>
     );
   } else if (mode === 'friend') {
+    // The friend's seat is empty until they walk in. The code and the link
+    // live in the MIDDLE, under the stage (his call: "the code shouldn't be
+    // on the blue"), the same shape watch mode uses for its note.
     opponent = (
       <>
-        {room ? (
-          <div className="lb-ticket">
-            <span className="lb-lab">{t('lbUseCode')}</span>
-            <span className="lb-code">{room.code}</span>
-            <button className="lb-copy" onClick={copyLink}>
-              {copied ? t('copied') : t('lbCopyLink')}
-            </button>
-          </div>
-        ) : (
-          <div className="lb-empty">
-            <span className="lb-empty-pick" dangerouslySetInnerHTML={{ __html: t('lbAFriend') }} />
-          </div>
-        )}
-        {/* Somebody sent YOU six letters: this is where they go. */}
-        <div className="lb-join">
-          <span className="lb-lab">{t('lbGotCode')}</span>
-          <div className="lb-join-row">
-            <input
-              className="input input-code"
-              placeholder={t('codePlaceholder')}
-              maxLength={6}
-              value={joinCode}
-              onChange={(e) => {
-                setJoinCode(e.target.value.toUpperCase());
-                setError(null);
-              }}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') join();
-              }}
-            />
-            <button className="btn btn-small" disabled={busy || joinCode.trim().length !== 6} onClick={join}>
-              {t('walkIn')}
-            </button>
-          </div>
+        <div className="lb-empty">
+          <span className="lb-empty-q">?</span>
         </div>
+        <div className="lb-soft">{t('lbAFriendSoft')}</div>
       </>
     );
   } else if (mode === 'bot') {
@@ -693,12 +665,13 @@ export default function Home({
 
         <div className="lb-who">
           {account.signedIn ? (
+            // Two buttons that look like buttons (his note). Your name is
+            // already under your mask on the stage, so it does not repeat here.
             <>
-              <span className="lb-name">{account.name}</span>
-              <button className="lb-place" onClick={onMatches}>
+              <button className="lb-bar-btn" onClick={onMatches}>
                 {t('myMatches')}
               </button>
-              <button className="lb-signout" onClick={() => void signOut()}>
+              <button className="lb-bar-btn lb-bar-btn-quiet" onClick={() => void signOut()}>
                 {t('signOut')}
               </button>
             </>
@@ -799,6 +772,43 @@ export default function Home({
                   <small>{t('lbPaceMin', { n: p.minutes })}</small>
                 </button>
               ))}
+            </div>
+          ) : null}
+
+          {/* Play a friend: the code and the link, centred under the stage,
+              and the box for a code somebody sent you. */}
+          {mode === 'friend' ? (
+            <div className="lb-friend">
+              {room ? (
+                <div className="lb-ticket">
+                  <span className="lb-lab">{t('lbUseCode')}</span>
+                  <span className="lb-code">{room.code}</span>
+                  <button className="lb-copy" onClick={copyLink}>
+                    {copied ? t('copied') : t('lbCopyLink')}
+                  </button>
+                </div>
+              ) : null}
+              <div className="lb-join">
+                <span className="lb-lab">{t('lbGotCode')}</span>
+                <div className="lb-join-row">
+                  <input
+                    className="input input-code"
+                    placeholder={t('codePlaceholder')}
+                    maxLength={6}
+                    value={joinCode}
+                    onChange={(e) => {
+                      setJoinCode(e.target.value.toUpperCase());
+                      setError(null);
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') join();
+                    }}
+                  />
+                  <button className="btn btn-small" disabled={busy || joinCode.trim().length !== 6} onClick={join}>
+                    {t('walkIn')}
+                  </button>
+                </div>
+              </div>
             </div>
           ) : null}
 

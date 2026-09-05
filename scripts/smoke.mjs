@@ -900,7 +900,7 @@ console.log('\n=== Scenario 12: one queue per pace ===');
 // current masks; a vaulted id is refused, not worn.
 console.log('\n=== Scenario 13: rooms start masked ===');
 {
-  const ROSTER = ['luchador', 'ninja', 'hockey', 'domino'];
+  const ROSTER = ['ninja', 'goggles', 'hoodie', 'wrap'];
   const h = connect();
   const g = connect();
   const made = await emitP(h, 'lobby:create', { sessionId: 'mk-h', name: 'maskhost' });
@@ -917,11 +917,11 @@ console.log('\n=== Scenario 13: rooms start masked ===');
   g.on('lobby:update', track);
   h.emit('pick:mask', false); // the host turns their camera on
   h.emit('pick:avatar', 'oni'); // vaulted: must be refused
-  h.emit('pick:avatar', 'hockey'); // on the roster: worn
+  h.emit('pick:avatar', 'goggles'); // on the roster: worn
   await new Promise((r) => setTimeout(r, 500));
   g.off('lobby:update', track);
   check('mask: the toggle is how a camera comes on', last?.peerMasked === false && last?.yourMasked === true);
-  check('mask: a vaulted id is refused, a roster id is worn', last?.peerAvatar === 'hockey');
+  check('mask: a vaulted id is refused, a roster id is worn', last?.peerAvatar === 'goggles');
   h.disconnect();
   g.disconnect();
 }
