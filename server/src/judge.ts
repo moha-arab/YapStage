@@ -506,7 +506,8 @@ async function applyElo(lobby: Lobby): Promise<void> {
   const winnerIsHost = lobby.sides.host === lobby.verdict.winner;
   const winnerId = winnerIsHost ? lobby.ranked.host : lobby.ranked.guest;
   const loserId = winnerIsHost ? lobby.ranked.guest : lobby.ranked.host;
-  const moved = await applyRankedResult(winnerId, loserId);
+  // The ladder that moves is the one this match was played on.
+  const moved = await applyRankedResult(winnerId, loserId, lobby.pace);
   if (!moved) return;
   const loserSide: Side = lobby.verdict.winner === 'FOR' ? 'AGAINST' : 'FOR';
   lobby.eloResult = {
@@ -565,6 +566,7 @@ async function fileMatch(lobby: Lobby, verdict: Verdict): Promise<void> {
       // was armed. The row remembers, because the daily cap reads it back.
       // Ranked human matches are the only rated thing in the app.
       rated: mode === 'ranked',
+      pace: lobby.pace,
       verdict,
       transcript: lobby.transcript,
     });
