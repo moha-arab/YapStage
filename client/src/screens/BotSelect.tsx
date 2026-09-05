@@ -144,7 +144,7 @@ export default function BotSelect({ localStream, mediaError, onRetryMedia, onSta
               }}
             >
               <span className="bot-rank-badge">#{b.rank}</span>
-              <BotAvatar botId={b.id} color={b.color} size={96} speaking={botId === b.id} />
+              <BotAvatar botId={b.id} color={b.color} size={96} />
               <span className="bot-name">{b.name}</span>
               <span className="bot-tagline">{b.tagline}</span>
               {/* A number beats a row of bars: it says how strong, not just

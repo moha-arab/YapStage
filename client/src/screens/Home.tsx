@@ -55,7 +55,8 @@ const ERROR_KEYS: Record<JoinError, string> = {
 };
 
 type Mode = 'ranked' | 'friend' | 'bot' | 'drill' | 'watch';
-const MODES: Mode[] = ['ranked', 'friend', 'bot', 'drill', 'watch'];
+// His order (2026-09-04): online, bots, a friend, watch, drill.
+const MODES: Mode[] = ['ranked', 'bot', 'friend', 'watch', 'drill'];
 
 interface Bot {
   id: string;

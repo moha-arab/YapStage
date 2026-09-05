@@ -40,7 +40,7 @@ export default function TutorialDone({ debrief, onTrain, onHome, unlocked }: Pro
 
   return (
     <div className="stage center-col tutorial-done">
-      <BotAvatar botId="tutor" color="gold" size={120} speaking={speaking} />
+      <BotAvatar botId="tutor" color="gold" size={120} />
       <p className="kicker">{t('debriefKicker')}</p>
       <h1 className="display">{t('debriefTitle')}</h1>
 

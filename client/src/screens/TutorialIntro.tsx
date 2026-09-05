@@ -39,7 +39,7 @@ export default function TutorialIntro({ localStream, mediaError, onRetryMedia, o
         <span className="pill">{t('tutorialPill')}</span>
       </header>
 
-      <BotAvatar botId="tutor" color="gold" size={120} speaking />
+      <BotAvatar botId="tutor" color="gold" size={120} />
       <p className="kicker">{t('tutorialKicker')}</p>
       <h1 className="display">{t('tutorialTitle')}</h1>
       <p className="tutorial-lore">{t('tutorialLore')}</p>

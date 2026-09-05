@@ -41,11 +41,11 @@ const en: Dict = {
   sideAgainst: 'AGAINST',
   vs: 'vs',
 
-  lbDock_ranked: 'find an opponent',
+  lbDock_ranked: 'play online',
+  lbDock_bot: 'play bots',
   lbDock_friend: 'play a friend',
-  lbDock_bot: 'play a bot',
-  lbDock_drill: 'daily drill',
   lbDock_watch: 'watch a match',
+  lbDock_drill: 'daily drill',
 
   lbGoRanked: 'find an opponent',
   lbGoFriend: 'call out {x}',

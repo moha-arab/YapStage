@@ -3336,9 +3336,10 @@ html[dir='rtl'] .meter-hint {
   overflow: hidden;
   flex: none;
 }
-.bot-avatar.bot-speaking {
-  animation: botpulse 0.7s ease-in-out infinite;
-}
+/* The mouth-flap and frame-bob that used to run while a bot or a mask spoke
+   were removed 2026-09-04: the speaking ring (.mask-ring) carries the voice
+   now, and the drawings hold still. botpulse survives for the thinking
+   caption only. */
 @keyframes botpulse {
   0%,
   100% {
@@ -3348,23 +3349,6 @@ html[dir='rtl'] .meter-hint {
     transform: translateY(-2px);
   }
 }
-.bot-mouth {
-  transform-origin: center;
-  transform-box: fill-box;
-}
-.bot-speaking .bot-mouth {
-  animation: botmouth 0.26s ease-in-out infinite;
-}
-@keyframes botmouth {
-  0%,
-  100% {
-    transform: scaleY(0.55);
-  }
-  50% {
-    transform: scaleY(1.35);
-  }
-}
-
 /* the bot's tile inside the debate */
 .bot-tile {
   display: grid;
@@ -3545,7 +3529,87 @@ html[dir='rtl'] .meter-hint {
   height: 100%;
   /* enough air that the face reads as standing in the frame, not taped
      over it — but the face IS most of the tile now */
-  padding: 6% 0;
+  padding: 8% 0;
+}
+
+/* THE SPEAKING RING (2026-09-04). The mask holds still; the voice shows up as
+   a ring around it in the side's gel, the way Discord draws a green ring
+   around whoever is talking. --lv is the 0..1 mic level: at 0 the ring is a
+   faint hairline, at 1 it is thick and throwing light. The mask sits INSIDE
+   the ring, so horns and hoods poke out over it, which is what sells depth. */
+.mask-ring {
+  --lv: 0;
+  --gel: var(--paper);
+  --gel-glow: rgba(239, 232, 216, 0.4);
+  position: relative;
+  height: 100%;
+  aspect-ratio: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.tile-for .mask-ring {
+  --gel: var(--amber);
+  --gel-glow: rgba(240, 130, 30, 0.55);
+}
+
+.tile-against .mask-ring {
+  --gel: var(--turq);
+  --gel-glow: rgba(31, 194, 212, 0.55);
+}
+
+.mask-ring::before {
+  content: '';
+  position: absolute;
+  /* hugs the head: the drawings fill roughly the middle 80% of their box,
+     so a ring at 92% sits just off the cheeks and horns cross it */
+  inset: 4%;
+  border-radius: 50%;
+  border: calc(2px + var(--lv) * 5px) solid var(--gel);
+  opacity: calc(0.18 + var(--lv) * 0.82);
+  box-shadow:
+    0 0 calc(var(--lv) * 36px) calc(var(--lv) * 4px) var(--gel-glow),
+    inset 0 0 calc(var(--lv) * 30px) var(--gel-glow);
+  transform: scale(calc(1 + var(--lv) * 0.05));
+  transition:
+    border-width 0.08s linear,
+    opacity 0.08s linear,
+    box-shadow 0.08s linear,
+    transform 0.08s linear;
+  pointer-events: none;
+}
+
+/* Only the person on the mic wears the ring at rest. A listener's mask is
+   just a mask; the moment they get the mic the hairline appears. */
+.tile:not(.tile-active) .mask-ring::before {
+  opacity: calc(var(--lv) * 0.82);
+}
+
+.mask-ring svg {
+  position: relative;
+  z-index: 1;
+}
+
+/* The spectator's two fighters wear the same ring at a fixed size, keyed
+   on the fighter card's side rather than a tile's. */
+.spec-ring {
+  width: 110px;
+  height: 110px;
+}
+
+.spec-fighter.for .mask-ring {
+  --gel: var(--amber);
+  --gel-glow: rgba(240, 130, 30, 0.55);
+}
+
+.spec-fighter.against .mask-ring {
+  --gel: var(--turq);
+  --gel-glow: rgba(31, 194, 212, 0.55);
+}
+
+.spec-fighter:not(.spec-live) .mask-ring::before {
+  opacity: calc(var(--lv) * 0.82);
 }
 
 .face-controls {

@@ -101,22 +101,21 @@ const ANIMALS: Record<string, string> = {
 interface Props {
   botId: string;
   color: string;
-  speaking?: boolean;
   size?: number | string;
   /** No frame, no background: just the drawing, for the lobby's lit stage. */
   bare?: boolean;
 }
 
-export default function BotAvatar({ botId, color, speaking, size = 120, bare }: Props) {
+// STILL since 2026-09-04. The mouths used to flap on a fixed keyframe while
+// the bot spoke; that read as cheap, and the speaking ring (VideoTile.tsx)
+// now carries the voice instead. The drawings stay exactly as they were.
+export default function BotAvatar({ botId, color, size = 120, bare }: Props) {
   const c = COLOR[color] ?? 'var(--paper)';
   const svg = ANIMALS[botId] ?? ANIMALS.owl;
   if (bare) {
     return (
       <svg
         viewBox="0 0 100 100"
-        // Same trick as Mask: the mouth selector needs .bot-speaking somewhere
-        // above .bot-mouth, and bare renders no frame div to carry it.
-        className={speaking ? 'bot-speaking' : undefined}
         style={{ width: size, height: size, display: 'block' }}
         aria-hidden="true"
         dangerouslySetInnerHTML={{ __html: svg }}
@@ -124,10 +123,7 @@ export default function BotAvatar({ botId, color, speaking, size = 120, bare }: 
     );
   }
   return (
-    <div
-      className={`bot-avatar ${speaking ? 'bot-speaking' : ''}`}
-      style={{ width: size, height: size, borderColor: c }}
-    >
+    <div className="bot-avatar" style={{ width: size, height: size, borderColor: c }}>
       <svg
         viewBox="0 0 100 100"
         width="100%"

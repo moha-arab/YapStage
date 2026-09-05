@@ -2,6 +2,9 @@ import { useEffect, useState } from 'react';
 import type { DebateStart, PhaseUpdate, Side } from '../../../server/src/protocol';
 import { formatClock, useCountdown } from '../useCountdown';
 import { useAudioLevel } from '../useAudioLevel';
+import { useElementLevel } from '../useElementLevel';
+import { botVoiceElement } from '../botvoice';
+import type { CSSProperties } from 'react';
 import { useI18n } from '../i18n';
 import MicMeter from '../MicMeter';
 import VideoTile from '../VideoTile';
@@ -82,6 +85,9 @@ export default function Debate({
   const graceMs = useCountdown(peerLostUntil ?? undefined, peerLostUntil ? Date.now() : undefined);
   const localLevel = useAudioLevel(localStream);
   const remoteLevel = useAudioLevel(remoteStream);
+  // The bot's ring reads the level straight off its voice element, so it
+  // moves with the words rather than looping for the whole clip.
+  const botLevel = useElementLevel(botVoiceElement());
   // (Wake lock lives in App now — it must span the verdict screens too.)
 
   // "Pass the mic" arms 2s into your turn so a click aimed at something else
@@ -170,13 +176,12 @@ export default function Debate({
               {/* Scales with the tile, like the masks — a fixed 200px bot in a
                   600px tile was the same "too small" problem twice. */}
               <div className="tile-mask-wrap">
-                <BotAvatar
-                  botId={botOpponent.id}
-                  color={botOpponent.color}
-                  speaking={Boolean(botSpeaking) && !myTurn}
-                  size="100%"
-                  bare
-                />
+                <div
+                  className="mask-ring"
+                  style={{ '--lv': botSpeaking && !myTurn ? botLevel : 0 } as CSSProperties}
+                >
+                  <BotAvatar botId={botOpponent.id} color={botOpponent.color} size="100%" bare />
+                </div>
               </div>
               <div className="tag">
                 <span className="tag-name">{botOpponent.name}</span>

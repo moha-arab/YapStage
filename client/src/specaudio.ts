@@ -24,6 +24,11 @@ function element(): HTMLAudioElement {
   return el;
 }
 
+/** The element itself, for the speaking ring to read its level off. */
+export function spectateAudioElement(): HTMLAudioElement {
+  return element();
+}
+
 /** Call inside the click that starts spectating. */
 export function unlockSpectateAudio(): void {
   if (unlocked) return;

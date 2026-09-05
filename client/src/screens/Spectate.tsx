@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type CSSProperties } from 'react';
+import { useElementLevel } from '../useElementLevel';
 import type {
   PhaseUpdate,
   Side,
@@ -8,7 +9,7 @@ import type {
 import { socket } from '../socket';
 import { useI18n } from '../i18n';
 import { formatClock, useCountdown } from '../useCountdown';
-import { enqueueSpectateAudio, stopSpectateAudio } from '../specaudio';
+import { enqueueSpectateAudio, spectateAudioElement, stopSpectateAudio } from '../specaudio';
 import BotAvatar from '../BotAvatar';
 import Mask from '../Mask';
 import Brand from '../Brand';
@@ -44,6 +45,10 @@ export default function Spectate({ code, initial, onLeave, onNext }: Props) {
   const [judging, setJudging] = useState(false);
   const [aborted, setAborted] = useState<string | null>(null);
   const msLeft = useCountdown(phase?.deadline, phase?.serverNow);
+  // The ring follows the clip the spectator is actually hearing, which runs a
+  // segment behind the live turn. Better in sync with the ear than with the
+  // clock: a mouth that moved during silence was the old complaint.
+  const specLevel = useElementLevel(spectateAudioElement());
 
   useEffect(() => {
     const onState = (s: SpectateState) => {
@@ -98,20 +103,17 @@ export default function Spectate({ code, initial, onLeave, onNext }: Props) {
     const active = phase?.activeSpeaker === side && !verdict && !judging;
     return (
       <div className={`spec-fighter ${side === 'FOR' ? 'for' : 'against'} ${active ? 'spec-live' : ''}`}>
-        {isBot && state?.bot ? (
-          <BotAvatar botId={state.bot.id} color={state.bot.color} speaking={active} size={110} />
-        ) : state?.avatars?.[side] ? (
-          // Humans wear masks here. Watching a ranked debate you see exactly
-          // this and nothing else — the mask IS the face of the sport.
-          <Mask
-            id={state.avatars[side]!}
-            size={110}
-            speaking={active}
-            color={side === 'FOR' ? 'var(--for)' : 'var(--against)'}
-          />
-        ) : (
-          <span className="spec-fighter-glyph">{side === 'FOR' ? '🔴' : '🔵'}</span>
-        )}
+        <div className="mask-ring spec-ring" style={{ '--lv': active ? specLevel : 0 } as CSSProperties}>
+          {isBot && state?.bot ? (
+            <BotAvatar botId={state.bot.id} color={state.bot.color} size="100%" bare />
+          ) : state?.avatars?.[side] ? (
+            // Humans wear masks here. Watching a ranked debate you see exactly
+            // this and nothing else — the mask IS the face of the sport.
+            <Mask id={state.avatars[side]!} size="100%" bare />
+          ) : (
+            <span className="spec-fighter-glyph">{side === 'FOR' ? '🔴' : '🔵'}</span>
+          )}
+        </div>
         <span className="spec-fighter-name">{names?.[side] ?? '...'}</span>
         <span className="spec-fighter-side">{t(side)}</span>
         {active ? <span className="live-pill">{t('onTheMic')}</span> : null}

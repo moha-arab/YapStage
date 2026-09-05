@@ -32,6 +32,11 @@ function element(): HTMLAudioElement {
   return el;
 }
 
+/** The element itself, for the speaking ring to read its level off. */
+export function botVoiceElement(): HTMLAudioElement {
+  return element();
+}
+
 /** Call from a real user gesture (the tap that starts a debate). Without this
     the bot is silent-then-robotic on every phone. */
 export function unlockBotVoice(): void {

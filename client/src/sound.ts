@@ -6,6 +6,13 @@
 // room confirm click) so Chrome's autoplay policy never blocks the verdict.
 
 let ctx: AudioContext | null = null;
+
+/** The one unlocked context, for anything that must tap a playing element
+    (the speaking rings read the bot voice and the spectator feed through it).
+    Null until initAudio() has run inside a gesture. */
+export function audioContext(): AudioContext | null {
+  return ctx;
+}
 let noise: AudioBuffer | null = null;
 let master: DynamicsCompressorNode | null = null;
 let muted = false;

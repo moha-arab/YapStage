@@ -51,7 +51,7 @@ export default function Locker({ account, onSaved, onBack }: Props) {
       <p className="page-sub">{t('lockerSub')}</p>
 
       <div className="locker-preview">
-        <Mask id={mask} size={140} speaking />
+        <Mask id={mask} size={140} />
       </div>
 
       <div className="mask-row locker-row">

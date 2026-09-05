@@ -25,6 +25,8 @@ import BotSelect from './screens/BotSelect';
 import Spectate from './screens/Spectate';
 import type { Side, Verdict as VerdictData } from '../../server/src/protocol';
 import TierBadge from './TierBadge';
+import VideoTile from './VideoTile';
+import Mask from './Mask';
 
 const noop = () => {};
 
@@ -145,6 +147,42 @@ const SCREENS: Record<string, () => JSX.Element> = {
     </div>
   ),
   welcome: () => <Welcome />,
+  /* The mask sheet: the two he kept beside the four candidates, at the sizes
+     they actually ship at (lobby stage, spectate, picker, friends list). */
+  masks: () => (
+    <div style={{ padding: 32, background: 'var(--house)', minHeight: '100vh', color: 'var(--muted)' }}>
+      {[200, 110, 54, 36].map((s) => (
+        <div key={s} style={{ display: 'flex', gap: s > 100 ? 28 : 16, alignItems: 'flex-end', marginBottom: 26 }}>
+          {['oni', 'calavera', 'tengu', 'plague', 'tiki', 'alien'].map((id) => (
+            <div key={id} style={{ textAlign: 'center', fontSize: 12 }}>
+              <Mask id={id} size={s} bare />
+              {s === 200 ? <div style={{ marginTop: 8, fontFamily: 'Ultra, serif', fontSize: 16, color: 'var(--paper)' }}>{id}</div> : null}
+            </div>
+          ))}
+        </div>
+      ))}
+    </div>
+  ),
+  /* The speaking ring at four voice levels: on the mic and loud, on the mic
+     and mid-word, on the mic but silent, and listening. */
+  ring: () => (
+    <div
+      style={{
+        padding: 32,
+        display: 'grid',
+        gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)',
+        gap: 18,
+        maxWidth: 980,
+        background: 'var(--house)',
+        minHeight: '100vh',
+      }}
+    >
+      <VideoTile stream={null} muted label="zorvint" sub="FOR" side="FOR" maskId="luchador" level={0.85} active />
+      <VideoTile stream={null} muted label="goat" sub="AGAINST" side="AGAINST" maskId="calavera" level={0} />
+      <VideoTile stream={null} muted label="pizzamaster" sub="AGAINST" side="AGAINST" maskId="oni" level={0.4} active />
+      <VideoTile stream={null} muted label="kenji" sub="FOR" side="FOR" maskId="ninja" level={0} active />
+    </div>
+  ),
   claimName: () => <ClaimName onClaimed={noop} />,
   botSelect: () => (
     <BotSelect

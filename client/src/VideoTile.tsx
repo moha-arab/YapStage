@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import type { Side } from '../../server/src/protocol';
 import { useI18n } from './i18n';
 import Mask from './Mask';
@@ -97,12 +97,14 @@ export default function VideoTile(props: Props) {
   // Masked player: the tile IS the mask. No video element is ever created, so
   // a masked debate needs no camera permission at all.
   if (props.maskId || (props.stream && !hasVideo)) {
-    // The mouth moves whenever the mic moves. Gating it on `active` made the
-    // mask look dead everywhere except your own turn — which is most of the app.
-    // 0.12, not 0.05: with the fast-release level, real speech clears this
-    // instantly and a laptop fan or an idle room never does. The old low bar
-    // is why the mouth kept chewing after he stopped talking.
-    const loud = (props.level ?? 0) > 0.12;
+    // THE MASK IS STILL. It stopped pretending to talk on 2026-09-04: the old
+    // amplitude-gated mouth flap read as "a smiley face that moves up and
+    // down" (his words), and a mask that fails at being a face is worse than
+    // a mask. Who is talking is carried by the RING around it instead: a
+    // circle in the side's gel that thickens and glows with the voice, the
+    // Discord speaking ring in the house colours. 0.12 gate so a fan or an
+    // idle room never lights it; above that the level drives it directly.
+    const lv = (props.level ?? 0) > 0.12 ? props.level! : 0;
     return (
       <div className={`tile tile-masked ${sideClass} ${props.active ? 'tile-active' : ''}`}>
         {/* The <video> element we're NOT rendering was also what played the
@@ -114,7 +116,9 @@ export default function VideoTile(props: Props) {
             fixed 132px made the mask a sticker in the corner of a 600px tile,
             which is the "masks are too small" he reported. */}
         <div className="tile-mask-wrap">
-          <Mask id={props.maskId ?? 'luchador'} size="100%" speaking={loud} bare />
+          <div className="mask-ring" style={{ '--lv': lv } as CSSProperties}>
+            <Mask id={props.maskId ?? 'luchador'} size="100%" bare />
+          </div>
         </div>
         <div className="tag">
           <span className="tag-name">{props.label}</span>
