@@ -25,6 +25,7 @@ import type { Side, Verdict as VerdictData } from '../../server/src/protocol';
 import TierBadge from './TierBadge';
 import VideoTile from './VideoTile';
 import Mask from './Mask';
+import { ARISTOTLE_200, BOT_PORTRAITS, NAPOLEON_200 } from './dev/botPortraits';
 
 const noop = () => {};
 
@@ -76,7 +77,7 @@ const SCREENS: Record<string, () => JSX.Element> = {
       onRematch={noop}
       rematch={null}
       ranked
-      avatars={{ FOR: 'luchador', AGAINST: 'calavera' }}
+      avatars={{ FOR: 'huckster', AGAINST: 'calavera' }}
       opponentRating={1180}
     />
   ),
@@ -137,6 +138,67 @@ const SCREENS: Record<string, () => JSX.Element> = {
     </div>
   ),
   welcome: () => <Welcome />,
+  /* The Napoleon attempt at every size it would ship at. */
+  napoleon: () => (
+    <div style={{ padding: 32, background: 'var(--house)', minHeight: '100vh', display: 'flex', gap: 40, alignItems: 'flex-end' }}>
+      {[360, 200, 110, 54, 36].map((s) => (
+        <svg
+          key={s}
+          viewBox="0 0 200 200"
+          style={{ width: s, height: s, display: 'block' }}
+          dangerouslySetInnerHTML={{ __html: NAPOLEON_200 }}
+        />
+      ))}
+    </div>
+  ),
+  aristotle: () => (
+    <div style={{ padding: 32, background: 'var(--house)', minHeight: '100vh', display: 'flex', gap: 40, alignItems: 'flex-end' }}>
+      {[360, 200, 110, 54, 36].map((s) => (
+        <svg key={s} viewBox="0 0 200 200" style={{ width: s, height: s, display: 'block' }} dangerouslySetInnerHTML={{ __html: ARISTOTLE_200 }} />
+      ))}
+    </div>
+  ),
+  /* Candidate bot portraits for the arguers ladder, with a mask beside them
+     so the bot/mask difference is visible at every size. */
+  bots: () => {
+    const cast: [string, string, number][] = [
+      ['cyclops', 'Cyclops', 200],
+      ['diogenes', 'Diogenes', 800],
+      ['napoleon', 'Napoleon', 1400],
+      ['lincoln', 'Lincoln', 2000],
+      ['socrates', 'Socrates', 2600],
+      ['athena', 'Athena', 2800],
+    ];
+    const svg = (id: string, s: number) => (
+      <svg
+        viewBox="0 0 100 100"
+        style={{ width: s, height: s, display: 'block' }}
+        dangerouslySetInnerHTML={{ __html: BOT_PORTRAITS[id] }}
+      />
+    );
+    return (
+      <div style={{ padding: 32, background: 'var(--house)', minHeight: '100vh', color: 'var(--muted)' }}>
+        {[200, 110, 54, 36].map((s) => (
+          <div key={s} style={{ display: 'flex', gap: s > 100 ? 26 : 16, alignItems: 'flex-end', marginBottom: 26 }}>
+            {cast.map(([id, name, elo]) => (
+              <div key={id} style={{ textAlign: 'center', fontSize: 12 }}>
+                {svg(id, s)}
+                {s === 200 ? (
+                  <div style={{ marginTop: 8, fontFamily: 'Ultra, serif', fontSize: 16, color: 'var(--paper)' }}>
+                    {name} <span style={{ fontFamily: 'var(--mono)', fontSize: 12, color: 'var(--muted)' }}>{elo}</span>
+                  </div>
+                ) : null}
+              </div>
+            ))}
+            <div style={{ textAlign: 'center', fontSize: 12, marginInlineStart: 20 }}>
+              <Mask id="ninja" size={s} bare />
+              {s === 200 ? <div style={{ marginTop: 8, fontFamily: 'Ultra, serif', fontSize: 16, color: 'var(--paper)' }}>mask, for contrast</div> : null}
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  },
   /* The lobby bar as a signed-in player sees it: mark, rule, two buttons. */
   bar: () => (
     <div className="lb" style={{ height: 200 }}>
@@ -164,7 +226,7 @@ const SCREENS: Record<string, () => JSX.Element> = {
     <div style={{ padding: 32, background: 'var(--house)', minHeight: '100vh', color: 'var(--muted)' }}>
       {[200, 110, 54, 36].map((s) => (
         <div key={s} style={{ display: 'flex', gap: s > 100 ? 28 : 16, alignItems: 'flex-end', marginBottom: 26 }}>
-          {['ninja', 'goggles', 'hoodie', 'wrap', 'oni', 'calavera', 'tengu', 'plague', 'tiki', 'alien'].map((id) => (
+          {['ninja', 'oni', 'calavera', 'climber', 'gamer', 'huckster'].map((id) => (
             <div key={id} style={{ textAlign: 'center', fontSize: 12 }}>
               <Mask id={id} size={s} bare />
               {s === 200 ? <div style={{ marginTop: 8, fontFamily: 'Ultra, serif', fontSize: 16, color: 'var(--paper)' }}>{id}</div> : null}
@@ -222,7 +284,7 @@ const SCREENS: Record<string, () => JSX.Element> = {
           serverNow: Date.now(),
         },
         watchers: 3,
-        avatars: { FOR: 'goggles', AGAINST: 'hoodie' },
+        avatars: { FOR: 'climber', AGAINST: 'gamer' },
       }}
       onLeave={noop}
     />

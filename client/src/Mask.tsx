@@ -44,7 +44,7 @@ export const MASKS: Record<string, string> = {
   // Ninja: hood, eye slit, all business. The dark one the roster lacked.
   ninja: `
     <path d="M50 10 C72 10 84 27 84 50 C84 73 70 90 50 90 C30 90 16 73 16 50 C16 27 28 10 50 10Z" fill="#303650"/>
-    <path d="M20 38 Q50 30 80 38 L80 54 Q50 60 20 54Z" fill="#e8dfc9"/>
+    <path d="M20 38 Q50 30 80 38 L80 54 Q50 60 20 54Z" fill="#dcae83"/>
     <circle cx="36" cy="46" r="4.5" fill="${D}"/><circle cx="64" cy="46" r="4.5" fill="${D}"/>
     <circle cx="37.4" cy="44.6" r="1.6" fill="#fff"/><circle cx="65.4" cy="44.6" r="1.6" fill="#fff"/>
     <path d="M28 40 L42 43 M72 40 L58 43" stroke="${D}" stroke-width="2.5" stroke-linecap="round"/>
@@ -62,24 +62,86 @@ export const MASKS: Record<string, string> = {
     <path d="M34 68 Q50 82 66 68 Q50 76 34 68Z" fill="#2a1410"/>
     <path d="M38 70 L41 78 L44 70Z" fill="#f4efe4"/><path d="M56 70 L59 78 L62 70Z" fill="#f4efe4"/>`,
 
+
+  // Gamer: headset, braids, unbothered. Accent #d1305e.
+  gamer: `
+    <path d="M50 8 C74 8 89 25 89 47 C89 62 90 76 92 90 L84 90 L82 78 L76 90 L68 90 L66 76 L60 90 L52 90 L50 74 L48 90 L40 90 L34 76 L32 90 L24 90 L18 78 L16 90 L8 90 C10 76 11 62 11 47 C11 25 26 8 50 8Z" fill="#6b2038"/>
+    <path d="M17 50 L17 88 M25 54 L25 88 M75 54 L75 88 M83 50 L83 88" stroke="#4d1226" stroke-width="2.6" stroke-linecap="round"/>
+    <path d="M14 56 H21 M14 66 H21 M14 76 H21 M22 60 H29 M22 70 H29 M22 80 H29 M71 60 H78 M71 70 H78 M71 80 H78 M79 56 H86 M79 66 H86 M79 76 H86" stroke="#4d1226" stroke-width="2.2" stroke-linecap="round"/>
+    <path d="M41 11 C37 16 34 21 32 27 M59 11 C63 16 66 21 68 27" stroke="#4d1226" stroke-width="3.5" fill="none" stroke-linecap="round"/>
+    <path d="M50 20 C64 20 73 30 73 46 C73 63 63 76 50 76 C37 76 27 63 27 46 C27 30 36 20 50 20Z" fill="#85562f"/>
+    <path d="M31 40 L44 42.2 M69 40 L56 42.2" stroke="${D}" stroke-width="3.4" fill="none" stroke-linecap="round"/>
+    <circle cx="38" cy="47" r="4.5" fill="${D}"/><circle cx="62" cy="47" r="4.5" fill="${D}"/>
+    <circle cx="39.4" cy="45.6" r="1.6" fill="#fff"/><circle cx="63.4" cy="45.6" r="1.6" fill="#fff"/>
+    <path d="M50 52 L46.5 59 L53.5 59Z" fill="#6b4326"/>
+    <path d="M43.5 66.2 Q50 69.4 56.5 65.4" stroke="${D}" stroke-width="3.4" fill="none" stroke-linecap="round"/>
+    <path d="M17 52 C17 4 83 4 83 52" stroke="#d1305e" stroke-width="7" fill="none" stroke-linecap="round"/>
+    <rect x="7" y="42" width="20" height="23" rx="7" fill="${D}"/><rect x="73" y="42" width="20" height="23" rx="7" fill="${D}"/>
+    <rect x="10.5" y="45.5" width="13" height="16" rx="5" fill="#d1305e"/><rect x="76.5" y="45.5" width="13" height="16" rx="5" fill="#d1305e"/>
+    <rect x="14" y="49" width="6" height="9" rx="3" fill="#f4efe4"/><rect x="80" y="49" width="6" height="9" rx="3" fill="#f4efe4"/>
+    <path d="M85 66 C84 74 77 77 70 74.5" stroke="#f4efe4" stroke-width="4" fill="none" stroke-linecap="round"/>
+    <circle cx="67.5" cy="73.5" r="4.4" fill="#f4efe4"/>`,
+
+  // Huckster: carnival ringmaster. Accent crimson #e2574c hat with a turquoise #1FC2D4 hatband.
+  huckster: `
+    <path d="M50 18 C69 18 78 31 78 55 C78 76 66 91 50 91 C34 91 22 76 22 55 C22 31 31 18 50 18Z" fill="#dcae83"/>
+    <path d="M32 3.7 L71.9 6.5 L66 34.1 L34 31.9Z" fill="#e2574c"/>
+    <path d="M33.2 20.8 L68.3 23.3 L66 34.1 L34 31.9Z" fill="#1FC2D4"/>
+    <path d="M12.2 29.3 Q50.4 28 88 34.7 L87.6 40.1 Q49.3 42.5 11.8 34.8Z" fill="#e2574c"/>
+    <path d="M28 47 L41 51 M72 47 L59 51" stroke="${D}" stroke-width="3.6" stroke-linecap="round"/>
+    <circle cx="36" cy="54" r="4.7" fill="${D}"/><circle cx="64" cy="54" r="4.7" fill="${D}"/>
+    <circle cx="37.4" cy="52.6" r="1.7" fill="#fff"/><circle cx="65.4" cy="52.6" r="1.7" fill="#fff"/>
+    <path d="M50 66 C44 66 38 66 34 65 C31 64.3 28.8 63.2 26.6 61 C23.8 58.6 22.4 62.8 24.8 66.6 C26.6 70.4 29 74.2 32.2 76.5 C35.5 79 39 80.3 42.5 80.3 C46 80.3 48.5 77.7 50 74.2 C51.5 77.7 54 80.3 57.5 80.3 C61 80.3 64.5 79 67.8 76.5 C71 74.2 73.4 70.4 75.2 66.6 C77.6 62.8 76.2 58.6 73.4 61 C71.2 63.2 69 64.3 66 65 C62 66 56 66 50 66Z" fill="${D}"/>
+    <path d="M39.5 85 Q50 80.6 60.5 85" stroke="${D}" stroke-width="3.6" fill="none" stroke-linecap="round"/>`,
+
   /* ---- the basic four, take four (2026-09-04). What the ninja gets right
      and every failed draft broke: full head coverage, ONLY the eyes showing,
      one accent, and a shape you would see on a real person. ---- */
 
-  // Goggles: the snowboarder. Beanie with its cuff, goggles pushed up onto
-  // the beanie (dark frame, turquoise lens: the one accent), neck gaiter over
-  // the mouth. Eyes in the gap, the ninja's round eyes.
-  goggles: `
+  // Climber: white shell helmet with a headlamp, goggles pushed up onto the
+  // brim, a buff over the mouth, braid out the back. "Crux" is the hardest
+  // move on a route and the middle of an argument.
+  // Climber: expedition hood with a fur ruff, goggles up on the brow, a buff
+  // over the mouth, braid out the side. Same build as the original: hood on
+  // top, goggles across, eyes in the gap, mouth covered.
+  // Climber: expedition hood with a fur ruff, goggles on the brow, a buff over
+  // the mouth, braid out the side. Same build as the original goggles mask:
+  // headgear on top, goggles across, eyes in the gap, mouth covered.
+  // Climber: expedition hood with a fur ruff, goggles on the brow, a buff over
+  // the mouth, braid out the side. Same build as the original goggles mask:
+  // headgear on top, goggles across, eyes in the gap, mouth covered.
+  // Climber: the base design kept exactly — red headgear on top, goggles
+  // across it, eyes in the gap, gaiter over the mouth. What changed: the knit
+  // beanie became a hard-shell climbing helmet (vent slots, a lipped brim,
+  // strap anchors, a headlamp on the crown) and a braid comes out the side.
+  climber: `
+    <path d="M68 43 C80 44 88 49 90 57 L78 60 C76 52 73 48 66 47Z" fill="#c9a05c"/>
+    <ellipse cx="84" cy="59" rx="10.5" ry="9" fill="#c9a05c"/>
+    <ellipse cx="86.5" cy="71" rx="9.5" ry="8.5" fill="#c9a05c"/>
+    <ellipse cx="86" cy="82" rx="8" ry="7.5" fill="#c9a05c"/>
+    <path d="M74 55 C79 51 88 52 92 57" stroke="#a67f40" stroke-width="2.2" fill="none" stroke-linecap="round"/>
+    <path d="M77 67 C81 63 90 64 94 69" stroke="#a67f40" stroke-width="2.2" fill="none" stroke-linecap="round"/>
+    <path d="M78 78 C82 74 90 75 93 80" stroke="#a67f40" stroke-width="2.2" fill="none" stroke-linecap="round"/>
+    <path d="M74 51 C79 47 87 48 91 54" stroke="#e0c07a" stroke-width="2.6" fill="none" stroke-linecap="round"/>
+    <path d="M80 89 H92" stroke="#8f2a20" stroke-width="4.2" stroke-linecap="round"/>
+    <path d="M82.5 91 L79.5 99 L83.5 99Z M88.5 91 L91.5 99 L87.5 99Z" fill="#c9a05c"/>
+    <path d="M81.5 90 H90" stroke="#8f2a20" stroke-width="4" stroke-linecap="round"/>
+    <path d="M83 94 C83 96 84 97.5 85 98 M88 94 C88 96 87 97.5 86 98" stroke="#a67f40" stroke-width="2" fill="none" stroke-linecap="round"/>
     <path d="M50 8 C72 8 84 26 84 50 C84 72 70 90 50 90 C30 90 16 72 16 50 C16 26 28 8 50 8Z" fill="#e8dfc9"/>
-    <path d="M16 46 C16 22 30 8 50 8 C70 8 84 22 84 46Z" fill="#8f1f1a"/>
-    <path d="M14 40 H86 Q88 44 86 48 H14 Q12 44 14 40Z" fill="#a8281f"/>
-    <path d="M34 14 L36 22 M50 12 L50 20 M66 14 L64 22" stroke="#7a1a16" stroke-width="2.2" stroke-linecap="round"/>
+    <path d="M16 46 C16 22 30 8 50 8 C70 8 84 22 84 46Z" fill="#b83a2e"/>
+    <path d="M16 40 C16 20 29 8 50 8 C56 8 61 9 66 11 C50 12 38 20 34 32 C32 38 31 42 31 46 L16 46Z" fill="#d14a3a"/>
+    <path d="M36 13 L38 23 M50 11 L50 21 M64 13 L62 23" stroke="#7a1a16" stroke-width="4.5" stroke-linecap="round"/>
+    <rect x="41" y="9" width="18" height="8" rx="3" fill="${D}"/>
+    <rect x="45" y="11" width="10" height="4.5" rx="2" fill="#f6f1e2"/>
+    <path d="M13 39 H87 L87 44 Q50 48 13 44Z" fill="#8f2a20"/>
+    <path d="M13 39 L13 44 Q15 45 18 44.6 L18 39Z M87 39 L87 44 Q85 45 82 44.6 L82 39Z" fill="#6e1f18"/>
     <rect x="18" y="23" width="64" height="16" rx="8" fill="${D}"/>
     <rect x="23" y="26" width="24" height="10" rx="5" fill="#1FC2D4"/><rect x="53" y="26" width="24" height="10" rx="5" fill="#1FC2D4"/>
     <path d="M28 49 L42 51 M72 49 L58 51" stroke="${D}" stroke-width="2.5" stroke-linecap="round"/>
     <circle cx="36" cy="55" r="4.5" fill="${D}"/><circle cx="64" cy="55" r="4.5" fill="${D}"/>
     <circle cx="37.4" cy="53.6" r="1.6" fill="#fff"/><circle cx="65.4" cy="53.6" r="1.6" fill="#fff"/>
-    <path d="M17 66 Q50 60 83 66 L84 70 C84 80 70 90 50 90 C30 90 16 80 16 70Z" fill="#3b3b40"/>`,
+    <path d="M17 66 Q50 60 83 66 L84 70 C84 80 70 90 50 90 C30 90 16 80 16 70Z" fill="#3b3b40"/>
+    <path d="M17 66 Q50 60 83 66 L83 69 Q50 63 17 69Z" fill="#2b2b30"/>`,
   // Hoodie: hood up, the hood itself pulled over the mouth like a snood,
   // short drawstrings on the chest. Green, so it is not a grey ninja.
   hoodie: `
@@ -129,6 +191,68 @@ export const MASKS: Record<string, string> = {
     <circle cx="35" cy="45.6" r="2.4" fill="${D}"/><circle cx="65" cy="45.6" r="2.4" fill="${D}"/>
     <path d="M50 58 L46 66 L54 66Z" fill="#d9cdb6"/>
     <path d="M42 75 H58" stroke="#3a2c26" stroke-width="3" stroke-linecap="round"/>`,
+
+  /* ---- candidate (2026-09-09): "one for her" ---- */
+
+  // Rider: motocross helmet. Purple shell, the peak out both sides, a
+  // green stripe over the crown, eyes in the port, ponytail out the back.
+  // The ponytail is the whole female read at 36px.
+  rider: `
+    <path d="M74 46 C91 47 97 62 94 76 C92 85 90 91 87 96 C83 90 84 78 79 68 C74 59 66 52 74 46Z" fill="#8a4b2a"/>
+    <path d="M50 8 C71 8 82 24 82 44 L82 66 C82 81 68 92 50 92 C32 92 18 81 18 66 L18 44 C18 24 29 8 50 8Z" fill="#7a52c0"/>
+    <path d="M19 36 Q50 30 81 36 L81 47 Q50 41 19 47Z" fill="${D}"/>
+    <path d="M21 42 Q50 36 79 42 L79 60 Q50 66 21 60Z" fill="#c68e5d"/>
+    <path d="M29 48 L42 52 M71 48 L58 52" stroke="${D}" stroke-width="2.6" stroke-linecap="round"/>
+    <circle cx="36" cy="54" r="4.5" fill="${D}"/><circle cx="64" cy="54" r="4.5" fill="${D}"/>
+    <circle cx="37.4" cy="52.6" r="1.6" fill="#fff"/><circle cx="65.4" cy="52.6" r="1.6" fill="#fff"/>
+    <path d="M28 63 Q50 58 72 63 L71 77 C70 86 62 91 50 91 C38 91 30 86 29 77Z" fill="#8f66cf"/>
+    <path d="M43 8.4 Q50 7.4 57 8.4 L61 32 Q50 29.4 39 32Z" fill="#efe7d6"/>`,
+  // Fencer: the mesh screen in a pale metal rim, bib under the chin.
+  // The one accent is the green bib.
+  fencer: `
+    <path d="M29 66 L28 86 Q28 90 33 90 L67 90 Q72 90 72 86 L71 66Z" fill="#2FBF6B"/>
+    <path d="M50 8 C74 8 88 26 88 47 L88 58 C88 71 72 80 50 80 C28 80 12 71 12 58 L12 47 C12 26 26 8 50 8Z" fill="#d4dae1"/>
+    <path d="M50 13 C71 13 83 29 83 46 L83 57 C83 69 68 77 50 77 C32 77 17 69 17 57 L17 46 C17 29 29 13 50 13Z" fill="#565e68"/>
+    <path d="M30 21 H70 M23 27.5 H77 M19.5 34 H80.5 M19 40.5 H81 M19.5 62 H80.5 M24 68 H76 M34 73.5 H66" stroke="#474e57" stroke-width="2.2"/>
+    <path d="M22 42 Q50 37 78 42 L78 58 Q50 64 22 58Z" fill="#d8a87e"/>
+    <path d="M28 44 L42 47 M72 44 L58 47" stroke="#1a1712" stroke-width="2.5" stroke-linecap="round"/>
+    <circle cx="36" cy="50" r="4.5" fill="#1a1712"/><circle cx="64" cy="50" r="4.5" fill="#1a1712"/>
+    <circle cx="37.4" cy="48.6" r="1.6" fill="#fff"/><circle cx="65.4" cy="48.6" r="1.6" fill="#fff"/>`,
+  // Boxer: sparring headgear. Red shell, ear holes, cheek pads and chin
+  // cup. The cream brow rim is what keeps it gear and not a hat.
+  boxer: `
+    <path d="M50 8 C73 8 87 26 87 48 L87 62 L13 62 L13 48 C13 26 27 8 50 8Z" fill="#d24a38"/>
+    <rect x="6" y="34" width="23" height="42" rx="10" fill="#9c2a20"/><rect x="71" y="34" width="23" height="42" rx="10" fill="#9c2a20"/>
+    <circle cx="17.5" cy="56" r="4.8" fill="#1a1712"/><circle cx="82.5" cy="56" r="4.8" fill="#1a1712"/>
+    <ellipse cx="50" cy="80" rx="21" ry="11" fill="#9c2a20"/>
+    <path d="M50 37 C64 37 73.5 44 73.5 54.5 C73.5 64 71 71 66 76.5 C61.5 81.5 55.2 83.5 50 83.5 C44.8 83.5 38.5 81.5 34 76.5 C29 71 26.5 64 26.5 54.5 C26.5 44 36 37 50 37Z" fill="#6b4226"/>
+    <path d="M21 41 Q50 25 79 41 L79 48 Q50 32 21 48Z" fill="#efe7d6"/>
+    <path d="M29.5 47 L43.5 51 M70.5 47 L56.5 51" stroke="#1a1712" stroke-width="3" stroke-linecap="round"/>
+    <circle cx="36" cy="57" r="4.5" fill="#1a1712"/><circle cx="64" cy="57" r="4.5" fill="#1a1712"/>
+    <circle cx="37.4" cy="55.6" r="1.6" fill="#fff"/><circle cx="65.4" cy="55.6" r="1.6" fill="#fff"/>
+    <path d="M43.5 75.5 Q50 78.2 56.5 75.5" stroke="#1a1712" stroke-width="2.9" fill="none" stroke-linecap="round"/>`,
+
+
+// Athena: the Corinthian helmet, worn DOWN. Two and a half thousand years
+  // ago somebody already solved the house rule — full head, only the eyes,
+  // and a crest that breaks the egg the way the oni horns do. Grey-eyed, per
+  // Homer. Bronze, never gold: gold means a win in this app.
+  athena: `
+    <path d="M39 32 L39 12 C39 5 44 0 50 0 C56 0 61 5 61 12 L61 32Z" fill="#1FC2D4"/>
+    <path d="M50 0 C56 0 59 5 59 12 L59 32 L50 32Z" fill="#5cd8e5"/>
+    <path d="M44 5 L44 32 M50 2 L50 32 M56 5 L56 32" stroke="#12889a" stroke-width="1.6"/>
+    <path d="M36 26 Q50 21 64 26 L64 34 Q50 29 36 34Z" fill="#79501f"/>
+    <path d="M50 22 C68 22 79 36 79 54 C79 65 75 73 70 79 L67 88 C66 91 63 93 60 93 L40 93 C37 93 34 91 33 88 L30 79 C25 73 21 65 21 54 C21 36 32 22 50 22Z" fill="#9c6c39"/>
+    <path d="M50 22 C68 22 79 36 79 54 L21 54 C21 36 32 22 50 22Z" fill="#c08a49"/>
+    <path d="M23 44 Q50 37 77 44 L77 49 Q50 42 23 49Z" fill="#79501f"/>
+    <path d="M24 52 Q34 45 44 51 L43 57 Q33 62 24 56Z" fill="#141210"/>
+    <path d="M76 52 Q66 45 56 51 L57 57 Q67 62 76 56Z" fill="#141210"/>
+    <ellipse cx="33.5" cy="53" rx="3.4" ry="2.8" fill="#e2f1f4"/><ellipse cx="66.5" cy="53" rx="3.4" ry="2.8" fill="#e2f1f4"/>
+    <circle cx="32.6" cy="52.3" r="1" fill="#fff"/><circle cx="65.6" cy="52.3" r="1" fill="#fff"/>
+    <path d="M45.5 63 L54.5 63 L53.5 93 L46.5 93Z" fill="#141210"/>
+    <path d="M46 42 L54 42 L52.8 66 Q50 69 47.2 66Z" fill="#c08a49"/>
+    <path d="M46 42 L50 42 L50 68 Q48 68 47.2 66Z" fill="#a8763f"/>
+    <path d="M32 69 Q35 79 34 89 M68 69 Q65 79 66 89" stroke="#79501f" stroke-width="2.4" fill="none" stroke-linecap="round"/>`,
 
   /* ---- saved for later (2026-09-04, his call: too good for the free set) ---- */
 
@@ -182,7 +306,7 @@ export const MASKS: Record<string, string> = {
 
 /** The set the picker offers, in display order. Mirrors AVATAR_IDS. Explicit,
     not Object.keys: MASKS also holds candidates that are not on the roster. */
-export const MASK_IDS = ['ninja', 'goggles', 'hoodie', 'wrap'];
+export const MASK_IDS = ['ninja', 'oni', 'calavera', 'climber', 'gamer', 'huckster'];
 
 interface Props {
   id: string;

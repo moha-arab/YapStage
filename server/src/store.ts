@@ -243,6 +243,14 @@ export async function initStore(): Promise<void> {
         UPDATE accounts SET mask = 'ninja'
         WHERE mask IN ('luchador','hockey','domino')`);
     });
+    await runOnce('mask_roster_six', async () => {
+      // 2026-09-09: the free set became six drawn as game skins — ninja, oni,
+      // calavera, climber, gamer, huckster. goggles/hoodie/wrap went to the
+      // vault; the climber IS the old goggles mask rebuilt, so those wearers
+      // follow it. hoodie and wrap fall back to the ninja.
+      await pool!.query(`UPDATE accounts SET mask = 'climber' WHERE mask = 'goggles'`);
+      await pool!.query(`UPDATE accounts SET mask = 'ninja' WHERE mask IN ('hoodie','wrap')`);
+    });
     // The pre-launch waitlist (2026-08-22 to 2026-09-04) is gone with the
     // page that fed it. It only ever held one test row.
     await runOnce('drop_waitlist', async () => {
