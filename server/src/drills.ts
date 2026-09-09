@@ -243,6 +243,25 @@ export function drillOfDay(day: string): Drill {
   return DRILLS[h % DRILLS.length]!;
 }
 
+export const DRILL_TYPES: DrillType[] = ['rebut', 'weigh', 'flaw', 'defend', 'question'];
+
+export function isDrillType(x: unknown): x is DrillType {
+  return typeof x === 'string' && (DRILL_TYPES as string[]).includes(x);
+}
+
+/** Today's drill of ONE skill, for trying a skill the day did not pick. Same
+    seed as the daily, so it is stable across a day and rotates with it. */
+export function drillOfDayByType(day: string, type: DrillType): Drill {
+  const pool = DRILLS.filter((d) => d.type === type);
+  let h = 0;
+  for (let i = 0; i < day.length; i++) h = (h * 31 + day.charCodeAt(i)) >>> 0;
+  return pool[h % pool.length]!;
+}
+
+export function drillById(id: unknown): Drill | undefined {
+  return typeof id === 'string' ? DRILLS.find((d) => d.id === id) : undefined;
+}
+
 export function today(): string {
   return new Date().toISOString().slice(0, 10);
 }

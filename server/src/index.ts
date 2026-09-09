@@ -51,7 +51,7 @@ import {
 import { BOT_BY_ID, publicBots } from './bots.js';
 import { sttConfigured } from './stt.js';
 import { namesOf, runJudge, scoreDrill, scoreTranscript } from './judge.js';
-import { DRILL_SECONDS, drillMeta, drillOfDay, today } from './drills.js';
+import { DRILL_SECONDS, drillById, drillMeta, drillOfDay, drillOfDayByType, isDrillType, today } from './drills.js';
 import { coachOnRecord, coachReply } from './coach.js';
 import { cardFrom, renderCard } from './share.js';
 import { DISPUTE_MAX } from './dispute.js';
@@ -278,14 +278,21 @@ app.get<{ Querystring: { playerId?: string } }>('/rating', async (req) => {
 // to store or schedule. Playable signed out (the point is that a stranger can
 // try the product in forty seconds); the streak needs an account, because a
 // streak is a promise you keep to a name.
-app.get('/drill', async (req) => {
+// `?type=` swaps in today's drill of one chosen skill so a player can try
+// the other four. Only the day's own drill counts toward the streak.
+app.get<{ Querystring: { type?: string } }>('/drill', async (req) => {
   const day = today();
-  const d = drillOfDay(day);
+  const daily = drillOfDay(day);
+  const want = req.query?.type;
+  // Asking for the day's own skill hands back the day's own drill, so the
+  // streak is never lost to a tap on the skill you already had.
+  const d = isDrillType(want) && want !== daily.type ? drillOfDayByType(day, want) : daily;
   const s = readSession(req);
   const state = s ? await drillState(s.sub, day) : { streak: 0, best: 0, doneToday: false };
   return {
     day,
     drill: { id: d.id, type: d.type, prompt: d.prompt, material: d.material },
+    daily: d.id === daily.id,
     seconds: DRILL_SECONDS,
     skill: drillMeta(d.type).name,
     ...state,
@@ -293,7 +300,7 @@ app.get('/drill', async (req) => {
   };
 });
 
-app.post<{ Body: { text?: string } }>(
+app.post<{ Body: { text?: string; id?: string } }>(
   '/drill',
   { bodyLimit: 16_384 },
   async (req, reply) => {
@@ -302,7 +309,11 @@ app.post<{ Body: { text?: string } }>(
     }
     const answer = String(req.body?.text ?? '').trim().slice(0, 4000);
     const day = today();
-    const d = drillOfDay(day);
+    const daily = drillOfDay(day);
+    // Score the drill the player actually saw; a swapped-in skill never
+    // touches the streak, which belongs to the day's drill alone.
+    const d = drillById(req.body?.id) ?? daily;
+    const countsForStreak = d.id === daily.id;
     // Silence is not a score. Say so plainly instead of asking the judge to
     // grade nothing and getting a hallucinated 40 back.
     if (answer.split(/\s+/).filter(Boolean).length < 8) {
@@ -311,7 +322,7 @@ app.post<{ Body: { text?: string } }>(
     try {
       const result = await scoreDrill(d, answer);
       const s = readSession(req);
-      const streak = s ? await recordDrill(s.sub, day, result.score) : null;
+      const streak = s && countsForStreak ? await recordDrill(s.sub, day, result.score) : null;
       event('drill_done', { score: result.score });
       return { result, streak: streak?.streak ?? 0, best: streak?.best ?? 0, already: streak?.already ?? false };
     } catch (err) {

@@ -11,9 +11,12 @@ import { setSpeechSink, speechSupported, startTurn, stopTurn } from '../speech';
 import { useI18n } from '../i18n';
 import Brand from '../Brand';
 
+const DRILL_TYPES = ['rebut', 'weigh', 'flaw', 'defend', 'question'] as const;
+
 interface DrillInfo {
   day: string;
   drill: { id: string; type: string; prompt: string; material: string };
+  daily: boolean;
   seconds: number;
   skill: string;
   streak: number;
@@ -46,14 +49,26 @@ export default function Drill({ onBack }: Props) {
   const [error, setError] = useState<string | null>(null);
   const textRef = useRef('');
 
-  useEffect(() => {
-    void fetch('/drill')
+  // The day picks one skill; the row under the title lets you try the other
+  // four. Only the day's own drill counts toward the streak.
+  function load(type?: string) {
+    stopTurn();
+    setSpeechSink(null);
+    setResult(null);
+    setError(null);
+    setStage('ready');
+    void fetch(type ? `/drill?type=${encodeURIComponent(type)}` : '/drill')
       .then((r) => r.json())
       .then((d: DrillInfo) => {
         setInfo(d);
         setStreak(d.streak);
       })
       .catch(() => setError('drillDown'));
+  }
+
+  useEffect(() => {
+    load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // The mic belongs to the debate socket by default; take it for the drill and
@@ -103,7 +118,7 @@ export default function Drill({ onBack }: Props) {
       void fetch('/drill', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ text }),
+        body: JSON.stringify({ text, id: info?.drill.id }),
       })
         .then((r) => r.json())
         .then((d: { result?: Result; streak?: number; error?: string }) => {
@@ -141,9 +156,25 @@ export default function Drill({ onBack }: Props) {
       <h1 className="display page-title">{t('drillTitle')}</h1>
       {info ? (
         <p className="page-sub">
-          {t('drillSkill', { x: info.skill })}
+          {t(info.daily ? 'drillSkill' : 'drillTrying', { x: info.skill })}
           {streak > 0 ? ` · ${t('drillStreak', { n: streak })}` : ''}
         </p>
+      ) : null}
+
+      {info ? (
+        <div className="drill-types" role="group" aria-label={t('drillTry')}>
+          {DRILL_TYPES.map((k) => (
+            <button
+              key={k}
+              className={`btn btn-small ${info.drill.type === k ? 'btn-on' : ''}`}
+              aria-pressed={info.drill.type === k}
+              disabled={stage === 'speaking' || stage === 'scoring'}
+              onClick={() => load(k)}
+            >
+              {t(`drillType_${k}`)}
+            </button>
+          ))}
+        </div>
       ) : null}
 
       {info ? (
