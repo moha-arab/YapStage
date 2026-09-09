@@ -6,14 +6,15 @@
 // not "have a debate, but small" — it is one skill, isolated, with a right
 // answer shape you can be graded against.
 //
-// The five drill types are the five things that actually decide real debates,
+// Three drill types, the three things that actually decide real debates,
 // pulled from how competitive debate is judged: answering the point that was
-// made, weighing two things that are both true, naming a flaw precisely,
-// arguing a side you did not choose, and asking the question that breaks a
-// case. The bot ladder's rungs are built out of the same skills, so a player
-// who drills weighing can feel exactly where rank 4 stops being able to.
+// made, weighing two things that are both true, and naming a flaw precisely.
+// (Two more, defending an assigned side and asking the breaking question, were
+// cut 2026-09-08: neither made a good thirty-second puzzle.) The bot ladder's
+// rungs are built out of the same skills, so a player who drills weighing can
+// feel exactly where rank 4 stops being able to.
 
-export type DrillType = 'rebut' | 'weigh' | 'flaw' | 'defend' | 'question';
+export type DrillType = 'rebut' | 'weigh' | 'flaw';
 
 export interface Drill {
   id: string;
@@ -136,66 +137,6 @@ export const DRILLS: Drill[] = [
     material:
       'We surveyed people leaving the gym and eighty percent said they exercise regularly. Clearly the country has no fitness problem.',
   },
-
-  {
-    id: 'def-homework',
-    type: 'defend',
-    prompt: 'Argue this side. You do not have to believe it.',
-    material: 'Homework should be abolished entirely.',
-  },
-  {
-    id: 'def-monarchy',
-    type: 'defend',
-    prompt: 'Argue this side. You do not have to believe it.',
-    material: 'Every country would be better off with an unelected head of state.',
-  },
-  {
-    id: 'def-spoilers',
-    type: 'defend',
-    prompt: 'Argue this side. You do not have to believe it.',
-    material: 'Spoilers make a story better, not worse.',
-  },
-  {
-    id: 'def-boring',
-    type: 'defend',
-    prompt: 'Argue this side. You do not have to believe it.',
-    material: 'Being bored is good for you and we should do it on purpose.',
-  },
-  {
-    id: 'def-losing',
-    type: 'defend',
-    prompt: 'Argue this side. You do not have to believe it.',
-    material: 'Children should be allowed to lose, badly and often.',
-  },
-
-  {
-    id: 'q-startup',
-    type: 'question',
-    prompt: 'Ask the ONE question that breaks this case, and say what it exposes.',
-    material:
-      'Our app will end food waste. Restaurants list their leftovers at closing time, users buy them cheap, nothing goes in the bin.',
-  },
-  {
-    id: 'q-fourday',
-    type: 'question',
-    prompt: 'Ask the ONE question that breaks this case, and say what it exposes.',
-    material:
-      'The four day week works. Every company that tried it reported happier staff and the same output, so it should be the law.',
-  },
-  {
-    id: 'q-social',
-    type: 'question',
-    prompt: 'Ask the ONE question that breaks this case, and say what it exposes.',
-    material:
-      'Social media should be banned for under sixteens. Teen anxiety rose exactly as these apps spread, and parents cannot police it alone.',
-  },
-  {
-    id: 'q-space',
-    type: 'question',
-    prompt: 'Ask the ONE question that breaks this case, and say what it exposes.',
-    material:
-      'Space spending is wasted money. We have hungry people here, and every dollar in orbit is a dollar not spent on them.',
-  },
 ];
 
 const BY_TYPE: Record<DrillType, { name: string; skill: string; grade: string }> = {
@@ -217,18 +158,6 @@ const BY_TYPE: Record<DrillType, { name: string; skill: string; grade: string }>
     grade:
       'Did they identify the SPECIFIC defect (correlation treated as causation, false dilemma, one anecdote against a base rate, circular reasoning, a biased sample) and explain WHY it breaks the conclusion? Naming a fallacy with no explanation is half an answer. Explaining the defect clearly without naming it is a full one.',
   },
-  defend: {
-    name: 'defending a side',
-    skill: 'building a real case for a position you did not choose',
-    grade:
-      'Did they build an actual case with reasons, or hedge and apologise for the position? Distance from the position ("I do not really believe this, but") is the failure. Reward a genuine mechanism or example over enthusiasm.',
-  },
-  question: {
-    name: 'the question',
-    skill: 'finding the question a case cannot survive',
-    grade:
-      'Did they ask ONE precise question aimed at the load-bearing assumption, and say what a bad answer to it would expose? A broad "how would you fund it" scores low unless funding is the actual weak joint. Multiple scattered questions score lower than one sharp one.',
-  },
 };
 
 export function drillMeta(type: DrillType) {
@@ -243,7 +172,7 @@ export function drillOfDay(day: string): Drill {
   return DRILLS[h % DRILLS.length]!;
 }
 
-export const DRILL_TYPES: DrillType[] = ['rebut', 'weigh', 'flaw', 'defend', 'question'];
+export const DRILL_TYPES: DrillType[] = ['rebut', 'weigh', 'flaw'];
 
 export function isDrillType(x: unknown): x is DrillType {
   return typeof x === 'string' && (DRILL_TYPES as string[]).includes(x);

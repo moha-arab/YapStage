@@ -11,7 +11,7 @@ import { setSpeechSink, speechSupported, startTurn, stopTurn } from '../speech';
 import { useI18n } from '../i18n';
 import Brand from '../Brand';
 
-const DRILL_TYPES = ['rebut', 'weigh', 'flaw', 'defend', 'question'] as const;
+const DRILL_TYPES = ['rebut', 'weigh', 'flaw'] as const;
 
 interface DrillInfo {
   day: string;
