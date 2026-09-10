@@ -900,7 +900,7 @@ console.log('\n=== Scenario 12: one queue per pace ===');
 // current masks; a vaulted id is refused, not worn.
 console.log('\n=== Scenario 13: rooms start masked ===');
 {
-  const ROSTER = ['ninja', 'oni', 'calavera', 'climber', 'gamer', 'huckster'];
+  const ROSTER = ['ninja', 'oni', 'calavera', 'climber', 'gamer', 'huckster', 'alien', 'plague'];
   const h = connect();
   const g = connect();
   const made = await emitP(h, 'lobby:create', { sessionId: 'mk-h', name: 'maskhost' });

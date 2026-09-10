@@ -273,14 +273,18 @@ export const MASKS: Record<string, string> = {
   // Plague doctor: leather hood, brass goggles, the beak. The forehead
   // strap is the one hard black shape it needs to read at 36px.
   plague: `
-    <path d="M50 10 C74 10 86 28 86 52 C86 76 72 90 56 92 L44 92 C28 90 14 76 14 52 C14 28 26 10 50 10Z" fill="#5b4a38"/>
-    <path d="M15 36 Q50 22 85 36 L85 41 Q50 28 15 41Z" fill="${D}"/>
-    <circle cx="33" cy="46" r="12.5" fill="#c9973a"/><circle cx="67" cy="46" r="12.5" fill="#c9973a"/>
-    <circle cx="33" cy="46" r="8.5" fill="#14333a"/><circle cx="67" cy="46" r="8.5" fill="#14333a"/>
-    <circle cx="30" cy="43" r="2.6" fill="#f4efe4" opacity="0.75"/><circle cx="64" cy="43" r="2.6" fill="#f4efe4" opacity="0.75"/>
-    <path d="M40 56 L60 56 L52 97 L48 97Z" fill="#7a5c3d"/>
-    <path d="M50 56 L60 56 L52 97 L50 97Z" fill="#5c4530"/>
-    <path d="M46 66 L54 66 M45 74 L55 74 M47 82 L53 82" stroke="${D}" stroke-width="1.8" stroke-linecap="round"/>`,
+    <path d="M50 8 C75 8 87 27 87 52 C87 74 74 89 58 92 L42 92 C26 89 13 74 13 52 C13 27 25 8 50 8Z" fill="#4a3c2c"/>
+    <path d="M50 8 C75 8 87 27 87 52 C87 62 84 71 79 78 C82 69 83 60 83 52 C83 30 72 14 50 14 C28 14 17 30 17 52 C17 60 18 69 21 78 C16 71 13 62 13 52 C13 27 25 8 50 8Z" fill="#5f4d38"/>
+    <path d="M14 34 Q50 20 86 34 L86 41 Q50 27 14 41Z" fill="${D}"/>
+    <rect x="22" y="35" width="9" height="7" rx="2" fill="#b8863b"/><rect x="69" y="35" width="9" height="7" rx="2" fill="#b8863b"/>
+    <circle cx="33" cy="48" r="13" fill="#b8863b"/><circle cx="67" cy="48" r="13" fill="#b8863b"/>
+    <circle cx="33" cy="48" r="9.5" fill="#14333a"/><circle cx="67" cy="48" r="9.5" fill="#14333a"/>
+    <path d="M26 44 Q31 39 38 42 Q31 43 27 47Z" fill="#f4efe4" opacity="0.8"/>
+    <path d="M60 44 Q65 39 72 42 Q65 43 61 47Z" fill="#f4efe4" opacity="0.8"/>
+    <path d="M38 56 Q50 51 62 56 C63 67 61 78 56 87 C53.5 92 51.5 96 50 99 C48.5 96 46.5 92 44 87 C39 78 37 67 38 56Z" fill="#7a6144"/>
+    <path d="M50 52.5 Q62 55 62 56 C63 67 61 78 56 87 C53.5 92 51.5 96 50 99Z" fill="#5c4831"/>
+    <path d="M41 62 Q50 59 59 62" stroke="${D}" stroke-width="2" fill="none" stroke-linecap="round"/>
+    <path d="M43 72 Q50 70 57 72" stroke="${D}" stroke-width="1.8" fill="none" stroke-linecap="round"/>`,
   // Tiki: carved wood. Geometric eyes, a wall of teeth, and a crest that
   // wears the gels the way the calavera's petals do.
   tiki: `
@@ -296,17 +300,22 @@ export const MASKS: Record<string, string> = {
     <path d="M16 56 V84 M84 56 V84" stroke="#7a4218" stroke-width="3" stroke-linecap="round"/>`,
   // Alien: the grey. All eyes. Nothing on it smiles.
   alien: `
-    <path d="M50 8 C74 8 88 24 88 44 C88 66 66 92 50 94 C34 92 12 66 12 44 C12 24 26 8 50 8Z" fill="#a9b2b6"/>
-    <path d="M17 40 Q33 32 45 52 Q37 63 24 57 Q13 51 17 40Z" fill="${D}"/>
-    <path d="M83 40 Q67 32 55 52 Q63 63 76 57 Q87 51 83 40Z" fill="${D}"/>
-    <ellipse cx="25" cy="44" rx="3.2" ry="2" fill="#f4efe4" opacity="0.8"/><ellipse cx="75" cy="44" rx="3.2" ry="2" fill="#f4efe4" opacity="0.8"/>
-    <circle cx="47" cy="67" r="1.6" fill="${D}"/><circle cx="53" cy="67" r="1.6" fill="${D}"/>
-    <path d="M43 78 Q50 75 57 78" stroke="${D}" stroke-width="2.5" fill="none" stroke-linecap="round"/>`,
+    <path d="M50 3 C77 3 91 22 91 44 C91 61 80 77 65 88 C59 92 54 95 50 95 C46 95 41 92 35 88 C20 77 9 61 9 44 C9 22 23 3 50 3Z" fill="#8b93a6"/>
+    <path d="M50 3 C77 3 91 22 91 44 C91 52 88 60 84 67 C86 58 87 50 87 44 C87 24 74 9 50 9 C26 9 13 24 13 44 C13 50 14 58 16 67 C12 60 9 52 9 44 C9 22 23 3 50 3Z" fill="#a6aec0"/>
+    <path d="M34 16 Q50 12 66 16" stroke="#79819a" stroke-width="2.6" fill="none" stroke-linecap="round"/>
+    <path d="M28 24 Q50 19 72 24" stroke="#79819a" stroke-width="2.2" fill="none" stroke-linecap="round"/>
+    <path d="M14 40 Q31 30 46 50 Q41 69 23 62 Q10 54 14 40Z" fill="#0e1116"/>
+    <path d="M86 40 Q69 30 54 50 Q59 69 77 62 Q90 54 86 40Z" fill="#0e1116"/>
+    <path d="M17 43 Q26 37 34 45 Q26 42 19 47Z" fill="#333c4a"/>
+    <path d="M83 43 Q74 37 66 45 Q74 42 81 47Z" fill="#333c4a"/>
+    <circle cx="22.5" cy="48" r="2.2" fill="#1FC2D4"/><circle cx="77.5" cy="48" r="2.2" fill="#1FC2D4"/>
+    <path d="M47.5 70 L46.5 74 M52.5 70 L53.5 74" stroke="#6f7789" stroke-width="2.2" stroke-linecap="round"/>
+    <path d="M44.5 82 H55.5" stroke="#6f7789" stroke-width="2.6" stroke-linecap="round"/>`,
 };
 
 /** The set the picker offers, in display order. Mirrors AVATAR_IDS. Explicit,
     not Object.keys: MASKS also holds candidates that are not on the roster. */
-export const MASK_IDS = ['ninja', 'oni', 'calavera', 'climber', 'gamer', 'huckster'];
+export const MASK_IDS = ['ninja', 'oni', 'calavera', 'climber', 'gamer', 'huckster', 'alien', 'plague'];
 
 interface Props {
   id: string;

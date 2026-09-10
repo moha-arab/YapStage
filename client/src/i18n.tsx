@@ -80,6 +80,8 @@ const en: Dict = {
   mask_climber: 'Climber',
   mask_gamer: 'Gamer',
   mask_huckster: 'Huckster',
+  mask_alien: 'Alien',
+  mask_plague: 'Plague Doctor',
   lbAFriendSoft: 'A friend',
   lbPlacing: 'Placing · {n} of {m}',
   lbPace_blitz: 'blitz',

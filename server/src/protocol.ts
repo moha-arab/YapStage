@@ -150,7 +150,7 @@ export interface Framing {
     TURNED OVER AGAIN 2026-09-04: goggles, hoodie and wrap came in; the oni and the
     calavera went to the vault, art intact, for a later drop. Saved lockers
     follow the same nearest-survivor rule (mask_roster_basic). */
-export const AVATAR_IDS = ['ninja', 'oni', 'calavera', 'climber', 'gamer', 'huckster'] as const;
+export const AVATAR_IDS = ['ninja', 'oni', 'calavera', 'climber', 'gamer', 'huckster', 'alien', 'plague'] as const;
 export type AvatarId = (typeof AVATAR_IDS)[number];
 
 export interface LobbyUpdate {
