@@ -989,6 +989,8 @@ console.log('\n=== Scenario 14: ladder, deck, daily rebuttal ===');
     await fetch(`${URL}/drill`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ text: 'too short', id: drill.drill.id }) })
   ).json();
   check('drill: silence is refused, not scored', short.result === null && short.error === 'too_short');
+}
+
 // ---------- Scenario 15: the placement match ----------
 // A new player's first ranked thing is one game against the roster bot
 // nearest 1400; the verdict's margin sets their starting rating. The server
