@@ -814,56 +814,30 @@ console.log('\n=== Scenario 11: no self-play ===');
   [t1, t2, t3, h, g].forEach((s) => s.disconnect());
 }
 
-// ---------- Scenario 12: one queue (and one ladder) per pace ----------
-// Like chess: blitz and classical are different games with different ratings.
-// A blitz player and a long player never meet; each pace pairs on its own,
-// and the room they land in runs at the pace they queued for.
-console.log('\n=== Scenario 12: one queue per pace ===');
+// ---------- Scenario 12: ranked is standard only ----------
+// One queue. There was a queue per pace for a week; he took it out so every
+// player who wants a ranked game is in the same line. A client still asking
+// for blitz or long (or a pace that never existed) is queued with everyone
+// else and lands in a standard room.
+console.log('\n=== Scenario 12: ranked is standard only ===');
 {
   const bz = connect();
   const lg = connect();
-  let crossed = false;
-  const cross = () => { crossed = true; };
-  bz.on('queue:matched', cross);
-  lg.on('queue:matched', cross);
-
   const bzBeat = once(bz, 'queue:update', 4000);
+  const mb = once(bz, 'queue:matched', 8000);
+  const ml = once(lg, 'queue:matched', 8000);
   await emitP(bz, 'queue:join', { sessionId: 'pc-1', playerId: 'pid-pc-1', name: 'blitzer', pace: 'blitz' });
   const b0 = await bzBeat;
-  check('pace queue: heartbeat names your pace', b0.pace === 'blitz' && b0.waiting === 1);
-  const lgBeat = once(lg, 'queue:update', 4000);
+  check('one queue: the heartbeat says standard whatever was asked for', b0.pace === 'standard' && b0.waiting === 1);
   await emitP(lg, 'queue:join', { sessionId: 'pc-2', playerId: 'pid-pc-2', name: 'longhaul', pace: 'long' });
-  const l0 = await lgBeat;
-  check('pace queue: waiting counts only your own pace', l0.pace === 'long' && l0.waiting === 1);
-  await new Promise((r) => setTimeout(r, 1200));
-  check('pace queue: blitz and long never meet', crossed === false);
-  bz.off('queue:matched', cross);
-  lg.off('queue:matched', cross);
-
-  // A second blitz player: the blitz pair forms, the long player stays alone.
-  const bz2 = connect();
-  const mb1 = once(bz, 'queue:matched', 8000);
-  const mb2 = once(bz2, 'queue:matched', 8000);
-  const lgStill = once(lg, 'queue:update', 4000);
-  await emitP(bz2, 'queue:join', { sessionId: 'pc-3', playerId: 'pid-pc-3', name: 'blitzertwo', pace: 'blitz' });
-  const [b1, b2] = await Promise.all([mb1, mb2]);
-  check('pace queue: the same pace matches', b1.update.code === b2.update.code);
+  const [b1, l1] = await Promise.all([mb, ml]);
+  check('one queue: a blitz asker and a long asker meet each other', b1.update.code === l1.update.code);
   check(
-    'pace queue: the ranked room runs at the queued pace',
-    b1.update.pace === 'blitz' && b2.update.pace === 'blitz' && b1.update.ranked === true,
+    'one queue: the ranked room runs at standard',
+    b1.update.pace === 'standard' && l1.update.pace === 'standard' && b1.update.ranked === true,
   );
-  const l1 = await lgStill;
-  check('pace queue: the long player is still waiting, still alone', l1.pace === 'long' && l1.waiting === 1);
 
-  // ...and the long queue pairs on its own.
-  const lg2 = connect();
-  const ml1 = once(lg, 'queue:matched', 8000);
-  const ml2 = once(lg2, 'queue:matched', 8000);
-  await emitP(lg2, 'queue:join', { sessionId: 'pc-4', playerId: 'pid-pc-4', name: 'longtwo', pace: 'long' });
-  const [x1, x2] = await Promise.all([ml1, ml2]);
-  check('pace queue: the long queue pairs on its own', x1.update.code === x2.update.code && x1.update.pace === 'long');
-
-  // An unknown pace is standard, the same as sending none (old clients).
+  // A pace that never existed, and none at all (old clients): the same room.
   const s1 = connect();
   const s2 = connect();
   const ms1 = once(s1, 'queue:matched', 8000);
@@ -871,27 +845,24 @@ console.log('\n=== Scenario 12: one queue per pace ===');
   await emitP(s1, 'queue:join', { sessionId: 'pc-5', playerId: 'pid-pc-5', name: 'stdone', pace: 'hyper' });
   await emitP(s2, 'queue:join', { sessionId: 'pc-6', playerId: 'pid-pc-6', name: 'stdtwo' });
   const [y1] = await Promise.all([ms1, ms2]);
-  check('pace queue: an unknown pace falls back to standard', y1.update.pace === 'standard');
+  check('one queue: an unknown pace falls back to standard', y1.update.pace === 'standard');
 
-  // The rating endpoint: one standing per pace, standard mirrored on top for
-  // older clients. No DATABASE_URL locally, so everyone is at the seed with
-  // nothing played, on every ladder.
+  // The rating endpoint. No DATABASE_URL locally, so a fresh id is at the
+  // seed with nothing played, and whether they are placed is unknown (null):
+  // the client shows the queue rather than sending everyone to the placement
+  // bot for a game that could not be recorded.
   const rt = await fetch(`${URL}/rating?playerId=pid-pc-1`).then((r) => r.json());
-  const PACES = ['standard', 'blitz', 'long'];
+  const { bots: roster } = await fetch(`${URL}/bots`).then((r) => r.json());
+  const nearest1400 = roster.reduce((a, b) => (Math.abs(b.elo - 1400) < Math.abs(a.elo - 1400) ? b : a));
+  check('rating: the top-level fields are the ladder', typeof rt.rating === 'number' && rt.games === 0);
+  check('rating: unplaced reads provisional with one placement left', rt.provisional === true && rt.placementsLeft === 1);
+  check('rating: placed is unknown, not false, when the store is down', 'placed' in rt && rt.placed === null);
+  check('rating: names the placement bot, the roster bot nearest 1400', rt.placementBot === nearest1400.name);
   check(
-    'rating: three ladders, one per pace',
-    PACES.every((p) => typeof rt.paces?.[p]?.rating === 'number' && typeof rt.paces[p].placementsLeft === 'number'),
+    'rating: paces still carries three ladders for older clients',
+    ['standard', 'blitz', 'long'].every((p) => typeof rt.paces?.[p]?.rating === 'number'),
   );
-  check(
-    'rating: top-level fields mirror the standard ladder',
-    rt.rating === rt.paces?.standard?.rating && rt.games === rt.paces?.standard?.games &&
-      rt.provisional === rt.paces?.standard?.provisional,
-  );
-  check(
-    'rating: nothing played means provisional on every ladder',
-    PACES.every((p) => rt.paces?.[p]?.games === 0 && rt.paces[p].provisional === true && rt.paces[p].placementsLeft > 0),
-  );
-  [bz, lg, bz2, lg2, s1, s2].forEach((s) => s.disconnect());
+  [bz, lg, s1, s2].forEach((s) => s.disconnect());
 }
 
 // ---------- Scenario 13: every room starts masked ----------
@@ -991,6 +962,100 @@ console.log('\n=== Scenario 14: ladder, deck, daily rebuttal ===');
     await fetch(`${URL}/drill`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ text: 'too short', id: drill.drill.id }) })
   ).json();
   check('drill: silence is refused, not scored', short.result === null && short.error === 'too_short');
+// ---------- Scenario 15: the placement match ----------
+// A new player's first ranked thing is one game against the roster bot
+// nearest 1400; the verdict's margin sets their starting rating. The server
+// picks the bot, the motion and the sides, refuses a second placement while
+// one is running, and once placed refuses it for good. No DATABASE_URL here,
+// so the rating write itself fails soft: the checks that need the store say
+// so and pass on the honest answer (no rating, still unplaced).
+console.log('\n=== Scenario 15: placement ===');
+{
+  // The margin-to-rating map, pinned so it cannot drift: 1400 plus eight per
+  // point, clamped to [-400, +300], floored at 500.
+  const { placementRating: pr } = await import('../server/dist/store.js');
+  check(
+    'placement map: even is 1400, wide margins clamp to 1000 and 1700',
+    pr(0) === 1400 && pr(-50) === 1000 && pr(-80) === 1000 && pr(38) === 1700 && pr(60) === 1700,
+  );
+  check('placement map: eight points per point of margin between the clamps', pr(10) === 1480 && pr(-25) === 1200);
+
+  const { bots: roster } = await fetch(`${URL}/bots`).then((r) => r.json());
+  const anchor = roster.reduce((a, b) => (Math.abs(b.elo - 1400) < Math.abs(a.elo - 1400) ? b : a));
+
+  const h = connect();
+  const h2 = connect(); // the same player in a second tab
+  const LINES = [
+    'the case for my side rests on one thing everyone here already knows, and it is that people act on incentives before they act on ideals',
+    'my opponent has not answered the incentive point, they moved to a nicer sounding claim and hoped nobody noticed the swap',
+    'the evidence is on my side and the clash is on my side, and the one concrete example they gave actually proves my point',
+    'so weigh it, incentives beat ideals every time it is tested, and that is why the motion falls the way i said it would',
+  ];
+  // The client's picks are ignored on purpose: a stale roster in an old tab
+  // must not place someone against the wrong rung.
+  const res = await emitP(h, 'bot:start', {
+    sessionId: 'place-h',
+    name: 'newcomer',
+    playerId: 'pid-place-1',
+    botId: 'duckling',
+    topicMode: 'agree',
+    topicId: 'money-happiness',
+    side: 'FOR',
+    lang: 'en',
+    placement: true,
+  });
+  check('placement: accepted for a fresh player', res.ok === true);
+  const start = await once(h, 'debate:start', 12000);
+  check(
+    'placement: the opponent is the roster bot nearest 1400, not the one asked for',
+    Boolean(start.bot) && start.bot.id === anchor.id && start.bot.elo === anchor.elo,
+  );
+  const twice = await emitP(h2, 'bot:start', {
+    sessionId: 'place-h2',
+    name: 'newcomer',
+    playerId: 'pid-place-1',
+    botId: anchor.id,
+    topicMode: 'random',
+    placement: true,
+  });
+  check('placement: a second placement while one is running is refused', twice.ok === false && twice.error === 'in_progress');
+
+  let said = 0;
+  h.on('debate:phase', (ph) => {
+    if (ph.activeSpeaker === start.yourSide && said < LINES.length) {
+      h.emit('speech:chunk', { stepIndex: ph.stepIndex, text: LINES[said++] });
+    }
+  });
+  h.on('bot:turn', (bt) => h.emit('bot:done', { stepIndex: bt.stepIndex }));
+  await once(h, 'debate:ended', 300000);
+  const v = await once(h, 'verdict:result', 120000);
+  check('placement: verdict delivered with the bot named', Boolean(v.verdict.winner) && Object.values(v.names).includes(anchor.name));
+  check('placement: never a ranked elo delta (no before, no after)', v.elo === undefined);
+
+  const rt = await fetch(`${URL}/rating?playerId=pid-place-1`).then((r) => r.json());
+  if (v.placement) {
+    // A store is up: the one-shot really happened, and cannot happen again.
+    const r = v.placement.rating;
+    check('placement: the starting rating is in the 1000 to 1700 band', r >= 1000 && r <= 1700);
+    check('placement: /rating now says placed with that rating', rt.placed === true && rt.rating === r && rt.provisional === false);
+    const again = await emitP(h2, 'bot:start', {
+      sessionId: 'place-h2',
+      name: 'newcomer',
+      playerId: 'pid-place-1',
+      botId: anchor.id,
+      topicMode: 'random',
+      placement: true,
+    });
+    check('placement: a second placement once placed is refused', again.ok === false && again.error === 'placed');
+  } else {
+    // No store: nothing was set, and the app says so instead of inventing it.
+    // (A retry would be allowed here, since nothing was recorded; not started,
+    // because it would leave a real judge call running after the suite ends.)
+    check('placement: no rating is claimed when the store is down (honest)', v.placement === undefined);
+    check('placement: /rating still cannot say placed (store down)', rt.placed === null);
+  }
+  h.disconnect();
+  h2.disconnect();
 }
 
 console.log(`\n${failures === 0 ? 'ALL CHECKS PASSED' : failures + ' CHECK(S) FAILED'}`);

@@ -5,7 +5,7 @@ import { destroyLobby, touch } from './lobby.js';
 import type { Io } from './debate.js';
 import { event } from './stats.js';
 import { synthesize } from './tts.js';
-import { advanceCampaign, applyRankedResult, campaignLocksOn, getCampaign, saveCheatFlag, saveMatch } from './store.js';
+import { advanceCampaign, applyRankedResult, campaignLocksOn, getCampaign, placePlayer, saveCheatFlag, saveMatch } from './store.js';
 import { FLAG_AT, analyze } from './cheat.js';
 import { PROMPT, TIER_META, type Drill } from './drills.js';
 import { BOTS } from './bots.js';
@@ -506,7 +506,30 @@ function emitVerdict(io: Io, lobby: Lobby, to: string): void {
       : undefined,
     heard: heardCounts(lobby),
     elo: lobby.eloResult,
+    placement: lobby.placementResult,
   });
+}
+
+/** The 100-point total the scorecard adds up to. */
+const total = (s: CategoryScores) => s.argument + s.evidence + s.clash + s.delivery;
+
+/** The placement match: set the starting rating from the margin. The one
+    bot game that touches a rating, and it can only ever do so once per
+    player (placePlayer refuses a placed row). Fail-soft like applyElo. */
+async function applyPlacement(lobby: Lobby): Promise<void> {
+  if (!lobby.placement || !lobby.bot || !lobby.sides || !lobby.verdict) return;
+  const human: Side = lobby.bot.side === 'FOR' ? 'AGAINST' : 'FOR';
+  // A mic that never reached us is not a placement. Nothing is set, so the
+  // player is still unplaced and gets to play it for real.
+  if (heardCounts(lobby)[human] < MIN_RATED_WORDS) {
+    event('placement_quiet', { code: lobby.code });
+    return;
+  }
+  const margin = total(lobby.verdict.scores[human]) - total(lobby.verdict.scores[lobby.bot.side]);
+  const rating = await placePlayer(lobby.placement.playerId, lobby.host?.name ?? 'player', margin);
+  if (rating === null) return;
+  lobby.placementResult = { rating };
+  event('placement_applied', { code: lobby.code, margin, rating });
 }
 
 /** Ranked: move both ratings on the result. Fail-soft — a dead database costs
@@ -514,7 +537,9 @@ function emitVerdict(io: Io, lobby: Lobby, to: string): void {
 async function applyElo(lobby: Lobby): Promise<void> {
   // Ranked means humans. Bot debates never move a rating: a bot is a fixed
   // strategy you can learn to beat permanently, and a bot match has no witness,
-  // which is the last place unobserved rating movement belongs.
+  // which is the last place unobserved rating movement belongs. The placement
+  // match is the one exception, and it goes its own way.
+  if (lobby.placement) return applyPlacement(lobby);
   if (lobby.bot) return;
   if (!lobby.ranked || !lobby.sides || !lobby.verdict) return;
   // Silence is not a result. If the mic never reached us the debate was not
@@ -524,7 +549,7 @@ async function applyElo(lobby: Lobby): Promise<void> {
   const winnerIsHost = lobby.sides.host === lobby.verdict.winner;
   const winnerId = winnerIsHost ? lobby.ranked.host : lobby.ranked.guest;
   const loserId = winnerIsHost ? lobby.ranked.guest : lobby.ranked.host;
-  // The ladder that moves is the one this match was played on.
+  // Ranked is standard only, so lobby.pace is always 'standard' here.
   const moved = await applyRankedResult(winnerId, loserId, lobby.pace);
   if (!moved) return;
   const loserSide: Side = lobby.verdict.winner === 'FOR' ? 'AGAINST' : 'FOR';
@@ -561,7 +586,7 @@ async function unlockLevel(io: Io, lobby: Lobby, target: number): Promise<void> 
 async function fileMatch(lobby: Lobby, verdict: Verdict): Promise<void> {
   if (!lobby.sides) return;
   const names = namesOf(lobby);
-  const t = (s: CategoryScores) => s.argument + s.evidence + s.clash + s.delivery;
+  const t = total;
   const mode: 'ranked' | 'custom' | 'bots' = lobby.ranked
     ? 'ranked'
     : lobby.bot
@@ -580,10 +605,9 @@ async function fileMatch(lobby: Lobby, verdict: Verdict): Promise<void> {
       myTotal: t(verdict.scores[side]),
       theirTotal: t(verdict.scores[other]),
       opponent: names[other],
-      // Ranked human matches always count; bot matches count when the ladder
-      // was armed. The row remembers, because the daily cap reads it back.
-      // Ranked human matches are the only rated thing in the app.
-      rated: mode === 'ranked',
+      // Ranked human matches move a rating, and so does the one placement
+      // match; every other bot game is sparring. The row remembers which.
+      rated: mode === 'ranked' || Boolean(lobby.placement),
       pace: lobby.pace,
       verdict,
       transcript: lobby.transcript,

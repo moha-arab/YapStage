@@ -96,6 +96,10 @@ export interface Lobby {
   /** Campaign identity for bots mode: whose ladder this debate can advance.
       botRank 0 = the tutorial itself. */
   campaign?: { playerId: string; botRank: number };
+  /** The placement match: a bot game whose verdict sets this player's
+      starting rating, the one exception to bot matches being unrated. The
+      id is the ladder identity (the same one the ranked queue uses). */
+  placement?: { playerId: string };
   /** Session ids that already filed a report this debate (one each). */
   reportedBy?: Set<string>;
   /** Host-controlled (custom): whether the code admits watchers. Ranked is
@@ -104,6 +108,8 @@ export interface Lobby {
   spectatorsAllowed: boolean;
   /** Rating movement after a ranked verdict, kept so a re-fetch replays it. */
   eloResult?: Record<Side, { before: number; after: number }>;
+  /** The starting rating the placement verdict set, kept for the same reason. */
+  placementResult?: { rating: number };
   /** The last debate:phase payload sent, so a mid-debate spectator (or a
       resumed socket) can land on a live clock instead of a blank screen. */
   lastPhase?: import('./protocol.js').PhaseUpdate;

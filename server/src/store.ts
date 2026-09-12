@@ -10,6 +10,7 @@ import pg from 'pg';
 import { sanitizeCard, type Card } from './share.js';
 import { event } from './stats.js';
 import { PACES, foldName, type Pace } from './protocol.js';
+import { PLACEMENT_ANCHOR } from './bots.js';
 
 let pool: pg.Pool | null = null;
 let ready = false;
@@ -155,10 +156,12 @@ export async function initStore(): Promise<void> {
     await pool.query(
       `ALTER TABLE players ADD COLUMN IF NOT EXISTS campaign integer NOT NULL DEFAULT 0`,
     );
-    // One ladder per pace (his call 2026-09-04: "like chess has different elo
-    // for different modes"). The original rating/wins/losses trio IS the
-    // standard ladder and keeps every value it has; blitz and long each get
-    // their own trio, seeded like a new player.
+    // One ladder per pace was his call on 2026-09-04 ("like chess has
+    // different elo for different modes") and was reversed on 2026-09-12:
+    // ranked is standard only now, so one queue holds everyone. The blitz and
+    // long trios stay in the table, untouched, so the decision is cheap to
+    // undo; nothing writes to them any more. The original rating/wins/losses
+    // trio IS the ladder.
     for (const pace of PACES) {
       if (pace === 'standard') continue;
       const c = paceCols(pace);
@@ -168,6 +171,10 @@ export async function initStore(): Promise<void> {
       await pool.query(`ALTER TABLE players ADD COLUMN IF NOT EXISTS ${c.wins} integer NOT NULL DEFAULT 0`);
       await pool.query(`ALTER TABLE players ADD COLUMN IF NOT EXISTS ${c.losses} integer NOT NULL DEFAULT 0`);
     }
+    // Whether the placement match has set a starting rating. Before this a
+    // player was "placed" after three rated games; the backfill below keeps
+    // everyone who had got there from being sent to the placement bot.
+    await pool.query(`ALTER TABLE players ADD COLUMN IF NOT EXISTS placed boolean NOT NULL DEFAULT false`);
     // Match history: the account's own debates, so a verdict is re-openable
     // and the coach can still read the transcript days later. Disclosed at
     // sign-up; his call 2026-08-08 (save by default).
@@ -208,6 +215,12 @@ export async function initStore(): Promise<void> {
       // games played survive; anyone below the new floor is pulled up to it.
       await pool!.query(`ALTER TABLE players ALTER COLUMN rating SET DEFAULT ${SEED_RATING}`);
       await pool!.query(`UPDATE players SET rating = GREATEST(${RATING_FLOOR}, rating - 300)`);
+    });
+    await runOnce('placed_from_games', async () => {
+      // 2026-09-12: placement became one match against a bot. Anyone who had
+      // already finished the old three-match placement keeps their standing
+      // instead of being handed a placement game they do not need.
+      await pool!.query(`UPDATE players SET placed = true WHERE wins + losses >= 3`);
     });
     await runOnce('mask_roster_4', async () => {
       // The mask set went from eight to four (his picks). Anyone who saved a
@@ -377,10 +390,11 @@ export interface PaceRating {
   losses: number;
 }
 
-/** A player's standing on every ladder. Ratings are PER PACE: a blitz record
-    says nothing about how you argue with three minutes on the clock, so each
-    pace is placed, rated and floored on its own. */
-export type PlayerRow = Record<Pace, PaceRating>;
+/** A player's standing on every ladder, plus whether the placement match has
+    set their starting rating. Only the standard ladder moves now (ranked is
+    standard only, 2026-09-12); the other two are read for older clients and
+    stay at the seed. `placed` is one flag for the player, not per pace. */
+export type PlayerRow = Record<Pace, PaceRating> & { placed: boolean };
 
 /** The three columns that hold a pace's ladder. Standard is the original
     trio, so its names carry no suffix; the other paces are suffixed. EVERY
@@ -392,8 +406,9 @@ function paceCols(pace: Pace): { rating: string; wins: string; losses: string } 
   return { rating: `rating${sfx}`, wins: `wins${sfx}`, losses: `losses${sfx}` };
 }
 
-/** Every ladder column, for a SELECT or RETURNING that wants the whole player. */
-const LADDER_COLS = PACES.map((p) => Object.values(paceCols(p)).join(', ')).join(', ');
+/** Every ladder column plus the placed flag, for a SELECT or RETURNING that
+    wants the whole player. */
+const LADDER_COLS = `${PACES.map((p) => Object.values(paceCols(p)).join(', ')).join(', ')}, placed`;
 
 /** A player's rating on the ladder a match row was played on (`m.pace`), for
     queries that join matches m against players p. */
@@ -404,7 +419,7 @@ const RATING_AT_MATCH_PACE = `CASE m.pace ${PACES.filter((p) => p !== 'standard'
 /** Shape a raw players row into per-pace standings. A column that is somehow
     missing reads as a fresh ladder, never as a crash. */
 function ladderOf(row: Record<string, unknown>): PlayerRow {
-  const out = {} as PlayerRow;
+  const out = { placed: row.placed === true } as PlayerRow;
   for (const pace of PACES) {
     const c = paceCols(pace);
     out[pace] = {
@@ -450,13 +465,26 @@ export async function getRating(id: string): Promise<PlayerRow | null> {
   }
 }
 
-/** Matches you must finish before your rating is a number and not a guess.
-    Chess.com hides the rating for 5 games; Lichess shows "?" until its
-    deviation settles. Same idea: do not show a number you do not believe yet.
-    THREE, not five, because only ranked matches against humans count and this
-    pool is tiny: a threshold nobody can reach hides the rating forever, which
-    is worse than showing one that is still moving. */
-export const PLACEMENT_MATCHES = 3;
+/** Placement used to be three rated games against humans (chess.com hides
+    the rating for 5; three because the pool was tiny). His call 2026-09-12:
+    one game against the roster bot nearest 1400 sets the starting rating
+    instead, and the rating then swings hard for the first human games. The
+    bot game is the ONE exception to bot matches being unrated, and it is one
+    shot: `placed` flips on the first verdict and never flips back, so the
+    farming and no-witness arguments in CALIBRATION.md still hold. Below is
+    how many HUMAN games after placement keep the fast K. */
+export const FRESH_GAMES = 5;
+
+/** The placement rating, from the judge's 100-point scorecard: 1400 moved
+    by eight points per point of margin (human total minus bot total),
+    clamped to [-400, +300]. A dead-even game lands at 1400; a loss by 50 at
+    1000, which is Vivi's rung and a fair start for someone Brutus beat
+    comfortably; a win by 38 or more at 1700, the Headliner boundary, which
+    a bot game must not hand out above. Floored like everything else. */
+export function placementRating(margin: number): number {
+  const shift = Math.max(-400, Math.min(300, Math.round(margin * 8)));
+  return Math.max(RATING_FLOOR, PLACEMENT_ANCHOR + shift);
+}
 
 /** Where a new player starts.
     700 was chosen from the bot ladder, not from chess. At 700 you are a 57%
@@ -476,12 +504,15 @@ export const SEED_RATING = 700;
     out of the bottom of a pool never come back. */
 export const RATING_FLOOR = 500;
 
-/** K shrinks as the system learns you. A brand-new player swings fast so they
-    reach their real level in a few nights; an established one barely moves,
-    which is also what stops a veteran from being dragged around by newcomers.
-    USCF does this with K = 800/(N+m); this is the same curve, clamped. */
+/** K shrinks as the system learns you. A freshly placed player swings hard
+    (96: one game against a bot is a rough fix, and his words were "the
+    rating can fluctuate a lot once they play actual players"), then settles
+    through 40 to 24, where a veteran barely moves and cannot be dragged
+    around by newcomers. USCF does this with K = 800/(N+m); this is the same
+    curve, clamped. `games` counts human games only: the placement match
+    never touches wins or losses, so it does not eat one of the fast five. */
 function kFor(games: number): number {
-  if (games < PLACEMENT_MATCHES) return 64;
+  if (games < FRESH_GAMES) return 96;
   if (games < 20) return 40;
   return 24;
 }
@@ -489,16 +520,16 @@ function kFor(games: number): number {
 /** Expected score for A against B, the only thing a rating gap ever means. */
 const expected = (a: number, b: number): number => 1 / (1 + Math.pow(10, (b - a) / 400));
 
-/** ELO for a ranked HUMAN match, the only thing in the app that moves a rating.
-    Bot debates are deliberately unrated: a bot is a fixed strategy you can
+/** ELO for a ranked HUMAN match, the thing that moves a rating once a player
+    is placed. Bot debates are deliberately unrated (the placement match is
+    the one exception, placePlayer below): a bot is a fixed strategy you can
     learn to beat forever, and a bot match has no witness.
 
     The two players can move by DIFFERENT amounts, which is deliberate and is
     how a settled rating survives a rush of new accounts.
 
-    `pace` is which ladder moves: the match's own pace, never anything else.
-    Placement (K) counts that ladder's games alone, so a settled standard
-    player is still a newcomer at blitz, exactly as they should be. */
+    `pace` is which ladder moves. Ranked is standard only now, so it is
+    always 'standard'; the parameter stays because the columns do. */
 export async function applyRankedResult(
   winnerId: string,
   loserId: string,
@@ -538,6 +569,31 @@ export async function applyRankedResult(
     };
   } catch (err) {
     console.error('[store] applyRankedResult failed:', err);
+    return null;
+  }
+}
+
+/** The placement match landed: set the starting rating from the margin and
+    mark the player placed. ONE SHOT, enforced in the statement itself: the
+    write only happens WHERE placed = false, so two placement games racing
+    (two tabs), a re-run verdict or a replayed socket cannot move a rating
+    twice. Wins and losses are untouched: the K schedule counts human games
+    and this was not one. Returns the rating set, or null when nothing was
+    written (already placed, or the store is down). */
+export async function placePlayer(id: string, name: string, margin: number): Promise<number | null> {
+  if (!pool || !ready) return null;
+  try {
+    const rating = placementRating(margin);
+    const res = await pool.query(
+      `INSERT INTO players (id, name, rating, placed) VALUES ($1, $2, $3, true)
+       ON CONFLICT (id) DO UPDATE SET rating = $3, placed = true, name = $2, updated_at = now()
+       WHERE players.placed = false
+       RETURNING rating`,
+      [id.slice(0, 64), name.slice(0, 24), rating],
+    );
+    return res.rowCount === 1 ? Number(res.rows[0].rating) : null;
+  } catch (err) {
+    console.error('[store] placePlayer failed:', err);
     return null;
   }
 }
@@ -961,11 +1017,10 @@ export async function removeFriend(sub: string, username: string): Promise<Frien
 export async function listFriends(sub: string): Promise<FriendRow[] | null> {
   if (!pool || !ready) return null;
   try {
-    // The friends strip shows the STANDARD ladder: one number per face, and
-    // standard is the pace strangers are sent to by default.
+    // One number per face: the standard ladder, the only one ranked plays on.
     const res = await pool.query(
       `SELECT f.status, f.asked_by, a.sub AS other, a.username, a.player_id, a.mask,
-              p.rating, COALESCE(p.wins, 0) + COALESCE(p.losses, 0) AS games
+              p.rating, COALESCE(p.placed, false) AS placed
        FROM friends f
        JOIN accounts a ON a.sub = CASE WHEN f.lo_sub = $1 THEN f.hi_sub ELSE f.lo_sub END
        LEFT JOIN players p ON p.id = a.player_id
@@ -983,14 +1038,14 @@ export async function listFriends(sub: string): Promise<FriendRow[] | null> {
         player_id: string;
         mask: string | null;
         rating: number | null;
-        games: string | number | null;
+        placed: boolean | null;
       }) => ({
         sub: r.other,
         username: r.username,
         playerId: r.player_id,
         mask: r.mask || null,
         rating: r.rating ?? SEED_RATING,
-        placed: Number(r.games ?? 0) >= PLACEMENT_MATCHES,
+        placed: r.placed === true,
         pending: r.status === 'pending',
         incoming: r.status === 'pending' && r.asked_by !== sub,
       }),
@@ -1109,8 +1164,8 @@ export async function leaderboard(
     const c = paceCols(pace);
     const res = await pool.query(
       `SELECT name, ${c.rating} AS rating, ${c.wins} AS wins, ${c.losses} AS losses FROM players
-       WHERE ${c.wins} + ${c.losses} >= $2 ORDER BY ${c.rating} DESC, ${c.wins} DESC LIMIT $1`,
-      [Math.min(limit, 50), PLACEMENT_MATCHES],
+       WHERE placed = true ORDER BY ${c.rating} DESC, ${c.wins} DESC LIMIT $1`,
+      [Math.min(limit, 50)],
     );
     return res.rows;
   } catch (err) {

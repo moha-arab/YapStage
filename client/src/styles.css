@@ -1339,6 +1339,10 @@ html[dir='rtl'] .meter-hint {
 .elo-result.lost .elo-delta {
   color: var(--muted);
 }
+/* The placement rating is neither a win nor a loss: paper, never gold. */
+.elo-result.placed .elo-delta {
+  color: var(--paper);
+}
 .elo-why {
   font-size: var(--t2);
   color: var(--muted);

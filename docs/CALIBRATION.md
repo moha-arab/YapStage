@@ -77,17 +77,32 @@ is a 50 percent claim against it. Gigi at 3000 sits above every tier on purpose.
 
 ## Where humans start
 
-Humans currently seed at 700 (`SEED_RATING`, `server/src/store.ts`). That
-number was chosen against the old grid (a 57 percent favourite over Pip at 650)
-and is stale against this one: 700 sits above Pip and Cappy, handing a new
-account the claim it beats two rungs. The replacement is a placement debate
-against Nora at 1400 that seeds from the outcome and the margin (a loss by
-more than 20 seeds at 900, a loss by 20 or less at 1150, a win by 20 or less at
-1450, a win by more than 20 at 1700). The four bands are guesses to be checked
-against the first hundred placements: the median new player should land in
-Silver, and the bands get widened or narrowed until they do. Until the
-placement debate ships, the 700 seed stands and this paragraph is the honest
-note that it does not fit the grid.
+Nobody seeds any more. A new player's first number comes from one placement
+debate against the roster bot rated nearest 1400 (Nora), his call on
+2026-09-12: in a small pool nobody was finding three strangers for placement
+matches, and a rating that never arrives is worse than a rough one. The rule,
+as implemented in `server/src/judge.ts` and `store.placePlayer`:
+
+- The judge's 100-point scorecard gives a margin (your total minus the
+  bot's). Starting rating = 1400 + 8 x margin, clamped to [-400, +300], never
+  below the floor of 500. Dead even is 1400; a loss by 50 lands at 1000
+  (Vivi's rung); a win by 38 or more lands at 1700, the most a bot game may
+  hand out.
+- Wins and losses are untouched, and `placed` flips to true in the same
+  statement that writes the rating, guarded by `WHERE placed = false`, so it
+  can only ever happen once. If we barely heard you (under 40 words), nothing
+  is set and you are still unplaced: a silent mic is our outage, not your
+  rating.
+- After placement, K is 96 for your first five human games, 40 until twenty,
+  then 24. The bot game is a rough fix; the fast K lets real opponents correct
+  it within a week.
+- Players who already had three or more rated games when this shipped were
+  marked placed and kept their rating. `SEED_RATING` (700) still backs the
+  column default and only matters if the store is down during a placement.
+
+The first hundred placements should be read against this: the median new
+player should land around Silver, and the multiplier or the clamp moves if
+they do not.
 
 ## Bot matches are UNRATED
 

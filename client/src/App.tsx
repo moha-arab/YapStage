@@ -51,6 +51,8 @@ interface VerdictInfo {
   heard?: Record<Side, number>;
   /** Ranked only: what the match did to each side's rating. */
   elo?: Record<Side, { before: number; after: number }>;
+  /** The placement match only: the starting rating it set. */
+  placement?: { rating: number };
 }
 
 interface AbortInfo {
@@ -720,6 +722,10 @@ export default function App() {
             rate_limited: 'errRateLimited',
             bad_name: 'errBadName',
             locked: 'errLocked',
+            // The placement match is ranked business: same gates as the queue.
+            signed_out: 'signInRanked',
+            placed: 'errPlaced',
+            in_progress: 'errPlacing',
           };
           resetToHome(map[res.error ?? ''] ?? 'lostLobby');
         },
