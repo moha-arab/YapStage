@@ -205,26 +205,6 @@
   min-width: 0;
 }
 
-/* A picker row under the opponent costs about 90px of height, so both faces
-   come down together. Shrinking only the side with the picker would leave two
-   different-sized fighters staring at each other. */
-.lb-select-compact {
-  --art: clamp(88px, min(15vw, 19vh), 176px);
-}
-
-/* The motion list under the settings panel costs another ~150px, so both
-   faces come down a second step. */
-.lb-select-tight {
-  --art: clamp(80px, min(12vw, 13vh), 130px);
-}
-
-/* Play a friend stacks a code, a link and a join box under the stage, about
-   150px of it. On a 768px-tall laptop the fighters at full size had nowhere
-   to go but up, and the hat went out through the top of the stage. */
-.lb-select:has(.lb-friend) {
-  --art: clamp(88px, min(15vw, 19vh), 176px);
-}
-
 .lb-fighter {
   position: relative;
   display: flex;
@@ -1010,29 +990,10 @@
   /* A picker column is only ~168px wide on a phone, so seven bot chips would
      stack three rows deep and push the ring off the top of the stage. One
      scrolling row instead, and both fighters come down to match. */
-  .lb-select-compact {
-    --art: clamp(72px, 22vw, 104px);
-  }
-
-  .lb-select-compact .lb-choices {
-    flex-wrap: nowrap;
-    overflow-x: auto;
-    justify-content: flex-start;
-    max-width: 100%;
-    margin-top: 8px;
-    padding-bottom: 2px;
-    scroll-snap-type: x proximity;
-  }
-
-  .lb-select-compact .lb-choice {
-    flex: 0 0 auto;
-    scroll-snap-align: center;
-  }
-
-  .lb-caption {
+.lb-caption {
     font-size: var(--t3);
     padding: 10px 16px 9px;
-    min-height: 0;
+    min-height: 81px;
   }
 
 }
@@ -1396,27 +1357,7 @@
    top go compact to pay for it, same as a picker row does. ---- */
 
 /* The list under them costs about 300px, so both faces come down further
-   than a picker row asks (.lb-select-compact); at 900px tall the full size
-   squeezed the names out of the fighter row. */
-.lb-select-watch {
-  --art: clamp(80px, min(13vw, 17vh), 160px);
-}
-
-.lb-watch {
-  grid-column: 1 / -1;
-  justify-self: center;
-  width: min(100%, 760px);
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  gap: 8px;
-  margin: 0 0 12px;
-  position: relative;
-  z-index: 2;
-  min-height: 0;
-}
-
-.lb-watch .lb-stage-note {
+   than a picker row asks (.lb-watch .lb-stage-note {
   margin: 0;
   text-align: center;
 }
@@ -2023,5 +1964,172 @@
   .lb-empty-btn:hover,
   .lb-roster-x:hover {
     transform: none;
+  }
+}
+
+/* ---- around the VS (2026-09-12, his layout): your room's code above it,
+   the box for somebody else's code below it. Out of the layout on purpose:
+   every tab keeps Play Online's stage, lights and fighters exactly. ---- */
+.lb-mid {
+  position: relative;
+  align-self: center;
+  display: grid;
+  justify-items: center;
+}
+
+.lb-mid > .lb-vs {
+  align-self: auto;
+}
+
+.lb-mid-top,
+.lb-mid-bot {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  width: max-content;
+  z-index: 3;
+}
+
+.lb-mid-top {
+  bottom: calc(100% + 12px);
+}
+
+/* The VS keeps 60px of air under its letters; the code box sits in it. */
+.lb-mid-bot {
+  top: calc(100% - 46px);
+}
+
+.lb-mid-top.lb-ticket {
+  gap: 6px;
+  padding: 10px 18px;
+  background: var(--house);
+}
+
+.lb-mid-top .lb-code {
+  font-size: clamp(24px, 2.6vw, 34px);
+}
+
+.lb-mid-bot.lb-join {
+  padding-top: 0;
+}
+
+.lb-hide {
+  visibility: hidden;
+}
+
+/* ---- the sheets: match settings and the live list ---- */
+.lb-sheet {
+  width: min(600px, 100%);
+}
+
+.lb-sheet-go {
+  display: flex;
+  justify-content: center;
+  margin-top: 20px;
+}
+
+.lb-sheet-go .lb-go {
+  margin: 0;
+}
+
+.lb-sheet-list {
+  max-height: none;
+  width: 100%;
+}
+
+.lb-sheet-empty {
+  color: var(--muted);
+  text-align: center;
+  margin: 8px 0 4px;
+}
+
+/* A phone has no room beside the VS: the codes go above and below the whole
+   fighter row, still out of the layout, so the stage does not move. */
+@media (max-width: 620px) {
+  .lb-mid {
+    position: static;
+  }
+
+  .lb-mid-top {
+    top: 6px;
+    bottom: auto;
+  }
+
+  .lb-mid-top.lb-ticket {
+    flex-direction: row;
+    gap: 10px;
+    padding: 6px 12px;
+  }
+
+  .lb-mid-top .lb-code {
+    font-size: 22px;
+  }
+
+  .lb-mid-bot {
+    top: auto;
+    bottom: 84px;
+  }
+
+  .lb-mid-bot .lb-lab {
+    display: none;
+  }
+}
+
+/* ---- one stage in every tab, pass two ---- */
+/* A fighter slot that is not a button keeps the button's box, not its hover. */
+.lb-static:hover {
+  background: none;
+}
+
+/* "a stranger", "a friend": the name line's height, the soft line's look. */
+.lb-fname-soft {
+  font-family: 'Libre Franklin', system-ui, sans-serif;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: 0;
+  color: var(--muted);
+}
+
+.lb-change .lb-queue-n {
+  text-transform: none;
+  letter-spacing: 0;
+  font-weight: 600;
+}
+
+/* The waiting and cancel buttons are as tall as the amber one, so the stage
+   above them does not grow or shrink between tabs. */
+.lb-go-wait,
+.lb-go-cancel {
+  min-height: calc(30px + 1.55 * clamp(17px, 2vw, 24px));
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+@media (max-width: 620px) {
+  .lb-mid-top.lb-ticket {
+    top: 4px;
+    gap: 8px;
+    padding: 4px 10px;
+  }
+
+  .lb-mid-top .lb-lab {
+    font-size: 10px;
+  }
+
+  .lb-mid-top .lb-code {
+    font-size: 18px;
+  }
+
+  .lb-mid-top .lb-copy {
+    min-height: 28px;
+    margin-top: 0;
+    padding: 3px 8px;
+    font-size: 12px;
+  }
+
+  /* Signed out, the name box sits above the button: the code box goes above it. */
+  .lb-select:has(.lb-guest:not(.lb-hide)) .lb-mid-bot {
+    bottom: 168px;
   }
 }

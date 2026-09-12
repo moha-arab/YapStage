@@ -426,6 +426,13 @@ const SCREENS: Record<string, () => JSX.Element> = {
       '/live': {
         live: 3,
         watchable: 3,
+        matches: [
+          { code: 'ABCDEF', names: { FOR: 'pizzamaster', AGAINST: 'goat' }, avatars: { FOR: 'marisol', AGAINST: 'quip' }, topic: { en: 'Homework should be banned', ar: '' }, category: 'school', phase: 'rebuttal', startedAt: Date.now() - 134000, watchers: 2 },
+          { code: 'QWERTY', names: { FOR: 'zeno', AGAINST: 'mira' }, avatars: { FOR: 'corvin', AGAINST: 'athena' }, topic: { en: 'Pineapple belongs on pizza', ar: '' }, category: 'food', phase: 'opening', startedAt: Date.now() - 40000, watchers: 0 },
+          { code: 'LMNOPQ', names: { FOR: 'kip', AGAINST: 'dune' }, avatars: { FOR: 'fuma', AGAINST: 'garn' }, topic: { en: 'Social media does more harm than good', ar: '' }, category: 'tech', phase: 'closing', startedAt: Date.now() - 300000, watchers: 5 },
+        ],
+        categories: [],
+        serverNow: Date.now(),
         featured: {
           code: 'ABCDEF',
           names: { FOR: 'pizzamaster', AGAINST: 'goat' },

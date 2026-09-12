@@ -47,7 +47,7 @@
 //      name typed once and a mask picked once, both kept on the device
 //      (guest.ts). Ranked alone asks for the account, on its own stage with
 //      the reason in one line, and the bar carries a quiet sign-in.
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import {
   NAME_RE,
   type JoinError,
@@ -59,6 +59,7 @@ import {
 import type { BotStartConfig } from './BotSelect';
 import BotRoster from './BotRoster';
 import MaskRoster from './MaskRoster';
+import LobbySheet from './LobbySheet';
 import MatchSetup, {
   DEFAULT_SETUP,
   emitSetup,
@@ -365,6 +366,10 @@ export default function Home({
   // Bot games keep them here until bot:start. Friend rooms keep them on the
   // server (setupOf(room)); the panel is the same either way.
   const [botSetup, setBotSetup] = useState<MatchSetupValue>(DEFAULT_SETUP);
+  // The settings (bots, friends) and the live list (watch) open in a sheet
+  // from the go button, never on the page: every tab keeps Play Online's
+  // stage exactly where it is (his call 2026-09-12).
+  const [sheet, setSheet] = useState<null | 'setup' | 'live'>(null);
   const roomSetup = room ? setupOf(room) : null;
   function changeRoomSetup(next: MatchSetupValue) {
     if (!roomSetup) return;
@@ -463,9 +468,6 @@ export default function Home({
   /* ---- watching: the list, a random one, or a friend's code ---- */
 
   const [watching, setWatching] = useState(false);
-  // null is the "all" chip. A key that is no longer in the deck (a rebuilt
-  // deck mid-session) just filters to nothing; the "all" chip is always there.
-  const [watchCat, setWatchCat] = useState<string | null>(null);
   const [watchCode, setWatchCode] = useState('');
 
   /** Every door into the crowd goes through here. unlockSpectateAudio must
@@ -482,33 +484,6 @@ export default function Home({
     });
   }
 
-  /** A random LIVE ranked debate, in the tab you are on. Ranked is public
-      by consent. */
-  function watchRandom() {
-    if (watching) return;
-    setWatching(true);
-    setError(null);
-    unlockSpectateAudio();
-    const q = watchCat ? `?category=${encodeURIComponent(watchCat)}` : '';
-    void fetch(`/spectate/random${q}`)
-      .then((r) => r.json())
-      .then((d: { code: string | null }) => {
-        if (!d.code) {
-          setWatching(false);
-          return setError('feedEmpty');
-        }
-        socket.emit('spectate:join', { code: d.code }, (res) => {
-          setWatching(false);
-          if (!res.ok) return setError('feedEmpty');
-          onSpectate(d.code!, { category: watchCat });
-        });
-      })
-      .catch(() => {
-        setWatching(false);
-        setError('feedEmpty');
-      });
-  }
-
   /** A friend's room. The code is the invitation; ranked or not, the host
       decides who may watch (pick:spectators) and the server answers. */
   function watchByCode() {
@@ -517,9 +492,7 @@ export default function Home({
     watchOne(watchCode.trim().toUpperCase(), null);
   }
 
-  const catLabel = (key: string | null) =>
-    key === null ? t('lbWatchAll') : (live.categories.find((c) => c.key === key)?.label.en ?? key);
-  const shown = watchCat ? live.matches.filter((m) => m.category === watchCat) : live.matches;
+  const shown = live.matches;
 
   // One tick a second while the list is up, so "2:14 in" moves between
   // polls. The offset comes from the poll that carried the rows.
@@ -552,9 +525,11 @@ export default function Home({
     setMode(next);
     setPickedBot(null);
     setRoster(false);
+    setSheet(null);
   }
 
   const closeRoster = useCallback(() => setRoster(false), []);
+  const closeSheet = useCallback(() => setSheet(null), []);
   function pickBot(id: string) {
     setPickedBot(id);
     setRoster(false);
@@ -601,10 +576,35 @@ export default function Home({
   // a tab that has nothing, the rings go empty rather than showing a pair
   // from another tab under a line that says nothing is on.
   const watchingFeatured =
-    mode === 'watch' ? (shown[0] ?? (watchCat === null ? live.featured : null)) : null;
+    mode === 'watch' ? (shown[0] ?? live.featured) : null;
 
   // YOU, on the amber side, in every mode but watch. Your mask is a button:
   // tap it and the mask roster walks out.
+  // Every fighter wears the same lines under its picture (name, small line,
+  // chip), invisible where a tab has nothing to say. The pictures then sit at
+  // the same height in every tab and on both sides (his note: "the placement
+  // of my character, the page, everything" moved when switching tabs).
+  const blank = (
+    <span className="lb-hide" aria-hidden="true">
+      .
+    </span>
+  );
+  const chipSlot = (
+    <span className="lb-tier lb-hide" aria-hidden="true">
+      0
+    </span>
+  );
+  const stand = (pic: ReactNode, name: ReactNode | null, small: ReactNode | null) => (
+    <>
+      <div className="lb-picked lb-static">
+        {pic}
+        <div className="lb-fname">{name ?? blank}</div>
+        <span className="lb-change">{small ?? blank}</span>
+      </div>
+      {chipSlot}
+    </>
+  );
+
   const me = (
     <>
       <button className="lb-picked" onClick={() => setMaskRoster(true)}>
@@ -624,7 +624,9 @@ export default function Home({
         </span>
       ) : mode === 'ranked' && rank?.placed === false ? (
         <span className="lb-tier lb-tier-provisional">{t('lbUnplaced')}</span>
-      ) : null}
+      ) : (
+        chipSlot
+      )}
     </>
   );
 
@@ -645,36 +647,27 @@ export default function Home({
       </>
     );
   } else if (mode === 'ranked') {
-    opponent = (
-      <>
-        <div className={`lb-empty ${queueing ? 'lb-searching' : ''}`}>
-          <span className="lb-empty-q">?</span>
-        </div>
-        <div className="lb-soft">
-          {queueing ? t('lbSearching') : t('lbYourOpponent')}
-          {/* Others besides you. "0 others" says nothing, so the line only
-              appears once somebody else is in the queue. */}
-          {queueing && queueInfo && queueInfo.waiting > 1 ? (
-            <div className="lb-queue-n">
-              {queueInfo.waiting === 2
-                ? t('queueWaitingOne')
-                : t('queueWaiting', { n: queueInfo.waiting - 1 })}
-            </div>
-          ) : null}
-        </div>
-      </>
+    opponent = stand(
+      <div className={`lb-empty ${queueing ? 'lb-searching' : ''}`}>
+        <span className="lb-empty-q">?</span>
+      </div>,
+      <span className="lb-fname-soft">{queueing ? t('lbSearching') : t('lbYourOpponent')}</span>,
+      // Others besides you. "0 others" says nothing, so the line only appears
+      // once somebody else is in the queue.
+      queueing && queueInfo && queueInfo.waiting > 1 ? (
+        <span className="lb-queue-n">
+          {queueInfo.waiting === 2 ? t('queueWaitingOne') : t('queueWaiting', { n: queueInfo.waiting - 1 })}
+        </span>
+      ) : null,
     );
   } else if (mode === 'friend') {
-    // The friend's seat is empty until they walk in. The code and the link
-    // live in the MIDDLE, under the stage (his call: "the code shouldn't be
-    // on the blue"), the same shape watch mode uses for its note.
-    opponent = (
-      <>
-        <div className="lb-empty">
-          <span className="lb-empty-q">?</span>
-        </div>
-        <div className="lb-soft">{t('lbAFriendSoft')}</div>
-      </>
+    // The friend's seat is empty until they walk in.
+    opponent = stand(
+      <div className="lb-empty">
+        <span className="lb-empty-q">?</span>
+      </div>,
+      <span className="lb-fname-soft">{t('lbAFriendSoft')}</span>,
+      null,
     );
   } else if (mode === 'bot') {
     const picked = chosenBot ? (
@@ -696,14 +689,21 @@ export default function Home({
       </>
     ) : null;
     opponent = picked ? (
-      <button className="lb-picked" onClick={() => setRoster(true)}>
-        {picked}
-        <span className="lb-change">{t('lbChangeBot')}</span>
-      </button>
+      <>
+        <button className="lb-picked" onClick={() => setRoster(true)}>
+          {picked}
+          <span className="lb-change">{t('lbChangeBot')}</span>
+        </button>
+        {chipSlot}
+      </>
     ) : (
-      <button className="lb-empty lb-empty-btn" onClick={() => setRoster(true)}>
-        <span className="lb-empty-pick" dangerouslySetInnerHTML={{ __html: t('lbPickBot') }} />
-      </button>
+      stand(
+        <button className="lb-empty lb-empty-btn" onClick={() => setRoster(true)}>
+          <span className="lb-empty-pick" dangerouslySetInnerHTML={{ __html: t('lbPickBot') }} />
+        </button>,
+        null,
+        null,
+      )
     );
   } else if (mode === 'drill') {
     opponent = (
@@ -717,20 +717,20 @@ export default function Home({
     );
   } else if (watchingFeatured) {
     // A real bout, with the two people actually in it, on their real sides.
-    opponent = (
-      <>
-        <div className="lb-art">
-          <Mask id={watchingFeatured.avatars.AGAINST ?? MASK_IDS[0]} size="var(--art)" bare />
-        </div>
-        <div className="lb-fname">{watchingFeatured.names.AGAINST}</div>
-        <div className="lb-side">{t('sideAgainst')}</div>
-      </>
+    opponent = stand(
+      <div className="lb-art">
+        <Mask id={watchingFeatured.avatars.AGAINST ?? MASK_IDS[0]} size="var(--art)" bare />
+      </div>,
+      watchingFeatured.names.AGAINST,
+      <span className="lb-side">{t('sideAgainst')}</span>,
     );
   } else {
-    opponent = (
+    opponent = stand(
       <div className="lb-empty">
         <span className="lb-empty-q">?</span>
-      </div>
+      </div>,
+      null,
+      null,
     );
   }
 
@@ -763,8 +763,8 @@ export default function Home({
     );
   } else if (mode === 'friend') {
     go = room ? (
-      <button className="lb-go lb-go-wait" disabled>
-        {t('lbWaitRoom')}
+      <button className="lb-go" onClick={() => setSheet('setup')}>
+        {t('lbGoSetMatch')}
       </button>
     ) : (
       <button className="lb-go" disabled={busy} onClick={openRoom}>
@@ -776,14 +776,8 @@ export default function Home({
       <button className="lb-go" onClick={startBot}>
         {t('lbGoTutor')}
       </button>
-    ) : pickedBot && !setupComplete(botSetup) ? (
-      // A category or a motion was asked for and not picked yet: the button
-      // says what is missing, in the waiting clothes, not a dead amber one.
-      <button className="lb-go lb-go-wait" disabled>
-        {t(botSetup.topicMode === 'category' ? 'lbWaitCategory' : 'lbWaitTopic')}
-      </button>
     ) : pickedBot ? (
-      <button className="lb-go" onClick={startBot}>
+      <button className="lb-go" onClick={() => setSheet('setup')}>
         {t('lbGoBot', { x: chosenBot?.name ?? '' })}
       </button>
     ) : (
@@ -800,12 +794,12 @@ export default function Home({
   } else {
     go =
       shown.length > 0 ? (
-        <button className="lb-go" disabled={watching} onClick={watchRandom}>
-          {watching ? t('loading') : t('lbGoWatch')}
+        <button className="lb-go" onClick={() => setSheet('live')}>
+          {t('lbGoLive')}
         </button>
       ) : (
         <button className="lb-go lb-go-wait" disabled>
-          {watchCat ? t('lbWaitWatchCat', { x: catLabel(watchCat) }) : t('lbWaitWatch')}
+          {t('lbWaitWatch')}
         </button>
       );
   }
@@ -832,14 +826,60 @@ export default function Home({
           ? t('lbCap_placement', { x: esc(rank?.placementBot ?? '') })
           : t(`lbCap_${mode}`);
 
-  // The settings panel under the ticket is already a lot of stage, and it
-  // grows a row (or a list of motions) once the host asks for a category or
-  // one motion. Both fighters come down to make the room, the same way the
-  // old bot picker row did: one step for the panel next to a ticket or an
-  // open category row, two for the motion list.
-  const setupShown = mode === 'friend' ? roomSetup : mode === 'bot' && chosenBot ? botSetup : null;
-  const setupTall = Boolean(setupShown && (mode === 'friend' || setupShown.topicMode !== 'random'));
-  const setupTaller = Boolean(setupShown && setupShown.topicMode === 'agree');
+  /* ---- around the VS: codes, placed so they never move the stage ---- */
+
+  // Your own room's code above the VS, the box for somebody else's code below
+  // it (his layout, 2026-09-12). Both are positioned out of the layout, so
+  // the fighters, the lights and the button sit exactly where Play Online
+  // has them in every tab.
+  const midTop =
+    mode === 'friend' && room ? (
+      <div className="lb-mid-top lb-ticket">
+        <span className="lb-lab">{t('lbUseCode')}</span>
+        <span className="lb-code">{room.code}</span>
+        <button className="lb-copy" onClick={copyLink}>
+          {copied ? t('copied') : t('lbCopyLink')}
+        </button>
+      </div>
+    ) : null;
+
+  const codeBox = (value: string, set: (v: string) => void, submit: () => void, cta: string, off: boolean) => (
+    <div className="lb-mid-bot lb-join">
+      <span className="lb-lab">{t('lbGotCode')}</span>
+      <div className="lb-join-row">
+        <input
+          className="input input-code"
+          placeholder={t('codePlaceholder')}
+          maxLength={6}
+          value={value}
+          aria-label={t('lbGotCode')}
+          onChange={(e) => {
+            set(e.target.value.toUpperCase());
+            setError(null);
+          }}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') submit();
+          }}
+        />
+        <button className="btn btn-small" disabled={off || value.trim().length !== 6} onClick={submit}>
+          {cta}
+        </button>
+      </div>
+    </div>
+  );
+
+  const midBot =
+    mode === 'friend'
+      ? codeBox(joinCode, setJoinCode, join, t('walkIn'), busy)
+      : mode === 'watch'
+        ? codeBox(watchCode, setWatchCode, watchByCode, t('watchBtn'), watching)
+        : null;
+
+  const sheetError = error ? (
+    <p className="lb-err" role="alert">
+      {t(error)}
+    </p>
+  ) : null;
 
   /* ---- render ---- */
 
@@ -895,147 +935,46 @@ export default function Home({
           </div>
         ) : null}
 
-        <div className={`lb-select ${mode === 'watch' && live.matches.length > 0 ? 'lb-select-watch' : setupTaller ? 'lb-select-tight' : setupTall ? 'lb-select-compact' : ''}`}>
+        <div className="lb-select">
           <div className="lb-fighter lb-fighter-a">
             <Cone color="#F0821E" id="lbConeA" />
-            {watchingFeatured ? (
-              <>
-                <div className="lb-art">
-                  <Mask id={watchingFeatured.avatars.FOR ?? MASK_IDS[0]} size="var(--art)" bare />
-                </div>
-                <div className="lb-fname">{watchingFeatured.names.FOR}</div>
-                <div className="lb-side">{t('sideFor')}</div>
-              </>
-            ) : mode === 'watch' ? (
-              // In the crowd, not in the fight: nobody on this side either.
-              <div className="lb-empty lb-empty-a">
-                <span className="lb-empty-q">?</span>
-              </div>
-            ) : (
-              me
-            )}
+            {watchingFeatured
+              ? stand(
+                  <div className="lb-art">
+                    <Mask id={watchingFeatured.avatars.FOR ?? MASK_IDS[0]} size="var(--art)" bare />
+                  </div>,
+                  watchingFeatured.names.FOR,
+                  <span className="lb-side">{t('sideFor')}</span>,
+                )
+              : mode === 'watch'
+                ? stand(
+                    <div className="lb-empty lb-empty-a">
+                      <span className="lb-empty-q">?</span>
+                    </div>,
+                    null,
+                    null,
+                  )
+                : me}
           </div>
 
-          <div className={`lb-vs ${mode === 'drill' ? 'lb-vs-hidden' : ''}`}>{t('vs')}</div>
+          <div className="lb-mid">
+            {midTop}
+            <div className={`lb-vs ${mode === 'drill' ? 'lb-vs-hidden' : ''}`}>{t('vs')}</div>
+            {midBot}
+          </div>
 
           <div className="lb-fighter lb-fighter-b">
             <Cone color="#1FC2D4" id="lbConeB" />
             {opponent}
           </div>
 
-          {/* Watch a match: the tabs, the live list, and the box for a
-              friend's code, in the middle under the stage. Rows are real
-              buttons. With nothing on there is one plain line and the code
-              box, never a fake list. */}
-          {mode === 'watch' ? (
-            <div className="lb-watch">
-              {live.matches.length > 0 ? (
-                <>
-                  <div className="lb-watch-tabs" role="tablist">
-                    {[null, ...live.categories.map((c) => c.key)].map((key) => (
-                      <button
-                        key={key ?? 'all'}
-                        role="tab"
-                        aria-selected={watchCat === key}
-                        className={`lb-watch-tab ${watchCat === key ? 'lb-watch-tab-on' : ''}`}
-                        onClick={() => {
-                          setWatchCat(key);
-                          setError(null);
-                        }}
-                      >
-                        {catLabel(key)}
-                      </button>
-                    ))}
-                  </div>
-                  {shown.length > 0 ? (
-                    <div className="lb-watch-list">
-                      {shown.map((m) => {
-                        const at = elapsedOf(m);
-                        return (
-                          <button
-                            key={m.code}
-                            className="lb-watch-row"
-                            disabled={watching}
-                            aria-label={t('lbWatchRow', { a: m.names.FOR, b: m.names.AGAINST })}
-                            onClick={() => watchOne(m.code, { category: watchCat })}
-                          >
-                            <span className="lb-watch-pair" aria-hidden="true">
-                              <span className="lb-watch-face lb-watch-face-a">
-                                <Mask id={m.avatars.FOR ?? MASK_IDS[0]} size={34} bare />
-                              </span>
-                              <span className="lb-watch-face lb-watch-face-b">
-                                <Mask id={m.avatars.AGAINST ?? MASK_IDS[0]} size={34} bare />
-                              </span>
-                            </span>
-                            <span className="lb-watch-what">
-                              <span className="lb-watch-motion">{m.topic.en}</span>
-                              <span className="lb-watch-names">
-                                <b className="lb-watch-for">{m.names.FOR}</b> {t('vs')}{' '}
-                                <b className="lb-watch-against">{m.names.AGAINST}</b>
-                                {m.category ? <span className="lb-watch-cat"> · {catLabel(m.category)}</span> : null}
-                              </span>
-                            </span>
-                            <span className="lb-watch-meta">
-                              <span className="lb-watch-phase">
-                                {m.phase && at
-                                  ? `${t(PHASE_WORD[m.phase] ?? m.phase)} · ${t('lbWatchElapsed', { t: at })}`
-                                  : t('lbWatchStarting')}
-                              </span>
-                              <span className="lb-watch-n">
-                                <i />
-                                {t('specWatching', { n: m.watchers })}
-                              </span>
-                            </span>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  ) : (
-                    <p className="lb-stage-note">{t('lbWatchNoneCat', { x: catLabel(watchCat) })}</p>
-                  )}
-                </>
-              ) : (
-                <p className="lb-stage-note">{t('lbNobodyOnStage')}</p>
-              )}
-              <div className="lb-watch-code">
-                <div className="lb-join lb-watch-join">
-                  <span className="lb-lab">{t('lbGotCode')}</span>
-                  <div className="lb-join-row">
-                    <input
-                      className="input input-code"
-                      placeholder={t('codePlaceholder')}
-                      maxLength={6}
-                      value={watchCode}
-                      aria-label={t('lbGotCode')}
-                      onChange={(e) => {
-                        setWatchCode(e.target.value.toUpperCase());
-                        setError(null);
-                      }}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') watchByCode();
-                      }}
-                    />
-                    <button
-                      className="btn btn-small"
-                      disabled={watching || watchCode.trim().length !== 6}
-                      onClick={watchByCode}
-                    >
-                      {t('watchBtn')}
-                    </button>
-                  </div>
-                </div>
-                <span className="lb-watch-hint">{t('lbWatchCodeHint')}</span>
-              </div>
-            </div>
-          ) : null}
-
           {/* Guests need a name before anything will start. Not for watching
               (the crowd is anonymous) and not on a ranked stage that is
               asking for an account instead. The line under it is the
               disclosure for filing a guest's games under the device id. */}
-          {!account.signedIn && mode !== 'watch' && !(mode === 'ranked' && needAccount) ? (
+          {!account.signedIn && !(mode === 'ranked' && needAccount) ? (
             <>
-              <div className="lb-guest">
+              <div className={`lb-guest${mode === 'watch' ? ' lb-hide' : ''}`} aria-hidden={mode === 'watch'}>
                 <label className="lb-lab" htmlFor="yapname">
                   {t('yourYapName')}
                 </label>
@@ -1054,7 +993,7 @@ export default function Home({
                 />
                 {name && !validName ? <span className="lb-err">{t('errBadName')}</span> : null}
               </div>
-              <p className="lb-guest-note">{t(account.google ? 'lbGuestKept' : 'lbGuestKeptLocal')}</p>
+              <p className={`lb-guest-note${mode === 'watch' ? ' lb-hide' : ''}`}>{t(account.google ? 'lbGuestKept' : 'lbGuestKeptLocal')}</p>
             </>
           ) : null}
 
@@ -1062,57 +1001,6 @@ export default function Home({
               itself, before the tap, with the reason in one line. */}
           {mode === 'ranked' && needAccount ? (
             <p className="lb-stage-note lb-stage-ask">{t('lbRankedAsk')}</p>
-          ) : null}
-
-          {/* Play a friend: the code and the link, centred under the stage,
-              and the box for a code somebody sent you. */}
-          {mode === 'friend' ? (
-            <div className="lb-friend">
-              {room ? (
-                <div className="lb-ticket">
-                  <span className="lb-lab">{t('lbUseCode')}</span>
-                  <span className="lb-code">{room.code}</span>
-                  <button className="lb-copy" onClick={copyLink}>
-                    {copied ? t('copied') : t('lbCopyLink')}
-                  </button>
-                </div>
-              ) : null}
-              <div className="lb-join">
-                <span className="lb-lab">{t('lbGotCode')}</span>
-                <div className="lb-join-row">
-                  <input
-                    className="input input-code"
-                    placeholder={t('codePlaceholder')}
-                    maxLength={6}
-                    value={joinCode}
-                    onChange={(e) => {
-                      setJoinCode(e.target.value.toUpperCase());
-                      setError(null);
-                    }}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') join();
-                    }}
-                  />
-                  <button className="btn btn-small" disabled={busy || joinCode.trim().length !== 6} onClick={join}>
-                    {t('walkIn')}
-                  </button>
-                </div>
-              </div>
-            </div>
-          ) : null}
-
-          {/* The host sets the match: topic and side. Under the fighters,
-              with the go button, in a friend room (once the room is open)
-              and in a bot game (once a bot is picked). The lesson has no
-              settings: the YapMaster brings the motion. */}
-          {mode === 'friend' && room && roomSetup ? (
-            <div className="lb-setup">
-              <MatchSetup deck={room.deck} value={roomSetup} onChange={changeRoomSetup} />
-            </div>
-          ) : mode === 'bot' && chosenBot ? (
-            <div className="lb-setup">
-              <MatchSetup deck={deck} value={botSetup} onChange={setBotSetup} />
-            </div>
           ) : null}
 
           {error ? (
@@ -1150,6 +1038,83 @@ export default function Home({
         </div>
       </footer>
 
+      {sheet === 'setup' && mode === 'bot' && chosenBot ? (
+        <LobbySheet title={t('lbSetupTitle')} onClose={closeSheet}>
+          <MatchSetup deck={deck} value={botSetup} onChange={setBotSetup} />
+          {sheetError}
+          <div className="lb-sheet-go">
+            {setupComplete(botSetup) ? (
+              <button className="lb-go" onClick={startBot}>
+                {t('lbGoBot', { x: chosenBot.name })}
+              </button>
+            ) : (
+              <button className="lb-go lb-go-wait" disabled>
+                {t(botSetup.topicMode === 'category' ? 'lbWaitCategory' : 'lbWaitTopic')}
+              </button>
+            )}
+          </div>
+        </LobbySheet>
+      ) : null}
+      {sheet === 'setup' && mode === 'friend' && room && roomSetup ? (
+        <LobbySheet title={t('lbSetupTitle')} onClose={closeSheet}>
+          <MatchSetup deck={room.deck} value={roomSetup} onChange={changeRoomSetup} />
+          <div className="lb-sheet-go">
+            <button className="lb-go" onClick={closeSheet}>
+              {t('lbSetupDone')}
+            </button>
+          </div>
+        </LobbySheet>
+      ) : null}
+      {sheet === 'live' && mode === 'watch' ? (
+        <LobbySheet title={t('lbLiveTitle')} onClose={closeSheet}>
+          {sheetError}
+          {shown.length > 0 ? (
+            <div className="lb-watch-list lb-sheet-list">
+              {shown.map((m) => {
+                const at = elapsedOf(m);
+                return (
+                  <button
+                    key={m.code}
+                    className="lb-watch-row"
+                    disabled={watching}
+                    aria-label={t('lbWatchRow', { a: m.names.FOR, b: m.names.AGAINST })}
+                    onClick={() => watchOne(m.code, { category: null })}
+                  >
+                    <span className="lb-watch-pair" aria-hidden="true">
+                      <span className="lb-watch-face lb-watch-face-a">
+                        <Mask id={m.avatars.FOR ?? MASK_IDS[0]} size={34} bare />
+                      </span>
+                      <span className="lb-watch-face lb-watch-face-b">
+                        <Mask id={m.avatars.AGAINST ?? MASK_IDS[0]} size={34} bare />
+                      </span>
+                    </span>
+                    <span className="lb-watch-what">
+                      <span className="lb-watch-motion">{m.topic.en}</span>
+                      <span className="lb-watch-names">
+                        <b className="lb-watch-for">{m.names.FOR}</b> {t('vs')}{' '}
+                        <b className="lb-watch-against">{m.names.AGAINST}</b>
+                      </span>
+                    </span>
+                    <span className="lb-watch-meta">
+                      <span className="lb-watch-phase">
+                        {m.phase && at
+                          ? `${t(PHASE_WORD[m.phase] ?? m.phase)} · ${t('lbWatchElapsed', { t: at })}`
+                          : t('lbWatchStarting')}
+                      </span>
+                      <span className="lb-watch-n">
+                        <i />
+                        {t('specWatching', { n: m.watchers })}
+                      </span>
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          ) : (
+            <p className="lb-sheet-empty">{t('lbWaitWatch')}</p>
+          )}
+        </LobbySheet>
+      ) : null}
       {roster ? (
         <BotRoster bots={ladder} picked={pickedBot} onPick={pickBot} onClose={closeRoster} />
       ) : null}

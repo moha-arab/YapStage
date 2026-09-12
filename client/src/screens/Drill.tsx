@@ -182,7 +182,6 @@ export default function Drill({ onBack }: Props) {
               <button className="btn btn-primary btn-wide" onClick={begin}>
                 {info.doneToday ? t('drillAgain') : t('drillStart')}
               </button>
-              <p className="drill-note">{t('drillNote', { n: info.seconds })}</p>
             </>
           ) : stage === 'speaking' ? (
             <div className="drill-live">
