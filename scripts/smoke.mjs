@@ -61,7 +61,7 @@ check('rtc:signal relayed verbatim', sig?.description?.sdp === 'fake-sdp');
 // picks: the HOST names the topic (guests cannot), sides are dealt by the
 // server, then both confirm. Choosing your own side sounds fair and isn't:
 // everyone grabs the side they already believe.
-const PICKED = 'kurdistan';
+const PICKED = 'messi-ronaldo';
 let early = false;
 a.once('debate:start', () => { early = true; });
 b.emit('pick:topic', PICKED); // guest pick: must not register
@@ -78,7 +78,7 @@ await new Promise((r) => setTimeout(r, 300));
 a.emit('pick:confirm');
 b.emit('pick:confirm');
 const [sa, sb] = await Promise.all([startA, startB]);
-check('debate starts with the host topic (bilingual)', sa.topic.id === PICKED && sa.topic.en.includes('Kurdistan') && sa.topic.ar.length > 0 && sb.topic.id === PICKED);
+check('debate starts with the host topic (bilingual)', sa.topic.id === PICKED && sa.topic.en.includes('Messi') && sa.topic.ar.length > 0 && sb.topic.id === PICKED);
 check('sides are dealt opposite', sa.yourSide !== sb.yourSide && ['FOR', 'AGAINST'].includes(sa.yourSide));
 // Sides are dealt, so check the names landed on the right seats rather than on
 // fixed sides: the host's name goes wherever the host was dealt.
@@ -200,8 +200,8 @@ const code2 = created2.update.code;
 await emitP(b2, 'lobby:join', { code: code2, sessionId: 'sess-b2', name: 'guestgal' });
 
 const start2 = once(a2, 'debate:start');
-a2.emit('pick:topic', 'un-useless');
-b2.emit('pick:topic', 'un-useless');
+a2.emit('pick:topic', 'cereal-soup');
+b2.emit('pick:topic', 'cereal-soup');
 a2.emit('pick:side', 'FOR');
 b2.emit('pick:side', 'AGAINST');
 await new Promise((r) => setTimeout(r, 300));
@@ -344,8 +344,8 @@ const pRes = await emitP(p1, 'lobby:create', { sessionId: 'sess-p1', name: 'star
 const pCode = pRes.update.code;
 const p2 = connect();
 await emitP(p2, 'lobby:join', { code: pCode, sessionId: 'sess-p2', name: 'joiner' });
-p1.emit('pick:topic', 'kurdistan');
-p2.emit('pick:topic', 'kurdistan');
+p1.emit('pick:topic', 'messi-ronaldo');
+p2.emit('pick:topic', 'messi-ronaldo');
 p1.emit('pick:side', 'FOR');
 p2.emit('pick:side', 'AGAINST');
 await new Promise((r) => setTimeout(r, 200));
@@ -374,7 +374,7 @@ orphanCheck.disconnect();
 
 // ---------- Scenario 5: topic modes (agree / category / random) ----------
 console.log('\n=== Scenario 5: topic modes ===');
-const MONEY_IDS = ['capitalism-failing', 'college-worth', 'money-happiness', 'landlords', 'crypto-scam', 'no-billionaires'];
+const MONEY_IDS = ['money-happiness', 'landlords', 'crypto-scam', 'no-billionaires', 'invite-pays', 'rent-vs-buy', 'salary-public'];
 
 // category mode
 {
@@ -404,19 +404,19 @@ const MONEY_IDS = ['capitalism-failing', 'college-worth', 'money-happiness', 'la
   host.emit('pick:confirm');
   await new Promise((r) => setTimeout(r, 150));
   const afterChange = once(guest, 'lobby:update', 4000);
-  host.emit('pick:category', 'america');
+  host.emit('pick:category', 'sport');
   const ac = await afterChange;
   check('rewind: changing category after locking in clears the lock', ac.pick.peerConfirmed === false);
-  check('rewind: the category actually changed', ac.categoryKey === 'america');
+  check('rewind: the category actually changed', ac.categoryKey === 'sport');
 
-  const AMERICA_IDS = ['trump-america', 'us-israel-funding', 'america-greatest', 'two-party', 'immigrants-path', 'guns-protect'];
+  const SPORT_IDS = ['messi-ronaldo', 'esports-sport', 'athletes-overpaid', 'var-ruined', 'chess-sport', 'club-loyalty', 'trophies-stats'];
   const started = once(host, 'debate:start', 8000);
   const gStarted = once(guest, 'debate:start', 8000);
   host.emit('pick:confirm');
   guest.emit('pick:confirm');
   const ds = await started;
   const gds = await gStarted;
-  check('category mode: topic comes from the (re-picked) category', AMERICA_IDS.includes(ds.topic.id));
+  check('category mode: topic comes from the (re-picked) category', SPORT_IDS.includes(ds.topic.id));
   check('category mode: sides are opposite', ds.yourSide !== gds.yourSide);
   host.disconnect();
   guest.disconnect();
@@ -924,6 +924,73 @@ console.log('\n=== Scenario 13: rooms start masked ===');
   check('mask: a vaulted id is refused, a roster id is worn', last?.peerAvatar === 'napoleon');
   h.disconnect();
   g.disconnect();
+}
+
+// ---------- Scenario 14: the ladder, the deck and the daily rebuttal ----------
+// Content shape checks over HTTP. None of these needs a model call: a broken
+// rung mapping, a topic without Arabic or a drill bank with a duplicate id
+// would otherwise sail through every socket scenario above.
+console.log('\n=== Scenario 14: ladder, deck, daily rebuttal ===');
+{
+  const { bots, topics } = await (await fetch(`${URL}/bots`)).json();
+  const GRID = [200, 600, 1000, 1400, 1800, 2200, 2600, 3000];
+  check('ladder: eight public bots, ranks 1 to 8 in order', bots.length === 8 && bots.every((b, i) => b.rank === i + 1));
+  check('ladder: anchored to the 200-to-3000 grid', bots.map((b) => b.elo).join() === GRID.join());
+  check('ladder: the tutor never leaks onto the pick screen', bots.every((b) => b.id !== 'tutor'));
+  check('ladder: gigi is the boss and pip is the floor', bots[0].name === 'Pip' && bots[7].name === 'Gigi');
+  check('ladder: a bot sits at 1400 for placement', bots.some((b) => b.elo === 1400 && b.id === 'collie'));
+  const { TIERS, tierFor } = await import('../server/dist/protocol.js');
+  const names = new Set(bots.map((b) => b.name));
+  check(
+    'tiers: every boundary above iron is a bot on the ladder',
+    TIERS.slice(1).every((t) => names.has(t.beats) && bots.find((b) => b.name === t.beats).elo === t.min),
+  );
+  check('tiers: the boss sits above every tier', tierFor(3000).key === 'headliner' && tierFor(2599).key === 'master');
+  const { rungDirective, lengthRule } = await import('../server/dist/bots.js');
+  check(
+    'rungs: every rank has its own directive and its own length rows',
+    [1, 2, 3, 4, 5, 6, 7].every(
+      (r) =>
+        rungDirective(r) !== rungDirective(8) &&
+        rungDirective(r).includes(`rank ${r} of 8`) &&
+        ['standard', 'blitz', 'long'].every((p) => lengthRule(r, p) !== lengthRule(9, p)),
+    ),
+  );
+
+  const ids = topics.flatMap((c) => c.topics.map((t) => t.id));
+  check('deck: eight categories of seven', topics.length === 8 && topics.every((c) => c.topics.length === 7));
+  check('deck: ids unique', new Set(ids).size === ids.length);
+  check(
+    'deck: every topic is a bilingual claim',
+    topics.every((c) =>
+      c.topics.every((t) => t.en.length > 0 && t.ar.length > 0 && !t.en.endsWith('?') && !t.ar.endsWith('؟')),
+    ),
+  );
+  check('deck: the lightest tab is first (pickers default to index 0)', topics[0].key === 'everyday');
+
+  const drill = await (await fetch(`${URL}/drill?type=weigh`)).json();
+  check(
+    'drill: one rebuttal a day, tier 1 to 7, the old type picker is gone',
+    drill.tier >= 1 && drill.tier <= 7 && drill.drill.tier === drill.tier && drill.drill.type === undefined && drill.daily === undefined,
+  );
+  check('drill: the card carries the argument and the instruction', drill.drill.material.length > 20 && drill.drill.prompt === 'Answer this argument.');
+  const { DRILLS, tierOfDay, drillOfDay } = await import('../server/dist/drills.js');
+  check('drill: sunday is tier 1 and saturday is tier 7', tierOfDay('2026-09-13') === 1 && tierOfDay('2026-09-19') === 7);
+  check(
+    'drill: every day of the year gets a drill of its own tier',
+    Array.from({ length: 366 }, (_, i) => new Date(Date.UTC(2026, 0, 1 + i)).toISOString().slice(0, 10)).every(
+      (d) => drillOfDay(d).tier === tierOfDay(d),
+    ),
+  );
+  const dids = DRILLS.map((d) => d.id);
+  check('drill: bank ids unique, seven per tier', new Set(dids).size === dids.length && [1, 2, 3, 4, 5, 6, 7].every((t) => DRILLS.filter((d) => d.tier === t).length === 7));
+  check('drill: no em dashes or exclamation marks in what the player hears', DRILLS.every((d) => !/[—–!]/.test(d.material)));
+  const weekOf = (day) => Math.floor((Date.UTC(...day.split('-').map((n, i) => Number(n) - (i === 1 ? 1 : 0))) / 86_400_000 + 4) / 7);
+  check('drill: the week rolls over on sunday', weekOf('2026-09-12') + 1 === weekOf('2026-09-13') && weekOf('2026-09-13') === weekOf('2026-09-19'));
+  const short = await (
+    await fetch(`${URL}/drill`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ text: 'too short', id: drill.drill.id }) })
+  ).json();
+  check('drill: silence is refused, not scored', short.result === null && short.error === 'too_short');
 }
 
 console.log(`\n${failures === 0 ? 'ALL CHECKS PASSED' : failures + ' CHECK(S) FAILED'}`);

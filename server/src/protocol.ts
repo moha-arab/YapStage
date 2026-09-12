@@ -27,24 +27,28 @@ export type Pace = (typeof PACES)[number];
 /** Tiers, and every boundary is a bot.
     A number is a rank among twenty strangers and carries a ±200 error bar.
     A tier is a falsifiable claim with a named opponent you can go fight right
-    now: "Contender" means you can take Vivi, and the way to argue with it is
-    to go and beat Vivi. That is the one thing a debate app with six calibrated
+    now: "Gold" means you can take Vivi, and the way to argue with it is to go
+    and beat Vivi. That is the one thing a debate app with eight fixed-rating
     bots can say that no generic Bronze/Silver ladder can. */
 /* Renamed to the metal ladder 2026-08-22, his call: the invented names read
    as jargon to anyone arriving from a game with ranks, and iron-to-master is
    a vocabulary every gamer already speaks. The one brand word survives at the
-   summit — above Master there is HEADLINER, the name on the marquee. The
-   bot-anchoring stayed: every boundary up to Master is still a bot you can
-   actually go fight, which no generic ladder can claim. */
+   summit: above Master there is HEADLINER, the name on the marquee.
+   Re-anchored 2026-09-12 to the eight-bot grid (200 to 3000, 400 apart). The
+   eight keys, the badges and the i18n stayed; only the minimums and the
+   names moved. Headliner used to sit above every bot and now carries a bot
+   too (Vera, 2600), so every boundary above Iron is a fight you can pick.
+   The boss (Gigi, 3000) is above every tier on purpose: being level with the
+   final boss is the one thing this ladder does not hand out a badge for. */
 export const TIERS = [
   { min: 0, key: 'iron', beats: null },
-  { min: 650, key: 'bronze', beats: 'Pip' },
-  { min: 850, key: 'silver', beats: 'Cappy' },
+  { min: 200, key: 'bronze', beats: 'Pip' },
+  { min: 600, key: 'silver', beats: 'Cappy' },
   { min: 1000, key: 'gold', beats: 'Vivi' },
-  { min: 1200, key: 'platinum', beats: 'Ozzy' },
-  { min: 1350, key: 'diamond', beats: 'Brutus' },
-  { min: 1500, key: 'master', beats: 'Gigi' },
-  { min: 1700, key: 'headliner', beats: null },
+  { min: 1400, key: 'platinum', beats: 'Nora' },
+  { min: 1800, key: 'diamond', beats: 'Ozzy' },
+  { min: 2200, key: 'master', beats: 'Brutus' },
+  { min: 2600, key: 'headliner', beats: 'Vera' },
 ] as const;
 
 export type Tier = (typeof TIERS)[number];

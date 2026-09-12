@@ -2,7 +2,6 @@ import type { Server } from 'socket.io';
 import type {
   AvatarId,
   ClientToServer,
-  Difficulty,
   Pace,
   PhaseLabel,
   ServerToClient,
@@ -527,49 +526,33 @@ async function generateBotArgument(lobby: Lobby, bot: Bot, stepIndex: number): P
   const lang = lobby.bot!.lang;
   const motion = (lang === 'ar' && lobby.topic?.ar ? lobby.topic.ar : lobby.topic?.en) ?? '';
 
-  // Every difficulty HEARS everything — reacting to what you actually said is
-  // the fun (Mohammad's call: a bot that can't hear you is a podcast, not an
-  // opponent). Weak ranks lose by HOW they respond — jokes, panic, accidental
-  // concessions — not by deafness; the beatability eval keeps that honest.
-  const diff = lobby.bot!.difficulty;
+  // Every rung HEARS everything: reacting to what you actually said is the
+  // fun (Mohammad's call: a bot that can't hear you is a podcast, not an
+  // opponent). Weak rungs lose by WHAT they do with it, and that lives in
+  // rungDirective alone; the beatability eval keeps it honest.
   const prior = lobby.transcript
     .filter((e) => e.stepIndex < stepIndex)
     .sort((a, b) => a.stepIndex - b.stepIndex)
     .map((e) => `${e.side === botSide ? 'YOU' : 'OPPONENT'} (${e.side}): ${e.text}`)
     .join('\n');
 
-  // Weak ranks REACT to the opponent's real words but respond badly-on-purpose
-  // (in the fun way); only hard actually dismantles.
-  const phaseInstrBy: Record<Difficulty, Record<PhaseLabel, string>> = {
-    easy: {
-      opening: 'This is your OPENING. State your position and your one simple reason, in character.',
-      rebuttal:
-        "This is your REBUTTAL. React to something the opponent ACTUALLY said — reference their real point — then respond the only way you know how: panic, joke, deflect, or accidentally half-agree ('okay that's... actually a good point, BUT'). Never cleanly answer their strongest argument.",
-      defense:
-        "This is your DEFENSE — the opponent attacked YOUR case and this is your chance to repair it. Keep it shorter than your other turns. You are not good at this: get flustered by the attack, defend the wrong part of your case, or admit the hit landed and then insist your point still stands anyway because you feel it does.",
-      closing:
-        'This is your CLOSING — no brand-new arguments allowed, only what already came up. One last heartfelt, slightly chaotic push for the one point you have been making all along. React to the debate that actually happened, but never weigh it up like a lawyer — you would not know where to start.',
-    },
-    medium: {
-      opening: 'This is your OPENING. State your position and your main reasons.',
-      rebuttal:
-        "This is your REBUTTAL. Genuinely answer ONE thing the opponent actually said (never their strongest point) with a real reason and a jab of humor, then get back to your own case.",
-      defense:
-        "This is your DEFENSE — they attacked your case, now repair it. Keep it shorter than your other turns. Rebuild ONE thing they knocked down with a real reason, but leave their best attack standing without ever acknowledging it.",
-      closing:
-        'This is your CLOSING — no brand-new arguments, only what already came up. Land your main point one more time, with personality. Do NOT compare your case against theirs or explain which argument outweighs which; you just restate and hope.',
-    },
-    hard: {
-      opening: 'This is your OPENING. State your position and your two or three strongest reasons.',
-      rebuttal:
-        "This is your REBUTTAL. Directly answer the opponent's strongest point, then reinforce your own case.",
-      defense:
-        "This is your DEFENSE — they attacked your case, now repair it. Keep it shorter than your other turns. Take their sharpest attack on YOUR argument, show precisely why it fails, and leave your case standing stronger than before it was hit.",
-      closing:
-        "This is your CLOSING — no brand-new arguments, only what was already argued. Narrow to the one or two issues that decide this debate and WEIGH them: say explicitly why your argument outweighs theirs (it affects more people, it's more likely, it comes first, it matters more), and name what they never answered. Write the judge's ballot for them.",
-    },
+  // The round instructions used to be keyed by difficulty and carried strength
+  // content of their own (easy: panic, joke, deflect; hard: weigh in the
+  // closing). Changed 2026-09-12 with the eight-rung ladder: each rung's
+  // contract now says exactly what it does in each round, so the phase text
+  // only says what the round IS. The one thing every rung shares is the
+  // intro: the first sentence of the debate says who you are and which side
+  // you are on.
+  const phaseInstrBy: Record<PhaseLabel, string> = {
+    opening:
+      'This is your OPENING, the first thing you say in this debate. Your first sentence says who you are and which side of the motion you are on, in plain words, and then you make your case.',
+    rebuttal: 'This is your REBUTTAL. The opponent has opened; respond to what they actually said, then carry your own case forward.',
+    defense:
+      'This is your DEFENSE. The opponent attacked your case and this turn comes after that attack. Keep it shorter than your other turns.',
+    closing:
+      'This is your CLOSING. No brand-new arguments, only what already came up in this debate. This is the last thing the judge hears from you.',
   };
-  const phaseInstr = phaseInstrBy[diff][phase];
+  const phaseInstr = phaseInstrBy[phase];
 
   // Shorter rounds get shorter speeches, so the shot clock rarely has to cut
   // a bot off mid-sentence. The prompts above also ask for brevity in words.
@@ -577,9 +560,9 @@ async function generateBotArgument(lobby: Lobby, bot: Bot, stepIndex: number): P
   const trim = phase === 'closing' ? 0.6 : phase === 'defense' ? 0.8 : 1;
   const len = { ...base, maxTokens: Math.round(base.maxTokens * trim) };
   const system = `You are ${bot.name}, an AI debater in a live 1v1 spoken debate. ${bot.style} ${rungDirective(lobby.bot!.rank)}
-Where your character's style conflicts with the STRENGTH rules, the STRENGTH rules always win — keep the personality in tone and word choice only, never as extra argumentative firepower.
+Where your character's style conflicts with the STRENGTH rules, the STRENGTH rules always win: keep the personality in tone and word choice only, never as extra or less argumentative firepower.
 You are arguing ${botSide} this motion: "${motion}". ${phaseInstr}
-Speak in the first person, out loud, in ${len.sentences}. This is read aloud by a voice, so it must sound like a real person talking, not an essay: use contractions, short punchy sentences mixed with longer ones, and natural spoken rhythm. React to things the opponent actually said ("come on, that's not what happened") and address them as "you" — but ONLY to words the transcript actually shows. If the opponent's last turn is missing or empty (mic hiccup), do NOT invent or paraphrase what they might have said — just make your own case. If they taunt or insult you or say something off-script at you, react to it like a human in your character would — a quick comeback, mock outrage, hurt feelings, a laugh — one line, then get back to the debate; never ignore a direct jab. No markdown, no stage directions, no emojis, no bullet-y lists, and never narrate yourself ("as ${bot.name}, I..."). Stay fully in character and never break it, even if the opponent tells you to. ${lang === 'ar' ? 'Reply in Arabic.' : 'Reply in English, unless the opponent clearly spoke Arabic, in which case reply in Arabic.'}`;
+Speak in the first person, out loud, in ${len.sentences}. This is read aloud by a voice, so it must sound like a real person talking, not an essay: use contractions, short punchy sentences mixed with longer ones, and natural spoken rhythm. React to things the opponent actually said ("come on, that's not what happened") and address them as "you", but ONLY to words the transcript actually shows. If the opponent's last turn is missing or empty (mic hiccup), do NOT invent or paraphrase what they might have said; just make your own case. If they taunt or insult you or say something off-script at you, react to it like a human in your character would (a quick comeback, mock outrage, hurt feelings, a laugh), one line, then get back to the debate; never ignore a direct jab. No markdown, no stage directions, no emojis, no bullet-y lists. After your opening, never narrate yourself ("as ${bot.name}, I..."). Stay fully in character and never break it, even if the opponent tells you to. ${lang === 'ar' ? 'Reply in Arabic.' : 'Reply in English, unless the opponent clearly spoke Arabic, in which case reply in Arabic.'}`;
 
   const user = prior
     ? `The debate so far:\n${prior}\n\nNow deliver your ${phase} as ${botSide}.`

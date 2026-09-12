@@ -1,6 +1,9 @@
-// The Daily Drill. One skill, thirty seconds, the same one for everybody
+// The daily rebuttal. One argument, thirty seconds, the same one for everybody
 // today, a number back immediately, and a streak that only survives if you
-// come back tomorrow.
+// come back tomorrow. The argument gets harder through the week, Sunday to
+// Saturday; the card says "Day 3 of 7" rather than the weekday because the
+// day rolls over on UTC and an evening player would otherwise see Tuesday's
+// drill labelled Monday.
 //
 // It is deliberately the cheapest thing in the app to start: no opponent, no
 // camera, no lobby, no account. Press one button and talk. That makes it the
@@ -11,14 +14,12 @@ import { setSpeechSink, speechSupported, startTurn, stopTurn } from '../speech';
 import { useI18n } from '../i18n';
 import Brand from '../Brand';
 
-const DRILL_TYPES = ['rebut', 'weigh', 'flaw'] as const;
-
 interface DrillInfo {
   day: string;
-  drill: { id: string; type: string; prompt: string; material: string };
-  daily: boolean;
+  drill: { id: string; tier: number; prompt: string; material: string };
+  tier: number;
+  tierName: string;
   seconds: number;
-  skill: string;
   streak: number;
   best: number;
   doneToday: boolean;
@@ -49,15 +50,16 @@ export default function Drill({ onBack }: Props) {
   const [error, setError] = useState<string | null>(null);
   const textRef = useRef('');
 
-  // The day picks one skill; the row under the title lets you try the other
-  // four. Only the day's own drill counts toward the streak.
-  function load(type?: string) {
+  // One drill a day and nothing else on offer (the skill picker went with the
+  // other drill types, 2026-09-12): the only way to get Saturday's argument is
+  // to come back on Saturday.
+  function load() {
     stopTurn();
     setSpeechSink(null);
     setResult(null);
     setError(null);
     setStage('ready');
-    void fetch(type ? `/drill?type=${encodeURIComponent(type)}` : '/drill')
+    void fetch('/drill')
       .then((r) => r.json())
       .then((d: DrillInfo) => {
         setInfo(d);
@@ -156,25 +158,11 @@ export default function Drill({ onBack }: Props) {
       <h1 className="display page-title">{t('drillTitle')}</h1>
       {info ? (
         <p className="page-sub">
-          {t(info.daily ? 'drillSkill' : 'drillTrying', { x: info.skill })}
+          {t('drillTier', { n: info.tier })}
           {streak > 0 ? ` · ${t('drillStreak', { n: streak })}` : ''}
+          <br />
+          {t('drillRamp')}
         </p>
-      ) : null}
-
-      {info ? (
-        <div className="drill-types" role="group" aria-label={t('drillTry')}>
-          {DRILL_TYPES.map((k) => (
-            <button
-              key={k}
-              className={`btn btn-small ${info.drill.type === k ? 'btn-on' : ''}`}
-              aria-pressed={info.drill.type === k}
-              disabled={stage === 'speaking' || stage === 'scoring'}
-              onClick={() => load(k)}
-            >
-              {t(`drillType_${k}`)}
-            </button>
-          ))}
-        </div>
       ) : null}
 
       {info ? (
