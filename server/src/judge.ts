@@ -579,10 +579,12 @@ async function unlockLevel(io: Io, lobby: Lobby, target: number): Promise<void> 
   io.to(lobby.code).emit('campaign:up', { level: target, unlocked: next?.name ?? null });
 }
 
-/** File this debate under each signed-in player's history. Stored per PLAYER,
-    not per lobby, so each side keeps their own point of view (their side, their
-    score, their opponent) and can re-open the verdict — with the transcript —
-    long after the lobby is gone. Guests store nothing. Fail-soft throughout. */
+/** File this debate under each player's history. Stored per PLAYER, not per
+    lobby, so each side keeps their own point of view (their side, their
+    score, their opponent) and can re-open the verdict, with the transcript,
+    long after the lobby is gone. Guests used to store nothing; since
+    2026-09-12 they file under the device id, which is what an account adopts
+    at sign-in. Fail-soft throughout. */
 async function fileMatch(lobby: Lobby, verdict: Verdict): Promise<void> {
   if (!lobby.sides) return;
   const names = namesOf(lobby);
@@ -593,7 +595,7 @@ async function fileMatch(lobby: Lobby, verdict: Verdict): Promise<void> {
       ? 'bots'
       : 'custom';
   for (const p of [lobby.host, lobby.guest]) {
-    if (!p?.playerId) continue; // guest, or a bot's empty seat
+    if (!p?.playerId) continue; // a bot's empty seat, or a client too old to send an id
     const side = p === lobby.host ? lobby.sides.host : lobby.sides.guest;
     const other: Side = side === 'FOR' ? 'AGAINST' : 'FOR';
     await saveMatch({

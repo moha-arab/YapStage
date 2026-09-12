@@ -37,7 +37,6 @@ import TutorialDone, { type DebriefInfo } from './screens/TutorialDone';
 import ClaimName from './screens/ClaimName';
 import Matches from './screens/Matches';
 import Drill from './screens/Drill';
-import Welcome from './screens/Welcome';
 import Splash, { splashWanted } from './Splash';
 import { MASK_IDS } from './Mask';
 import { playBotTurn, stopBotVoice } from './botvoice';
@@ -110,8 +109,14 @@ export default function App() {
   const [tutoring, setTutoring] = useState(false);
   const [viewingMatches, setViewingMatches] = useState(false);
   const [viewingDrill, setViewingDrill] = useState(false);
-  // Guest mode is GONE (his call, 2026-08-22): playing requires a Google
-  // account, full stop.
+  // Guest play is BACK (his call 2026-09-12: "you don't need an account for
+  // anything but ranked"), reversing 2026-08-22 when playing required a
+  // Google account, full stop. A signed-out visitor lands in the lobby and
+  // can play bots, a friend, watch and drill under a name they type once;
+  // ranked alone asks for the account, on its own stage (Home.tsx). The
+  // Welcome pitch that used to intercept every signed-out visitor went with
+  // this: its standing rule was one action, and a second door would have
+  // broken it, so the lobby bar carries the quiet sign-in instead.
   const [debrief, setDebrief] = useState<DebriefInfo | null>(null);
   // Campaign: a win at the frontier unlocked the next opponent.
   const [unlocked, setUnlocked] = useState<{ level: number; unlocked: string | null } | null>(null);
@@ -378,7 +383,7 @@ export default function App() {
         if (u?.code && u.yourName) {
           socket.emit(
             'lobby:join',
-            { code: u.code, sessionId: session.id, name: u.yourName },
+            { code: u.code, sessionId: session.id, name: u.yourName, playerId: playerId() },
             (res2) => {
               if (res2.ok) setLobby(res2.update);
               else resetToHome('lostLobby');
@@ -928,18 +933,13 @@ export default function App() {
       />
     );
   } else if (!account) {
-    // The boot /auth/me has not answered yet, so we do not know whether this
-    // person gets Welcome or the lobby. Hold the brand lockup instead of
-    // guessing: guessing the lobby meant every signed-out visitor watched the
-    // stage flash for a frame before Welcome replaced it, and the empty plum
-    // div that replaced the guess made the first frame of the app a blank
+    // The boot /auth/me has not answered yet, so we do not know who this is.
+    // Hold the brand lockup instead of guessing: a lobby drawn for a guest
+    // and redrawn for the account a frame later flashes, and the empty plum
+    // div that once stood here made the first frame of the app a blank
     // screen. The held lockup is the same drawing the splash ends on, so on a
     // cold load the two are one image.
     content = <Splash hold />;
-  } else if (account.google && !account.signedIn) {
-    content = (
-      <Welcome />
-    );
   } else {
     content = (
       <Home

@@ -27,6 +27,11 @@
 //   8. PLACEMENT IS ONE MATCH. Unplaced, the ranked stage puts the placement
 //      bot opposite you instead of an empty ring, one line says why, and the
 //      go button starts that game. No placement counter anywhere.
+//   9. NO ACCOUNT FOR ANYTHING BUT RANKED (his call 2026-09-12, reversing
+//      2026-08-22). A guest plays bots, a friend, watches and drills under a
+//      name typed once and a mask picked once, both kept on the device
+//      (guest.ts). Ranked alone asks for the account, on its own stage with
+//      the reason in one line, and the bar carries a quiet sign-in.
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { NAME_RE, tierFor, type JoinError, type LobbyUpdate } from '../../../server/src/protocol';
 import type { BotStartConfig } from './BotSelect';
@@ -34,6 +39,7 @@ import BotRoster from './BotRoster';
 import MaskRoster from './MaskRoster';
 import { session, socket } from '../socket';
 import { playerId, saveLocker, signIn, signOut, type Account } from '../player';
+import * as guest from '../guest';
 import { unlockSpectateAudio } from '../specaudio';
 import { unlockBotVoice } from '../botvoice';
 import { initAudio } from '../sound';
@@ -127,7 +133,8 @@ export default function Home({
   const [maskRoster, setMaskRoster] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [name, setName] = useState('');
+  // A guest's name is typed once and kept on the device, never asked again.
+  const [name, setName] = useState(guest.guestName);
 
   const [queueing, setQueueing] = useState(false);
   const [queueInfo, setQueueInfo] = useState<{ waiting: number } | null>(null);
@@ -154,7 +161,8 @@ export default function Home({
       .catch(() => {});
   }, [account.signedIn]);
   // Unplaced means the placement bot stands opposite you in ranked mode.
-  const placing = mode === 'ranked' && rank?.placed === false;
+  // Not for a guest: their stage carries the sign-in ask instead.
+  const placing = mode === 'ranked' && !needAccount && rank?.placed === false;
 
   const [bots, setBots] = useState<Bot[]>([]);
   useEffect(() => {
@@ -171,7 +179,13 @@ export default function Home({
     void fetch('/drill')
       .then((r) => r.json())
       .then((d) => {
-        if (d?.drill) setDrill({ tier: Number(d.tier) || 1, streak: d.streak ?? 0, doneToday: !!d.doneToday });
+        if (!d?.drill) return;
+        // A guest's streak lives on the device (guest.ts); the server only
+        // counts the ones it can put a name to.
+        const s = d.signedIn
+          ? { streak: d.streak ?? 0, doneToday: !!d.doneToday }
+          : guest.localDrillState(String(d.day ?? ''));
+        setDrill({ tier: Number(d.tier) || 1, streak: s.streak, doneToday: s.doneToday });
       })
       .catch(() => {});
   }, [account.signedIn]);
@@ -230,8 +244,12 @@ export default function Home({
 
   const effName = account.signedIn && account.name ? account.name : name;
   const validName = NAME_RE.test(effName);
-  // Signed out (a deployment without Google) the pick lives in this tab only.
-  const [guestMask, setGuestMask] = useState(MASK_IDS[0]);
+  // Signed out, the pick is kept on the device (guest.ts) so it is still
+  // yours tomorrow; signed in, the locker has it.
+  const [guestMask, setGuestMask] = useState(() => {
+    const saved = guest.guestMask();
+    return saved && (MASK_IDS as readonly string[]).includes(saved) ? saved : MASK_IDS[0];
+  });
   const myMask = account.signedIn ? (account.mask ?? MASK_IDS[0]) : guestMask;
 
   function requireName(): boolean {
@@ -263,7 +281,7 @@ export default function Home({
     if (opening.current || !validName) return;
     opening.current = true;
     setError(null);
-    socket.emit('lobby:create', { sessionId: session.id, name: effName }, (res) => {
+    socket.emit('lobby:create', { sessionId: session.id, name: effName, playerId: playerId() }, (res) => {
       opening.current = false;
       if (!res.ok) return setError(ERROR_KEYS[res.error]);
       setRoom({ code: res.update.code });
@@ -310,7 +328,7 @@ export default function Home({
     leaveRoom();
     socket.emit(
       'lobby:join',
-      { code: joinCode.trim().toUpperCase(), sessionId: session.id, name: effName },
+      { code: joinCode.trim().toUpperCase(), sessionId: session.id, name: effName, playerId: playerId() },
       (res) => {
         setBusy(false);
         if (res.ok) return onEntered(res.update);
@@ -417,7 +435,10 @@ export default function Home({
   const closeMaskRoster = useCallback(() => setMaskRoster(false), []);
   function pickMask(id: string) {
     setMaskRoster(false);
-    if (!account.signedIn) return setGuestMask(id);
+    if (!account.signedIn) {
+      guest.setGuestMask(id);
+      return setGuestMask(id);
+    }
     if (id === account.mask) return;
     void saveLocker(id, true).then((ok) => {
       if (!ok) return;
@@ -589,6 +610,14 @@ export default function Home({
         {t('lbGoPlacement', { x: rank?.placementBot ?? '' })}
       </button>
     );
+  } else if (mode === 'ranked' && needAccount) {
+    // The one door that needs an account: the button IS the sign-in, and
+    // the line above it (lbRankedAsk) says why.
+    go = (
+      <button className="lb-go" onClick={signIn}>
+        {t('signInGoogle')}
+      </button>
+    );
   } else if (mode === 'ranked') {
     go = queueing ? (
       <button className="lb-go lb-go-cancel" onClick={leaveQueue}>
@@ -686,8 +715,10 @@ export default function Home({
               </button>
             </>
           ) : account.google ? (
-            <button className="lb-signin" onClick={signIn}>
-              {t('signInGoogle')}
+            // Quiet on purpose: a guest can do everything but ranked without
+            // it, so it must not read as the price of entry.
+            <button className="lb-bar-btn lb-bar-btn-quiet" onClick={signIn}>
+              {t('signIn')}
             </button>
           ) : null}
         </div>
@@ -744,26 +775,39 @@ export default function Home({
             <p className="lb-stage-note">{t('lbNobodyOnStage')}</p>
           ) : null}
 
-          {/* Guests need a name before anything will start. Not for watching:
-              the crowd is anonymous. */}
-          {!account.signedIn && mode !== 'watch' ? (
-            <div className="lb-guest">
-              <label className="lb-lab" htmlFor="yapname">
-                {t('yourYapName')}
-              </label>
-              <input
-                id="yapname"
-                className="input"
-                placeholder={t('namePlaceholder')}
-                maxLength={16}
-                value={name}
-                onChange={(e) => {
-                  setName(e.target.value.replace(/\s/g, ''));
-                  setError(null);
-                }}
-              />
-              {name && !validName ? <span className="lb-err">{t('errBadName')}</span> : null}
-            </div>
+          {/* Guests need a name before anything will start. Not for watching
+              (the crowd is anonymous) and not on a ranked stage that is
+              asking for an account instead. The line under it is the
+              disclosure for filing a guest's games under the device id. */}
+          {!account.signedIn && mode !== 'watch' && !(mode === 'ranked' && needAccount) ? (
+            <>
+              <div className="lb-guest">
+                <label className="lb-lab" htmlFor="yapname">
+                  {t('yourYapName')}
+                </label>
+                <input
+                  id="yapname"
+                  className="input"
+                  placeholder={t('namePlaceholder')}
+                  maxLength={16}
+                  value={name}
+                  onChange={(e) => {
+                    const v = e.target.value.replace(/\s/g, '');
+                    setName(v);
+                    guest.setGuestName(v);
+                    setError(null);
+                  }}
+                />
+                {name && !validName ? <span className="lb-err">{t('errBadName')}</span> : null}
+              </div>
+              <p className="lb-guest-note">{t(account.google ? 'lbGuestKept' : 'lbGuestKeptLocal')}</p>
+            </>
+          ) : null}
+
+          {/* Ranked is the one thing that needs an account. Said on the stage
+              itself, before the tap, with the reason in one line. */}
+          {mode === 'ranked' && needAccount ? (
+            <p className="lb-stage-note lb-stage-ask">{t('lbRankedAsk')}</p>
           ) : null}
 
           {/* Play a friend: the code and the link, centred under the stage,

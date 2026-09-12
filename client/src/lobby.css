@@ -151,21 +151,6 @@
   color: var(--muted);
 }
 
-.lb-signin {
-  font-size: 13px;
-  font-weight: 700;
-  color: var(--amber);
-}
-
-.lb-signout {
-  font-size: 12px;
-  color: var(--muted);
-}
-
-.lb-signout:hover {
-  color: var(--paper);
-}
-
 .lb-badge {
   display: inline-block;
   min-width: 17px;
@@ -818,6 +803,28 @@
 
 .lb-guest .input {
   width: 210px;
+}
+
+/* The line under the name box: where a guest's games go, in one sentence.
+   Small and muted, never hidden (it is the disclosure). */
+.lb-guest-note {
+  grid-column: 1 / -1;
+  justify-self: center;
+  margin: -4px 0 12px;
+  color: var(--muted);
+  font-size: 12px;
+  text-align: center;
+  max-width: 46ch;
+  position: relative;
+  z-index: 2;
+}
+
+/* Ranked, signed out: the ask stands on the stage above the button, in
+   the paper colour so it reads as the stage talking, not an error. */
+.lb-stage-ask {
+  color: var(--paper);
+  max-width: 40ch;
+  text-align: center;
 }
 
 /* Somebody sent a code. Until it is used or dismissed, it is the only thing

@@ -9,7 +9,8 @@ import crypto from 'node:crypto';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { event } from './stats.js';
 import { AVATAR_IDS, nameProblem } from './protocol.js';
-import { claimUsername, getLocker, linkAccount, setLocker, type AccountRow } from './store.js';
+import { claimUsername, getLocker, linkAccount, setLocker, type AccountRow, type CarriedDrill } from './store.js';
+import { today } from './drills.js';
 
 const AUTH_URL = 'https://accounts.google.com/o/oauth2/v2/auth';
 const TOKEN_URL = 'https://oauth2.googleapis.com/token';
@@ -116,6 +117,19 @@ function clearCookie(reply: FastifyReply, name: string): void {
   setCookie(reply, name, '', 0);
 }
 
+/** The guest's drill streak as the client sends it, `last|streak|best`
+    (client/src/guest.ts). Anything malformed or outlandish reads as nothing
+    carried. It is the one client-supplied number the server writes down
+    unverified, accepted because a streak ranks nobody and is written once. */
+function parseCarriedDrill(raw: string | undefined): CarriedDrill | null {
+  const m = /^(\d{4}-\d{2}-\d{2})\|(\d{1,3})\|(\d{1,3})$/.exec(raw ?? '');
+  if (!m) return null;
+  const streak = Number(m[2]);
+  const best = Number(m[3]);
+  if (streak < 1 || streak > 400 || best > 100) return null;
+  return { last: m[1], streak, best };
+}
+
 function redirectUri(req: FastifyRequest): string {
   // req.protocol honours x-forwarded-proto behind Railway's edge (trustProxy)
   // and stays http on localhost, which Google allows only for localhost.
@@ -129,9 +143,13 @@ export function registerAuth(app: FastifyInstance): void {
     if (!googleConfigured()) return reply.code(503).send({ error: 'google_not_configured' });
     const state = crypto.randomBytes(16).toString('base64url');
     // The device's current playerId rides along so a first sign-in can adopt
-    // the progress already earned on this device.
-    const claim = String((req.query as { claim?: string })?.claim ?? '').slice(0, 64);
-    setCookie(reply, STATE_COOKIE, `${state}:${claim}`, 600);
+    // the progress already earned on this device, and so does the drill
+    // streak the device kept for a guest. Both wait out the Google round trip
+    // in the state cookie (neither can contain a colon).
+    const q = req.query as { claim?: string; drill?: string };
+    const claim = String(q?.claim ?? '').slice(0, 64);
+    const drill = String(q?.drill ?? '').slice(0, 24);
+    setCookie(reply, STATE_COOKIE, `${state}:${claim}:${drill}`, 600);
     const params = new URLSearchParams({
       client_id: process.env.GOOGLE_CLIENT_ID!,
       redirect_uri: redirectUri(req),
@@ -148,7 +166,7 @@ export function registerAuth(app: FastifyInstance): void {
     async (req, reply) => {
       if (!googleConfigured()) return reply.code(503).send({ error: 'google_not_configured' });
       const cookie = readCookie(req, STATE_COOKIE) ?? '';
-      const [wantState, claim] = cookie.split(':');
+      const [wantState, claim, drill] = cookie.split(':');
       clearCookie(reply, STATE_COOKIE);
       if (req.query.error || !req.query.code) return reply.redirect('/?auth=cancelled');
       if (!wantState || req.query.state !== wantState) {
@@ -187,6 +205,8 @@ export function registerAuth(app: FastifyInstance): void {
           name: claims.name ?? '',
           picture: claims.picture ?? '',
           claimPlayerId: claim || null,
+          day: today(),
+          drill: parseCarriedDrill(drill),
         });
         if (!account) {
           // No database means no accounts. Say so rather than pretending.
