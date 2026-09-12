@@ -125,7 +125,7 @@ const SCREENS: Record<string, () => JSX.Element> = {
           bots: [
             { id: 'owl', name: 'Ozzy', color: 'against', elo: 1200, rank: 4, tagline: 'a scholarly owl', blurb: '' },
             { id: 'bull', name: 'Brutus', color: 'for', elo: 1350, rank: 5, tagline: 'a raging bull', blurb: '' },
-            { id: 'giraffe', name: 'Gigi', color: 'gold', elo: 1500, rank: 6, tagline: 'THE FINAL BOSS', blurb: '' },
+            { id: 'giraffe', name: 'Gigi', color: 'gold', elo: 1500, rank: 6, tagline: 'the final boss', blurb: '' },
           ],
         });
       if (url.startsWith('/live')) return json({ live: 0, watchable: 0, featured: null });

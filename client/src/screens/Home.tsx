@@ -499,9 +499,13 @@ export default function Home({
         </div>
         <div className="lb-soft">
           {queueing ? t('lbSearching') : t('lbYourOpponent')}
-          {queueing && queueInfo ? (
+          {/* Others besides you. "0 others" says nothing, so the line only
+              appears once somebody else is in the queue. */}
+          {queueing && queueInfo && queueInfo.waiting > 1 ? (
             <div className="lb-queue-n">
-              {t('queueWaiting', { n: Math.max(0, queueInfo.waiting - 1) })}
+              {queueInfo.waiting === 2
+                ? t('queueWaitingOne')
+                : t('queueWaiting', { n: queueInfo.waiting - 1 })}
             </div>
           ) : null}
         </div>
@@ -555,9 +559,6 @@ export default function Home({
           <div className="lb-drill-clock">0:30</div>
           <div className="lb-drill-t">{drill ? t('drillTier', { n: drill.tier }) : t('lbDrillToday')}</div>
           <div className="lb-drill-s">{t('lbDrillSub')}</div>
-        </div>
-        <div className="lb-side" style={{ color: 'var(--turq)' }}>
-          {t('lbTodaysSkill')}
         </div>
       </>
     );
@@ -739,10 +740,6 @@ export default function Home({
             <Cone color="#1FC2D4" id="lbConeB" />
             {opponent}
           </div>
-
-          {mode === 'watch' && !watchingFeatured ? (
-            <p className="lb-stage-note">{t('lbNobodyOnStage')}</p>
-          ) : null}
 
           {/* Guests need a name before anything will start. Not for watching:
               the crowd is anonymous. */}

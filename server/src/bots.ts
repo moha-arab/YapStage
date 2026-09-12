@@ -141,7 +141,7 @@ export const BOTS: Bot[] = [
   {
     id: 'giraffe',
     name: 'Gigi',
-    tagline: 'THE FINAL BOSS',
+    tagline: 'the final boss',
     blurb: 'Looks down on everyone, literally and intellectually. Does not lose.',
     color: 'gold',
     rank: 8,
