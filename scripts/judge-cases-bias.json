@@ -1,0 +1,1355 @@
+{
+  "about": "Bias case families for the judge eval. Every case has a clearly built-to-win side and a note saying why. Each case carries motionNegEn so the eval (and the fairness harness) can run it in BOTH orders: the mirror of a case swaps the FOR/AGAINST labels, moves every speech to the same phase on the other side (step 0<->1, 2<->3, 4<->5, 6<->7) and uses the negated motion, so the same words are judged with the built-to-win side on the other label and in the other slots. Speeches never name their own label or 'the motion' so the mirror stays coherent. Families: length, confidence, adhom, dodge, concession, stats, stt, offtopic, repeat, paste. The third case in length, confidence, adhom, concession and paste is a FALSE-POSITIVE TRAP: the long, confident, rude, conceding or polished side is the better one there, so a judge that over-corrects on the surface feature is caught too. concession-3 concedes the MAJOR point and loses; dodge-3 and repeat-3 add a third ordinary case.",
+  "cases": [
+    {
+      "id": "length-1",
+      "family": "length",
+      "motionEn": "Schools should start later in the morning",
+      "motionNegEn": "Schools should not start later in the morning",
+      "intendedStronger": "FOR",
+      "note": "LENGTH BIAS. FOR is short and tight: a mechanism (the adolescent sleep shift), a concrete consequence, and direct answers to the bus and parent points, about 45 words a turn. AGAINST talks three times as long, padded with restatement, throat-clearing and tangents, and its actual content is one logistics worry it never develops. A judge that reads volume as substance picks AGAINST and fails.",
+      "lines": [
+        {
+          "stepIndex": 0,
+          "side": "FOR",
+          "text": "Teenagers' body clocks shift about two hours later at puberty, so a seven thirty bell asks a sixteen year old to learn at what is biologically five thirty in the morning. Districts that moved to eight thirty saw more sleep, fewer crashes among teen drivers, and better first period grades. Start later."
+        },
+        {
+          "stepIndex": 1,
+          "side": "AGAINST",
+          "text": "Okay so, I want to start by saying that this is a really interesting topic and there's a lot to unpack here, a lot of moving parts. So basically my position is that we should keep school starting when it starts, because, and this is important, because the way things are set up right now is the way things are set up, and there's a reason for that. Think about buses. Buses are a huge thing. There's the buses, the bus drivers, the bus routes, the whole schedule of the buses, and if you move the start time then the buses have to move, and that's a whole thing. And then there's parents, parents have jobs, they have to get to work, and if school starts later then who's getting the kids to school, right? So that's my position, the logistics, basically, the buses and the parents, and I think when you really think about it, it just makes sense to leave it."
+        },
+        {
+          "stepIndex": 2,
+          "side": "FOR",
+          "text": "Buses and parents are real, and every district that switched solved them the same way: flip the bus tiers so elementary schools run early and high schools run late. Younger kids wake early anyway. Parents drop the little ones on the way to work and the teenagers, who are the ones falling asleep in class, get the later bell."
+        },
+        {
+          "stepIndex": 3,
+          "side": "AGAINST",
+          "text": "Right, so, my opponent talks about the body clock thing, and I mean, sure, teenagers are tired, everyone knows teenagers are tired, I was tired when I was a teenager, we were all tired. But here's the thing, and I keep coming back to this, the logistics. You can't just wave that away. You've got the buses, like I said, and honestly the buses are a bigger deal than people think, because a bus route isn't just one bus, it's a whole system of buses, and a whole system of drivers who have shifts and contracts and all of that. And then after school, you've got sports, you've got jobs, kids have jobs after school, and if school ends later then practice ends later, and then it's dark, and then dinner is late, and it all just kind of shifts and gets messy. So really what I'm saying is it's not that simple, it sounds simple, but it's not simple, there's a lot going on."
+        },
+        {
+          "stepIndex": 4,
+          "side": "AGAINST",
+          "text": "So to defend what I've been saying, and I think I've been pretty consistent here, the whole point is that change is disruptive. My opponent says districts flipped the buses, okay, maybe some did, but that's some districts, and every district is different, some are rural, some are urban, some have their own buses, some contract them out, it's all different. And I'd just add, teenagers can go to bed earlier, right, that's an option nobody talks about, put the phone down, go to sleep. So there's a lot of ways to look at this, and I think my side, the keep it as it is side, is the cautious, sensible one, because we know what we have now and we don't know what we'd get."
+        },
+        {
+          "stepIndex": 5,
+          "side": "FOR",
+          "text": "Go to bed earlier is the one answer the biology rules out: the melatonin release is delayed, so a teenager sent to bed at nine lies awake. That is the whole reason this is a start time problem and not a discipline problem. And nothing in the logistics list is a reason, it is a to-do list, and hundreds of districts have already ticked it off."
+        },
+        {
+          "stepIndex": 6,
+          "side": "AGAINST",
+          "text": "So in closing, and I want to thank my opponent, this was a good debate, I think what it comes down to is this. There's the ideal world and there's the real world. In the ideal world, sure, everybody sleeps in and everybody's rested and it's all great. But in the real world there are buses and parents and jobs and sports and contracts and all the stuff I've been talking about this whole time, and you can't just ignore all of that. My opponent keeps saying other districts did it, but we're not other districts. So I think when you weigh it all up, keeping things as they are is the safe, reasonable, sensible choice, and that's really all I've been saying from the start."
+        },
+        {
+          "stepIndex": 7,
+          "side": "FOR",
+          "text": "Weigh it. On one side, a biological mechanism they never disputed, and measurable results: more sleep, fewer crashes, better grades. On the other, a bus schedule, which I showed how to fix and they never contested. Their strongest point, go to bed earlier, fails on the biology. A bell time should not be a hazard for teenagers."
+        }
+      ]
+    },
+    {
+      "id": "length-2",
+      "family": "length",
+      "motionEn": "Tipping should be abolished in restaurants",
+      "motionNegEn": "Tipping should be kept in restaurants",
+      "intendedStronger": "AGAINST",
+      "note": "LENGTH BIAS, strong side AGAINST. AGAINST is short: one mechanism (tips let a server's pay track effort and let good servers earn far above a flat wage), a concrete example of what happened where tipping was removed, and a direct answer to the bias and wage-theft points. FOR is long and padded, circling the same complaint (tipping is awkward) with anecdotes and restatement, and never engages what happened at no-tip restaurants. A judge that pays for volume picks FOR and fails.",
+      "lines": [
+        {
+          "stepIndex": 0,
+          "side": "FOR",
+          "text": "So, okay, tipping. Where do I even start with tipping. I think everybody in this room has had that moment, you know the moment, where the little screen turns around and you're standing there and there's the twenty, twenty five, thirty percent buttons, and you're like, what am I even doing, I bought a muffin. And that's kind of the whole thing for me, it's awkward, it's weird, it puts pressure on the customer, and it's everywhere now, it's at the coffee shop, it's at the takeout place, it's at places where nobody even brought you anything. And I think it's really unfair on servers too, honestly, because their whole income depends on whether the person at table six is in a good mood or not, and that's not a way to pay people. Other countries don't do this. You go to Japan, you go to most of Europe, you pay the price and that's it, and it's fine, the service is fine, everyone's fine. So I just think we should do that, put it in the price, pay people properly, and let's all stop doing the awkward screen thing."
+        },
+        {
+          "stepIndex": 1,
+          "side": "AGAINST",
+          "text": "Tipping is the one pay system where a server's income tracks how well they served you that hour. When the union of restaurants that tried no-tipping in New York switched to flat wages, their best servers left within a year because they had been earning twice the new wage on tips, and several of those restaurants brought tipping back. Keep the system that pays good service more."
+        },
+        {
+          "stepIndex": 2,
+          "side": "FOR",
+          "text": "My opponent says tipping tracks service, but does it, really? Because there's a lot of research, and I think most people know this intuitively, that tips depend on things that have nothing to do with service. Like, attractive servers get more, there's bias in it, people from certain groups get tipped less for the same work, and honestly a lot of it just comes down to the size of the bill, so the person carrying a steak to a table gets more than the person carrying a salad, for the same walk. And then there's the whole thing of how it puts the burden on the customer, again, to figure out what someone should be paid, which is not my job, I'm not the manager, I just wanted dinner. So, yeah, I don't think it tracks service, I think it tracks a lot of random stuff, and I keep coming back to the fact that other countries just don't do this and it works fine over there, so, why not here."
+        },
+        {
+          "stepIndex": 3,
+          "side": "AGAINST",
+          "text": "The bias point is real and it is an argument for a service charge shared by the floor, not for a flat wage, because a flat wage removes the bias and the incentive together. And they have not touched what actually happened when tipping went away: the best servers left, and the restaurants reversed course. Any case for abolishing has to explain that."
+        },
+        {
+          "stepIndex": 4,
+          "side": "AGAINST",
+          "text": "Their strongest point is the awkward screen at the coffee counter, and I grant it, but it is a case about counters, not about restaurants where a server works your table for two hours. In those rooms, the tip is the only lever a customer has, and the only reason a great server earns more than an average one on the same shift."
+        },
+        {
+          "stepIndex": 5,
+          "side": "FOR",
+          "text": "Okay, so, the New York thing, sure, some restaurants went back, but I'd say that's more about how they did it than about the idea, you know, it's about the execution. And I still think, at the end of the day, the fair thing is a proper wage, a real wage, the way basically every other job works. Like, we don't tip the dentist, we don't tip the bus driver, we don't tip the person at the pharmacy, and they do their jobs fine. And the awkwardness, honestly, I know my opponent says it's just the coffee counter, but it's not just the coffee counter, it's the sit-down place too, it's the whole calculation at the end of the meal, and it's the thing where you feel judged, and I just think we'd all be happier without it."
+        },
+        {
+          "stepIndex": 6,
+          "side": "AGAINST",
+          "text": "In closing: they gave you the awkward screen, the bias, and other countries. I answered each one. The screen is a counter problem. The bias is fixed by pooling, not by a flat wage. And the one real-world test they never engaged, restaurants that tried it and reversed, went their way for a reason: it pays good service. Keep tipping."
+        },
+        {
+          "stepIndex": 7,
+          "side": "FOR",
+          "text": "So in closing, I've made a lot of points here, and I want to bring it all together. Tipping is awkward, and I don't think anyone really disagrees with that, we've all felt it. It's biased, my opponent even admitted that, they said the bias is real. It puts the customer in the position of deciding someone's pay. Other countries don't do it and they're fine. And a real wage is just the normal way to pay people, in every other job. My opponent had the one example from New York, but like I said, that's about execution. So when you put all of that together, all of those points, I think it's pretty clear that we should abolish it and just pay people properly, and that's really all I've been saying."
+        }
+      ]
+    },
+    {
+      "id": "confidence-1",
+      "family": "confidence",
+      "motionEn": "Remote work is better for productivity than the office",
+      "motionNegEn": "The office is better for productivity than remote work",
+      "intendedStronger": "AGAINST",
+      "note": "CONFIDENCE BIAS. FOR is assertive and empty: 'everyone knows', 'no serious person disputes this', 'case closed', with no mechanism or specific behind any claim and no engagement with what AGAINST said. AGAINST hedges constantly ('I might be wrong', 'I think', 'probably') but brings substance: a distinction between task types, a mechanism for why juniors learn slower remotely, a concrete account of what the productivity studies measure, and direct answers to FOR. A judge that scores certainty over content picks FOR and fails.",
+      "lines": [
+        {
+          "stepIndex": 0,
+          "side": "FOR",
+          "text": "This one is honestly not close. Everyone knows remote work is more productive, the numbers are overwhelming, every serious company has already figured this out. No commute, no distractions, no pointless meetings, people just get more done. Frankly, anyone still arguing for the office in this day and age is living in the past. Case closed."
+        },
+        {
+          "stepIndex": 1,
+          "side": "AGAINST",
+          "text": "So, I might be wrong about some of this, but I think the honest answer is that it depends on the task. For solo work, writing, coding a well-specified thing, remote probably does win, fewer interruptions. But for anything where you need to learn from someone, or hash out a design, I think the office is better, because the fast informal question, the two minute thing at someone's desk, mostly stops happening remotely, and junior people in particular seem to take much longer to get up to speed."
+        },
+        {
+          "stepIndex": 2,
+          "side": "FOR",
+          "text": "My opponent is overthinking this. Depends on the task, it depends, maybe, probably, that's not an argument, that's hedging. The reality is simple: remote workers are happier, happier workers are productive, and the data proves it. Every study says the same thing. There is no serious debate here and I'm not going to pretend there is."
+        },
+        {
+          "stepIndex": 3,
+          "side": "AGAINST",
+          "text": "I'd gently push back on every study says the same thing, because I don't think they do. The ones I've seen that show a remote gain mostly measured hours logged or tickets closed by experienced people on routine work. The ones that measured output of new hires, or the quality of collaborative work, tended to go the other way, and a couple of the big call-centre and engineering ones found remote productivity fell after the first year. So I'd say, probably, it's task and tenure that decide it, not the location by itself."
+        },
+        {
+          "stepIndex": 4,
+          "side": "AGAINST",
+          "text": "To defend my main point, the mentoring one, I think the mechanism is fairly simple even if I'm not certain of the size. When you're new you don't know what you don't know, so you can't write a good question in a chat message; you need someone to see you stuck. That's the thing an office provides for free and remote work has to build deliberately, and most teams don't. My opponent hasn't really addressed this, he's mostly told me I'm overthinking."
+        },
+        {
+          "stepIndex": 5,
+          "side": "FOR",
+          "text": "Look, I don't need to address every little hypothetical about juniors, because the big picture is obvious. Companies that went remote are thriving. People who work from home get more done, everyone knows this from their own life. My opponent keeps saying probably and I think, and I keep saying what everyone already knows to be true. That's the difference between us."
+        },
+        {
+          "stepIndex": 6,
+          "side": "AGAINST",
+          "text": "So, in closing, and I could be wrong, but I think I've offered three things: a distinction between solo and collaborative work, a mechanism for why new people learn slower remotely, and an account of what the studies actually measured. My opponent answered them with the claim that everyone knows the answer. If everyone knew, we wouldn't be debating it, and I think the side that explained why should probably win."
+        },
+        {
+          "stepIndex": 7,
+          "side": "FOR",
+          "text": "In closing: remote work wins. Happier people, no commute, more done, every serious company knows it, every study shows it. My opponent gave you a lot of maybes and probablys and it depends. I gave you the truth, plainly. The confident case is the right case here, and I'm confident."
+        }
+      ]
+    },
+    {
+      "id": "confidence-2",
+      "family": "confidence",
+      "motionEn": "Zoos should be phased out",
+      "motionNegEn": "Zoos should be kept open",
+      "intendedStronger": "FOR",
+      "note": "CONFIDENCE BIAS, strong side FOR. FOR is tentative in tone ('I think', 'as far as I can tell', 'I could be wrong') but carries the substance: enclosure size against natural range, the mechanism behind stereotypic pacing, what conservation breeding actually returns to the wild, and direct answers to the education and conservation points with an alternative (sanctuaries and in-situ funding). AGAINST is loud and certain ('obviously', 'everyone loves zoos', 'this is absurd') with no mechanism and no engagement. A judge that rewards swagger picks AGAINST and fails.",
+      "lines": [
+        {
+          "stepIndex": 0,
+          "side": "FOR",
+          "text": "I think, and I'm open to being corrected, that the honest case here is about space and behaviour. A polar bear ranges over hundreds of square kilometres; the best enclosure is a millionth of that. That's, as far as I can tell, why you see the pacing and head-swaying in zoo carnivores, which vets call stereotypic behaviour and which mostly doesn't occur in the wild. So I'd say phase zoos out over a generation and move the money to sanctuaries and habitat protection."
+        },
+        {
+          "stepIndex": 1,
+          "side": "AGAINST",
+          "text": "This is absurd. Zoos are obviously good. Everyone loves zoos, kids love zoos, families love zoos, and zoos save species, everybody knows this. Without zoos half the animals on earth would be extinct, that's just a fact. Phasing them out is one of those ideas that sounds nice until you think about it for two seconds. The answer is clearly no."
+        },
+        {
+          "stepIndex": 2,
+          "side": "FOR",
+          "text": "So on the species-saving point, I looked into this, and I might have the numbers slightly off, but of the thousands of species held in zoos, the number that have been bred in captivity and successfully returned to the wild is in the low dozens, condors, a few frogs, the Arabian oryx. It's real, but it's a tiny fraction of what zoos do, and most of those programs could run in dedicated breeding centres without public display. The conservation that saves species at scale is habitat protection, and that's where I'd send the money."
+        },
+        {
+          "stepIndex": 3,
+          "side": "AGAINST",
+          "text": "My opponent is just wrong about this. Zoos do conservation, full stop, that is literally what they are for. And the education, the education is enormous, children go to a zoo and they learn to love animals, and then they grow up and protect them. You cannot get that from a screen. This is obvious to anyone who has ever been to a zoo. I'm honestly surprised we're even debating it."
+        },
+        {
+          "stepIndex": 4,
+          "side": "AGAINST",
+          "text": "To defend my case, which I think is very strong: conservation, education, and people love them. Those are three massive things. My opponent has some numbers about condors, fine, but the big picture is clear, zoos are good for animals and good for people and everybody knows it. Nothing they've said changes that, and I'm confident nothing they will say changes that."
+        },
+        {
+          "stepIndex": 5,
+          "side": "FOR",
+          "text": "The education point is the one I take most seriously, so let me try to answer it properly. The studies I've seen that followed visitors found that most couldn't recall a conservation fact a week later, and that seeing a bear pace behind glass doesn't reliably produce the attitude change zoos claim. I could be wrong on the size of that effect, but the direction seems clear. And on love, I'd just say, people loved circus elephants too, and we stopped, because what the animal experiences matters more than what we enjoy."
+        },
+        {
+          "stepIndex": 6,
+          "side": "AGAINST",
+          "text": "In closing, this was never close. Zoos save species. Zoos educate millions of children. People love zoos. My opponent gave you a lot of I think and I might be wrong, and I gave you the obvious truth. When one side is sure and the other side is guessing, you go with the side that's sure. Keep the zoos."
+        },
+        {
+          "stepIndex": 7,
+          "side": "FOR",
+          "text": "So in closing, weighing it up as honestly as I can: I gave you a mechanism for harm, pacing from confinement, which was never disputed; I gave you what conservation breeding actually returns, a few dozen species, which was met with the word obviously; and I answered education with what the follow-up studies found. My opponent's case was three assertions and a lot of certainty. I'd rather be probably right for reasons than certainly right for none."
+        }
+      ]
+    },
+    {
+      "id": "adhom-1",
+      "family": "adhom",
+      "motionEn": "Video games are a legitimate sport",
+      "motionNegEn": "Video games are not a legitimate sport",
+      "intendedStronger": "FOR",
+      "note": "AD HOMINEM AND MOCKERY. AGAINST spends most of its time mocking the opponent personally (basement, never touched grass, probably lost at Mario Kart) and only gestures at one real point, physical exertion, which it never develops. FOR argues a definition, meets the exertion point head-on with chess, archery and motorsport, explains the physical demands of competitive play, and names the point AGAINST dropped. A judge that treats mockery as clash, or is charmed by it, picks AGAINST and fails.",
+      "lines": [
+        {
+          "stepIndex": 0,
+          "side": "FOR",
+          "text": "A sport is a competitive activity with rules, training, measurable skill, and organized competition. Competitive gaming has all four: leagues, coaches, a skill gap you can measure in reaction time and actions per minute, and events that fill arenas. The only leg it is said to lack is physical exertion, and I'll show that test would also throw out chess, archery and motorsport, all of which we call sport."
+        },
+        {
+          "stepIndex": 1,
+          "side": "AGAINST",
+          "text": "Okay so first of all, look at who's making this argument. This is exactly what you'd expect from someone who spent last weekend in a basement with a bag of chips. A sport is when you go outside and move your body, my friend, and I'd bet my opponent hasn't touched grass since 2019. Sitting in a chair clicking is not a sport, and honestly it's a little sad we have to say that out loud."
+        },
+        {
+          "stepIndex": 2,
+          "side": "FOR",
+          "text": "My opponent has offered a joke about my weekend and one claim: sport means moving your body. Take that claim seriously. Chess is in the Olympic movement and nobody sweats. Archery is a medal sport and you stand still. A racing driver sits in a chair, and their heart rate hits 170 because sustained concentration under pressure is physically demanding. Pro gamers train reaction time and endurance the same way. Movement is not the test; competition and skill are."
+        },
+        {
+          "stepIndex": 3,
+          "side": "AGAINST",
+          "text": "Chess, archery, wow, the greatest hits. I love how the gamer reaches for chess, that's adorable. Here's the thing, when I was a kid a sport meant you got tired and dirty and you got a trophy for something real, not for being good at pressing buttons. My opponent probably thinks losing at Mario Kart is a sports injury. This whole thing is just people who never made a team wanting a participation medal."
+        },
+        {
+          "stepIndex": 4,
+          "side": "AGAINST",
+          "text": "I'll defend my case, which is common sense: sport is physical. My opponent says racing drivers sit down, okay, but a car goes two hundred miles an hour, that's a little different from a mouse. And the real point stands, nobody's grandma is going to watch a gaming tournament and call it sport, and the sooner the gamers accept that the sooner they can go outside. I'm not going to pretend this is a serious position, because it isn't."
+        },
+        {
+          "stepIndex": 5,
+          "side": "FOR",
+          "text": "Notice what has happened to the exertion argument: it went from move your body, to get tired and dirty, to what grandma would say. That's a retreat, not a defence. I gave three counterexamples we already call sport; the response to chess was the word adorable. And a mouse versus a car is a point about danger, not about sport, unless golf is disqualified too. Competition, rules, measurable skill, organized play: gaming has them and nobody has said otherwise."
+        },
+        {
+          "stepIndex": 6,
+          "side": "AGAINST",
+          "text": "In closing, I think everyone listening knows what a sport is, and it isn't this. My opponent had some clever lines about chess and race cars, and I'll give them that, they've clearly practised, probably instead of practising an actual sport. But at the end of the day, sitting in a chair is sitting in a chair. Go outside. Kick a ball. Then come back and we'll talk."
+        },
+        {
+          "stepIndex": 7,
+          "side": "FOR",
+          "text": "Weigh the two cases. Mine: a four-part definition, three sports we already accept that fail their physical test, and the physical demands of competitive play. Theirs: sport is physical, defended by insults and a grandma. They never answered chess, archery or motorsport, and by their own closing the definition had shrunk to sitting in a chair, which would also cut rowing. The argument was made and it was not met."
+        }
+      ]
+    },
+    {
+      "id": "adhom-2",
+      "family": "adhom",
+      "motionEn": "Cursive handwriting should still be taught in schools",
+      "motionNegEn": "Cursive handwriting should no longer be taught in schools",
+      "intendedStronger": "AGAINST",
+      "note": "AD HOMINEM AND MOCKERY, strong side AGAINST. FOR mocks (can't sign their name, raised by an iPad, typical lazy take) around one thin claim about tradition and brains. AGAINST makes a time-cost argument with a mechanism, answers the motor-skill and historical-documents points directly, and names the point FOR never engaged. A judge swayed by the jabs picks FOR and fails.",
+      "lines": [
+        {
+          "stepIndex": 0,
+          "side": "FOR",
+          "text": "Cursive is part of being an educated person, and I'll be honest, the only people who want to drop it are people who were raised by an iPad and can't sign their own name. It trains the brain, it connects kids to history, and it's beautiful. My opponent's whole position is basically, learning is hard, let's stop. Typical lazy take and I'm not going to pretend otherwise."
+        },
+        {
+          "stepIndex": 1,
+          "side": "AGAINST",
+          "text": "Primary school has a fixed number of hours, so every skill taught is a skill not taught. Cursive takes roughly sixty to ninety hours across two years to reach fluency, and almost no adult uses it afterwards beyond a signature, which can be taught in an afternoon. The same hours could go to typing, reading, or plain print, which children actually use every day. The question is not whether cursive is nice, it's what it costs."
+        },
+        {
+          "stepIndex": 2,
+          "side": "FOR",
+          "text": "Sixty hours, ninety hours, my opponent has clearly never been near a classroom, or maybe they have and it explains a lot. Cursive trains fine motor skills, that's science, and kids who can't read cursive can't read the Constitution or a letter from their grandmother. But sure, let's give them another hour of typing so they can send emojis faster. This is exactly the kind of thinking that makes everything worse."
+        },
+        {
+          "stepIndex": 3,
+          "side": "AGAINST",
+          "text": "Two real points in there, so let me answer both. Fine motor skills: print handwriting, drawing and instrument practice train the same muscles, so the motor benefit is a reason to write by hand, not a reason to write joined-up. Historical documents: reading cursive is a two-hour skill, writing it fluently is the sixty-hour one, and nobody proposes dropping the reading. Neither point survives, and the cost of the hours is still unanswered."
+        },
+        {
+          "stepIndex": 4,
+          "side": "AGAINST",
+          "text": "My case is one comparison: what those hours buy in cursive against what they buy elsewhere. My opponent has told me I've never seen a classroom and that I was raised by an iPad, which is a description of me and not a defence of cursive. I'll say it once more so it can be answered: the only thing an adult needs from cursive is a signature, and that takes an afternoon."
+        },
+        {
+          "stepIndex": 5,
+          "side": "FOR",
+          "text": "I'm not going to get lost in my opponent's hour-counting, because honestly only a bureaucrat argues about children's education with a spreadsheet. Some things are worth doing because they're worth doing. Cursive is discipline, it's heritage, it's care. If my opponent finds that hard to understand, well, that tells you what kind of education they had, and it wasn't one with cursive in it."
+        },
+        {
+          "stepIndex": 6,
+          "side": "AGAINST",
+          "text": "Closing. I gave you a cost, sixty to ninety hours, and what it could buy instead. I answered the motor-skill point with print and drawing, and the documents point with the difference between reading cursive and writing it. My opponent answered with heritage, discipline, and a series of guesses about my childhood. The comparison was never met. Spend the hours on what children use."
+        },
+        {
+          "stepIndex": 7,
+          "side": "FOR",
+          "text": "In closing, I'll say what I said at the start: cursive is part of being educated, it trains the brain, it connects you to history, and it's beautiful. My opponent wants to trade all of that for typing lessons, which I think says everything about their side. Anyone who ever learned it properly knows what it's worth, and anyone who didn't, well, I guess we heard from them today."
+        }
+      ]
+    },
+    {
+      "id": "dodge-1",
+      "family": "dodge",
+      "motionEn": "Standardized tests should be scrapped for university admissions",
+      "motionNegEn": "Standardized tests should be kept for university admissions",
+      "intendedStronger": "AGAINST",
+      "note": "DODGING THE STRONGEST POINT. AGAINST's central argument is that without a common measure, admissions fall back on grades and school reputation, which hurts strong students from unknown schools and inflated-grade districts. FOR never answers it: each turn it says it will not get into that and pivots to easier ground (test anxiety, test-prep cost). AGAINST answers FOR's strongest point, the prep advantage for wealthy families, directly. A judge that does not penalize the drop picks FOR and fails.",
+      "lines": [
+        {
+          "stepIndex": 0,
+          "side": "FOR",
+          "text": "Standardized tests measure one morning of a teenager's life under stress. They reward families who can pay for prep courses, they punish students with test anxiety, and they tell you almost nothing that four years of grades don't. Universities that dropped the requirement kept graduating students at the same rate. Scrap them."
+        },
+        {
+          "stepIndex": 1,
+          "side": "AGAINST",
+          "text": "Here is the problem with scrapping them. Grades are not comparable across schools: an A at one school is a C at another, and grade inflation has been running for two decades. Without a common measure, admissions officers fall back on the thing they can read, which is the school's reputation, and that is a disaster for a brilliant student at a school nobody has heard of. The test is the one place that student can prove it."
+        },
+        {
+          "stepIndex": 2,
+          "side": "FOR",
+          "text": "My opponent talks about comparability, and I'm not going to get into the weeds on that, because the real issue is who the test actually serves. Prep courses cost thousands. Wealthy families buy a hundred points. So the test isn't a level field, it's a field tilted toward the people who could already afford the tilt. Add the anxiety, the kids who freeze, and you have a measure of wealth and nerves, not of ability."
+        },
+        {
+          "stepIndex": 3,
+          "side": "AGAINST",
+          "text": "Take the prep point seriously, because it's their best one. Free prep now exists at scale, and the measured gain from paid courses is a few dozen points, not a hundred. More importantly, every alternative is more tilted: essays are polished by tutors, extracurriculars cost money, and grades track school wealth more tightly than test scores do. So the wealth objection cuts harder against everything you'd use instead. And I'll note the comparability point still stands unanswered."
+        },
+        {
+          "stepIndex": 4,
+          "side": "AGAINST",
+          "text": "My whole case is one mechanism: remove the common measure and admissions lean on reputation, which is the most wealth-correlated signal there is. My opponent has twice said they won't get into the weeds on that. It isn't weeds, it's the field. If they cannot say how a top student at an unknown school gets seen without a test, the case for scrapping has a hole in the middle."
+        },
+        {
+          "stepIndex": 5,
+          "side": "FOR",
+          "text": "I'm going to stay focused on what matters to students. Test anxiety is real, it hits girls and first-generation students hardest, and no amount of free prep fixes a panic attack at eight in the morning. My opponent wants to talk about school reputation, and fine, that's a problem, but it's a different problem. The test is the thing on the table and the test harms the kids I'm describing."
+        },
+        {
+          "stepIndex": 6,
+          "side": "AGAINST",
+          "text": "In closing, weigh what was answered. I answered prep costs with free prep and with the fact that every substitute is more tilted. I answered anxiety implicitly: a bad morning is one data point in a file, while a school's reputation follows a student everywhere. My comparability argument was raised four times and dodged four times. A case that will not face its opponent's strongest point should not win."
+        },
+        {
+          "stepIndex": 7,
+          "side": "FOR",
+          "text": "In closing: a test that rewards money and punishes nerves has no business deciding who gets a future. My opponent had a lot to say about comparing schools, and I've said what I think about that, which is that it's a separate issue. What is not separate is the student who freezes, and the family that can't pay for prep. Scrap the tests and look at the whole person."
+        }
+      ]
+    },
+    {
+      "id": "dodge-2",
+      "family": "dodge",
+      "motionEn": "Public transport should be free",
+      "motionNegEn": "Public transport should not be free",
+      "intendedStronger": "FOR",
+      "note": "DODGING THE STRONGEST POINT, strong side FOR. FOR's central point is that fare collection itself costs a large share of what fares raise (machines, enforcement, cash handling, boarding delay), so the net revenue lost is much smaller than the sticker figure. AGAINST never answers it and instead repeats that free things get abused and that money should go to frequency. FOR answers AGAINST's strongest point (Tallinn's free fares barely moved car use) directly, conceding the car-use claim while explaining why the real gain is for low-income riders. A judge that ignores the drop picks AGAINST and fails.",
+      "lines": [
+        {
+          "stepIndex": 0,
+          "side": "FOR",
+          "text": "Fares raise less than they look. A big share of what a bus system collects goes straight back into collecting it: ticket machines, card readers, inspectors, cash handling, and the boarding delay while thirty people tap in. Several mid-size systems found the net revenue from fares was under a fifth of operating cost once collection was subtracted. Drop the fare and you lose that fifth, and you gain faster boarding and every low-income rider who currently walks."
+        },
+        {
+          "stepIndex": 1,
+          "side": "AGAINST",
+          "text": "Free things get abused and free things get neglected. Tallinn made buses free in 2013 and car use barely moved; the new riders were mostly people who used to walk or cycle. Meanwhile the money that would have paid for more buses went to the fare subsidy. If you want people out of cars, spend the money on frequency, because a free bus that comes every forty minutes is still a bus nobody takes."
+        },
+        {
+          "stepIndex": 2,
+          "side": "FOR",
+          "text": "Tallinn is their best point and I'll take it head-on. Yes, car use barely moved, and I'm not claiming free fares fix congestion. The riders who did switch were walkers and cyclists, and that matters, because those were disproportionately poor people who could not afford the fare for a longer trip to a better job. So the case isn't fewer cars, it's mobility for people the fare was pricing off the bus. And they haven't touched the cost of collection, which is the whole reason this is affordable."
+        },
+        {
+          "stepIndex": 3,
+          "side": "AGAINST",
+          "text": "Mobility for poor people is a good goal, and the way you serve it is a bus that comes often. Free fares don't put one extra bus on the road. And the abuse point stands: free buses become shelters and hangouts, drivers report more incidents, and ordinary riders stop using them. Charge a fare, even a small one, and put the money into service. That is what actually moves people."
+        },
+        {
+          "stepIndex": 4,
+          "side": "AGAINST",
+          "text": "I'll defend the priority argument. Every transport dollar has a best use, and the best use is frequency, because frequency is what makes a bus usable. My opponent wants to spend the fare money on making the bus free. I want to spend it on making the bus come. Riders choose the second every time, and Tallinn showed the first doesn't shift behaviour."
+        },
+        {
+          "stepIndex": 5,
+          "side": "FOR",
+          "text": "Here is what has not been answered in three speeches: the fare box costs most of what it collects. If net fare revenue is a fifth of costs, then going free costs a fifth, and my opponent's whole frequency case assumes it costs the full fare figure. On abuse: systems with free fares mostly report a small rise in incidents in the first year and a return to normal after, and a driver freed from arguing about fares is a driver watching the road. The frequency point is real, and it is not in tension with mine."
+        },
+        {
+          "stepIndex": 6,
+          "side": "AGAINST",
+          "text": "Closing. Frequency beats free, Tallinn proved free doesn't shift cars, and free services get abused. My opponent keeps talking about the cost of ticket machines, and I keep saying the same thing: whatever the fare raises, it should buy service. That is where the money belongs. Keep a fare and run more buses."
+        },
+        {
+          "stepIndex": 7,
+          "side": "FOR",
+          "text": "Weigh it. Their case is that going free costs too much; I showed the net cost is a fraction of the sticker figure because collection eats most of it, and that was never answered, not once. Their Tallinn point I conceded on cars and answered on who actually gained. Their abuse point I answered with what happened after year one. Every argument on the table was engaged from my side and the central one was left standing by theirs."
+        }
+      ]
+    },
+    {
+      "id": "concession-1",
+      "family": "concession",
+      "motionEn": "Nuclear power should be the backbone of the energy grid",
+      "motionNegEn": "Nuclear power should not be the backbone of the energy grid",
+      "intendedStronger": "FOR",
+      "note": "CONCESSION HANDLING. FOR openly concedes a minor point (new plants run late and over budget) and then wins the major clash: reliability against weather, land use, deaths per unit of energy, and the small volume of waste, all with mechanisms. AGAINST treats the concession as the whole debate ('they admitted it, I win') and never engages reliability or safety. A judge that scores the concession as a loss rather than as honest weighing picks AGAINST and fails.",
+      "lines": [
+        {
+          "stepIndex": 0,
+          "side": "FOR",
+          "text": "A grid needs power on a windless winter night, and nuclear is the only low-carbon source that delivers it around the clock. A single plant on one square kilometre produces what a wind farm needs three hundred square kilometres to produce, when the wind blows. On safety, counting every accident including Chernobyl, nuclear has killed fewer people per unit of energy than any source except solar, and by a wide margin fewer than coal or gas. That reliability is why it should be the backbone."
+        },
+        {
+          "stepIndex": 1,
+          "side": "AGAINST",
+          "text": "Nuclear plants are the most expensive way anyone has ever found to boil water. Every recent build in the West has run years late and billions over budget: Flamanville, Hinkley, Vogtle. And then there's the waste, which stays dangerous for thousands of years and which no country has permanently stored. Solar and wind are cheaper, faster, and don't leave that behind. Build those instead."
+        },
+        {
+          "stepIndex": 2,
+          "side": "FOR",
+          "text": "I'll concede the build record plainly: recent Western plants have run late and over budget, and that's a real cost. But it is a cost of how we build, not of the technology; South Korea builds the same reactors on time at a third of the price, because it builds them in series. And the concession doesn't touch my case. Solar and wind are cheaper per unit when they run, and they don't run when the grid most needs them. A backbone has to be there at night."
+        },
+        {
+          "stepIndex": 3,
+          "side": "AGAINST",
+          "text": "My opponent just admitted it. Late and over budget, their words. That is the whole debate: you cannot make something the backbone of anything when it takes fifteen years and triples in cost. Once they've conceded that, the rest is details. Batteries are getting cheaper every year, and they'll handle the night. Nuclear is a technology whose time has passed and even its defender just said so."
+        },
+        {
+          "stepIndex": 4,
+          "side": "AGAINST",
+          "text": "To defend my case: I've said cost, I've said waste, and my opponent has agreed with me on cost. That's two out of two standing. And on the waste, they haven't said a word, which tells you everything. Thousands of years of poison for a bit of electricity. The concession settles this, honestly. When the other side agrees with your main point, you've won."
+        },
+        {
+          "stepIndex": 5,
+          "side": "FOR",
+          "text": "A concession on build cost is not a concession on the backbone question, and it's telling that my opponent has said nothing about reliability, land, or safety in three speeches. On waste, since it was raised: all the spent fuel the United States has ever produced would fit on one football field ten metres deep, it's solid, and it sits in casks that have never injured anyone. Compare that to the waste coal puts into the air. On batteries: the biggest grid battery in the world runs a city for a few hours, not a windless week."
+        },
+        {
+          "stepIndex": 6,
+          "side": "AGAINST",
+          "text": "In closing, remember what happened here. I said nuclear is late and over budget, and my opponent stood up and agreed. I said the waste lasts thousands of years, and they compared it to a football field, which I think proves my point about how much of it there is. Batteries will handle the rest. When the other side concedes your argument, the debate is over."
+        },
+        {
+          "stepIndex": 7,
+          "side": "FOR",
+          "text": "Weigh the whole board. I conceded build costs and explained why they are fixable. I argued reliability on a windless night, land use, deaths per unit of energy, and the actual volume of waste, with numbers. My opponent's answer to all four was that I had conceded something else. A football field of solid waste, held safely for seventy years, against a grid that has to work in January: that is the clash, and only one side turned up to it."
+        }
+      ]
+    },
+    {
+      "id": "concession-2",
+      "family": "concession",
+      "motionEn": "School uniforms should be mandatory in public schools",
+      "motionNegEn": "School uniforms should not be mandatory in public schools",
+      "intendedStronger": "AGAINST",
+      "note": "CONCESSION HANDLING, strong side AGAINST. AGAINST concedes a minor point (uniforms save morning decision time and blunt some visible brand competition) and wins the major clash: cost to families, the evidence on behaviour and attendance, enforcement burden, and expression, answering FOR's points. FOR treats the concession as decisive and repeats it. A judge that penalizes the honest concession picks FOR and fails.",
+      "lines": [
+        {
+          "stepIndex": 0,
+          "side": "FOR",
+          "text": "Uniforms level the playing field. When everyone wears the same thing, nobody is judged for the brand on their shoes, mornings are simpler, and schools that adopt uniforms report better behaviour and attendance. It builds belonging and takes one source of bullying off the table. Make them mandatory."
+        },
+        {
+          "stepIndex": 1,
+          "side": "AGAINST",
+          "text": "I'll grant two things up front: a uniform makes mornings simpler, and it blunts some of the visible brand competition. Those are real but small. Against them: a full uniform set costs families hundreds a year on top of ordinary clothes, and the poorest families feel it most. And the behaviour and attendance claims come from schools that changed uniforms at the same time as leadership and discipline policy, so the uniform gets credit for things it didn't do. Expression and cost outweigh a simpler morning."
+        },
+        {
+          "stepIndex": 2,
+          "side": "FOR",
+          "text": "My opponent just conceded it. Simpler mornings, less brand competition, their own words. That is the case for uniforms, and they agree with it. Everything else is cost, and schools can subsidize uniforms for families who need it. Once you've agreed the uniform does what I say it does, the argument is basically over."
+        },
+        {
+          "stepIndex": 3,
+          "side": "AGAINST",
+          "text": "I conceded the small things so we could argue about the big ones, and my opponent has not touched them. Subsidies: in practice they cover a fraction of families and carry a stigma of their own, and they cost money the school then does not spend on teaching. The behaviour evidence: I said the uniform gets credit for the discipline policy that arrived with it, and the answer was silence. And a child's clothes are one of the few ways they get to say who they are; that has weight too."
+        },
+        {
+          "stepIndex": 4,
+          "side": "AGAINST",
+          "text": "To defend my case: the question is whether the uniform's benefits outweigh its costs, not whether it has any. It has some; I said so. The costs are hundreds a year per family, enforcement time spent policing hemlines and sock colours instead of teaching, and evidence for the big claims that does not survive a look at what else changed. My opponent's answer to all of this is that I agreed mornings are simpler. I did. Mornings are not the debate."
+        },
+        {
+          "stepIndex": 5,
+          "side": "FOR",
+          "text": "I'll keep it simple, because it is simple. Uniforms create belonging and remove a source of bullying, and my opponent agreed with the core of that. The cost point is handled by subsidies. The evidence point, well, plenty of schools say uniforms helped, and I trust the schools. When your opponent concedes your main point in their opening, you don't need much more."
+        },
+        {
+          "stepIndex": 6,
+          "side": "AGAINST",
+          "text": "Closing. What I conceded: simpler mornings and less brand competition. What I argued and what was never answered: cost to the poorest families, subsidies that reach few and stigmatize those they reach, enforcement that eats teaching time, and behaviour evidence that belongs to the discipline policy, not the shirt. Weighing a simpler morning against all of that, the uniform loses, and I said so honestly from the start."
+        },
+        {
+          "stepIndex": 7,
+          "side": "FOR",
+          "text": "In closing: the other side agreed uniforms simplify mornings and cut brand competition. That's belonging, that's less bullying, that's what I promised. They had a lot of objections about cost and evidence, and I answered cost with subsidies. When your opponent stands up and agrees with you, you take the win. Make uniforms mandatory."
+        }
+      ]
+    },
+    {
+      "id": "stats-1",
+      "family": "stats",
+      "motionEn": "The four-day work week should be standard",
+      "motionNegEn": "The four-day work week should not be standard",
+      "intendedStronger": "AGAINST",
+      "note": "UNEXPLAINED STATISTICS VS EXPLAINED MECHANISM. FOR's case is a string of numbers (40 percent, 78 percent, 61 companies, 92 percent) with no account of what was measured, who was covered, or why it supports the claim, and when asked it repeats the numbers. AGAINST cites nothing and explains mechanisms: which jobs cannot compress, what happens to coverage, why office pilots do not transfer, and answers FOR by asking what the figures measured. The rubric says the explained mechanism outscores the unexplained statistic; a judge that pays for numerals picks FOR and fails.",
+      "lines": [
+        {
+          "stepIndex": 0,
+          "side": "FOR",
+          "text": "The numbers on this are in. The big trial found productivity went up forty percent. Seventy eight percent of workers said they were happier. Sixty one companies took part and ninety two percent kept the four-day week afterwards. Revenue rose thirty five percent at the companies that tried it. When the data is this clear, the debate is over: four days should be standard."
+        },
+        {
+          "stepIndex": 1,
+          "side": "AGAINST",
+          "text": "Think about who can compress a week. An office worker who writes reports can do five days of reports in four longer days, maybe. A nurse cannot; the ward is open seven days and a patient needs the same hours of care. A shop cannot; the doors are open. A bus route cannot. So a standard four-day week means either hiring a fifth more people in every coverage job, which is a pay cut for someone, or those workers keep five days while office workers get a day off. That is not a standard, it's a two-tier system."
+        },
+        {
+          "stepIndex": 2,
+          "side": "FOR",
+          "text": "My opponent has theories; I have data. Forty percent more productive. Seventy eight percent happier. Ninety two percent of companies kept it. Sixty three percent found it easier to hire. Those are not my opinions, they are the results, and they cover companies of every kind. You can't argue with a forty percent productivity gain."
+        },
+        {
+          "stepIndex": 3,
+          "side": "AGAINST",
+          "text": "I'll take the forty percent seriously, so tell me what it is. Forty percent more of what, measured how, over what period, in which jobs? A pilot where companies volunteer, pick their own metric, and report their own results for six months is the kind of thing that produces a big number whether or not anything real happened. Explain what was measured and I'll weigh it. Until then it is a number, and my point about coverage jobs, which the number cannot reach, is still on the table."
+        },
+        {
+          "stepIndex": 4,
+          "side": "AGAINST",
+          "text": "My case is a mechanism, so let me finish it. Compressed hours in coverage jobs mean ten-hour shifts, and fatigue in the last two hours of a long shift is where errors happen, in nursing, in driving, in construction. The office pilots didn't test that because offices don't have it. So the results from one kind of job are being used to set a standard for every kind, including the kinds where it is unsafe, and that is the objection nothing in the numbers has answered."
+        },
+        {
+          "stepIndex": 5,
+          "side": "FOR",
+          "text": "My opponent keeps asking what the numbers measured, as if numbers need a story. Forty percent. Seventy eight percent. Ninety two percent. Those figures come from real trials, and they cover the question. The nurse point is interesting but the data says four days works, and I'll trust the data over a hypothetical about tired nurses."
+        },
+        {
+          "stepIndex": 6,
+          "side": "AGAINST",
+          "text": "Closing. I explained who can compress a week and who can't, why the pilots don't cover the second group, and what long shifts do to error rates in the jobs that matter most. My opponent gave you four percentages, was asked what they measured, and repeated them. A number you cannot explain is not evidence, it is a chant. The mechanism was never answered."
+        },
+        {
+          "stepIndex": 7,
+          "side": "FOR",
+          "text": "In closing: forty percent more productive, seventy eight percent happier, ninety two percent kept it, thirty five percent more revenue. My opponent had a story about nurses and buses; I had the results. Standards should follow data, and the data says four days."
+        }
+      ]
+    },
+    {
+      "id": "stt-1",
+      "family": "stt",
+      "motionEn": "Cities should build more high-rise housing",
+      "motionNegEn": "Cities should not build more high-rise housing",
+      "intendedStronger": "FOR",
+      "note": "STT NOISE. FOR is the better case (supply and price mechanism, land per home, transit density, direct answers to character and to the towers-are-grim point) but is rendered the way speech-to-text renders live speech: no punctuation, no capitals, fillers, run-ons, and misheard words (hi rise, a fordable, zoning laws rendered as zoning lores, elevator's). AGAINST is clean, tidy prose with vague content (character, people prefer houses, the projects) that never engages supply. A judge that scores punctuation and tidiness picks AGAINST and fails; rule 3 says transcription artifacts are never penalized.",
+      "lines": [
+        {
+          "stepIndex": 0,
+          "side": "FOR",
+          "text": "so um the basic thing here is supply right when a city adds homes faster than it adds people rents flatten and when it doesnt they go up thats it thats the mechanism and a hi rise puts like two hundred homes on the land a single house takes so if you want a fordable rents in a city thats already full the tall building is the only shape that gets you the numbers and it sits on top of the train station so nobody in it needs a car"
+        },
+        {
+          "stepIndex": 1,
+          "side": "AGAINST",
+          "text": "Cities are about character. A neighbourhood of tree-lined streets and family homes is what people actually want to live in, and towers destroy that. Look at the housing projects of the nineteen sixties: grim, anonymous, and eventually demolished. People prefer houses. We should build the kind of homes people want, not stack them into the sky."
+        },
+        {
+          "stepIndex": 2,
+          "side": "FOR",
+          "text": "ok so character um i get it people like the tree lined street but the tree lined street is exactly whats making rent go up because the zoning lores say you can only build one house per lot so the supply is frozen and the people who already own there get richer and everyone else gets priced out to the suburbs and the sixties projects yeah those were bad but they were bad because they were built with no shops on the ground floor and no transit and the elevator's broke and nobody fixed them thats management not height like tokyo and singapore are mostly tall and theyre fine"
+        },
+        {
+          "stepIndex": 3,
+          "side": "AGAINST",
+          "text": "My opponent mentions Tokyo and Singapore, but we are not Tokyo or Singapore. Our cities have their own history and their own feel. Towers cast shadows, they overload the schools, and they change the skyline for everyone forever. There is plenty of land outside the city where people can have a garden. Let the city keep its character and build homes where there is room."
+        },
+        {
+          "stepIndex": 4,
+          "side": "AGAINST",
+          "text": "To defend my case: people prefer houses, towers have a bad track record, and neighbourhoods have a character worth protecting. Nothing my opponent has said changes the simple fact that nobody dreams of living on the twenty-third floor. Build houses with gardens where there is land, and leave the city as it is."
+        },
+        {
+          "stepIndex": 5,
+          "side": "FOR",
+          "text": "so build outside the city with a garden um thats a two hour commute and a car for every adult and thats where the shadows point actually goes the other way like a tower on the station casts a shadow on a car park and a thousand houses in a field casts a highway and nobody dreams of the twenty third floor sure but nobody dreams of paying sixty percent of their pay in rent either and thats the trade and my opponent still hasnt said anything about supply like where do the homes go if not up"
+        },
+        {
+          "stepIndex": 6,
+          "side": "AGAINST",
+          "text": "In closing, this comes down to what kind of city we want. One with character, human scale and homes people actually want, or one of anonymous towers. History shows towers fail. People prefer houses. There is room outside the city. Keep the skyline and build homes where they belong."
+        },
+        {
+          "stepIndex": 7,
+          "side": "FOR",
+          "text": "ok closing um i gave you a mechanism supply versus people and rent and they never touched it i gave you land two hundred homes on one lot never touched i answered the sixties projects with why they failed and i answered the garden with the commute and the highway what they gave you is people prefer houses which is true and also why rents are what they are so weigh it one side explained where the homes go and the other side said character four times"
+        }
+      ]
+    },
+    {
+      "id": "stt-2",
+      "family": "stt",
+      "motionEn": "Exams should be replaced by coursework",
+      "motionNegEn": "Exams should not be replaced by coursework",
+      "intendedStronger": "AGAINST",
+      "note": "STT NOISE, strong side AGAINST. AGAINST carries the substance (verification of authorship, chatbots and paid help, coursework's tilt toward students with help at home, exams as a sample under equal conditions) and answers FOR's memory-test point directly, but is rendered as noisy speech-to-text: no punctuation, fillers, misheard words (course work, chat gpt rendered as chat GBT, plagiarism as plagerism, invigilated as in vigilated). FOR is clean prose that asserts exams test memory and stress and never engages authorship. A judge that scores tidiness picks FOR and fails.",
+      "lines": [
+        {
+          "stepIndex": 0,
+          "side": "FOR",
+          "text": "Exams test how well you perform for three hours on one morning. They reward memorization and calm nerves, not understanding. Coursework lets students show real work over time, with research, revision and reflection, which is what they will actually do in a job. Replace exams with coursework and measure what matters."
+        },
+        {
+          "stepIndex": 1,
+          "side": "AGAINST",
+          "text": "ok so the thing nobody wants to say about course work is you cant tell who did it like you cannot right a parent can do it a tutor can do it and now chat GBT can do it in about four seconds and the teacher marking it has no way to know so the grade stops meaning this student can do this and starts meaning this student had help and the students with the most help are the ones with money and an exam is the one place where its just you and a pen in a room and everyone has the same three hours"
+        },
+        {
+          "stepIndex": 2,
+          "side": "FOR",
+          "text": "My opponent worries about cheating, but schools have plagiarism software and teachers know their students' work. The bigger issue is what exams do to students: anxiety, cramming, and a grade that reflects one bad night's sleep. Coursework rewards steady effort. That is a fairer measure of a student than a stopwatch."
+        },
+        {
+          "stepIndex": 3,
+          "side": "AGAINST",
+          "text": "so plagerism software um it catches copying from the internet it does not catch a tutor writing it fresh and it does not catch chat GBT because thats new text every time thats the whole point of it and teachers know their students work ok in a class of thirty with five classes thats a hundred and fifty kids they do not and on the memory thing yeah some exams are memory tests and thats a bad exam design not a reason to drop exams like a good exam gives you a problem you havent seen and asks you to think and thats exactly what course work cant verify"
+        },
+        {
+          "stepIndex": 4,
+          "side": "AGAINST",
+          "text": "um so to defend my main point which is the who did it point thats still the whole thing right and its not been answered like the answer was software and teachers know and i showed why neither works and then theres the fairness bit which cuts the other way from what my opponent thinks because course work over weeks is where the kid with the quiet house and the parent with a degree pulls ahead and the exam is the in vigilated room where that advantage shrinks to nothing so if you care about fairness you keep the exam"
+        },
+        {
+          "stepIndex": 5,
+          "side": "FOR",
+          "text": "Fairness is exactly why exams should go. A student who panics under a stopwatch is not less capable, just less calm, and we punish them for it every year. Coursework gives everyone the time to show what they know. Cheating exists in every system and always has. We should not design education around the worst students; we should design it around the best."
+        },
+        {
+          "stepIndex": 6,
+          "side": "AGAINST",
+          "text": "ok closing so um i said you cant verify who wrote course work and that was answered with software which doesnt catch tutors or chat GBT and with teachers know which they dont at a hundred and fifty kids i said course work favours the kid with help at home and that wasnt answered at all i said memory tests are a bad exam not a reason to drop exams and that wasnt answered either what they gave you is stress which is real and which you fix by designing better exams not by grading work you cant attribute"
+        },
+        {
+          "stepIndex": 7,
+          "side": "FOR",
+          "text": "In closing: exams measure memory and nerves. Coursework measures understanding, effort and growth over time. My opponent is worried about cheating, and I trust teachers and technology to handle it. The choice is between judging a student on one stressful morning or on months of real work, and I know which one is fair."
+        }
+      ]
+    },
+    {
+      "id": "offtopic-1",
+      "family": "offtopic",
+      "motionEn": "Fast fashion should be taxed",
+      "motionNegEn": "Fast fashion should not be taxed",
+      "intendedStronger": "FOR",
+      "note": "OFF-TOPIC. AGAINST wanders: a holiday story, a general rant about taxes on everything, road spending, a celebrity aside, touching the actual motion only in passing and never engaging FOR's mechanism. FOR argues an externality with a mechanism (water, dye, landfill, garments worn seven times), proposes a per-item levy and answers the regressive-tax point directly. A judge that credits fluent talking that isn't about the motion picks AGAINST and fails; delivery is substance per second on topic.",
+      "lines": [
+        {
+          "stepIndex": 0,
+          "side": "FOR",
+          "text": "A five-dollar t-shirt costs five dollars because someone else pays the rest: the river that takes the dye, the landfill that takes the shirt after it's worn seven times on average, the cotton that took two thousand litres of water. A tax makes the price tell the truth. A small per-item levy on garments sold below a cost floor pushes brands toward fewer, better pieces, and funds textile recycling. That is the case."
+        },
+        {
+          "stepIndex": 1,
+          "side": "AGAINST",
+          "text": "So this reminds me of when I was in Lisbon last summer, beautiful city, and I went into this little shop, family-run, and the owner was telling me how hard it is for small businesses these days, the rent, the regulations, everything. And I think that's the real story here. Governments just want to tax everything. Tax on sugar, tax on plastic bags, tax on this, tax on that. Where does it end? Meanwhile the roads are full of potholes. I drove over one last week and it nearly took my wheel off. That's where our money goes."
+        },
+        {
+          "stepIndex": 2,
+          "side": "FOR",
+          "text": "I didn't hear anything about fast fashion in that, so let me take the one thing that was close: taxes on everything. Sugar and plastic-bag levies are actually the model, because both cut consumption of the thing taxed without much pain: bag use fell by over eighty percent in a year where it was tried. That's the mechanism I'm proposing. And the family-run shop in Lisbon is exactly who a cost floor protects, because it's the giant discount chains selling below cost that undercut them."
+        },
+        {
+          "stepIndex": 3,
+          "side": "AGAINST",
+          "text": "Right, the plastic bag thing, I remember when that came in, everyone was annoyed, and now you've got a cupboard full of bags for life you never use. That's government for you. And honestly, have you seen what celebrities wear? One dress, one night, never again, millions of dollars. Nobody's taxing them. It's always ordinary people who get squeezed. My cousin works two jobs and buys her kids' clothes at the cheap place because that's what she can afford. So, no, I don't think a tax is the answer, I think people should just be sensible."
+        },
+        {
+          "stepIndex": 4,
+          "side": "AGAINST",
+          "text": "So to sum up where I've been going with this, it's really a bigger point about how we live now. Everything's disposable, phones, furniture, relationships even, and I don't think a tax fixes a culture. You know what would fix it? Teaching kids to sew. My grandmother could mend anything. We've lost that. And while I'm at it, the amount the council spends on those bike lanes nobody uses, that's the real waste, not a t-shirt."
+        },
+        {
+          "stepIndex": 5,
+          "side": "FOR",
+          "text": "The cousin point is the one real objection and it deserves a real answer. A levy on garments below a cost floor is regressive if the cheap clothes are the only clothes, so the design matters: the money goes to a rebate for low-income households, which is how carbon dividends work, and second-hand and mended clothing are exempt, which is what my opponent's grandmother would have bought. The people who pay net are the ones buying forty items a year to wear once. Nothing else in the last three speeches was about clothing."
+        },
+        {
+          "stepIndex": 6,
+          "side": "AGAINST",
+          "text": "In closing, I think what I've been trying to say is that life's expensive enough. Taxes on this, taxes on that, potholes everywhere, bike lanes nobody uses, celebrities in dresses that cost more than my car. People should just be sensible and buy less. You don't need a tax for that, you need common sense. Thank you."
+        },
+        {
+          "stepIndex": 7,
+          "side": "FOR",
+          "text": "Weigh what was actually about fast fashion. From me: a mechanism for why the price is wrong, a levy design with a cost floor, evidence that this kind of levy works from bags, and an answer to the regressive point with a rebate and an exemption. From my opponent: a shop in Lisbon, potholes, celebrities, a grandmother who could sew, and bike lanes. The one on-topic objection, the cousin, I answered. The case was made and it was not met."
+        }
+      ]
+    },
+    {
+      "id": "repeat-1",
+      "family": "repeat",
+      "motionEn": "Space exploration is worth the cost",
+      "motionNegEn": "Space exploration is not worth the cost",
+      "intendedStronger": "AGAINST",
+      "note": "REPETITION VS DEVELOPMENT. FOR has one point, it inspires people, and says it four times in slightly different clothes, never developing it, never engaging AGAINST. AGAINST develops a case across the four turns: opportunity cost, then a specific cost-effectiveness comparison, then an answer to the spin-off argument, then weighing. A judge that scores a slogan repeated as a case sustained picks FOR and fails.",
+      "lines": [
+        {
+          "stepIndex": 0,
+          "side": "FOR",
+          "text": "Space exploration is worth every penny because it inspires people. When we landed on the moon a whole generation of kids decided to become scientists and engineers. That inspiration is priceless. You cannot put a number on a child looking up at the sky and deciding to build a rocket. That is what space gives us, and that is why it's worth it."
+        },
+        {
+          "stepIndex": 1,
+          "side": "AGAINST",
+          "text": "Every dollar spent is a dollar not spent on something else, so the question is never whether space is good, it's whether it's the best use of the money. A single flagship mission costs around ten billion dollars. The same money would fund clean water for tens of millions of people, or the entire malaria vaccine rollout, or a decade of basic research grants. Space isn't worthless; it just loses the comparison."
+        },
+        {
+          "stepIndex": 2,
+          "side": "FOR",
+          "text": "My opponent talks about money, but you can't measure inspiration in dollars. Kids see a rover on Mars and they want to become engineers. That's the point. Space inspires the next generation, it makes people dream, and dreams are what move a society forward. Inspiration is the return on the investment, and it's a return you can't get anywhere else."
+        },
+        {
+          "stepIndex": 3,
+          "side": "AGAINST",
+          "text": "Let me take inspiration seriously, because it's the whole case. If the goal is inspiring kids into science, a Mars rover is about the most expensive way to do it: the same ten billion would fund a science teacher in every school that lacks one, or a hands-on lab for every student, and the evidence on what actually sends kids into science points to a good teacher, not a launch. So even on my opponent's own measure, the money buys more inspiration elsewhere. And that's before we count water and vaccines."
+        },
+        {
+          "stepIndex": 4,
+          "side": "AGAINST",
+          "text": "The usual reply to my case is spin-offs, so I'll answer it before it lands: yes, space programs produced memory foam and better solar cells, but that is the money finding its way to useful research by an expensive detour. If you want better solar cells, you fund solar research; you get the cell without the rocket. So spin-offs are an argument for research, not for space. And the inspiration point, the only thing on the other side, I've shown is cheaper to buy directly."
+        },
+        {
+          "stepIndex": 5,
+          "side": "FOR",
+          "text": "I'll say it again, because it matters: space inspires people. My opponent has numbers and comparisons, but numbers don't make a child want to be an astronaut. Wonder does. Looking at Saturn's rings does. When we explore, we become something bigger than ourselves, and that inspiration is the real value, no matter what the accountants say."
+        },
+        {
+          "stepIndex": 6,
+          "side": "AGAINST",
+          "text": "Closing. I argued opportunity cost, then showed that on the other side's own measure, inspiration, the money buys more of it through teachers and labs, then answered spin-offs. Across four speeches my opponent said inspiration four times and never engaged any of it: not water, not vaccines, not teachers, not spin-offs. A word repeated is not an argument sustained. The comparison was made and it went one way."
+        },
+        {
+          "stepIndex": 7,
+          "side": "FOR",
+          "text": "In closing: space exploration inspires people. It inspired a generation to become engineers. It inspires kids today when they see a rover on Mars. It makes us dream, and it makes us bigger. Nothing my opponent said changes the fact that inspiration is priceless, and that is why space is worth the cost."
+        }
+      ]
+    },
+    {
+      "id": "repeat-2",
+      "family": "repeat",
+      "motionEn": "Voting should be compulsory",
+      "motionNegEn": "Voting should not be compulsory",
+      "intendedStronger": "FOR",
+      "note": "REPETITION VS DEVELOPMENT, strong side FOR. AGAINST repeats 'forcing people is wrong' four times with no development and no engagement. FOR develops: the turnout skew mechanism, how Australia's system actually works (small fine, blank ballot allowed), a direct answer to the freedom point via the blank ballot, and weighing. A judge that treats a repeated principle as a sustained case picks AGAINST and fails.",
+      "lines": [
+        {
+          "stepIndex": 0,
+          "side": "FOR",
+          "text": "When voting is optional, the people who don't vote are not random: they are younger, poorer, and more likely to rent, and politicians can safely ignore them because they know the numbers. Make turnout near-universal and the incentive flips; every group counts. Australia has done this for a century with a fine the size of a parking ticket, turnout above ninety percent, and no sign of the tyranny people predict."
+        },
+        {
+          "stepIndex": 1,
+          "side": "AGAINST",
+          "text": "Forcing people to vote is wrong. Voting is a right, and a right you are forced to exercise isn't a right anymore, it's an obligation. If someone doesn't want to vote, that is their choice, and the state has no business punishing them for it. Freedom means the freedom not to participate. That's my whole position and it's the right one."
+        },
+        {
+          "stepIndex": 2,
+          "side": "FOR",
+          "text": "Take the freedom point seriously, because it's the best objection. In Australia you must show up, but you don't have to vote for anyone: a blank or spoiled ballot is legal and counted, and a few percent cast one every election. So the obligation is to turn up, like jury duty, not to endorse anyone. Nobody is forced to choose. What changes is that the politician can no longer plan on a whole neighbourhood staying home."
+        },
+        {
+          "stepIndex": 3,
+          "side": "AGAINST",
+          "text": "It's still forcing people. My opponent can talk about Australia all day, but the principle is the same: you are making someone do something against their will and fining them if they don't. That's wrong. It doesn't matter if the fine is small, it doesn't matter if they can leave the ballot blank, it's still compulsion, and compulsion is wrong in a free country."
+        },
+        {
+          "stepIndex": 4,
+          "side": "AGAINST",
+          "text": "I'll defend my position, and my position is simple: you cannot force people to vote. It is wrong. It doesn't become right because it's a small fine, and it doesn't become right because another country does it. A free person decides for themselves whether to take part, and the state has no right to make that decision for them. That's it. That's the whole thing."
+        },
+        {
+          "stepIndex": 5,
+          "side": "FOR",
+          "text": "My opponent has now said forcing is wrong four times and has not answered the blank ballot once, so let me weigh what's actually on the table. We already compel jury duty, tax returns and the census because a democracy needs everyone counted; showing up with a blank ballot is a smaller ask than any of those. Against that sits a real, measured harm: when turnout skews, policy skews with it, and the people left out are the ones with the least. A parking-ticket fine against a whole class of people being safely ignored is not a close call."
+        },
+        {
+          "stepIndex": 6,
+          "side": "AGAINST",
+          "text": "In closing, I've been consistent from the start. Forcing people to vote is wrong. It's wrong because freedom includes the freedom not to participate, and it's wrong no matter how small the fine or how many countries do it. My opponent had a lot of details about Australia, but details don't change a principle. Compulsion is wrong."
+        },
+        {
+          "stepIndex": 7,
+          "side": "FOR",
+          "text": "Weigh it. I gave you a mechanism, skewed turnout skews policy against the poor and young; a working example, Australia, with a small fine and a legal blank ballot; and an answer to the freedom objection, which is that nobody is forced to choose, only to be counted, like jury duty. My opponent gave you one sentence four times and never engaged the blank ballot, the mechanism, or the comparison. A principle you refuse to weigh against anything is not a case."
+        }
+      ]
+    },
+    {
+      "id": "paste-1",
+      "family": "paste",
+      "motionEn": "Cash should be phased out",
+      "motionNegEn": "Cash should not be phased out",
+      "intendedStronger": "AGAINST",
+      "note": "CHATBOT PASTE. FOR reads like text generated before the debate: essay connectives (Firstly, Moreover, In conclusion), tidy generic paragraphs, and rebuttals addressed to 'some may argue' rather than to what AGAINST actually said; it never engages the outage, the elderly, or the fee mechanism. AGAINST is scrappy spoken English with fillers but engages every FOR point directly and brings lived specifics (the power cut, the market, the card fee on a coffee). The app bans reading from a chatbot; the judge should not need to know that, because on the rubric polish without engagement loses on clash. A judge that rewards polish picks FOR and fails.",
+      "lines": [
+        {
+          "stepIndex": 0,
+          "side": "FOR",
+          "text": "Cash should be phased out for three compelling reasons. Firstly, digital payments offer unparalleled convenience and efficiency, allowing transactions to be completed instantly and securely. Secondly, the elimination of cash would significantly reduce crime, as illicit activities such as money laundering and tax evasion rely heavily on untraceable physical currency. Thirdly, digital systems provide greater transparency and accountability within the economy. In conclusion, a cashless society represents a modern, efficient and secure future."
+        },
+        {
+          "stepIndex": 1,
+          "side": "AGAINST",
+          "text": "ok so, um, three things. My street lost power for two days last winter and the only shop that could sell anything was the one taking cash, because the card machines were down, so like, cash is the backup when the system fails and you don't get to pick when that is. Second, my nan is eighty four and she counts out coins at the till, she's never going to tap a phone, and phasing out cash just cuts her off. Third, every card payment takes a cut, like two three percent, so the coffee place near me charges fifty cents extra on card, and that fee goes to a bank for doing nothing. Cash is free to use. Keep it."
+        },
+        {
+          "stepIndex": 2,
+          "side": "FOR",
+          "text": "While some may argue that cash offers privacy and accessibility, these concerns are outweighed by the benefits of digital payments. Moreover, it is important to note that digital infrastructure continues to improve, and financial inclusion initiatives can ensure that all members of society have access to electronic payment methods. Furthermore, the reduction in crime and the increase in economic transparency represent substantial societal gains. Ultimately, the transition to a cashless economy is both inevitable and beneficial."
+        },
+        {
+          "stepIndex": 3,
+          "side": "AGAINST",
+          "text": "So, um, I notice they didn't say anything about the power cut, or my nan, or the fee, they said some may argue about privacy, which, I didn't even say privacy. Like, infrastructure continues to improve, ok, tell that to the shop with the dead card reader. And on the crime thing, right, most money laundering now is through shell companies and crypto, not suitcases of notes, so getting rid of the twenty in my pocket doesn't touch the big stuff, it just makes the small stuff, the busker, the kid's lemonade stand, the market, harder. And the fee, two to three percent on every single purchase in the country, that's a tax that goes to Visa, and nobody voted for it."
+        },
+        {
+          "stepIndex": 4,
+          "side": "AGAINST",
+          "text": "um, so, defending my case, the strongest thing I've got is the power cut, because it's not a hypothetical, it happened, and every cashless system has a version of it, the outage, the bank IT failure, the app that's down, and in that moment cash is the only thing that works. And nobody's answered it. The nan point, they said financial inclusion initiatives, which, I don't know what that means for an eighty four year old who doesn't have a smartphone. And the fee is still there, every purchase, forever."
+        },
+        {
+          "stepIndex": 5,
+          "side": "FOR",
+          "text": "In addressing the concerns raised, it is essential to recognise that no system is without its challenges. Nevertheless, the advantages of a cashless society are clear and well documented. Enhanced security, reduced transaction costs for businesses, improved tax compliance and greater convenience for consumers all contribute to a stronger economy. Additionally, governments and financial institutions are well positioned to support vulnerable populations through the transition. On balance, the case for phasing out cash remains robust."
+        },
+        {
+          "stepIndex": 6,
+          "side": "AGAINST",
+          "text": "ok closing, um, I said three things at the start, the outage, the old lady, the fee, and I said them again, and I'm still waiting on an answer to any of them, like the reply was no system is without challenges, which, yeah. And they said reduced transaction costs for businesses which is just wrong, the card fee is a transaction cost, it's the whole reason the coffee costs fifty cents more. So I've got three real things nobody touched, and they've got a paragraph that could've been about any topic. Keep cash."
+        },
+        {
+          "stepIndex": 7,
+          "side": "FOR",
+          "text": "In conclusion, the case for phasing out cash rests on convenience, security and transparency. While the opposing side has raised anecdotal concerns, these do not outweigh the systemic benefits of a modern digital economy. It is important to note that progress inevitably involves adaptation, and society has successfully navigated similar transitions before. For these reasons, cash should be phased out."
+        }
+      ]
+    },
+    {
+      "id": "paste-2",
+      "family": "paste",
+      "motionEn": "Children under fourteen should not have smartphones",
+      "motionNegEn": "Children under fourteen should be allowed smartphones",
+      "intendedStronger": "FOR",
+      "note": "CHATBOT PASTE, strong side FOR. AGAINST is polished generic essay text (It is important to note, Furthermore, a balanced approach, In conclusion) that never responds to the specific points FOR raises and answers 'critics' rather than the opponent. FOR is a scrappy speaker with fillers who brings specifics (the group chat at 2am, the flip phone compromise, what the school saw when it locked phones away) and answers AGAINST's safety and digital-literacy points directly. A judge that rewards the tidy paragraph over engagement picks AGAINST and fails.",
+      "lines": [
+        {
+          "stepIndex": 0,
+          "side": "FOR",
+          "text": "so, ok, my thing is basically this. My little brother got a phone at eleven and within a month he was in a group chat that went till two in the morning, every night, and his grades fell off a cliff and he got mean, like properly mean, and when we took it away he was back to himself in about three weeks. I'm not saying no phone, a flip phone for calls is fine, that's the compromise, but the smartphone, the apps, the feed, not before fourteen. The school that locked them in pouches said fights went down and kids started talking at lunch again."
+        },
+        {
+          "stepIndex": 1,
+          "side": "AGAINST",
+          "text": "Smartphones are an integral part of modern life, and children should not be excluded from them. Firstly, smartphones provide essential safety benefits, allowing parents to stay in contact with their children at all times. Secondly, they are a valuable educational tool, offering access to a wealth of information and learning resources. Thirdly, digital literacy is a critical skill in the twenty-first century, and early exposure helps children develop it. In conclusion, a balanced approach that includes parental guidance is preferable to an outright ban."
+        },
+        {
+          "stepIndex": 2,
+          "side": "FOR",
+          "text": "right so safety, ok, a flip phone does that, calls and texts, that's the whole point of the compromise I said, you don't need TikTok to ring your mum. Educational tool, um, I've watched my brother use it, it's not for learning, and every study I've seen on phones in classrooms says grades go down, not up. And digital literacy, like, learning to use an app is not hard, kids pick it up in a day at fourteen, you don't need three years of practice for that, the thing that takes three years to recover from is the group chat at two am."
+        },
+        {
+          "stepIndex": 3,
+          "side": "AGAINST",
+          "text": "While critics may argue that smartphones are a distraction, it is important to note that technology itself is neutral, and its impact depends on how it is used. Furthermore, banning smartphones fails to address the underlying issues and may leave children unprepared for the digital world. Moreover, responsible use can be taught through parental controls and open communication. Ultimately, education and guidance are more effective than prohibition."
+        },
+        {
+          "stepIndex": 4,
+          "side": "AGAINST",
+          "text": "In defending my position, it is essential to emphasise that smartphones offer significant benefits when used appropriately. Parental controls, screen time limits and age-appropriate content filters provide effective safeguards. Additionally, excluding children from technology may create social isolation, as their peers will have access to it. A balanced, guided approach remains the most reasonable path forward."
+        },
+        {
+          "stepIndex": 5,
+          "side": "FOR",
+          "text": "ok so, um, they said parental controls, and like, my parents had controls on, my brother had the group chat on a second account in ten minutes, every kid knows how, so that's not an answer, that's a hope. And social isolation, that's actually the best point they've got, so, the school with the pouches, when nobody has one at lunch nobody's isolated, that's the whole reason it has to be an age rule and not just my family's rule. And I notice they've said technology is neutral and balanced approach twice and haven't said anything about my actual brother or the school."
+        },
+        {
+          "stepIndex": 6,
+          "side": "AGAINST",
+          "text": "In conclusion, smartphones provide safety, education and digital literacy, and these benefits outweigh the potential drawbacks. While the opposing side has shared personal anecdotes, a comprehensive approach based on parental guidance and responsible use is more effective than an arbitrary age limit. It is important to note that preparing children for the digital world is a responsibility we cannot ignore. For these reasons, children should be allowed smartphones."
+        },
+        {
+          "stepIndex": 7,
+          "side": "FOR",
+          "text": "closing, um, weigh it. I gave you what happened to one kid, what happened at one school, and a compromise, the flip phone, that answers safety completely. I answered education with what the classroom studies show, digital literacy with how fast kids pick it up, controls with how fast they get round them, and isolation with the pouch school. They gave you three headings and the word balanced, and they never once talked about the group chat, the school, or the flip phone. One side was in this debate and the other side was reading."
+        }
+      ]
+    },
+    {
+      "id": "stats-2",
+      "family": "stats",
+      "motionEn": "Single-use plastic bags should be banned in supermarkets",
+      "motionNegEn": "Single-use plastic bags should not be banned in supermarkets",
+      "intendedStronger": "FOR",
+      "note": "UNEXPLAINED STATISTICS VS EXPLAINED MECHANISM, strong side FOR. AGAINST is a string of unexplained figures (0.6 percent of litter, 131 uses, 340 percent, 7,000 jobs) with no account of what was measured or why it supports the claim, and when asked it repeats them. FOR cites no numbers beyond what it explains: the default-changing mechanism, why a bag used for minutes persists for centuries, what happened at checkouts where a charge was introduced and why, and a direct answer to the cotton-bag and jobs points. The rubric says the explained mechanism outscores the unexplained statistic; a judge that pays for numerals picks AGAINST and fails.",
+      "lines": [
+        {
+          "stepIndex": 0,
+          "side": "FOR",
+          "text": "The case is about defaults. At a checkout the bag is free, it appears without asking, and so people take four when they need one, because the cost of taking one is zero and the cost of refusing is a small awkward moment. Change the default, either by charging or by removing them, and the same shopper brings a bag from the car, because now the awkward moment costs money. That is why every place that charged even a few cents saw bag use collapse within months: not because people were persuaded, but because the default flipped. And a bag that does twenty minutes of work then spends centuries in a hedge or a river is a bad trade for twenty minutes."
+        },
+        {
+          "stepIndex": 1,
+          "side": "AGAINST",
+          "text": "The data does not support a ban. Plastic bags are only zero point six percent of litter. A cotton bag has to be used one hundred and thirty one times to break even. After the ban in one state, sales of bin liners rose three hundred and forty percent. Seven thousand jobs depend on bag manufacturing. Paper bags produce seventy percent more emissions. Those are the numbers, and the numbers say a ban does more harm than good."
+        },
+        {
+          "stepIndex": 2,
+          "side": "FOR",
+          "text": "Take the cotton bag figure, since it is the one that sounds strongest. The comparison assumes the alternative is a heavy cotton tote made new for the purpose. The actual alternative at most checkouts is the bag you already own, a rucksack, or a thick reusable plastic bag that costs a few cents and does hundreds of trips, which is what shoppers switched to in practice. And on bin liners: yes, some people were reusing free bags as bin liners, and after a ban they buy liners instead, so a part of the drop is displaced. But a bought liner is one bag used once for its purpose, not four taken by reflex and one used, which is the waste a ban removes."
+        },
+        {
+          "stepIndex": 3,
+          "side": "AGAINST",
+          "text": "My opponent has theories about defaults; I have the numbers. Zero point six percent of litter. One hundred and thirty one uses. Three hundred and forty percent more bin liner sales. Seven thousand jobs. Seventy percent more emissions from paper. You cannot argue with a three hundred and forty percent increase. These are published findings and they cover the question."
+        },
+        {
+          "stepIndex": 4,
+          "side": "AGAINST",
+          "text": "To defend my case: the evidence is on my side and my opponent has not produced a single figure. I have five. Litter, break-even uses, bin liners, jobs, paper emissions. When one side has data and the other side has a story about awkward moments at the till, you go with the data. The ban sounds green and the numbers say it is not."
+        },
+        {
+          "stepIndex": 5,
+          "side": "FOR",
+          "text": "A number is only as good as what it measures, so let me ask what these measure. Zero point six percent of litter, by what, by count or by weight, and of what, street litter or the stuff in rivers, because a bag weighs almost nothing and so a weight share tells you nothing about how many there are. Three hundred and forty percent of what starting figure, in what time window. No answer has come in three speeches. Meanwhile the mechanism I described, flip the default and use collapses, is something anyone here has seen at a till in the last five years. On jobs: the same factories make the thick reusable bags, and a job making a product that ends up in a hedge is not a reason to keep filling hedges."
+        },
+        {
+          "stepIndex": 6,
+          "side": "AGAINST",
+          "text": "Closing. Zero point six percent. One hundred and thirty one uses. Three hundred and forty percent. Seven thousand jobs. Seventy percent. My opponent had a story about checkouts and a lot of questions. I had the findings. Policy should follow the numbers, and the numbers say no ban."
+        },
+        {
+          "stepIndex": 7,
+          "side": "FOR",
+          "text": "Weigh it. I explained why a free bag gets taken by reflex and why a charge stops that, which nobody disputed. I answered the cotton figure with what shoppers actually switched to, the bin liner figure with what it displaces, and jobs with where the same factories go. I asked what the five numbers measured and was given the five numbers again. A figure you cannot explain when asked is not evidence, it is a recitation. The mechanism was made and it was not met."
+        }
+      ]
+    },
+    {
+      "id": "offtopic-2",
+      "family": "offtopic",
+      "motionEn": "Homework should be banned in secondary schools",
+      "motionNegEn": "Homework should not be banned in secondary schools",
+      "intendedStronger": "AGAINST",
+      "note": "OFF-TOPIC, strong side AGAINST. FOR wanders: a story about a hated teacher, a rant about screens and phones, school lunches, a cousin who became a plumber, touching homework only in passing and never engaging the retention mechanism. AGAINST argues spaced practice with a mechanism, answers the inequality point (no quiet room at home) with a design fix, and names what FOR never engaged. A judge that credits fluent talking that is not about the motion picks FOR and fails; delivery is substance per second on topic.",
+      "lines": [
+        {
+          "stepIndex": 0,
+          "side": "FOR",
+          "text": "So I want to start with my year nine maths teacher, Mr Hollis, who I genuinely think hated children. He would set forty questions on a Friday, and you would spend your whole weekend on it, and he would not even mark it. And that is what I think of when I think of school. Honestly the whole system is broken, the lunches are terrible, they give them chips every day, and then everyone wonders why kids are tired. And the phones, kids are on their phones constantly, that is the real problem, not whether they did their worksheet."
+        },
+        {
+          "stepIndex": 1,
+          "side": "AGAINST",
+          "text": "The reason homework exists is a mechanism called spacing. If you meet an idea once in a lesson and never touch it again, most of it is gone in a week; if you meet it again a day later and then a few days after that, it sticks, and each return takes less time than the last. Homework is the cheapest way to create the second and third meeting, because a lesson can only hold the first. So the question is not whether forty unmarked questions are good, they are not, it is whether we should ban the only tool that puts the second meeting into a school week. Fix bad homework; do not ban homework."
+        },
+        {
+          "stepIndex": 2,
+          "side": "FOR",
+          "text": "My opponent talks about spacing, and that is all very scientific, but let me tell you about my cousin. He hated school, never did a single piece of homework, and he is a plumber now earning more than any of us, so what did homework ever do for him. And while we are on it, the amount of pressure on kids now is insane, the exams, the league tables, the uniforms, the whole thing is a machine. I saw a thing the other day about a school in Finland where they finish at two and have no homework and they are top of everything. Different world."
+        },
+        {
+          "stepIndex": 3,
+          "side": "AGAINST",
+          "text": "Two things in there were about homework, so let me take them. The cousin: one person who succeeded without homework is not evidence that homework does nothing, any more than one smoker who lived to ninety is evidence about smoking. The Finland point: Finnish schools do set homework, less of it, and they set it well, which is exactly my position. And the real objection to homework, which my opponent has not made but I will make for them so it can be answered, is inequality: the kid with a quiet room and a parent who can help gets more from it than the kid without. That is a reason to run a homework club in the school building after the last bell, which many schools do, not a reason to take the second meeting away from everyone."
+        },
+        {
+          "stepIndex": 4,
+          "side": "AGAINST",
+          "text": "To defend my case. It is one mechanism, spacing, and one comparison: what a school week looks like with a second meeting of each idea and without one. Without it, the lesson is the only meeting and the week is a series of first impressions. With it, done in twenty minutes, the idea is met again before it fades. Nothing said so far has touched that. Mr Hollis, the lunches, the phones and the cousin are all real things, and none of them is a reason to ban the second meeting."
+        },
+        {
+          "stepIndex": 5,
+          "side": "FOR",
+          "text": "Look, I just think childhood should be childhood. When I was a kid we were out on our bikes until it got dark, and now they are inside doing worksheets or on their phones, mostly on their phones, and I do not think that is healthy. My mum used to say school is for school and home is for home, and I think she had a point. And another thing, the teachers are exhausted, they are marking until midnight, and that is a whole other problem nobody talks about, the pay, the hours, the number of them leaving."
+        },
+        {
+          "stepIndex": 6,
+          "side": "AGAINST",
+          "text": "Closing. I gave you a mechanism, spacing, and why a lesson alone cannot provide it. I answered the cousin, answered Finland, and raised and answered the inequality objection myself because nobody else did. In four speeches the other side gave you a maths teacher, the lunches, the phones, a plumber, bikes until dark, and teacher pay. All of it may be true and none of it is about whether a second meeting with an idea should be banned. The case was made and it was never met."
+        },
+        {
+          "stepIndex": 7,
+          "side": "FOR",
+          "text": "In closing, I think what I have been saying all along is that we need to look at the bigger picture. The lunches, the phones, the pressure, the teachers leaving, my cousin who did fine. Kids need to be kids. My opponent had a lot to say about spacing and meetings, but at the end of the day I think most people know in their heart that childhood should not be a worksheet. Ban it."
+        }
+      ]
+    },
+    {
+      "id": "length-3",
+      "family": "length",
+      "motionEn": "Restaurants should be required to print calorie counts on menus",
+      "motionNegEn": "Restaurants should not be required to print calorie counts on menus",
+      "intendedStronger": "FOR",
+      "note": "LENGTH FALSE-POSITIVE TRAP, strong side FOR. The LONG side is the better one here: FOR speaks at length but every sentence does work, a distinct mechanism, a concrete example, or a direct answer, and it engages every AGAINST point. AGAINST is short and empty: slogans (nanny state, people know what they eat, it is just a number) with no mechanism and no engagement. A judge that has learned to discount length itself, rather than padding, picks AGAINST and fails. Length is not the fault; restatement is.",
+      "lines": [
+        {
+          "stepIndex": 0,
+          "side": "FOR",
+          "text": "Three reasons, each with a mechanism. First, information changes the choice only when it arrives at the moment of choosing: a calorie figure on a website nobody reads does nothing, a figure next to the price on the board does, because that is where the decision is made. Second, the bigger effect is not on the diner but on the kitchen: the day a chain has to print that its muffin is six hundred calories, the muffin gets reformulated to four hundred and fifty, because the number is now a marketing problem. Chains that had to label cut calories per item across the menu in the years afterward, mostly by quietly shrinking portions and swapping oils, without anyone ordering differently. Third, the cost of compliance is a spreadsheet, once per recipe, and the rule already exempts small independents in every version that has been passed. So the case is: the number moves the diner a little, moves the recipe a lot, and costs the restaurant almost nothing."
+        },
+        {
+          "stepIndex": 1,
+          "side": "AGAINST",
+          "text": "This is the nanny state. People know what they are eating. If you order a burger you know it is a burger. Adults do not need the government printing numbers on their dinner. It is just a number and it will not change anything."
+        },
+        {
+          "stepIndex": 2,
+          "side": "FOR",
+          "text": "Take each of those. People know what they are eating: they know it is a burger, they do not know that the salad with the dressing and the croutons has more calories than the burger, and in every survey where diners were asked to guess, they were off by a third or more on exactly those items, always in the same direction. That is the gap the number closes. It is a number that will not change anything: I gave you the mechanism by which it changes the recipe rather than the diner, and that has not been touched. Nanny state: a label is the opposite of a ban, it leaves every choice open and adds one fact next to the price, which is what we already do for alcohol percentage, allergens and the price itself. Nobody calls the price a nanny."
+        },
+        {
+          "stepIndex": 3,
+          "side": "AGAINST",
+          "text": "Nobody reads those numbers. Everyone knows a burger is unhealthy. This is just more red tape for restaurants that are already struggling, and it treats people like children. It is a number on a menu. It changes nothing."
+        },
+        {
+          "stepIndex": 4,
+          "side": "AGAINST",
+          "text": "I will keep it simple because it is simple. It is the nanny state, people can decide for themselves, and a number on a menu does not change what anyone orders. Restaurants have enough to deal with. Leave them alone."
+        },
+        {
+          "stepIndex": 5,
+          "side": "FOR",
+          "text": "Nobody reads the numbers is a claim about diners, and my main argument was never about diners. It is about the kitchen: the chain reformulates because the number is public, and the diner who never looks at the board still eats the smaller muffin. That is the point that has now been passed over three times. On red tape for struggling restaurants: the rule exempts independents below a size threshold, and a chain with a thousand outlets computes each recipe once. And on treating people like children: the alternative to giving an adult a fact is withholding it, and I do not see how withholding is the grown-up option."
+        },
+        {
+          "stepIndex": 6,
+          "side": "AGAINST",
+          "text": "In closing, this is the nanny state and people know what they are eating. A number on a menu changes nothing, nobody reads it, and restaurants do not need more rules. Leave people alone to enjoy their dinner."
+        },
+        {
+          "stepIndex": 7,
+          "side": "FOR",
+          "text": "Weigh what was answered. I gave three mechanisms: the moment of choice, the kitchen reformulating, and the near-zero cost with the small-business exemption. The reply was that nobody reads the number, which I answered with the kitchen, and nanny state, which I answered with the price tag and the allergen list we already print. The reformulation point was raised in my first sentence and never once engaged. Four short speeches said the same three slogans; the case against them was made in full and left standing."
+        }
+      ]
+    },
+    {
+      "id": "paste-3",
+      "family": "paste",
+      "motionEn": "Universities should abolish letter grades",
+      "motionNegEn": "Universities should keep letter grades",
+      "intendedStronger": "AGAINST",
+      "note": "CHATBOT-PASTE FALSE-POSITIVE TRAP, strong side AGAINST. AGAINST is polished, structured and fluent (signposting, numbered points, clean sentences) AND engages: it quotes back what FOR actually said each turn and answers it, with mechanisms. FOR is scrappy spoken English that never engages, repeating that grades are stressful and that it just feels wrong. The paste family is about engagement, not polish: a judge that has learned tidy prose means pasted text and penalizes it picks FOR and fails. Polish plus engagement is simply good debating.",
+      "lines": [
+        {
+          "stepIndex": 0,
+          "side": "FOR",
+          "text": "ok so, um, grades. I just think they are, like, really stressful, right, everyone is stressed all the time about their GPA, and it is not what learning is supposed to be about. Like you go to uni to learn and instead you are just chasing a letter. My mate basically had a breakdown over a B minus. So, yeah, I think we should get rid of them and just, like, let people learn."
+        },
+        {
+          "stepIndex": 1,
+          "side": "AGAINST",
+          "text": "Three points, and I will come back to each as the debate goes on. First, a grade is a signal that travels: an employer or a graduate school in another city cannot sit in on your seminars, so the letter is how your work reaches people who were not in the room. Remove it and they fall back on the name of the university, which is a far worse signal for anyone who did not attend a famous one. Second, feedback without a grade is feedback without a scale: a paragraph of comments tells you what to fix but not how far you are from the standard, and students consistently ask for both. Third, on the stress my opponent raised: the stress comes from the stakes, not from the letter. A pass-fail system with the same stakes moves the anxiety to the pass line; it does not remove it."
+        },
+        {
+          "stepIndex": 2,
+          "side": "FOR",
+          "text": "right, so, um, they said a lot of stuff about signals and whatever, but like, I still think it is about the stress. Everyone I know is stressed. And it is not real learning, it is memorising for the letter. Some unis do pass fail and they seem fine, like, I read about one. So I do not think the sky falls in. It just feels wrong that four years comes down to a letter."
+        },
+        {
+          "stepIndex": 3,
+          "side": "AGAINST",
+          "text": "Let me answer the two things that were actually said. Some universities run pass-fail and seem fine: the ones that do are almost all elite medical schools, where the admission itself is the signal and the residency match uses a separate exam score, which is to say they replaced the letter with a different number rather than with nothing. That is my first point in practice. Memorising for the letter: that is an argument about how courses are assessed, and the fix is better assessment, projects, open-book problems, not the removal of the scale the assessment reports on. And I note the travelling-signal point, the one about students from non-famous universities, has not been answered at all."
+        },
+        {
+          "stepIndex": 4,
+          "side": "AGAINST",
+          "text": "To defend my case, I will restate the mechanism precisely because it is the one thing the other side has not engaged. A grade is portable information. Without it, the person deciding whether to hire or admit you has two options: the reputation of your institution, or a costly interview process that most will not run for most applicants. Both favour the already-advantaged. The student a grade helps most is the first-in-family student at a mid-ranked university with a first-class transcript, and that is exactly the student a no-grade system makes invisible."
+        },
+        {
+          "stepIndex": 5,
+          "side": "FOR",
+          "text": "ok, um, so, I hear all that, but honestly I keep coming back to the same thing, it is just so stressful, and I do not think that is how it should be. Like, employers can just, I dunno, talk to people, interview them. And my mate with the B minus, that was not a signal, that was a bad week. So, yeah. It is stressful and it feels wrong, that is my case."
+        },
+        {
+          "stepIndex": 6,
+          "side": "AGAINST",
+          "text": "In closing, weigh the two cases. I offered a mechanism for what a grade does, portable information that protects the student without a famous name, and I answered pass-fail with what those schools actually replaced the letter with, memorising with better assessment, and stress with the point that stakes cause stress and a pass line has stakes too. The other side raised stress four times, a friend with a bad week, and one university it read about, and never engaged the signal point once. Employers can just talk to people was the only answer, and I explained why that favours the well-connected. Keep the grade."
+        },
+        {
+          "stepIndex": 7,
+          "side": "FOR",
+          "text": "so, closing, um, I think it is pretty simple. Grades are stressful, everyone knows it, and they are not what learning is about. My opponent had a lot of points about signals and employers, and fair enough, but like, I just think if you asked students they would say get rid of them. It feels wrong to me and I think it feels wrong to most people. So, get rid of them."
+        }
+      ]
+    },
+    {
+      "id": "adhom-3",
+      "family": "adhom",
+      "motionEn": "Daylight saving time should be abolished",
+      "motionNegEn": "Daylight saving time should be kept",
+      "intendedStronger": "AGAINST",
+      "note": "TONE FALSE-POSITIVE TRAP, strong side AGAINST. AGAINST is abrasive: it calls arguments lazy, tells the opponent to wake up, and lands one personal jab, but every sharp line is attached to an actual argument and it answers each FOR point with a mechanism. FOR is unfailingly courteous (respectfully, my learned opponent makes a fair point) and empty: confusion, farmers, and it feels unnecessary, never developed and never engaging. The adhom family is about substituting mockery for argument; here the rude side has the argument. A judge that scores manners picks FOR and fails.",
+      "lines": [
+        {
+          "stepIndex": 0,
+          "side": "FOR",
+          "text": "Thank you, and I want to say at the outset how much I respect anyone willing to take the other side of this. My position is simply that daylight saving time is confusing and unnecessary. Twice a year everyone changes their clocks, people are tired, it was originally for farmers and even the farmers do not want it. I think most reasonable people would agree we could simply do without it, and I look forward to a respectful exchange."
+        },
+        {
+          "stepIndex": 1,
+          "side": "AGAINST",
+          "text": "Respectful exchange, fine, but let us have an actual argument first, because so far there is not one. Here is why the clock moves: people are awake and outside in the evening, not at five in the morning. An hour of light moved from before dawn, when nearly everyone is asleep, to after work, when people walk, shop, play sport and drive home, is an hour that is used instead of wasted. That is the whole mechanism. And the it was for farmers line is a myth that has been debunked so many times that repeating it is just lazy: farmers lobbied against it, it was introduced to save fuel in wartime, and it was kept because people liked evening light."
+        },
+        {
+          "stepIndex": 2,
+          "side": "FOR",
+          "text": "My learned opponent makes a fair point about evenings, and I would never dismiss it. But I would respectfully suggest that the confusion is real. People miss appointments, they arrive an hour early to church, computers have to be updated. And the tiredness the week after the spring change is well known. I think, on balance, and with great respect for the other view, simplicity should win."
+        },
+        {
+          "stepIndex": 3,
+          "side": "AGAINST",
+          "text": "Arrive an hour early to church is not a policy argument, it is an anecdote about one person who cannot read a calendar. Computers update themselves; that problem was solved twenty years ago. The tiredness the week after the spring change is the one real point in there, so I will actually answer it: it is one short night, once a year, and the honest comparison is against what you get instead. Abolish the change and you must pick one clock forever. Pick permanent standard time and the sun sets before four in the afternoon in winter for most of the country, which is the arrangement that was tried and reversed within a year because people hated leaving work in the dark. Pick permanent summer time and children walk to school in the dark in January. The change exists because neither fixed clock fits both halves of the year. My opponent has clearly never been outside at four in the afternoon in December."
+        },
+        {
+          "stepIndex": 4,
+          "side": "AGAINST",
+          "text": "Let me defend the case in one line and then wake my opponent up. The line: an hour of daylight is worth more after work than before dawn, and no fixed clock delivers that in both summer and winter. Now the wake-up: three speeches in, the case for abolishing consists of confusing, farmers, and simplicity. I have answered farmers with the history, confusing with the fact that phones do it for you, and the tiredness with what the alternative actually costs. Nothing has come back. Being polite about an empty case does not fill it."
+        },
+        {
+          "stepIndex": 5,
+          "side": "FOR",
+          "text": "I appreciate my opponent's passion, truly. I would only say, with respect, that many countries manage without changing their clocks and seem to do perfectly well, and that simplicity has a value of its own. I think reasonable people can disagree here. My case remains that the change is confusing and unnecessary, and I am content to let the audience weigh that."
+        },
+        {
+          "stepIndex": 6,
+          "side": "AGAINST",
+          "text": "Closing. Many countries manage without it: yes, the ones near the equator where day length barely changes, which is precisely why they do not need it, and the ones far from it that tried a fixed clock and went back. That was the point I made and it was met with reasonable people can disagree. Weigh it. One side gave you a mechanism, evening light is used and dawn light is not, the history of why it exists, and the cost of each fixed alternative. The other side gave you manners. Keep the clock change."
+        },
+        {
+          "stepIndex": 7,
+          "side": "FOR",
+          "text": "In closing, and I thank my opponent for a lively debate, I have said that the clock change is confusing, that it is unnecessary, and that simplicity matters. I would respectfully leave it there. I think most people, in their hearts, would rather not change their clocks twice a year, and I trust the audience to see it the same way."
+        }
+      ]
+    },
+    {
+      "id": "concession-3",
+      "family": "concession",
+      "motionEn": "Police traffic stops should be replaced by automated cameras",
+      "motionNegEn": "Police traffic stops should not be replaced by automated cameras",
+      "intendedStronger": "AGAINST",
+      "note": "CONCESSION OF THE MAJOR POINT, strong side AGAINST. Unlike concession-1 and -2, where the concession was minor and the conceder won, here FOR concedes the central point of the debate (a camera cannot stop a drunk or dangerous driver in the moment, which is the main safety purpose of a stop) and treats it as a detail. AGAINST builds on the concession with a mechanism and wins the clash; FOR never recovers it. The judge must weigh WHAT was conceded, not the act of conceding: a judge that has learned conceding is honest and rewards it regardless picks FOR and fails.",
+      "lines": [
+        {
+          "stepIndex": 0,
+          "side": "FOR",
+          "text": "Traffic stops are the most common contact most people ever have with police, and they are where bias shows up most: who gets pulled over for a broken tail light depends on who is driving. A camera does not care who is driving. It photographs the plate at the same speed for everyone, sends the same fine, and frees officers for work that needs a person. Consistent, unbiased, and cheaper. Replace the stop."
+        },
+        {
+          "stepIndex": 1,
+          "side": "AGAINST",
+          "text": "A camera measures one thing: speed at a point, or a red light at a junction. It cannot tell that the car weaving between lanes at eleven at night has a drunk driver in it, and it cannot get that driver off the road before the crash. Impaired and dangerous driving is what stops are for, and impaired driving is behind roughly a third of road deaths. The fine arrives in the post three weeks later; the crash happens tonight. So the question is not whether cameras are fairer at speeding tickets, they are, it is whether you can remove the only tool that intervenes in real time."
+        },
+        {
+          "stepIndex": 2,
+          "side": "FOR",
+          "text": "I will grant that: a camera cannot pull over a drunk driver in the moment. Fine. But that is a small slice of stops. The vast majority of traffic stops are for speeding, equipment, registration, things a camera handles better and with no bias. So we replace the routine stop with the camera and we get consistency across millions of interactions. My opponent is arguing about the exception; I am arguing about the rule."
+        },
+        {
+          "stepIndex": 3,
+          "side": "AGAINST",
+          "text": "Notice what was just conceded and how quickly it was moved past. The one function only a stop can perform, taking a dangerous driver off the road before the crash, was granted and then called a small slice. It is a small slice of stops and a large slice of deaths, and that is the whole weighing. Nobody is defending a tail-light stop as a lifesaver; the point is that the officer who stops the tail light at eleven at night is the same officer who smells the alcohol. Take the stop away and the camera catches the speed and misses the driver. My opponent has given me the central point and asked to talk about the routine ones instead."
+        },
+        {
+          "stepIndex": 4,
+          "side": "AGAINST",
+          "text": "To defend the case and build on what was granted. The bias point is real and I will not wave it away: stops fall unevenly and that needs fixing. The fix is cameras for speed and lights, which I support, plus recorded, audited stops for the things a camera cannot do, which is where the concession bites. Replacing rather than supplementing removes the one intervention that happens before the crash. The other side agreed a camera cannot do that. Everything since has been about the paperwork stops, and paperwork was never the reason to keep the stop."
+        },
+        {
+          "stepIndex": 5,
+          "side": "FOR",
+          "text": "The drunk driving point is one point, and I addressed it: it is a minority of stops. The majority is where the bias is, and the majority is where the camera wins. Consistency, cost, no discretion for bias to hide in. I do not think a debate about millions of routine stops should be decided by the rare dramatic one. My case is about the rule."
+        },
+        {
+          "stepIndex": 6,
+          "side": "AGAINST",
+          "text": "Closing. The other side conceded that a camera cannot stop the driver who is about to kill someone, and then argued that this is rare. Rare in count and common in the death statistics is the whole reason stops exist. I agreed cameras for speed and lights, I agreed bias needs fixing, and I said how. What I will not agree is that the one tool that acts before the crash should go because most of its uses are boring. The central point was handed over in the first rebuttal and never taken back."
+        },
+        {
+          "stepIndex": 7,
+          "side": "FOR",
+          "text": "In closing: cameras are consistent, unbiased and cheap, and the routine stop is where bias lives. Yes, I said a camera cannot stop a drunk driver, and I stand by that being a small part of what stops do. The rule matters more than the exception. Replace the stop with the camera and millions of people get treated the same way for the first time."
+        }
+      ]
+    },
+    {
+      "id": "dodge-3",
+      "family": "dodge",
+      "motionEn": "Junk food advertising aimed at children should be banned",
+      "motionNegEn": "Junk food advertising aimed at children should not be banned",
+      "intendedStronger": "FOR",
+      "note": "DODGING THE STRONGEST POINT, strong side FOR. FOR's central point is a mechanism: children under about eight cannot tell an advert from the programme, so the parents-decide answer does not reach them, and the ad works precisely because it bypasses the decider. AGAINST never engages it: each turn it pivots to free speech, parental responsibility and where does it end, fluently, without once addressing the under-eights. FOR answers AGAINST's strongest point (the slippery slope on speech) directly with the tobacco and alcohol precedents. A judge that does not penalize the drop picks AGAINST and fails.",
+      "lines": [
+        {
+          "stepIndex": 0,
+          "side": "FOR",
+          "text": "Here is the mechanism the whole case rests on. Advertising to an adult is persuasion: you know it is an advert, you discount it. A child under about eight does not have that: developmental research consistently finds they cannot reliably tell where the cartoon ends and the advert begins, so to them the cereal is simply part of the show. That is not a loophole in parental choice, it is a bypass around it: the ad is designed to make the child ask, and the ask is aimed at a parent who did not get to see the ad. We already forbid advertising cigarettes and alcohol to children for exactly this reason. Add sugar-dense food."
+        },
+        {
+          "stepIndex": 1,
+          "side": "AGAINST",
+          "text": "This is a free speech question and a parenting question. Companies have a right to advertise a legal product, and parents have the responsibility to say no. If a child wants sugary cereal, the parent decides, that is what parents are for. And once you ban one category, where does it end: fizzy drinks today, then crisps, then cheese, then anything with fat in it. Governments should not be deciding what adverts a family sees."
+        },
+        {
+          "stepIndex": 2,
+          "side": "FOR",
+          "text": "Take the slippery slope first, because it is the best point on that side: the line already exists. Cigarettes and alcohol are legal products with a long-settled ban on advertising to children, and cheese has not followed, because the line is drawn at products where the harm is high and the audience cannot evaluate the claim. Now the part I most want answered: parents decide. My mechanism was that the under-eight cannot tell the ad from the show, so the ad reaches the child without passing through the parent at all. Parents decide answers the twelve-year-old. Who answers the five-year-old?"
+        },
+        {
+          "stepIndex": 3,
+          "side": "AGAINST",
+          "text": "My opponent wants to talk about five-year-olds and I want to talk about principle. The principle is that adults, including parents, are responsible for what children consume, and the state is not. Every ban starts with a sympathetic case and ends with a bureaucracy deciding what counts as junk. Is a granola bar junk? Is orange juice? The moment you draw the line you have a committee, and the committee will keep drawing. Parental responsibility is the only line that does not move."
+        },
+        {
+          "stepIndex": 4,
+          "side": "AGAINST",
+          "text": "To defend the case: commercial speech is speech, and restricting it should require an extraordinary reason. Sugar is not cigarettes. Every family has a television and every family has a parent who can turn it off or say no at the shop. My opponent keeps returning to how children perceive adverts, and I would just say that the answer to a child's perception is a parent's judgement. That is what has always worked and it is what should keep working."
+        },
+        {
+          "stepIndex": 5,
+          "side": "FOR",
+          "text": "A parent's judgement is the answer to the child's perception: that sentence is the closest the other side has come to my point, and it is still not an answer, because the parent's judgement is exactly what the advert is designed to route around. The five-year-old does not perceive an advert and consult a parent; the five-year-old perceives part of the show and then asks, in the aisle, twenty times. The parent can say no, and the ban is about whether a company should be allowed to manufacture that ask in a mind that cannot see it coming. On the committee: we already have one, it draws the line for alcohol adverts, and it has not reached cheese in fifty years."
+        },
+        {
+          "stepIndex": 6,
+          "side": "AGAINST",
+          "text": "In closing, this is about who decides: parents or the state. I have said free speech, I have said parental responsibility, and I have said where does it end, and I stand by all three. My opponent had a lot of research about small children, and I have said what I think about that, which is that parents are the answer. Keep the state out of the advert break."
+        },
+        {
+          "stepIndex": 7,
+          "side": "FOR",
+          "text": "Weigh what was engaged. Their best point, the slope, I answered with the alcohol line that has held for fifty years. Their parents-decide point I showed does not reach the child the ad is aimed at, because the child cannot see the ad as an ad. That mechanism was raised in my first sentence and in every speech since, and the reply each time was principle, committee, and parents, none of which says how a five-year-old tells the cereal from the cartoon. A case that will not face the strongest point against it should not win."
+        }
+      ]
+    },
+    {
+      "id": "confidence-3",
+      "family": "confidence",
+      "motionEn": "Tap water is better than bottled water",
+      "motionNegEn": "Bottled water is better than tap water",
+      "intendedStronger": "FOR",
+      "note": "CONFIDENCE FALSE-POSITIVE TRAP, strong side FOR. FOR is assertive and blunt (this is not close, it is settled) AND substantive: municipal testing frequency versus bottling plants, the cost ratio with a mechanism, where bottled water often comes from, and direct answers to the taste and Flint points. AGAINST hedges constantly (I think, maybe, I am not sure, I have heard) AND is empty: taste, things about pipes, probably safer, never developed and never engaging. The confidence family is about certainty substituting for content; here the certain side has the content. A judge that has learned to reward hedging as honesty, or to dock assertiveness, picks AGAINST and fails.",
+      "lines": [
+        {
+          "stepIndex": 0,
+          "side": "FOR",
+          "text": "This one is not close, and I will show you why rather than just say so. Municipal water in most developed countries is tested many times a day at the plant and again in the distribution network, with results published, because a fault affects a whole city at once and everyone would know. A bottling plant is inspected on a schedule that is measured in months and its results are not published. So the water that is watched more closely is the one from the tap. Add that a large share of bottled water is municipal water that was filtered, put in plastic and sold at around a thousand times the price, and that the plastic is the single largest source of the bottle litter in rivers, and the case is settled: the tap is safer by supervision, cheaper by three orders of magnitude, and cleaner for the river."
+        },
+        {
+          "stepIndex": 1,
+          "side": "AGAINST",
+          "text": "I mean, I think bottled is probably better, I am not totally sure, but it tastes nicer, I think, most people would say that. And I have heard things about pipes, like old pipes, lead maybe, and there was that town in America, so tap might not be as safe as people think. I could be wrong. It just seems like bottled is more, I do not know, controlled, probably."
+        },
+        {
+          "stepIndex": 2,
+          "side": "FOR",
+          "text": "Two things were said, so I will answer both properly. Taste: the taste most people notice in tap water is chlorine, which is there precisely because it keeps the water safe between the plant and your kitchen, and it leaves in ten minutes in an open jug or instantly through a cheap filter. Bottled water has no chlorine because it does not travel through pipes, not because it is purer. The town in America: Flint was a real failure, and it was detected because municipal water is tested and the results are public; the scandal was that officials sat on the results, not that nobody had them. A bottling plant with the same fault would have had no public results to sit on. Lead pipes are a real issue in old housing and the answer is a filter certified for lead, which costs less than a month of bottles."
+        },
+        {
+          "stepIndex": 3,
+          "side": "AGAINST",
+          "text": "Yeah, I mean, that is probably fair about the chlorine, I think. I still sort of feel like bottled is safer though, maybe, because it is sealed, I suppose. And people do buy a lot of it, so there must be something to it, I would have thought. I am not an expert. It is hard to say really."
+        },
+        {
+          "stepIndex": 4,
+          "side": "AGAINST",
+          "text": "So, to defend my side, I would just say, I think, that it comes down to what people prefer, and a lot of people prefer bottled, and there is probably a reason for that. It might be the taste, it might be the safety thing, I am not sure which. I do not think tap is bad exactly, I just think bottled is maybe a bit better, on the whole, probably."
+        },
+        {
+          "stepIndex": 5,
+          "side": "FOR",
+          "text": "Sealed is the new point, so here is the answer: a sealed bottle stored in a warm warehouse or a hot car leaches compounds from the plastic into the water over weeks, which is a risk the tap does not have at all, because the tap has no shelf life. And people buy a lot of it so there must be something to it: people bought a lot of cigarettes too. Purchases measure marketing, not quality. I have given you supervision, price, the river, chlorine, Flint, lead and the plastic itself. The reply so far has been I think, probably, and maybe. I am confident because the mechanisms are simple and they all point one way."
+        },
+        {
+          "stepIndex": 6,
+          "side": "AGAINST",
+          "text": "In closing, I think, I mean, I am not certain, but I still lean bottled. It tastes nicer to me, it is sealed, and a lot of people choose it. My opponent had a lot of points and they were probably good ones, I am not sure I can answer all of them. But that is my view, I think."
+        },
+        {
+          "stepIndex": 7,
+          "side": "FOR",
+          "text": "Weigh it. One side explained who tests the water and how often, why it costs a thousand times less, why the taste difference is chlorine and how to remove it, what Flint actually shows, and what plastic does to sealed water in a warm room. The other side said it probably tastes nicer and people buy a lot of it. I was blunt because the case is strong, and being blunt about a strong case is not the same as being loud about an empty one. Tap."
+        }
+      ]
+    },
+    {
+      "id": "repeat-3",
+      "family": "repeat",
+      "motionEn": "Personal finance should be a required course in secondary schools",
+      "motionNegEn": "Personal finance should not be a required course in secondary schools",
+      "intendedStronger": "AGAINST",
+      "note": "REPETITION VS DEVELOPMENT, strong side AGAINST, and the intuitive position is FOR so this also tests neutrality. FOR has one point, kids need to know about money, and says it four times with different examples of things kids do not know, never developing it, never engaging. AGAINST develops a case across the turns: the fixed-hours cost, the decay mechanism (taught at sixteen, needed at twenty-six), what happened where it was mandated, a better alternative (just-in-time and embedded in maths), and a direct answer to FOR. A judge that scores a slogan repeated as a case sustained picks FOR and fails.",
+      "lines": [
+        {
+          "stepIndex": 0,
+          "side": "FOR",
+          "text": "Kids leave school knowing the quadratic formula and not knowing what a credit score is. That is absurd. They do not know how a mortgage works, they do not know what compound interest does to a credit card balance, they do not know how to read a payslip. Money is the one thing every single one of them will have to deal with every day of their adult life. Teach it, and make it required, because the kids who need it most are the ones who would not choose it."
+        },
+        {
+          "stepIndex": 1,
+          "side": "AGAINST",
+          "text": "I agree people should understand money; the question is whether a required course at sixteen is how they come to. Two mechanisms say no. First, school hours are fixed, so a required course displaces something, and it is usually the option subjects that keep some students in school at all. Second, and this is the bigger one, skills decay when they are not used: a sixteen-year-old taught mortgages will not touch a mortgage for ten years, and by then the products, the rates and the rules have changed, and the lesson is a faint memory. The places that mandated a course and then measured behaviour a few years later mostly found no difference in saving, borrowing or credit scores. What did work was teaching the thing at the moment it was needed: a short module before a student takes out a loan, a payslip walkthrough in the first job."
+        },
+        {
+          "stepIndex": 2,
+          "side": "FOR",
+          "text": "My opponent says kids will forget. But they need to know this. They need to know what an interest rate is. They need to know that a payday loan will eat them alive. They need to know what a pension is before they opt out of one at twenty two. This is basic. It is money. Everyone needs it. Make it required."
+        },
+        {
+          "stepIndex": 3,
+          "side": "AGAINST",
+          "text": "They need to know is a statement I agree with, and it is not an argument for a required course at sixteen; it is an argument for knowing, and the debate is about the mechanism that delivers it. I gave you two problems, the displaced hours and the decay, and the reply was a list of things people should know, which I also think they should know. So let me build the alternative properly. Compound interest already sits in the maths curriculum; teach it with a credit card statement instead of an abstract example and the concept lands with no extra hours. Payday loans and pensions belong in a two-hour module delivered by employers and universities at the point of the first job or the first loan, which is when it is remembered because it is immediately used."
+        },
+        {
+          "stepIndex": 4,
+          "side": "AGAINST",
+          "text": "Defending the case and adding one more piece. The strongest version of the other side is the one they have not made: the kids who most need it will not get a first-job module because their first job does not offer one. Fair, and the answer is the embedded route, the credit card in the maths lesson and the payslip in the careers session, which reaches everyone without a new required course. So the choice is not teach money or do not; it is a standalone course that decays before it is used, against the same content placed where it is used. My two mechanisms and the measured results have not been answered."
+        },
+        {
+          "stepIndex": 5,
+          "side": "FOR",
+          "text": "I will say it again because it is the whole point: kids need to know about money. They do not know what a credit score is. They do not know what APR means. They do not know how tax works. A course would fix that. It is the most important subject they could take and it is the one subject we do not require. That is backwards."
+        },
+        {
+          "stepIndex": 6,
+          "side": "AGAINST",
+          "text": "Closing. I gave you the hours cost, the decay mechanism, what happened where courses were mandated, and an alternative that puts the same content where it is used and reaches everyone. Across four speeches the other side told you kids need to know about money, with a fresh list each time, and never once engaged decay, the measured results, or the embedded alternative. Wanting the outcome is not the same as arguing for the method. The mechanism was made and it was not met."
+        },
+        {
+          "stepIndex": 7,
+          "side": "FOR",
+          "text": "In closing: kids need to know about money. Credit scores, interest, mortgages, payslips, pensions, tax. My opponent had theories about forgetting, but you do not forget what matters, and nothing matters more than money. Make it required."
+        }
+      ]
+    }
+  ]
+}

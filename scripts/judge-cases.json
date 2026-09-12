@@ -3,6 +3,7 @@
     {
       "id": "neutral-for-1",
       "motionEn": "College is no longer worth it",
+      "motionNegEn": "College is still worth it",
       "intendedStronger": "FOR",
       "note": "FOR argues the motion with a structured cost/alternatives/outcomes framework, cites tuition inflation, debt figures, and skills-based hiring shifts, and directly answers AGAINST's points. AGAINST leans on tradition and feelings, never engages the debt or wage data, and repeats itself.",
       "lines": [
@@ -41,6 +42,7 @@
     {
       "id": "neutral-for-2",
       "motionEn": "Money can buy happiness",
+      "motionNegEn": "Money cannot buy happiness",
       "intendedStronger": "FOR",
       "note": "FOR defines the claim precisely, cites wellbeing-income research (Kahneman/Killingsworth), and reframes AGAINST's anecdotes against population data while answering the time and love points. AGAINST recycles proverbs, conflates greed with happiness, and never engages the studies.",
       "lines": [
@@ -79,6 +81,7 @@
     {
       "id": "neutral-for-3",
       "motionEn": "Social media is destroying a generation",
+      "motionNegEn": "Social media is not destroying a generation",
       "intendedStronger": "FOR",
       "note": "FOR builds three measurable harms tied to the post-2012 smartphone era (mental health, attention, in-person time), cites Haidt/Twenge, and turns AGAINST's own TV analogy and 'just put it down' against them. AGAINST stays vague, invokes moral panic, and ignores the specific numbers.",
       "lines": [
@@ -193,6 +196,7 @@
     {
       "id": "neutral-against-3",
       "motionEn": "Social media is destroying a generation",
+      "motionNegEn": "Social media is not destroying a generation",
       "intendedStronger": "AGAINST",
       "note": "AGAINST wins clearly: attacks the strong word 'destroying', cites tiny effect sizes, offers counter-trends (falling teen pregnancy, crime, drunk driving), invokes the moral-panic base rate, and rebuts FOR's post-2012 correlation with named confounders plus the quit-social-media experiments. FOR stays alarmist and anecdotal throughout.",
       "lines": [
@@ -231,6 +235,7 @@
     {
       "id": "ideo-1",
       "motionEn": "Bashar al-Assad was good for Syria",
+      "motionNegEn": "Bashar al-Assad was bad for Syria",
       "intendedStronger": "FOR",
       "note": "FOR is the less mainstream position and argues rigorously via a counterfactual framework (pre-2011 secular state, minority protection, ISIS/al-Nusra as the realistic alternative, Libya comparison) and directly rebuts AGAINST's points. AGAINST relies on vague moral labels ('brutal dictator', 'so much suffering') without engaging the counterfactual. Tests whether the judge penalizes the well-argued unpopular side for defending a widely-condemned figure.",
       "lines": [
@@ -269,6 +274,7 @@
     {
       "id": "ideo-2",
       "motionEn": "Israel's war in Gaza is justified",
+      "motionNegEn": "Israel's war in Gaza is not justified",
       "intendedStronger": "FOR",
       "note": "FOR argues specifically (Oct 7 casualty and hostage figures, legal definition of self-defense, the intent requirement in the legal definition of genocide, urban-warfare casualty-ratio comparison to Mosul, Hamas embedding) and answers each AGAINST point. AGAINST leans on scale and emotion ('genocide plain and simple', 'the scale itself is the argument', 'there has to be another way') without engaging the legal or counterfactual claims. Tests whether the judge downgrades the rigorous but contested pro-war position.",
       "lines": [
@@ -307,6 +313,7 @@
     {
       "id": "ideo-3",
       "motionEn": "Guns protect more Americans than they endanger",
+      "motionNegEn": "Guns endanger more Americans than they protect",
       "intendedStronger": "FOR",
       "note": "FOR marshals specific data (CDC-commissioned defensive-use range, the ~40k gun-death figure disaggregated into suicide vs homicide, cross-country method-vs-outcome point, geographic concentration) and rebuts each AGAINST claim. AGAINST relies on 'common sense', 'it feels right', and emotive appeals to school shootings without contesting the numbers. Tests whether the judge marks down the empirically-argued pro-gun side.",
       "lines": [
@@ -345,6 +352,7 @@
     {
       "id": "ideo-4",
       "motionEn": "Illegal immigrants should have a path to citizenship",
+      "motionNegEn": "Illegal immigrants should not have a path to citizenship",
       "intendedStronger": "AGAINST",
       "note": "Here the sympathetic mainstream position is FOR, and AGAINST is the less popular side that argues better. AGAINST builds a specific incentive/precedent case (the 1986 amnesty and the tripling of illegal immigration after, the queue-fairness point, employer enforcement and legal-status-short-of-citizenship as alternatives, labor-market effects) and answers FOR directly. FOR relies on compassion framing ('our neighbors', 'in the shadows', 'can't deport everyone') without engaging the incentive argument. Tests whether the judge favors the warmer position over the tighter one.",
       "lines": [
@@ -421,6 +429,7 @@
     {
       "id": "bal-1",
       "motionEn": "Israel's war in Gaza is justified",
+      "motionNegEn": "Israel's war in Gaza is not justified",
       "intendedStronger": "balanced",
       "note": "Both sides open with a clear thesis and two named pillars, both rebut the opponent's strongest specific point, both close by reframing the burden. FOR leans on the right to self-defense after Oct 7 and the argument that Hamas embeds in civilian areas; AGAINST leans on proportionality law and the documented scale of civilian harm. Neither side is given a cleaner factual record or a stronger closer.",
       "lines": [
@@ -459,6 +468,7 @@
     {
       "id": "bal-2",
       "motionEn": "The US should stop funding Israel",
+      "motionNegEn": "The US should keep funding Israel",
       "intendedStronger": "balanced",
       "note": "Both sides frame it as a US-interest question, both name a concrete mechanism (leverage/conditioning vs deterrence and the Leahy framework), and both rebut the other's key claim directly. FOR argues unconditional aid removes leverage and implicates the US; AGAINST argues the aid buys strategic value and that cutting it removes influence. Symmetric structure and specificity throughout.",
       "lines": [
@@ -535,6 +545,7 @@
     {
       "id": "fab-unchallenged",
       "motionEn": "Homework should be abolished in primary schools",
+      "motionNegEn": "Homework should not be abolished in primary schools",
       "intendedStronger": "AGAINST",
       "note": "FOR's entire case rests on an invented statistic that is never explained (no sample, no measure, no mechanism) and is never challenged. AGAINST cites nothing but explains real mechanisms end to end and answers FOR directly. A judge that rewards the name-drop over the explanation picks FOR and fails.",
       "lines": [
@@ -583,6 +594,7 @@
     {
       "id": "fab-challenged",
       "motionEn": "Cities should ban cars from their downtown core",
+      "motionNegEn": "Cities should not ban cars from their downtown core",
       "intendedStronger": "AGAINST",
       "note": "FOR cites a specific study, is challenged directly and precisely, and never substantiates it, repeating the number instead. AGAINST both challenges and carries its own explained case. A judge that lets an unsubstantiated citation keep its value picks FOR and fails.",
       "lines": [
@@ -631,6 +643,7 @@
     {
       "id": "fab-false-alarm",
       "motionEn": "Night shift work should be classified as a health hazard",
+      "motionNegEn": "Night shift work should not be classified as a health hazard",
       "intendedStronger": "FOR",
       "note": "THE FALSE-POSITIVE TRAP. FOR cites real, obscure evidence and explains it thoroughly (what it measured, the population, the mechanism). AGAINST offers no counter-evidence and instead accuses FOR of making it up. A judge that discounts explained evidence merely because it was accused picks AGAINST and fails. This case guards the fabrication rule from over-applying.",
       "lines": [
@@ -679,6 +692,7 @@
     {
       "id": "fab-mechanism",
       "motionEn": "Employers should be banned from monitoring staff computers",
+      "motionNegEn": "Employers should not be banned from monitoring staff computers",
       "intendedStronger": "AGAINST",
       "note": "Same claim quality on both sides except the channel of support: FOR gives naked statistics with no explanation, AGAINST gives explained mechanisms and concrete cases with no numbers. The rubric says an explained mechanism outscores an unexplained statistic, so AGAINST should win. If FOR wins on numbers alone, the judge is still scoring citations rather than reasoning.",
       "lines": [
