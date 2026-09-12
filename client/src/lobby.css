@@ -1756,11 +1756,11 @@
   transform: rotate(90deg);
 }
 
-/* Nine cards: the lesson plus eight rungs. Five across and two rows (was
-   seven across for seven cards) so the art stays big enough to read. */
+/* Eight cards, the eight rungs (the lesson card is off the menu for now):
+   four across and two full rows, so the art stays big enough to read. */
 .lb-roster-grid {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 10px;
 }
 
@@ -1917,7 +1917,7 @@
 
 @media (max-width: 1180px) {
   .lb-roster-grid {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
   }
 }
 

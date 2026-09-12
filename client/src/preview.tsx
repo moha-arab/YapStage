@@ -100,8 +100,8 @@ function room(over: Partial<LobbyUpdate>): LobbyUpdate {
 const BOTS_FAKE = {
   bots: [
     { id: 'mouse', name: 'Nib', color: 'ink', elo: 200, rank: 1, tagline: 'a nervous little mouse', blurb: '' },
-    { id: 'rabbit', name: 'Clover', color: 'against', elo: 1400, rank: 5, tagline: 'an earnest rabbit', blurb: '' },
-    { id: 'wolf', name: 'Vesper', color: 'ink', elo: 3000, rank: 9, tagline: 'THE FINAL BOSS', blurb: '' },
+    { id: 'rabbit', name: 'Clover', color: 'against', elo: 1400, rank: 4, tagline: 'an earnest rabbit', blurb: '' },
+    { id: 'wolf', name: 'Vesper', color: 'ink', elo: 3000, rank: 8, tagline: 'THE FINAL BOSS', blurb: '' },
   ],
 };
 
@@ -363,7 +363,7 @@ const SCREENS: Record<string, () => JSX.Element> = {
           bots: [
             { id: 'raccoon', name: 'Jinx', color: 'for', elo: 1000, rank: 3, tagline: 'a raccoon with a plan', blurb: '' },
             { id: 'rabbit', name: 'Clover', color: 'against', elo: 1400, rank: 4, tagline: 'an earnest rabbit', blurb: '' },
-            { id: 'tortoise', name: 'Wendell', color: 'against', elo: 1800, rank: 5, tagline: 'a tortoise who corrects your grammar', blurb: '' },
+            { id: 'tortoise', name: 'Prudence', color: 'against', elo: 1800, rank: 5, tagline: 'a tortoise who corrects your grammar', blurb: '' },
           ],
         });
       if (url.startsWith('/live')) return json({ live: 0, watchable: 0, featured: null });

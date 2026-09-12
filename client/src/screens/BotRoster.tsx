@@ -14,6 +14,9 @@ import { useEffect, type CSSProperties } from 'react';
 import { useI18n } from '../i18n';
 import BotAvatar from '../BotAvatar';
 
+/** The YapMaster's lesson card. Hidden for now (2026-09-12). */
+const SHOW_LESSON = false;
+
 export interface RosterBot {
   id: string;
   name: string;
@@ -60,7 +63,10 @@ export default function BotRoster({ bots, picked, onPick, onClose }: Props) {
 
         <div className="lb-roster-grid">
           {/* Rung zero: the lesson. The YapMaster demos rather than competes,
-              so its card carries "lesson" where the others carry a number. */}
+              so its card carries "lesson" where the others carry a number.
+              Off the menu for now (his call, 2026-09-12); the tutorial code
+              stays, flip SHOW_LESSON to bring the card back. */}
+          {SHOW_LESSON ? (
           <button
             className={`lb-card lb-card-tutor ${picked === 'tutor' ? 'lb-card-on' : ''}`}
             style={stagger(0)}
@@ -75,13 +81,14 @@ export default function BotRoster({ bots, picked, onPick, onClose }: Props) {
             <p className="lb-card-blurb">{t('lbRosterTutorBlurb')}</p>
             <div className="lb-card-foot lb-card-foot-lesson">{t('lbFree')}</div>
           </button>
+          ) : null}
 
           {bots.map((b, i) => {
             return (
               <button
                 key={b.id}
                 className={`lb-card ${picked === b.id ? 'lb-card-on' : ''}`}
-                style={stagger(i + 1)}
+                style={stagger(SHOW_LESSON ? i + 1 : i)}
                 onClick={() => onPick(b.id)}
               >
                 <span className="lb-card-n">{String(b.rank).padStart(2, '0')}</span>

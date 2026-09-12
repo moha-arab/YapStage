@@ -596,7 +596,9 @@ const RESERVED = new Set([
   'staff', 'support', 'official', 'judge', 'system', 'root', 'null',
   'deleted', 'anonymous',
   // the bots on the ladder since 2026-09-12
-  'nib', 'moss', 'jinx', 'clover', 'wendell', 'rocco', 'sable', 'vesper',
+  'nib', 'moss', 'jinx', 'clover', 'prudence', 'rocco', 'sable', 'vesper',
+  // the tortoise's name until later that day
+  'wendell',
   // the cast before that, kept so old match history cannot be impersonated
   'pip', 'cappy', 'vivi', 'nora', 'ozzy', 'brutus', 'vera', 'gigi',
 ]);

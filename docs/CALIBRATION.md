@@ -15,9 +15,9 @@ Eight bots, 400 apart, 200 to 3000. Bot ratings are **fixed** and never move.
 | 2 | Moss, sloth | 600 | one rebuttal per turn, aimed at the easiest thing said |
 | 3 | Jinx, raccoon | 1000 | a second point, both kept alive all debate |
 | 4 | Clover, rabbit | 1400 | concrete support: named examples, mechanisms, history |
-| 5 | Wendell, tortoise | 1800 | answers the opponent's strongest argument instead of the easiest |
+| 5 | Prudence, tortoise | 1800 | answers the opponent's strongest argument instead of the easiest |
 | 6 | Rocco, boar | 2200 | defends under attack: repairs every hit point, pre-empts the obvious objection |
-| 7 | Sable, cat | 2600 | weighs: names the measure and says why her side wins on it |
+| 7 | Sable, cat | 2600 | weighs: names the measure and says why his side wins on it |
 | 8 | Vesper, wolf | 3000 | resolves the clash: names the one question, settles it, uses your own words |
 
 Clover is the placement opponent: fair, no gimmick, her only ceiling is the
@@ -34,6 +34,10 @@ gap.
 The six animals that survived the 2026-09-12 re-rating (Nib, Moss, Jinx,
 Wendell, Rocco, Vesper) kept their names, art and voices but were given new rung
 contracts, so the 2026-08-11 measurements below no longer describe them.
+
+Later on 2026-09-12 the tortoise became a woman, renamed Prudence (Wendell in
+every table below) and voiced by Alice, and Sable went back to being a man,
+voiced by George. Names, art and voices only: no rung contract changed.
 
 ### Why 200 to 3000
 
