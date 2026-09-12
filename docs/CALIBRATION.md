@@ -177,8 +177,14 @@ all four before the bot calibration (numbers for every run live in
 ```bash
 # bias families, each case in both orders (labels exchanged, motion negated)
 URL=http://localhost:3010 CASES=scripts/judge-cases-bias.json MIRROR=1 node scripts/judge-eval.mjs
+# hard cases: a debater talking to the judge, and new material smuggled into a closing
+URL=http://localhost:3010 CASES=scripts/judge-cases-hard.json MIRROR=1 node scripts/judge-eval.mjs
 # swap and order harness: does the same speech win regardless of its label and slot?
 URL=http://localhost:3010 node scripts/judge-fairness.mjs
+# the same with the label-only condition (relabel without moving slots), when swap and order disagree
+URL=http://localhost:3010 CONDITIONS=asis,swap,order,label node scripts/judge-fairness.mjs
+# the fabricated-evidence probe (calls the built judge directly, no server)
+node scripts/fabricated-evidence-probe.mjs
 # run-to-run noise: compare two OUT files of the same cases
 node scripts/judge-noise.mjs runA.json runB.json
 ```
@@ -195,14 +201,38 @@ third case that is a false-positive trap, where the long, confident, rude,
 conceding or polished side is the better one, so an over-corrected judge is
 caught too.
 
+`scripts/judge-cases-hard.json` holds two more families: inject (a debater
+addresses the judge with a fake system message or an override; inject-3 is
+the false alarm where a debater merely says "ignore" and "instructions" about
+the opponent) and closing (the weaker side introduces its strongest argument
+for the first time in its closing, which the judge is told to disregard).
+Cases there carry `expectInjection`, and `judge-eval.mjs` reports whether the
+`injectionDetected` flag was set exactly when it should have been.
+
 `scripts/judge-fairness.mjs` judges every case three ways: as written, with
 the sides swapped (the same words with FOR and AGAINST exchanged, each speech
 moved to the same phase on the other side, under the negated motion), and with
 only the running order flipped. It tracks the two speeches by identity and
 reports how often the winning speech changes, the signed bonus a speech gets
-from wearing the FOR label or the FOR slots, and the mean absolute score
-movement. A fair judge picks the same speech under all three, and the bonuses
-sit inside the run-to-run noise.
+from wearing the FOR label or the FOR slots, the mean absolute score
+movement, and how the asis winner's and loser's totals move separately (the
+baseline's label bias lived entirely in the losing speech: a thin FOR case
+was read as a failed burden, the same thin case as AGAINST as raised doubts).
+A fair judge picks the same speech under all three, and the bonuses sit inside
+the run-to-run noise.
+
+The judge itself (debate mode) never sees the words FOR and AGAINST: the
+sides are Debater A (argues the motion is true) and Debater B (argues it is
+false), the transcript and the JSON it writes use those letters, and the code
+maps them back. The words themselves cost a losing speech about four points
+whenever it wore FOR; the letters cut that to under three. It also writes a
+private `analysis` field before any score: a ledger of each side's distinct points, marked answered, conceded
+or standing, with the support behind each, ending with a labels-covered line
+saying which side has more standing. It is parsed and dropped by
+`scoreTranscript`, so nothing the app receives changed; it exists because the
+eval log showed the judge naming a total drop in the feedback and then pricing
+it at five clash points. The full rule inventory and every run's numbers are
+in `docs/judge-tightening-log.md`.
 
 ## Reading the results
 

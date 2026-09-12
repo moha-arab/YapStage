@@ -178,16 +178,45 @@ for (const cond of CONDITIONS) {
     }
     absDeltas.push(Math.abs(sum(a.scores.P) - sum(b.scores.P)), Math.abs(sum(a.scores.Q) - sum(b.scores.Q)));
   }
+  // Accuracy is over the cases that actually have a result under that
+  // condition: a case skipped for lack of motionNegEn, or one whose call
+  // errored, is not a miss.
   const decisiveCases = cases.filter((c) => c.intendedStronger === 'FOR' || c.intendedStronger === 'AGAINST');
-  const accAsis = decisiveCases.filter((c) => first(c.id, 'asis')?.winner === (c.intendedStronger === 'FOR' ? 'P' : 'Q'));
-  const accCond = decisiveCases.filter((c) => first(c.id, cond)?.winner === (c.intendedStronger === 'FOR' ? 'P' : 'Q'));
-  const what = cond === 'order' ? 'FOR-slot bonus (opens + last word)' : 'FOR-label bonus';
+  const decisiveAsis = decisiveCases.filter((c) => first(c.id, 'asis'));
+  const decisiveCond = decisiveCases.filter((c) => first(c.id, cond));
+  const accAsis = decisiveAsis.filter((c) => first(c.id, 'asis').winner === (c.intendedStronger === 'FOR' ? 'P' : 'Q'));
+  const accCond = decisiveCond.filter((c) => first(c.id, cond).winner === (c.intendedStronger === 'FOR' ? 'P' : 'Q'));
+  const what = cond === 'order' ? 'FOR-slot bonus (opens + last word)' : cond === 'label' ? 'FOR-label bonus (label only, slots unchanged)' : 'FOR-label bonus (label + slots)';
   console.log(`\n--- ${cond} vs asis ---`);
   console.log(`winner flips: ${flips.length}/${paired.length} (${paired.length ? ((100 * flips.length) / paired.length).toFixed(0) : 0}%)`);
   console.log(`decisive flips (asis |margin| >= ${MARGIN}): ${decisiveFlips.length}/${decisive.length}`);
   console.log(`${what}: ${fmt(avg(bonuses))} points per speech (want 0)   per category: ${CATS.map((k) => `${k} ${fmt(avg(catBonus[k]))}`).join(', ')}`);
   console.log(`mean |total delta| per speech: ${fmt(avg(absDeltas))}`);
-  console.log(`accuracy: asis ${accAsis.length}/${decisiveCases.length}, ${cond} ${accCond.length}/${decisiveCases.length}`);
+  // Where the bonus lives: a label bias can hide entirely in how the LOSING
+  // speech is scored (the baseline's did), so report the AGAINST-label
+  // advantage (score wearing AGAINST minus score wearing FOR) for the asis
+  // winner and the asis loser separately, per category. Under asis Q wears
+  // AGAINST; under swap/label P does. Not meaningful for order (labels stay).
+  if (cond !== 'order') {
+    const adv = { winner: Object.fromEntries(CATS.map((k) => [k, []])), loser: Object.fromEntries(CATS.map((k) => [k, []])) };
+    for (const c of paired) {
+      const a = first(c.id, 'asis');
+      const b = first(c.id, cond);
+      const w = a.winner;
+      const l = w === 'P' ? 'Q' : 'P';
+      for (const k of CATS) {
+        adv.winner[k].push(w === 'P' ? b.scores.P[k] - a.scores.P[k] : a.scores.Q[k] - b.scores.Q[k]);
+        adv.loser[k].push(l === 'P' ? b.scores.P[k] - a.scores.P[k] : a.scores.Q[k] - b.scores.Q[k]);
+      }
+    }
+    for (const who of ['winner', 'loser']) {
+      const total = adv[who].argument.map((v, i) => v + adv[who].evidence[i] + adv[who].clash[i] + adv[who].delivery[i]);
+      console.log(`AGAINST-label advantage for the asis ${who}: ${fmt(avg(total))} total (${CATS.map((k) => `${k} ${fmt(avg(adv[who][k]))}`).join(', ')})`);
+    }
+  }
+  console.log(`accuracy: asis ${accAsis.length}/${decisiveAsis.length}, ${cond} ${accCond.length}/${decisiveCond.length}`);
+  for (const c of decisiveCond.filter((c) => first(c.id, cond).winner !== (c.intendedStronger === 'FOR' ? 'P' : 'Q')))
+    console.log(`  MISS under ${cond}: ${c.id} (margin ${fmt(first(c.id, cond).margin, 0)})`);
   for (const c of flips) {
     const a = first(c.id, 'asis');
     const b = first(c.id, cond);
@@ -201,7 +230,7 @@ for (const cond of CONDITIONS) {
     bonus: avg(bonuses),
     catBonus: Object.fromEntries(CATS.map((k) => [k, avg(catBonus[k])])),
     meanAbsDelta: avg(absDeltas),
-    accuracy: { asis: `${accAsis.length}/${decisiveCases.length}`, [cond]: `${accCond.length}/${decisiveCases.length}` },
+    accuracy: { asis: `${accAsis.length}/${decisiveAsis.length}`, [cond]: `${accCond.length}/${decisiveCond.length}` },
     flipIds: flips.map((c) => c.id),
   };
 }
