@@ -94,8 +94,6 @@ interface Props {
   onMaskSaved: (mask: string) => void;
 }
 
-}
-
 export default function Home({
   account,
   notice,

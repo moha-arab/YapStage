@@ -333,7 +333,7 @@ const SCREENS: Record<string, () => JSX.Element> = {
         names: { FOR: 'zorvint', AGAINST: 'Cappy' },
         startsAt: Date.now() + 8000,
         serverNow: Date.now(),
-        avatars: { FOR: 'huckster' },
+        avatars: { FOR: 'bally' },
         bot: { id: 'capybara', name: 'Cappy', color: 'ink', elo: 1400 },
       }}
       localStream={null}
@@ -349,7 +349,7 @@ const SCREENS: Record<string, () => JSX.Element> = {
         names: { FOR: 'pizzamaster', AGAINST: 'goat' },
         startsAt: Date.now() + 8000,
         serverNow: Date.now(),
-        avatars: { FOR: 'calavera', AGAINST: 'ninja' },
+        avatars: { FOR: 'marisol', AGAINST: 'fuma' },
       }}
       localStream={null}
       remoteStream={null}
@@ -364,7 +364,7 @@ const SCREENS: Record<string, () => JSX.Element> = {
         names: { FOR: 'zorvint', AGAINST: 'goat' },
         startsAt: Date.now() + 8000,
         serverNow: Date.now(),
-        avatars: { FOR: 'alien' },
+        avatars: { FOR: 'garn' },
         framing: {
           argument: 'the dishes are a shared job, not a favour',
           positions: {
