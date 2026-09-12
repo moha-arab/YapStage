@@ -482,7 +482,7 @@ export const FRESH_GAMES = 5;
 /** The placement rating, from the judge's 100-point scorecard: 1400 moved
     by eight points per point of margin (human total minus bot total),
     clamped to [-400, +300]. A dead-even game lands at 1400; a loss by 50 at
-    1000, which is Jinx's rung and a fair start for someone Clover beat
+    1000, which is Dodger's rung and a fair start for someone Clover beat
     comfortably; a win by 38 or more at 1700, the cap, which
     a bot game must not hand out above. Floored like everything else. */
 export function placementRating(margin: number): number {

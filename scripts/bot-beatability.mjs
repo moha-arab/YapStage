@@ -7,7 +7,7 @@
 // TTS spend), then: node scripts/bot-beatability.mjs
 //
 // Ladder target (docs/CALIBRATION.md, phase D): the average profile beats
-// Nib and Moss, splits with Jinx, loses to Clover and everything above; the
+// Nib and Moss, splits with Dodger, loses to Clover and everything above; the
 // strong profile beats through Clover, splits with Prudence, loses to Rocco and
 // above. The scripts cannot respond to the bot, so they are a lower bound.
 import { io } from 'socket.io-client';

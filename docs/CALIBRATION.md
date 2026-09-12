@@ -13,11 +13,11 @@ Eight bots, 400 apart, 200 to 3000. Bot ratings are **fixed** and never move.
 | --- | --- | --- | --- |
 | 1 | Nib, mouse | 200 | the floor: holds one point, hears the opponent, answers nothing |
 | 2 | Moss, sloth | 600 | one rebuttal per turn, aimed at the easiest thing said |
-| 3 | Jinx, raccoon | 1000 | a second point, both kept alive all debate |
+| 3 | Dodger, raccoon | 1000 | a second point, both kept alive all debate |
 | 4 | Clover, rabbit | 1400 | concrete support: named examples, mechanisms, history |
 | 5 | Prudence, tortoise | 1800 | answers the opponent's strongest argument instead of the easiest |
 | 6 | Rocco, boar | 2200 | defends under attack: repairs every hit point, pre-empts the obvious objection |
-| 7 | Sable, cat | 2600 | weighs: names the measure and says why his side wins on it |
+| 7 | Sterling, cat | 2600 | weighs: names the measure and says why his side wins on it |
 | 8 | Vesper, wolf | 3000 | resolves the clash: names the one question, settles it, uses your own words |
 
 Clover is the placement opponent: fair, no gimmick, her only ceiling is the
@@ -37,7 +37,9 @@ contracts, so the 2026-08-11 measurements below no longer describe them.
 
 Later on 2026-09-12 the tortoise became a woman, renamed Prudence (Wendell in
 every table below) and voiced by Alice, and Sable went back to being a man,
-voiced by George. Names, art and voices only: no rung contract changed.
+voiced by George. Then the raccoon Jinx became Dodger and the cat Sable
+became Sterling, names that read as the men they are (the tables below keep
+the old names). Names, art and voices only: no rung contract changed.
 
 ### Why 200 to 3000
 
@@ -89,7 +91,7 @@ as implemented in `server/src/judge.ts` and `store.placePlayer`:
 - The judge's 100-point scorecard gives a margin (your total minus the
   bot's). Starting rating = 1400 + 8 x margin, clamped to [-400, +300], never
   below the floor of 500. Dead even is 1400; a loss by 50 lands at 1000
-  (Jinx's rung); a win by 38 or more lands at 1700, the most a bot game may
+  (Dodger's rung); a win by 38 or more lands at 1700, the most a bot game may
   hand out.
 - Wins and losses are untouched, and `placed` flips to true in the same
   statement that writes the rating, guarded by `WHERE placed = false`, so it

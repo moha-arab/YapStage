@@ -361,7 +361,7 @@ const SCREENS: Record<string, () => JSX.Element> = {
       if (url.startsWith('/bots'))
         return json({
           bots: [
-            { id: 'raccoon', name: 'Jinx', color: 'for', elo: 1000, rank: 3, tagline: 'a raccoon with a plan', blurb: '' },
+            { id: 'raccoon', name: 'Dodger', color: 'for', elo: 1000, rank: 3, tagline: 'a raccoon with a plan', blurb: '' },
             { id: 'rabbit', name: 'Clover', color: 'against', elo: 1400, rank: 4, tagline: 'an earnest rabbit', blurb: '' },
             { id: 'tortoise', name: 'Prudence', color: 'against', elo: 1800, rank: 5, tagline: 'a tortoise who corrects your grammar', blurb: '' },
           ],
