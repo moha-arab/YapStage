@@ -12,6 +12,8 @@ import {
   foldName,
   type AvatarId,
   type ClientToServer,
+  type LiveList,
+  type LiveMatch,
   type LobbyUpdate,
   type Pace,
   type ServerToClient,
@@ -168,51 +170,93 @@ registerAuth(app);
 
 app.get('/bots', async () => ({ bots: publicBots(), topics: TOPIC_CATEGORIES }));
 
-// Feed v1 (the "tiktok" spectate): one random LIVE ranked debate, no filters
-// on purpose — his call. `not` skips the debate you're already watching so
-// "next" never hands you the same one back.
-app.get<{ Querystring: { not?: string } }>('/spectate/random', async (req) => {
+// ---- the browse list ----
+// Only RANKED debates are ever listed. Ranked is public by consent (the
+// queue says so before you join); a friend's room is private by code, so it
+// is reachable through spectate:join and nothing else. A debate is listed
+// only while the crowd has a seat left, so nothing the lobby advertises can
+// then be refused by spectate:join.
+function watchableLobbies(): Lobby[] {
+  return allLobbies().filter(
+    (l) => Boolean(l.ranked) && l.status === 'in_debate' && spectatorCount(l.code) < SPECTATOR_CAP,
+  );
+}
+
+// Ranked rolls a category and then a topic, and keeps categoryKey null (that
+// field is the host's pick in custom category mode). The category of a live
+// ranked bout is read back from the topic id instead.
+function categoryOf(lobby: Lobby): string | null {
+  const id = lobby.topic?.id;
+  if (!id) return null;
+  return TOPIC_CATEGORIES.find((c) => c.topics.some((t) => t.id === id))?.key ?? null;
+}
+
+// A category the deck does not have is ignored, not refused: an old client,
+// or a chip from a deck that has since been rebuilt, still gets a match.
+function categoryFilter(raw: unknown): string | null {
+  const key = String(raw ?? '');
+  return TOPIC_CATEGORIES.some((c) => c.key === key) ? key : null;
+}
+
+function liveMatchOf(lobby: Lobby): LiveMatch {
+  const sides = lobby.sides!;
+  return {
+    code: lobby.code,
+    topic: lobby.topic!,
+    category: categoryOf(lobby),
+    names: namesOf(lobby),
+    avatars: {
+      ...(lobby.host && sides.host ? { [sides.host]: lobby.host.avatarId } : {}),
+      ...(lobby.guest && sides.guest ? { [sides.guest]: lobby.guest.avatarId } : {}),
+    },
+    phase: lobby.lastPhase?.phase ?? null,
+    stepIndex: lobby.lastPhase?.stepIndex ?? -1,
+    watchers: spectatorCount(lobby.code),
+    startedAt: lobby.turnStarts.get(0) ?? null,
+  };
+}
+
+// One random LIVE ranked debate (feed v1, the "tiktok" spectate). It ran with
+// no filters for a month, his call then; on 2026-09-12 he asked to browse by
+// category, so `category` narrows it and an unknown one is ignored. `not`
+// skips the debate you are already watching so "next" never hands you the
+// same one back.
+app.get<{ Querystring: { not?: string; category?: string } }>('/spectate/random', async (req) => {
   const skip = String(req.query.not ?? '').toUpperCase();
-  const live = allLobbies().filter(
-    (l) =>
-      Boolean(l.ranked) &&
-      l.status === 'in_debate' &&
-      l.code !== skip &&
-      spectatorCount(l.code) < SPECTATOR_CAP,
+  const cat = categoryFilter(req.query.category);
+  const live = watchableLobbies().filter(
+    (l) => l.code !== skip && (cat === null || categoryOf(l) === cat),
   );
   if (live.length === 0) return { code: null };
   return { code: live[Math.floor(Math.random() * live.length)].code };
 });
 
-// How many ranked debates are on right now, and how many of those still have a
-// seat left in the crowd. Same filter as /spectate/random on purpose: the
-// lobby's watch button must never advertise a debate that endpoint would then
-// refuse to hand back. Not lobbyCount() — that counts green rooms, bot bouts
-// and stale waiting rooms, which would triple the number for free.
-app.get('/live', async () => {
+// What the lobby's watch mode shows: how many ranked debates are on, how
+// many still have a seat in the crowd, and the browsable list of those. Not
+// lobbyCount(), which counts green rooms, bot bouts and stale waiting rooms
+// and would triple the number for free. Everything here is already public
+// to any spectator (spectateStateFor sends the same fields the moment you
+// join); no player ids, no transcript.
+app.get('/live', async (): Promise<LiveList> => {
   const ranked = allLobbies().filter((l) => Boolean(l.ranked) && l.status === 'in_debate');
-  const open = ranked.filter((l) => spectatorCount(l.code) < SPECTATOR_CAP);
-  // One featured bout, so the lobby's watch state can put two real faces on
-  // the stage instead of a placeholder. Everything here is already public to
-  // any spectator (spectateStateFor sends the same fields the moment you
-  // join); no player ids, no transcript.
-  const f = open[0];
+  const open = watchableLobbies().filter((l) => l.sides && l.topic);
+  // Freshest first: the one that just began is the one worth walking into,
+  // and a bout still in its reveal countdown (no startedAt yet) is freshest
+  // of all.
+  const fresh = (m: LiveMatch) => m.startedAt ?? Number.MAX_SAFE_INTEGER;
+  const matches = open.map(liveMatchOf).sort((a, b) => fresh(b) - fresh(a));
+  // One featured bout, so the stage can put two real faces on it instead of
+  // a placeholder.
+  const f = matches[0];
   return {
     live: ranked.length,
     watchable: open.length,
-    featured:
-      f && f.sides
-        ? {
-            code: f.code,
-            names: namesOf(f),
-            avatars: {
-              ...(f.host && f.sides.host ? { [f.sides.host]: f.host.avatarId } : {}),
-              ...(f.guest && f.sides.guest ? { [f.sides.guest]: f.guest.avatarId } : {}),
-            },
-            phase: f.lastPhase?.phase ?? null,
-            watchers: spectatorCount(f.code),
-          }
-        : null,
+    featured: f
+      ? { code: f.code, names: f.names, avatars: f.avatars, phase: f.phase, watchers: f.watchers }
+      : null,
+    matches,
+    categories: TOPIC_CATEGORIES.map((c) => ({ key: c.key, label: c.label })),
+    serverNow: Date.now(),
   };
 });
 

@@ -13,7 +13,6 @@ function check(name, cond) {
 const connect = () => io(URL, { forceNew: true, transports: ['websocket'] });
 
 // The masks a seat may wear (mirrors AVATAR_IDS in server/src/protocol.ts).
-// The sixteen-character roster (server/src/protocol.ts AVATAR_IDS).
 const ROSTER = ['napoleon', 'socrates', 'aristotle', 'diogenes', 'athena', 'lincoln', 'dracula', 'humpty', 'bally', 'shuten', 'marisol', 'quip', 'corvin', 'garn', 'fuma', 'crux'];
 // The fight card is on screen from debate:start until startsAt. FAST is 3s and
 // long form 8s; anything outside that is a clock bug the card would expose.
@@ -821,6 +820,101 @@ console.log('\n=== Scenario 9: ranked + spectate ===');
   spec.disconnect();
 }
 
+// ---------- Scenario 16: the browse list ----------
+// Two ranked debates on at once, so /live has a list to show, the category
+// filter has something to include and exclude, and a code walks a watcher
+// into one of them. Also the privacy line: a friend's room is never listed,
+// and the host's "just us" really shuts the door.
+console.log('\n=== Scenario 16: watch a match, browse and filter ===');
+{
+  // Paired one pair at a time: the queue matches whoever is waiting, and four
+  // at once could pair 1 with 3.
+  const pairUp = async (tag) => {
+    const x = connect();
+    const y = connect();
+    const mx = once(x, 'queue:matched', 15000);
+    const my = once(y, 'queue:matched', 15000);
+    await emitP(x, 'queue:join', { sessionId: `${tag}-x`, playerId: `pid-${tag}-x`, name: `${tag}for` });
+    await emitP(y, 'queue:join', { sessionId: `${tag}-y`, playerId: `pid-${tag}-y`, name: `${tag}against` });
+    const [ux] = await Promise.all([mx, my]);
+    const started = once(x, 'debate:start', 15000);
+    x.emit('pick:confirm');
+    y.emit('pick:confirm');
+    const st = await started;
+    return { x, y, code: ux.update.code, topicId: st.topic.id };
+  };
+  const A = await pairUp('bra');
+  const B = await pairUp('brb');
+  check('browse: two ranked debates are on', A.code !== B.code);
+  // Past the reveal on A, so it carries a startedAt and a phase.
+  await once(A.x, 'debate:phase', 15000);
+
+  const spec = connect();
+  const sj = await emitP(spec, 'spectate:join', { code: A.code });
+  check('browse: a watcher joins the first by code', sj.ok === true);
+  await once(spec, 'spectate:state', 10000);
+
+  const live = await fetch(`${URL}/live`).then((r) => r.json());
+  const raw = JSON.stringify(live);
+  check('browse: /live counts both', live.live >= 2 && live.watchable >= 2);
+  check('browse: /live lists both codes', live.matches.some((m) => m.code === A.code) && live.matches.some((m) => m.code === B.code));
+  check('browse: /live ships the deck categories', Array.isArray(live.categories) && live.categories.length === 8 && live.categories.every((c) => c.key && c.label?.en));
+  check('browse: serverNow rides along for the elapsed clock', typeof live.serverNow === 'number');
+  const rowA = live.matches.find((m) => m.code === A.code);
+  const rowB = live.matches.find((m) => m.code === B.code);
+  const catKeys = live.categories.map((c) => c.key);
+  const { topics: deck } = await fetch(`${URL}/bots`).then((r) => r.json());
+  const catOf = (id) => deck.find((c) => c.topics.some((t) => t.id === id))?.key;
+  check('browse: a row carries the motion', rowA?.topic?.id === A.topicId && typeof rowA?.topic?.en === 'string');
+  check('browse: the category is the deck tab the motion came from', catKeys.includes(rowA?.category) && rowA.category === catOf(A.topicId));
+  check('browse: both names and both masks', Boolean(rowA?.names?.FOR && rowA?.names?.AGAINST && rowA?.avatars?.FOR && rowA?.avatars?.AGAINST));
+  check('browse: past the reveal a row has a phase, a step and a start', ['opening', 'rebuttal'].includes(rowA?.phase) && rowA?.stepIndex >= 0 && typeof rowA?.startedAt === 'number');
+  check('browse: watchers are counted per row', rowA?.watchers === 1 && rowB?.watchers === 0);
+  check('browse: the featured pair is the freshest listed bout', live.featured?.code === live.matches[0]?.code);
+  check('browse: nothing private in the list', !/playerId|sessionId|transcript|socketId/.test(raw));
+
+  // The random pick honours the category and ignores one the deck lacks.
+  const catA = rowA.category;
+  const catB = rowB.category;
+  const inA = await fetch(`${URL}/spectate/random?category=${catA}`).then((r) => r.json());
+  check('browse: random within a category returns a bout from it', [A.code, B.code].includes(inA.code) && (inA.code === A.code || catB === catA));
+  const quiet = catKeys.find((k) => k !== catA && k !== catB);
+  const none = await fetch(`${URL}/spectate/random?category=${quiet}`).then((r) => r.json());
+  check('browse: random in an empty category is honest (null)', none.code === null);
+  const bogus = await fetch(`${URL}/spectate/random?category=bogus`).then((r) => r.json());
+  check('browse: an unknown category is ignored, not refused', [A.code, B.code].includes(bogus.code));
+  const skipA = await fetch(`${URL}/spectate/random?not=${A.code}&category=${catB}`).then((r) => r.json());
+  check('browse: not= still skips the one you are watching', skipA.code === B.code);
+
+  // Walk into the other one by code and the list says so.
+  const spec2 = connect();
+  const sj2 = await emitP(spec2, 'spectate:join', { code: B.code.toLowerCase() });
+  check('browse: a lowercase code still lands', sj2.ok === true);
+  const stB = await once(spec2, 'spectate:state', 10000);
+  check('browse: the snapshot is the room you asked for', stB.code === B.code && stB.status === 'in_debate');
+  const live2 = await fetch(`${URL}/live`).then((r) => r.json());
+  check('browse: the row picks up the new watcher', live2.matches.find((m) => m.code === B.code)?.watchers === 1);
+  const unknown = await emitP(spec2, 'spectate:join', { code: 'QQQQQQ' });
+  check('browse: an unknown code says not_found', unknown.ok === false && unknown.error === 'not_found');
+
+  // A friend's room: by code only, and only while the host allows it.
+  const host = connect();
+  const cr = await emitP(host, 'lobby:create', { sessionId: 'br-host', name: 'brhost' });
+  const custom = cr.update.code;
+  host.emit('pick:spectators', false);
+  await new Promise((s) => setTimeout(s, 200));
+  const shut = await emitP(spec2, 'spectate:join', { code: custom });
+  check('browse: "just us" refuses a watcher with the code', shut.ok === false && shut.error === 'not_found');
+  host.emit('pick:spectators', true);
+  await new Promise((s) => setTimeout(s, 200));
+  const open = await emitP(spec2, 'spectate:join', { code: custom });
+  check('browse: "anyone with the code" lets them in', open.ok === true);
+  const live3 = await fetch(`${URL}/live`).then((r) => r.json());
+  check('browse: a friend room is never listed', !JSON.stringify(live3).includes(custom));
+
+  for (const s of [A.x, A.y, B.x, B.y, spec, spec2, host]) s.disconnect();
+}
+
 // ---------- Scenario 10: the tutorial ----------
 console.log('\n=== Scenario 10: tutorial ===');
 {
@@ -974,7 +1068,6 @@ console.log('\n=== Scenario 12: ranked is standard only ===');
 // fourteen-character cast; a vaulted id is refused, not worn.
 console.log('\n=== Scenario 13: rooms start masked ===');
 {
-  const ROSTER = ['napoleon', 'socrates', 'aristotle', 'diogenes', 'athena', 'lincoln', 'dracula', 'humpty', 'bally', 'shuten', 'marisol', 'quip', 'corvin', 'garn', 'fuma', 'crux'];
   const h = connect();
   const g = connect();
   const made = await emitP(h, 'lobby:create', { sessionId: 'mk-h', name: 'maskhost' });

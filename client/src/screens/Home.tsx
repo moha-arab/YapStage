@@ -37,11 +37,18 @@
 //   8. PLACEMENT IS ONE MATCH. Unplaced, the ranked stage puts the placement
 //      bot opposite you instead of an empty ring, one line says why, and the
 //      go button starts that game. No placement counter anywhere.
+//   9. WATCH MODE BROWSES (2026-09-12, his ask). Under the stage: the deck's
+//      tabs, the live ranked list as rows you tap, the random button, and a
+//      code box for a friend's room. Only ranked is ever listed; a friend's
+//      room is reachable by its code and nothing else. The featured pair on
+//      the stage is the freshest bout in the tab you are on.
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   NAME_RE,
   tierFor,
   type JoinError,
+  type LiveList,
+  type LiveMatch,
   type LobbyUpdate,
   type TopicCategory,
 } from '../../../server/src/protocol';
@@ -108,7 +115,12 @@ interface Props {
   account: Account;
   notice: string | null;
   onEntered: (u: LobbyUpdate) => void;
-  onSpectate: (code: string, feed: boolean) => void;
+  /** `feed` is set when the match came off the browse list or the random
+      button (then the watching screen offers a next one, in the same
+      category); null when it came from a friend's code, which is one room. */
+  onSpectate: (code: string, feed: { category: string | null } | null) => void;
+  /** Dev harness only (preview.tsx): open on a mode other than ranked. */
+  initialMode?: Mode;
   onMatches: () => void;
   onDrill: () => void;
   onBotStart: (name: string, config: BotStartConfig) => void;
@@ -127,6 +139,7 @@ export default function Home({
   onBotStart,
   onTutorial,
   onMaskSaved,
+  initialMode,
 }: Props) {
   const { t } = useI18n();
 
@@ -144,7 +157,7 @@ export default function Home({
     return (fromUrl ?? stashed ?? '').toUpperCase().slice(0, 6);
   });
 
-  const [mode, setMode] = useState<Mode>(arrival ? 'friend' : 'ranked');
+  const [mode, setMode] = useState<Mode>(arrival ? 'friend' : (initialMode ?? 'ranked'));
   const [pickedBot, setPickedBot] = useState<string | null>(null);
   const [roster, setRoster] = useState(false);
   const [maskRoster, setMaskRoster] = useState(false);
@@ -205,30 +218,39 @@ export default function Home({
       .catch(() => {});
   }, [account.signedIn]);
 
-  // How many ranked debates are on right now, plus one to put on the stage.
-  const [live, setLive] = useState<{
-    live: number;
-    watchable: number;
-    featured: {
-      code: string;
-      names: Record<string, string>;
-      avatars: Record<string, string | undefined>;
-      phase: string | null;
-      watchers: number;
-    } | null;
-  }>({ live: 0, watchable: 0, featured: null });
+  // How many ranked debates are on right now, the browsable list of them, and
+  // one to put on the stage. `receivedAt` pairs with serverNow so the rows can
+  // tick "how far in" on the server's clock, the way the shot clock does.
+  const [live, setLive] = useState<LiveList & { receivedAt: number }>({
+    live: 0,
+    watchable: 0,
+    featured: null,
+    matches: [],
+    categories: [],
+    serverNow: 0,
+    receivedAt: 0,
+  });
   useEffect(() => {
     const poll = () =>
       void fetch('/live')
         .then((r) => r.json())
         .then((d) => {
-          if (typeof d?.live === 'number') setLive(d);
+          if (typeof d?.live !== 'number') return;
+          setLive({
+            ...d,
+            matches: Array.isArray(d.matches) ? d.matches : [],
+            categories: Array.isArray(d.categories) ? d.categories : [],
+            serverNow: typeof d.serverNow === 'number' ? d.serverNow : Date.now(),
+            receivedAt: Date.now(),
+          });
         })
         .catch(() => {});
     poll();
-    const timer = setInterval(poll, 30000);
+    // The dock badge can be half a minute stale. The list cannot: watchers and
+    // phases move, and a row for a debate that ended is a tap into nothing.
+    const timer = setInterval(poll, mode === 'watch' ? 10000 : 30000);
     return () => clearInterval(timer);
-  }, []);
+  }, [mode]);
 
   /* ---- the ranked queue ---- */
 
@@ -422,14 +444,37 @@ export default function Home({
     });
   }
 
+  /* ---- watching: the list, a random one, or a friend's code ---- */
+
   const [watching, setWatching] = useState(false);
-  /** Watch a random LIVE ranked debate. Ranked is public by consent. */
-  function watchRanked() {
+  // null is the "all" chip. A key that is no longer in the deck (a rebuilt
+  // deck mid-session) just filters to nothing; the "all" chip is always there.
+  const [watchCat, setWatchCat] = useState<string | null>(null);
+  const [watchCode, setWatchCode] = useState('');
+
+  /** Every door into the crowd goes through here. unlockSpectateAudio must
+      run inside the tap, or the browser refuses to play the relayed voices. */
+  function watchOne(code: string, feed: { category: string | null } | null) {
     if (watching) return;
     setWatching(true);
     setError(null);
     unlockSpectateAudio();
-    void fetch('/spectate/random')
+    socket.emit('spectate:join', { code }, (res) => {
+      setWatching(false);
+      if (res.ok) return onSpectate(code, feed);
+      setError(res.error === 'full' ? 'specFull' : res.error === 'rate_limited' ? 'errRateLimited' : 'specNotFound');
+    });
+  }
+
+  /** A random LIVE ranked debate, in the tab you are on. Ranked is public
+      by consent. */
+  function watchRandom() {
+    if (watching) return;
+    setWatching(true);
+    setError(null);
+    unlockSpectateAudio();
+    const q = watchCat ? `?category=${encodeURIComponent(watchCat)}` : '';
+    void fetch(`/spectate/random${q}`)
       .then((r) => r.json())
       .then((d: { code: string | null }) => {
         if (!d.code) {
@@ -439,7 +484,7 @@ export default function Home({
         socket.emit('spectate:join', { code: d.code }, (res) => {
           setWatching(false);
           if (!res.ok) return setError('feedEmpty');
-          onSpectate(d.code!, true);
+          onSpectate(d.code!, { category: watchCat });
         });
       })
       .catch(() => {
@@ -447,6 +492,39 @@ export default function Home({
         setError('feedEmpty');
       });
   }
+
+  /** A friend's room. The code is the invitation; ranked or not, the host
+      decides who may watch (pick:spectators) and the server answers. */
+  function watchByCode() {
+    if (watching) return;
+    if (watchCode.trim().length !== 6) return setError('errCodeLen');
+    watchOne(watchCode.trim().toUpperCase(), null);
+  }
+
+  const catLabel = (key: string | null) =>
+    key === null ? t('lbWatchAll') : (live.categories.find((c) => c.key === key)?.label.en ?? key);
+  const shown = watchCat ? live.matches.filter((m) => m.category === watchCat) : live.matches;
+
+  // One tick a second while the list is up, so "2:14 in" moves between
+  // polls. The offset comes from the poll that carried the rows.
+  const [, setTick] = useState(0);
+  useEffect(() => {
+    if (mode !== 'watch' || live.matches.length === 0) return;
+    const timer = setInterval(() => setTick((n) => n + 1), 1000);
+    return () => clearInterval(timer);
+  }, [mode, live.matches.length]);
+  const elapsedOf = (m: LiveMatch): string | null => {
+    if (m.startedAt === null) return null;
+    const serverClock = Date.now() + (live.serverNow - live.receivedAt);
+    const s = Math.max(0, Math.floor((serverClock - m.startedAt) / 1000));
+    return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+  };
+  const PHASE_WORD: Record<string, string> = {
+    opening: 'openings',
+    rebuttal: 'rebuttals',
+    defense: 'defenses',
+    closing: 'closings',
+  };
 
   /* ---- picking a mode ---- */
 
@@ -500,7 +578,11 @@ export default function Home({
   const chosenBot = ladder.find((b) => b.id === pickedBot) ?? null;
   // The server names the placement bot; the roster gives it a face.
   const placementBot = rank ? (ladder.find((b) => b.name === rank.placementBot) ?? null) : null;
-  const watchingFeatured = mode === 'watch' ? live.featured : null;
+  // The stage follows the tab: the freshest bout in it stands up there. With
+  // a tab that has nothing, the rings go empty rather than showing a pair
+  // from another tab under a line that says nothing is on.
+  const watchingFeatured =
+    mode === 'watch' ? (shown[0] ?? (watchCat === null ? live.featured : null)) : null;
 
   // YOU, on the amber side, in every mode but watch. Your mask is a button:
   // tap it and the mask roster walks out.
@@ -689,13 +771,13 @@ export default function Home({
     );
   } else {
     go =
-      live.watchable > 0 ? (
-        <button className="lb-go" disabled={watching} onClick={watchRanked}>
+      shown.length > 0 ? (
+        <button className="lb-go" disabled={watching} onClick={watchRandom}>
           {watching ? t('loading') : t('lbGoWatch')}
         </button>
       ) : (
         <button className="lb-go lb-go-wait" disabled>
-          {t('lbWaitWatch')}
+          {watchCat ? t('lbWaitWatchCat', { x: catLabel(watchCat) }) : t('lbWaitWatch')}
         </button>
       );
   }
@@ -783,7 +865,7 @@ export default function Home({
           </div>
         ) : null}
 
-        <div className={`lb-select ${setupTaller ? 'lb-select-tight' : setupTall ? 'lb-select-compact' : ''}`}>
+        <div className={`lb-select ${mode === 'watch' && live.matches.length > 0 ? 'lb-select-watch' : setupTaller ? 'lb-select-tight' : setupTall ? 'lb-select-compact' : ''}`}>
           <div className="lb-fighter lb-fighter-a">
             <Cone color="#F0821E" id="lbConeA" />
             {watchingFeatured ? (
@@ -811,8 +893,110 @@ export default function Home({
             {opponent}
           </div>
 
-          {mode === 'watch' && !watchingFeatured ? (
-            <p className="lb-stage-note">{t('lbNobodyOnStage')}</p>
+          {/* Watch a match: the tabs, the live list, and the box for a
+              friend's code, in the middle under the stage. Rows are real
+              buttons. With nothing on there is one plain line and the code
+              box, never a fake list. */}
+          {mode === 'watch' ? (
+            <div className="lb-watch">
+              {live.matches.length > 0 ? (
+                <>
+                  <div className="lb-watch-tabs" role="tablist">
+                    {[null, ...live.categories.map((c) => c.key)].map((key) => (
+                      <button
+                        key={key ?? 'all'}
+                        role="tab"
+                        aria-selected={watchCat === key}
+                        className={`lb-watch-tab ${watchCat === key ? 'lb-watch-tab-on' : ''}`}
+                        onClick={() => {
+                          setWatchCat(key);
+                          setError(null);
+                        }}
+                      >
+                        {catLabel(key)}
+                      </button>
+                    ))}
+                  </div>
+                  {shown.length > 0 ? (
+                    <div className="lb-watch-list">
+                      {shown.map((m) => {
+                        const at = elapsedOf(m);
+                        return (
+                          <button
+                            key={m.code}
+                            className="lb-watch-row"
+                            disabled={watching}
+                            aria-label={t('lbWatchRow', { a: m.names.FOR, b: m.names.AGAINST })}
+                            onClick={() => watchOne(m.code, { category: watchCat })}
+                          >
+                            <span className="lb-watch-pair" aria-hidden="true">
+                              <span className="lb-watch-face lb-watch-face-a">
+                                <Mask id={m.avatars.FOR ?? MASK_IDS[0]} size={34} bare />
+                              </span>
+                              <span className="lb-watch-face lb-watch-face-b">
+                                <Mask id={m.avatars.AGAINST ?? MASK_IDS[0]} size={34} bare />
+                              </span>
+                            </span>
+                            <span className="lb-watch-what">
+                              <span className="lb-watch-motion">{m.topic.en}</span>
+                              <span className="lb-watch-names">
+                                <b className="lb-watch-for">{m.names.FOR}</b> {t('vs')}{' '}
+                                <b className="lb-watch-against">{m.names.AGAINST}</b>
+                                {m.category ? <span className="lb-watch-cat"> · {catLabel(m.category)}</span> : null}
+                              </span>
+                            </span>
+                            <span className="lb-watch-meta">
+                              <span className="lb-watch-phase">
+                                {m.phase && at
+                                  ? `${t(PHASE_WORD[m.phase] ?? m.phase)} · ${t('lbWatchElapsed', { t: at })}`
+                                  : t('lbWatchStarting')}
+                              </span>
+                              <span className="lb-watch-n">
+                                <i />
+                                {t('specWatching', { n: m.watchers })}
+                              </span>
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <p className="lb-stage-note">{t('lbWatchNoneCat', { x: catLabel(watchCat) })}</p>
+                  )}
+                </>
+              ) : (
+                <p className="lb-stage-note">{t('lbNobodyOnStage')}</p>
+              )}
+              <div className="lb-watch-code">
+                <div className="lb-join lb-watch-join">
+                  <span className="lb-lab">{t('lbGotCode')}</span>
+                  <div className="lb-join-row">
+                    <input
+                      className="input input-code"
+                      placeholder={t('codePlaceholder')}
+                      maxLength={6}
+                      value={watchCode}
+                      aria-label={t('lbGotCode')}
+                      onChange={(e) => {
+                        setWatchCode(e.target.value.toUpperCase());
+                        setError(null);
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') watchByCode();
+                      }}
+                    />
+                    <button
+                      className="btn btn-small"
+                      disabled={watching || watchCode.trim().length !== 6}
+                      onClick={watchByCode}
+                    >
+                      {t('watchBtn')}
+                    </button>
+                  </div>
+                </div>
+                <span className="lb-watch-hint">{t('lbWatchCodeHint')}</span>
+              </div>
+            </div>
           ) : null}
 
           {/* Guests need a name before anything will start. Not for watching:

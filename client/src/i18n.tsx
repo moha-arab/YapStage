@@ -52,12 +52,21 @@ const en: Dict = {
   lbGoBot: 'debate {x}',
   lbGoTutor: 'start the lesson',
   lbGoDrill: 'start the drill',
-  lbGoWatch: 'watch',
+  lbGoWatch: 'watch a random one',
   lbWaitFriend: 'Pick a friend first',
   lbWaitBot: 'Pick a bot first',
   lbWaitCategory: 'Pick a category first',
   lbWaitTopic: 'Pick a topic first',
   lbWaitWatch: 'Nothing live right now',
+  lbWaitWatchCat: 'Nothing live in {x} right now',
+
+  /* watch mode: the browse list under the stage */
+  lbWatchAll: 'all',
+  lbWatchStarting: 'Starting',
+  lbWatchElapsed: '{t} in',
+  lbWatchNoneCat: 'Nothing on in {x} yet. Try another tab.',
+  lbWatchRow: 'Watch {a} vs {b}',
+  lbWatchCodeHint: 'A friend’s code gets you into their room, ranked or not.',
 
   /* The match settings panel (MatchSetup), on the stage and in the green
      room. Two facts and their chips, then the guest's read-only sentences. */
@@ -163,7 +172,7 @@ const en: Dict = {
   lbCap_drill:
     '<b>Thirty seconds</b> to answer one argument, the same one for everybody today. Easiest on Sunday, hardest on Saturday, scored out of 100 by the judge. <b>Keep the streak alive.</b>',
   lbCap_watch:
-    'Drop into a live ranked debate. You see the masks, hear the argument, and get the verdict when it lands. <b>They cannot see you.</b>',
+    'Pick a live ranked debate, take a random one, or type a friend’s code. You see the masks, hear the argument, and get the verdict when it lands. <b>They cannot see you.</b>',
 
   lbHouseRule: '<b>Reading off a chatbot gets you banned.</b>',
 
