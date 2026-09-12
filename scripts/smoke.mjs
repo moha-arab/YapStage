@@ -13,7 +13,8 @@ function check(name, cond) {
 const connect = () => io(URL, { forceNew: true, transports: ['websocket'] });
 
 // The masks a seat may wear (mirrors AVATAR_IDS in server/src/protocol.ts).
-const ROSTER = ['ninja', 'oni', 'calavera', 'climber', 'gamer', 'huckster', 'alien', 'plague'];
+// The sixteen-character roster (server/src/protocol.ts AVATAR_IDS).
+const ROSTER = ['napoleon', 'socrates', 'aristotle', 'diogenes', 'athena', 'lincoln', 'dracula', 'humpty', 'bally', 'shuten', 'marisol', 'quip', 'corvin', 'garn', 'fuma', 'crux'];
 // The fight card is on screen from debate:start until startsAt. FAST is 3s and
 // long form 8s; anything outside that is a clock bug the card would expose.
 const revealOk = (start) => {
