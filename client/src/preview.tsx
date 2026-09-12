@@ -22,7 +22,9 @@ import ClaimName from './screens/ClaimName';
 import BotSelect from './screens/BotSelect';
 import Spectate from './screens/Spectate';
 import Home from './screens/Home';
-import type { Side, Verdict as VerdictData } from '../../server/src/protocol';
+import GreenRoom from './screens/GreenRoom';
+import Drill from './screens/Drill';
+import type { LobbyUpdate, Side, Verdict as VerdictData } from '../../server/src/protocol';
 import TierBadge from './TierBadge';
 import VideoTile from './VideoTile';
 import Mask, { MASK_IDS } from './Mask';
@@ -31,6 +33,89 @@ import Splash from './Splash';
 import { ARISTOTLE_200, BOT_PORTRAITS, NAPOLEON_200 } from './dev/botPortraits';
 
 const noop = () => {};
+
+/* Fakes a fetch route table for one scene: anything not listed goes to the
+   real network (the dev server proxies /bots and the socket, nothing else). */
+function fakeFetch(routes: Record<string, unknown>) {
+  const real = window.fetch.bind(window);
+  window.fetch = (input, init) => {
+    const url = String(input);
+    for (const [prefix, body] of Object.entries(routes)) {
+      if (url.startsWith(prefix))
+        return Promise.resolve(
+          new Response(JSON.stringify(body), { headers: { 'content-type': 'application/json' } }),
+        );
+    }
+    return real(input, init);
+  };
+}
+
+/* A friend room as the server describes it, before or after the guest walks
+   in. The socket is dead in the harness, so the buttons do nothing. */
+function room(over: Partial<LobbyUpdate>): LobbyUpdate {
+  return {
+    code: 'TGBEDS',
+    role: 'host',
+    yourName: 'zorvint',
+    peerName: 'goat',
+    participantCount: 2,
+    locked: false,
+    deck: [
+      {
+        key: 'school',
+        label: { en: 'School', ar: '' },
+        topics: [
+          { id: 't1', en: 'college is no longer worth it', ar: '' },
+          { id: 't2', en: 'homework should be banned', ar: '' },
+          { id: 't3', en: 'grades do more harm than good', ar: '' },
+        ],
+      },
+      { key: 'tech', label: { en: 'Tech', ar: '' }, topics: [{ id: 't4', en: 'phones belong in lockers', ar: '' }] },
+      { key: 'life', label: { en: 'Life', ar: '' }, topics: [{ id: 't5', en: 'breakfast is a scam', ar: '' }] },
+    ],
+    topicMode: 'agree',
+    categoryKey: null,
+    pace: 'standard',
+    pick: {
+      yourTopicId: 't1',
+      peerTopicId: null,
+      yourSide: null,
+      peerSide: null,
+      youConfirmed: false,
+      peerConfirmed: false,
+      yourDispute: null,
+      peerDisputeReady: false,
+      disputeProblem: null,
+    },
+    iceServers: [],
+    sttAvailable: true,
+    yourAvatar: 'napoleon',
+    peerAvatar: 'socrates',
+    yourMasked: true,
+    peerMasked: true,
+    spectatorsAllowed: true,
+    ...over,
+  };
+}
+
+const BOTS_FAKE = {
+  bots: [
+    { id: 'duckling', name: 'Pip', color: 'gold', elo: 200, rank: 1, tagline: 'a nervous little duckling', blurb: '' },
+    { id: 'collie', name: 'Nora', color: 'against', elo: 1400, rank: 5, tagline: 'a steady border collie', blurb: '' },
+    { id: 'giraffe', name: 'Gigi', color: 'gold', elo: 3000, rank: 9, tagline: 'THE FINAL BOSS', blurb: '' },
+  ],
+};
+
+const HOME_PROPS = {
+  notice: null,
+  onEntered: noop,
+  onSpectate: noop,
+  onMatches: noop,
+  onDrill: noop,
+  onBotStart: noop,
+  onTutorial: noop,
+  onMaskSaved: noop,
+};
 
 const VERDICT: VerdictData = {
   winner: 'FOR',
@@ -145,6 +230,136 @@ const SCREENS: Record<string, () => JSX.Element> = {
         onMaskSaved={noop}
       />
     );
+  },
+  /* Green room, host seat, both in, a topic on the table. */
+  greenHost: () => (
+    <GreenRoom
+      lobby={room({})}
+      localStream={null}
+      remoteStream={null}
+      mediaError={null}
+      speechSupported
+      rtcState="connected"
+      onRetryMedia={noop}
+    />
+  ),
+  /* The same room from the guest's chair: the host's choices as facts. */
+  greenGuest: () => (
+    <GreenRoom
+      lobby={room({
+        role: 'guest',
+        yourName: 'goat',
+        peerName: 'zorvint',
+        yourAvatar: 'socrates',
+        peerAvatar: 'napoleon',
+        pick: { ...room({}).pick, yourTopicId: null, peerTopicId: 't1' },
+      })}
+      localStream={null}
+      remoteStream={null}
+      mediaError={null}
+      speechSupported
+      rtcState="connected"
+      onRetryMedia={noop}
+    />
+  ),
+  /* Nobody has walked in yet: the ticket and the mirror. */
+  greenWait: () => (
+    <GreenRoom
+      lobby={room({ participantCount: 1, peerName: undefined, peerAvatar: undefined })}
+      localStream={null}
+      remoteStream={null}
+      mediaError={null}
+      speechSupported
+      rtcState={null}
+      onRetryMedia={noop}
+    />
+  ),
+  /* Signed in and placed: the tier chip under your name, two bar buttons. */
+  homeSigned: () => {
+    fakeFetch({
+      '/rating': { rating: 1512, placed: true, placementBot: 'Nora' },
+      '/bots': BOTS_FAKE,
+      '/live': { live: 0, watchable: 0, featured: null },
+      '/drill': { drill: { id: 'd', tier: 3 }, tier: 3, streak: 4, doneToday: false },
+    });
+    return <Home account={{ signedIn: true, google: true, name: 'zorvint', mask: 'bally' }} {...HOME_PROPS} />;
+  },
+  /* Watch mode with a real bout on: two strangers on their real sides. Open
+     with step1=click=.lb-dock button:nth-child(4). */
+  watchLive: () => {
+    fakeFetch({
+      '/rating': { rating: 1512, placed: true, placementBot: 'Nora' },
+      '/bots': BOTS_FAKE,
+      '/live': {
+        live: 3,
+        watchable: 3,
+        featured: {
+          code: 'ABCDEF',
+          names: { FOR: 'pizzamaster', AGAINST: 'goat' },
+          avatars: { FOR: 'marisol', AGAINST: 'quip' },
+          phase: 'rebuttal',
+          watchers: 2,
+        },
+      },
+      '/drill': {},
+    });
+    return <Home account={{ signedIn: true, google: true, name: 'zorvint', mask: 'bally' }} {...HOME_PROPS} />;
+  },
+  /* The drill. Before: as loaded. During: step1=click=.drill-card .btn-primary.
+     After: that, then step2=click=.drill-live .btn, step3=sleep=2200. The
+     POST comes back from the same fake. */
+  drill: () => {
+    fakeFetch({
+      '/drill': {
+        day: '2026-09-12',
+        drill: {
+          id: 'd7',
+          tier: 7,
+          prompt: 'Answer this argument out loud.',
+          material:
+            'Nobody under 25 should be allowed to vote. They have never paid a mortgage, never run a business, and they change their minds every eighteen months.',
+        },
+        tier: 7,
+        tierName: 'Saturday',
+        seconds: 30,
+        streak: 4,
+        best: 81,
+        doneToday: false,
+        signedIn: false,
+        result: {
+          score: 74,
+          headline: 'You found the weak beam and leaned on it.',
+          kept: 'the age line is arbitrary, and you said why in one sentence.',
+          fix: 'you never answered the mortgage point. Concede it and show it does not matter.',
+        },
+      },
+    });
+    return <Drill onBack={noop} />;
+  },
+  /* The record with rows in it, and one row opened (step1=click=.match-row). */
+  matchesFull: () => {
+    const row = (id: number, mode: 'ranked' | 'custom' | 'bots', topic: string, won: boolean, opponent: string) => ({
+      id,
+      mode,
+      topic,
+      my_side: 'FOR',
+      won,
+      my_total: won ? 71 : 58,
+      their_total: won ? 64 : 66,
+      opponent,
+      at: '2026-09-1' + id + 'T20:00:00Z',
+    });
+    fakeFetch({
+      '/matches/': { match: { verdict: VERDICT, transcript: [] } },
+      '/matches': {
+        matches: [
+          row(1, 'ranked', 'college is no longer worth it', true, 'goat'),
+          row(2, 'bots', 'anime is just cartoons', false, 'Nora'),
+          row(3, 'custom', 'social media should be banned for under-16s', true, 'pizzamaster'),
+        ],
+      },
+    });
+    return <Matches onBack={noop} />;
   },
   verdictWait: () => (
     <Verdict

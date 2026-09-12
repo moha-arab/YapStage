@@ -73,6 +73,13 @@
   --fast: 0.12s;
   --mid: 0.25s;
   --slow: 0.45s;
+
+  /* Corners. Three, not nine: controls and chips, cards and tiles, and the
+     takeover panels. Before this the pill was 3px, the button 4px, the card
+     6px and the roster 14px, which reads as four people's work. */
+  --r-sm: 4px;
+  --r-md: 8px;
+  --r-lg: 14px;
 }
 
 /* Keyboard users get a ring, mouse users don't. There was no focus style at
@@ -80,6 +87,46 @@
 :where(button, a, input, textarea, select, [tabindex]):focus-visible {
   outline: 3px solid var(--amber);
   outline-offset: 3px;
+}
+
+/* Every screen fades in the same way. The routes in App.tsx swap the root
+   with no wrapper, so this is the one place a hard cut becomes a beat. The
+   lobby is opacity only: a transform on .lb would become the containing
+   block for the fixed roster takeover inside it. */
+.stage {
+  animation: fadeUp var(--mid) ease both;
+}
+
+.lb {
+  animation: lbFade var(--mid) ease both;
+}
+
+/* One switch for everything that moves on its own. The per-animation blocks
+   that used to gate four of the sixteen keyframes are folded in here. */
+@media (prefers-reduced-motion: reduce) {
+  .stage,
+  .lb,
+  .score-reveal,
+  .stamp,
+  .verdict-details,
+  .huge,
+  .live-pill,
+  .live-tag i,
+  .bill-mic.mic-live,
+  .clock-danger,
+  .clock-failed,
+  .gavel-spinner,
+  .queue-pulse,
+  .bot-thinking-cap,
+  .lb-searching {
+    animation: none;
+  }
+
+  .stage,
+  .lb {
+    opacity: 1;
+    transform: none;
+  }
 }
 
 /* Ratings, timers, scores and records must not jitter as digits change. */
@@ -201,7 +248,7 @@ html[dir='rtl'] .meter-hint {
   color: var(--paper);
   background: var(--house-2);
   border: 1px solid var(--line);
-  border-radius: 4px;
+  border-radius: var(--r-sm);
   cursor: pointer;
 }
 
@@ -218,6 +265,12 @@ html[dir='rtl'] .meter-hint {
   justify-content: center;
   text-align: center;
   gap: 18px;
+}
+
+/* A screen that carries a bar reads from the top, like the lobby and the
+   match; centring the whole column floated the bar into the middle. */
+.center-col:has(> .topbar) {
+  justify-content: flex-start;
 }
 
 .kicker {
@@ -241,18 +294,19 @@ html[dir='rtl'] .meter-hint {
   margin: 6px 0 0;
 }
 
+/* Fine print is a sentence, not an eyebrow: set in capitals it read as the
+   terms-and-conditions line every template form carries. */
 .small-print {
   color: var(--muted);
-  font-size: 11px;
-  text-transform: uppercase;
-  letter-spacing: 0.14em;
+  font-size: var(--t2);
+  line-height: 1.45;
   margin: 18px 0 0;
 }
 
 .banner {
   background: var(--house-2);
   border: 1px solid var(--line);
-  border-radius: 4px;
+  border-radius: var(--r-sm);
   padding: 12px 16px;
   font-size: 15px;
 }
@@ -283,10 +337,10 @@ html[dir='rtl'] .meter-hint {
   color: var(--paper);
   background: var(--house-3);
   border: 1px solid transparent;
-  border-radius: 4px;
+  border-radius: var(--r-sm);
   padding: 11px 22px;
   cursor: pointer;
-  transition: background 0.12s ease, color 0.12s ease, border-color 0.12s ease;
+  transition: background var(--fast) ease, color var(--fast) ease, border-color var(--fast) ease;
 }
 
 .btn:hover:not(:disabled) {
@@ -358,19 +412,25 @@ html[dir='rtl'] .meter-hint {
   color: var(--paper);
   background: var(--house);
   border: 1px solid var(--line);
-  border-radius: 4px;
-  padding: 11px 14px;
+  border-radius: var(--r-sm);
+  padding: 10px 14px;
+  min-height: var(--ctl-md);
   width: 100%;
   outline: none;
   caret-color: var(--amber);
+  transition: border-color var(--fast) ease, box-shadow var(--fast) ease;
 }
 
 .input::placeholder {
   color: #6f6c85;
 }
 
+/* A text field shows focus to everyone, mouse or keyboard: the caret is too
+   thin to find on its own, and the global ring is switched off above so it
+   does not double up with the border. The halo is the border, widened. */
 .input:focus {
   border-color: var(--amber);
+  box-shadow: 0 0 0 3px rgba(240, 130, 30, 0.22);
 }
 
 .input-code {
@@ -385,7 +445,7 @@ html[dir='rtl'] .meter-hint {
 .card {
   background: var(--house-2);
   border: 1px solid var(--line);
-  border-radius: 6px;
+  border-radius: var(--r-md);
   padding: 22px;
 }
 
@@ -393,7 +453,7 @@ html[dir='rtl'] .meter-hint {
    just a label: the thing it was always standing in for. */
 .tape {
   display: inline-block;
-  font-size: 10.5px;
+  font-size: var(--t1);
   font-weight: 700;
   letter-spacing: 0.16em;
   text-transform: uppercase;
@@ -412,18 +472,20 @@ html[dir='rtl'] .meter-hint {
 }
 
 .home .card {
-  width: min(520px, 94vw);
+  width: min(520px, 100%);
   text-align: start;
   /* no tilt on this card: rotated text inputs blur the caret into invisibility */
 }
 
+/* The same eyebrow the lobby sets over its name field (.lb-lab). */
 .field-label {
   display: block;
-  font-size: 13px;
+  font-size: var(--t1);
+  font-weight: 700;
   color: var(--muted);
   margin-bottom: 6px;
   text-transform: uppercase;
-  letter-spacing: 0.12em;
+  letter-spacing: 0.16em;
 }
 
 .home-actions {
@@ -517,7 +579,7 @@ html[dir='rtl'] .meter-hint {
   gap: 8px;
   padding: 14px;
   border: 1px solid var(--house-3);
-  border-radius: 4px;
+  border-radius: var(--r-sm);
 }
 
 .queue-pulse {
@@ -557,7 +619,7 @@ html[dir='rtl'] .meter-hint {
   font-family: var(--marker);
   font-size: 12px;
   color: var(--live);
-  border: 2px solid var(--house-3);
+  border: 1px solid var(--house-3);
   padding: 1px 8px;
 }
 
@@ -585,7 +647,7 @@ html[dir='rtl'] .meter-hint {
 .spec-live-tape {
   font-size: 13px;
   background: var(--for);
-  color: #fff;
+  color: #241203;
 }
 
 .spec-watchers {
@@ -611,7 +673,7 @@ html[dir='rtl'] .meter-hint {
   min-width: 180px;
   padding: 18px 16px 14px;
   border: 1px solid var(--line);
-  border-radius: 4px;
+  border-radius: var(--r-md);
   background: var(--panel);
   position: relative;
 }
@@ -634,9 +696,13 @@ html[dir='rtl'] .meter-hint {
   box-shadow: 0 0 0 2px var(--against);
 }
 
+/* Nobody drawn yet: the lobby's question mark, in the side's gel. */
 .spec-fighter-glyph {
-  font-size: 42px;
+  font-family: 'Ultra', serif;
+  font-size: 48px;
   line-height: 1;
+  color: var(--gel);
+  opacity: 0.5;
 }
 
 .spec-fighter-name {
@@ -834,7 +900,7 @@ html[dir='rtl'] .meter-hint {
 /* ============ home: your corner ============ */
 /* Everything personal in one quiet section: pattern, record, matches, school. */
 .corner {
-  width: min(520px, 94vw);
+  width: min(520px, 100%);
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -852,7 +918,7 @@ html[dir='rtl'] .meter-hint {
 .record-toggle {
   border: none;
   cursor: pointer;
-  transition: transform 0.07s ease;
+  transition: transform var(--fast) ease;
 }
 
 .record-toggle:hover {
@@ -954,8 +1020,8 @@ html[dir='rtl'] .meter-hint {
 
 .mode-row .cat-tab {
   flex: 1 1 auto;
-  font-size: 13px;
-  padding: 9px 12px;
+  font-size: var(--t2);
+  padding: 6px 12px;
   text-align: center;
 }
 
@@ -985,22 +1051,32 @@ html[dir='rtl'] .meter-hint {
 
 .cat-tab {
   font: inherit;
-  font-size: 12px;
+  font-size: var(--t2);
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.12em;
   color: var(--muted);
   background: transparent;
   border: 1px solid var(--line);
-  border-radius: 4px;
+  border-radius: var(--r-sm);
   padding: 6px 12px;
+  min-height: var(--ctl-sm);
   cursor: pointer;
+  transition: background var(--fast) ease, color var(--fast) ease, border-color var(--fast) ease;
 }
 
 .cat-tab:hover:not(:disabled):not(.cat-active) {
   color: var(--paper);
   border-color: var(--house-3);
   background: var(--house-2);
+}
+
+.cat-tab:active:not(:disabled):not(.cat-active) {
+  background: var(--house-3);
+}
+
+.cat-tab:disabled {
+  cursor: default;
 }
 
 /* Selected, not won. Paper, because gold on a settings toggle is why gold
@@ -1023,7 +1099,7 @@ html[dir='rtl'] .meter-hint {
   text-align: start;
   color: var(--ink);
   background: var(--panel-2);
-  border: 2px solid var(--line);
+  border: 1px solid var(--line);
   padding: 9px 12px;
   cursor: pointer;
   display: flex;
@@ -1038,7 +1114,7 @@ html[dir='rtl'] .meter-hint {
 
 .topic-on-table {
   border-color: var(--amber);
-  background: rgba(255, 199, 46, 0.08);
+  background: rgba(240, 130, 30, 0.08);
 }
 
 .topic-marks {
@@ -1123,7 +1199,7 @@ html[dir='rtl'] .meter-hint {
 }
 
 .drill-card {
-  width: min(560px, 94vw);
+  width: min(560px, 100%);
   display: flex;
   flex-direction: column;
   gap: var(--s3);
@@ -1234,11 +1310,11 @@ html[dir='rtl'] .meter-hint {
 }
 
 .friends-add {
-  width: min(520px, 94vw);
+  width: min(520px, 100%);
 }
 
 .friend-block {
-  width: min(520px, 94vw);
+  width: min(520px, 100%);
   margin-top: var(--s4);
 }
 
@@ -1303,7 +1379,7 @@ html[dir='rtl'] .meter-hint {
 
 .empty-state {
   border: 1px dashed var(--line);
-  border-radius: 4px;
+  border-radius: var(--r-sm);
   padding: var(--s5);
   text-align: center;
 }
@@ -1351,7 +1427,7 @@ html[dir='rtl'] .meter-hint {
 }
 
 .stakes {
-  width: min(560px, 94vw);
+  width: min(560px, 100%);
   margin: var(--s3) auto 0;
   display: flex;
   flex-direction: column;
@@ -1387,14 +1463,14 @@ html[dir='rtl'] .meter-hint {
   inset-block-end: var(--s5);
   inset-inline: 0;
   margin-inline: auto;
-  width: min(420px, 92vw);
+  width: min(420px, 100%);
   z-index: 60;
   display: flex;
   align-items: center;
   gap: var(--s3);
   background: var(--panel-2);
   border: 1px solid var(--amber);
-  border-radius: 4px;
+  border-radius: var(--r-sm);
   padding: var(--s3) var(--s4);
 }
 .callout-text {
@@ -1407,7 +1483,7 @@ html[dir='rtl'] .meter-hint {
 
 /* ---- home feed: real finished debates + the ladder ---- */
 .feed {
-  width: min(920px, 92vw);
+  width: min(920px, 100%);
   margin: var(--s7) auto 0;
   display: grid;
   grid-template-columns: 1.6fr 1fr;
@@ -1429,7 +1505,7 @@ html[dir='rtl'] .meter-hint {
 .fight-card {
   background: var(--panel);
   border: 1px solid var(--line);
-  border-radius: 4px;
+  border-radius: var(--r-md);
   padding: var(--s5);
 }
 
@@ -1613,7 +1689,7 @@ html[dir='rtl'] .meter-hint {
 }
 
 .house-rules {
-  width: min(920px, 92vw);
+  width: min(920px, 100%);
   margin: var(--s6) auto 0;
   padding-top: var(--s4);
   border-top: 2px solid var(--line);
@@ -1678,7 +1754,7 @@ html[dir='rtl'] .meter-hint {
 
 /* receipts (device-local) */
 .bouts {
-  width: min(520px, 92vw);
+  width: min(520px, 100%);
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -1779,12 +1855,16 @@ html[dir='rtl'] .meter-hint {
   }
 }
 
-/* Topbar */
+/* Topbar. Full width on every screen, even the centred ones: a bar that
+   shrinks to its contents and floats in the middle reads as a title, and the
+   lobby, the match and the record already run theirs edge to edge. */
 .topbar {
   display: flex;
   align-items: center;
   gap: 14px;
   margin-bottom: 18px;
+  align-self: stretch;
+  width: 100%;
 }
 
 .brand {
@@ -1804,6 +1884,14 @@ html[dir='rtl'] .meter-hint {
   font-family: 'Ultra', serif;
   color: var(--paper);
   line-height: 1;
+}
+
+/* A phone bar has room for the mark, a back button and a label, not the
+   word as well; the lobby bar drops it at the same width (.lb-word). */
+@media (max-width: 620px) {
+  .topbar .brand-word {
+    display: none;
+  }
 }
 
 /* THE OPENING (Splash.tsx). The house colour, the lockup dead centre, the two
@@ -1838,7 +1926,7 @@ html[dir='rtl'] .meter-hint {
 }
 
 .splash svg path:last-child {
-  animation-delay: 0.12s;
+  animation-delay: var(--fast);
 }
 
 .splash .brand-word {
@@ -1888,14 +1976,21 @@ html[dir='rtl'] .meter-hint {
   }
 }
 
+/* A label that sits in a bar next to a small button, so it takes the small
+   control height: two heights on one row is the first thing an eye catches. */
 .pill {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--ctl-sm);
   border: 1px solid var(--line);
-  border-radius: 3px;
+  border-radius: var(--r-sm);
   padding: 4px 10px;
-  font-size: 12px;
+  font-size: var(--t2);
+  font-weight: 700;
   color: var(--muted);
   text-transform: uppercase;
   letter-spacing: 0.14em;
+  white-space: nowrap;
 }
 
 /* The room code is the one thing on the green room screen a person has to
@@ -2014,7 +2109,7 @@ html[dir='rtl'] .meter-hint {
 }
 
 .tile-solo {
-  max-width: 460px;
+  max-width: 490px; /* wide enough for the mask row (eight chips) under it */
   margin: 0 auto;
 }
 
@@ -2031,9 +2126,9 @@ html[dir='rtl'] .meter-hint {
   aspect-ratio: 16 / 10;
   background: var(--house-2);
   border: 3px solid var(--house-3);
-  border-radius: 5px;
+  border-radius: var(--r-md);
   overflow: hidden;
-  transition: border-color 0.15s ease;
+  transition: border-color var(--fast) ease;
 }
 
 .tile video {
@@ -2046,6 +2141,8 @@ html[dir='rtl'] .meter-hint {
   transform: scaleX(-1);
 }
 
+/* Flat, like every other surface. The dot-screen texture that sat here was
+   the one patterned fill left in the app. */
 .tile-empty {
   position: absolute;
   inset: 0;
@@ -2056,8 +2153,6 @@ html[dir='rtl'] .meter-hint {
   font-size: 15px;
   padding: 20px;
   text-align: center;
-  background-image: radial-gradient(circle, rgba(239, 232, 216, 0.1) 1px, transparent 1px);
-  background-size: 7px 7px;
 }
 
 /* Over the video: "their camera died" / "tap to start" — never a bare black
@@ -2105,8 +2200,10 @@ html[dir='rtl'] .meter-hint {
   position: absolute;
   inset-inline-start: 10px;
   bottom: 10px;
-  background: rgba(11, 11, 22, 0.78);
-  border-radius: 3px;
+  /* over the mask, which lifts itself above the speaking ring (.mask-ring svg) */
+  z-index: 2;
+  background: rgba(11, 11, 22, 0.9);
+  border-radius: var(--r-sm);
   padding: 4px 10px;
   font-size: 13px;
   font-weight: 700;
@@ -2128,9 +2225,10 @@ html[dir='rtl'] .meter-hint {
   position: absolute;
   top: 10px;
   inset-inline-start: 10px;
+  z-index: 2;
   background: var(--paper);
   color: #101018;
-  border-radius: 3px;
+  border-radius: var(--r-sm);
   padding: 3px 10px;
   font-size: 11px;
   font-weight: 700;
@@ -2173,7 +2271,7 @@ html[dir='rtl'] .meter-hint {
   flex: 1;
   height: 10px;
   background: var(--panel-2);
-  border: 2px solid var(--line);
+  border: 1px solid var(--line);
   overflow: hidden;
 }
 
@@ -2363,7 +2461,7 @@ html[dir='rtl'] .meter-hint {
   margin-top: var(--s1);
   padding: 2px 9px;
   border: 1px solid var(--paper);
-  border-radius: 3px;
+  border-radius: var(--r-sm);
   font-size: var(--t1);
   font-weight: 700;
   letter-spacing: 0.14em;
@@ -2382,7 +2480,7 @@ html[dir='rtl'] .meter-hint {
   /* lifted so it sits level with the art, not with the names under it */
   padding: 0 clamp(4px, 1.5vw, 16px) 60px;
   animation: fcStamp var(--slow) cubic-bezier(0.2, 0.8, 0.2, 1) both;
-  animation-delay: 0.2s;
+  animation-delay: var(--mid);
 }
 
 .fc-caption {
@@ -2478,7 +2576,7 @@ html[dir='rtl'] .meter-hint {
 
 @keyframes stampIn {
   from {
-    transform: scale(2.2);
+    transform: scale(1.5);
     opacity: 0;
   }
   to {
@@ -2512,11 +2610,6 @@ html[dir='rtl'] .meter-hint {
   margin-block: auto;
 }
 
-/* keep the bar clear of the fixed language toggle in the top-right corner */
-.debate .topbar {
-  padding-inline-end: 64px;
-}
-
 /* The phase rail. The debate screen folded these into the paper panel, but
    SPECTATE still shows the whole rail — a watcher has no other way to know
    how far in they arrived. */
@@ -2529,14 +2622,19 @@ html[dir='rtl'] .meter-hint {
   margin: 4px 0 16px;
 }
 
+/* The same chip as .cat-tab, minus the hand cursor: nobody presses these. */
 .round {
-  font-size: 11px;
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--ctl-sm);
+  font-size: var(--t2);
+  font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.14em;
+  letter-spacing: 0.12em;
   color: var(--muted);
   border: 1px solid var(--line);
-  border-radius: 3px;
-  padding: 4px 11px;
+  border-radius: var(--r-sm);
+  padding: 6px 12px;
 }
 
 .round-now {
@@ -2589,7 +2687,7 @@ html[dir='rtl'] .meter-hint {
 .bill {
   background: var(--paper);
   color: #101018;
-  border-radius: 6px;
+  border-radius: var(--r-md);
   padding: 18px 20px;
   display: flex;
   flex-direction: column;
@@ -2598,7 +2696,7 @@ html[dir='rtl'] .meter-hint {
 }
 
 .bill-sec {
-  font-size: 10.5px;
+  font-size: var(--t1);
   font-weight: 700;
   letter-spacing: 0.16em;
   text-transform: uppercase;
@@ -2704,7 +2802,7 @@ html[dir='rtl'] .meter-hint {
 }
 
 .bill-how {
-  font-size: 12.5px;
+  font-size: var(--t3);
   color: #3a3830;
   line-height: 1.45;
   margin: 0;
@@ -2810,11 +2908,11 @@ html[dir='rtl'] .meter-hint {
   display: flex;
   flex-direction: column;
   gap: 14px;
-  width: min(560px, 94vw);
+  width: min(560px, 100%);
 }
 
 .score-reveal {
-  animation: stampInFlat 0.35s cubic-bezier(0.2, 1.6, 0.4, 1);
+  animation: stampInFlat var(--slow) cubic-bezier(0.2, 1.25, 0.4, 1);
   padding: 14px 18px;
 }
 
@@ -2826,7 +2924,7 @@ html[dir='rtl'] .meter-hint {
 
 @keyframes stampInFlat {
   from {
-    transform: scale(1.9);
+    transform: scale(1.25);
     opacity: 0;
   }
   to {
@@ -2840,7 +2938,7 @@ html[dir='rtl'] .meter-hint {
   justify-content: space-between;
   align-items: baseline;
   margin-bottom: 10px;
-  border-bottom: 2px solid var(--line);
+  border-bottom: 1px solid var(--line);
   padding-bottom: 6px;
 }
 
@@ -2928,7 +3026,7 @@ html[dir='rtl'] .meter-hint {
   gap: 4px;
   border: 1px solid currentColor;
   padding: 22px 44px;
-  animation: stampIn 0.4s cubic-bezier(0.2, 1.6, 0.4, 1);
+  animation: stampIn var(--slow) cubic-bezier(0.2, 1.25, 0.4, 1);
 }
 
 .stamp-label {
@@ -2971,9 +3069,9 @@ html[dir='rtl'] .meter-hint {
   display: flex;
   flex-direction: column;
   gap: 18px;
-  width: min(760px, 94vw);
+  width: min(760px, 100%);
   margin-top: 10px;
-  animation: fadeUp 0.4s ease;
+  animation: fadeUp var(--slow) ease;
 }
 
 @keyframes fadeUp {
@@ -3018,7 +3116,7 @@ html[dir='rtl'] .meter-hint {
 .score-bars {
   flex: 1;
   display: grid;
-  grid-template-columns: 1fr 110px 1fr;
+  grid-template-columns: 1fr 150px 1fr;
   align-items: center;
   gap: 10px;
 }
@@ -3026,7 +3124,7 @@ html[dir='rtl'] .meter-hint {
 .score-bar {
   height: 12px;
   background: var(--panel-2);
-  border: 2px solid var(--line);
+  border: 1px solid var(--line);
   overflow: hidden;
 }
 
@@ -3109,7 +3207,7 @@ html[dir='rtl'] .meter-hint {
 
 /* ask the yapmaster: a small coaching chat on the verdict screen */
 .coach-card {
-  width: min(560px, 92vw);
+  width: min(560px, 100%);
   margin: 0 auto;
   text-align: start;
 }
@@ -3140,7 +3238,7 @@ html[dir='rtl'] .meter-hint {
   margin: 0;
   padding: 8px 12px;
   font-size: 15px;
-  border: 2px solid var(--line);
+  border: 1px solid var(--line);
   max-width: 88%;
 }
 
@@ -3201,7 +3299,7 @@ html[dir='rtl'] .meter-hint {
   margin-top: 18px;
   padding-top: 14px;
   border-top: 1px solid var(--line);
-  width: min(520px, 92vw);
+  width: min(520px, 100%);
 }
 
 .live-strip-tiles {
@@ -3225,6 +3323,11 @@ html[dir='rtl'] .meter-hint {
   .tiles,
   .feedback-cols {
     grid-template-columns: 1fr;
+  }
+
+  /* the bars keep their length; the label wraps instead */
+  .score-bars {
+    grid-template-columns: 1fr 110px 1fr;
   }
 
   .clock-row {
@@ -3292,7 +3395,7 @@ html[dir='rtl'] .meter-hint {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 12px;
-  width: min(760px, 94vw);
+  width: min(760px, 100%);
 }
 @media (max-width: 560px) {
   .bot-grid {
@@ -3318,11 +3421,11 @@ html[dir='rtl'] .meter-hint {
   text-align: center;
   background: var(--panel);
   border: 1px solid var(--line);
-  border-radius: 4px;
+  border-radius: var(--r-md);
   cursor: pointer;
   transition:
-    transform 0.12s ease,
-    border-color 0.12s ease;
+    transform var(--fast) ease,
+    border-color var(--fast) ease;
 }
 .bot-card:hover {
   transform: translateY(-3px);
@@ -3388,7 +3491,7 @@ html[dir='rtl'] .meter-hint {
 }
 
 .bot-setup {
-  width: min(760px, 94vw);
+  width: min(760px, 100%);
   display: flex;
   flex-direction: column;
   gap: 12px;
@@ -3445,7 +3548,7 @@ html[dir='rtl'] .meter-hint {
   margin: 0;
 }
 .learn-block {
-  width: min(760px, 94vw);
+  width: min(760px, 100%);
   background: var(--panel);
   border: 1px solid var(--line);
   padding: 22px 18px 18px;
@@ -3545,7 +3648,7 @@ html[dir='rtl'] .meter-hint {
   line-height: 1.45;
 }
 .learn-go {
-  width: min(760px, 94vw);
+  width: min(760px, 100%);
 }
 
 /* phase rule line (e.g. the closing's no-new-arguments reminder) */
@@ -3650,7 +3753,7 @@ html[dir='rtl'] .meter-hint {
   aspect-ratio: 16 / 10;
 }
 .bot-go {
-  width: min(760px, 94vw);
+  width: min(760px, 100%);
 }
 
 /* Avatar frame + speaking animation. The frame used to be a 4px GOLD border on
@@ -3691,7 +3794,7 @@ html[dir='rtl'] .meter-hint {
   line-height: 1.5;
   color: var(--ink);
   background: var(--panel);
-  border: 2px solid var(--line);
+  border: 1px solid var(--line);
   border-inline-start: 2px solid var(--house-3);
   padding: 8px 12px;
   max-height: 128px;
@@ -3735,8 +3838,10 @@ html[dir='rtl'] .meter-hint {
   margin-bottom: 4px;
 }
 
+/* Amber, not gold: "now go" is a direction, and an unlock is a door opening.
+   The win itself is the only thing on these screens allowed to be gold. */
 .tape-gold {
-  background: var(--gold);
+  color: var(--amber);
 }
 
 .note-text {
@@ -3961,12 +4066,20 @@ html[dir='rtl'] .meter-hint {
   align-items: center;
 }
 
+/* Sixteen chips at 54px: two rows of eight on a laptop, four rows of four on
+   a phone. Any other measure leaves one face alone on the last row. */
 .mask-row {
   display: flex;
   gap: 6px;
   flex-wrap: wrap;
   justify-content: center;
-  max-width: 340px;
+  max-width: 490px;
+}
+
+@media (max-width: 620px) {
+  .mask-row {
+    max-width: 242px;
+  }
 }
 
 .mask-chip {
@@ -3977,7 +4090,7 @@ html[dir='rtl'] .meter-hint {
   cursor: pointer;
   line-height: 0;
   opacity: 0.55;
-  transition: opacity 0.1s ease, transform 0.1s ease;
+  transition: opacity var(--fast) ease, transform var(--fast) ease;
 }
 
 .mask-chip:hover {
@@ -4034,7 +4147,7 @@ html[dir='rtl'] .meter-hint {
 
 /* First sign-in: claim your yap name */
 .claim-card {
-  width: min(420px, 94vw);
+  width: min(420px, 100%);
   text-align: start;
   display: flex;
   flex-direction: column;
@@ -4047,7 +4160,7 @@ html[dir='rtl'] .meter-hint {
 
 /* ===== home, rebuilt: one bar, four modes, nothing below the fold ===== */
 .home-bar {
-  width: min(760px, 96vw);
+  width: min(760px, 100%);
   margin: 0 auto 8px;
 }
 
@@ -4076,7 +4189,7 @@ html[dir='rtl'] .meter-hint {
 }
 
 .home-card {
-  width: min(520px, 94vw);
+  width: min(520px, 100%);
   margin: 0 auto;
   text-align: start;
 }
@@ -4091,7 +4204,7 @@ html[dir='rtl'] .meter-hint {
   display: flex;
   align-items: center;
   gap: 14px;
-  width: min(680px, 94vw);
+  width: min(680px, 100%);
   margin: 0 auto 14px;
   text-align: start;
   background: var(--panel);
@@ -4161,7 +4274,7 @@ html[dir='rtl'] .meter-hint {
 }
 
 .match-list {
-  width: min(680px, 96vw);
+  width: min(680px, 100%);
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -4175,17 +4288,21 @@ html[dir='rtl'] .meter-hint {
   text-align: start;
   background: var(--panel);
   border: 1px solid var(--line);
-  border-radius: 4px;
+  border-radius: var(--r-sm);
   padding: 10px 14px;
   cursor: pointer;
   color: var(--ink);
   font: inherit;
-  transition: transform 0.07s ease, border-color 0.07s ease;
+  transition: transform var(--fast) ease, border-color var(--fast) ease;
 }
 
 .match-row:hover {
   border-color: var(--house-3);
-  transform: translate(-1px, -1px);
+  background: var(--house-3);
+}
+
+.match-row:active {
+  background: #303158;
 }
 
 .match-mark {
@@ -4236,7 +4353,7 @@ html[dir='rtl'] .meter-hint {
 }
 
 .detail-card {
-  width: min(620px, 96vw);
+  width: min(620px, 100%);
   display: flex;
   flex-direction: column;
   gap: 14px;
@@ -4288,7 +4405,7 @@ html[dir='rtl'] .meter-hint {
 }
 
 .matches .coach-card {
-  width: min(620px, 96vw);
+  width: min(620px, 100%);
 }
 
 .page-title.won {
@@ -4427,7 +4544,7 @@ html[dir='rtl'] .meter-hint {
   font-size: 17px;
   padding: 16px 34px;
   cursor: pointer;
-  transition: background 0.12s ease, transform 0.15s ease, box-shadow 0.15s ease;
+  transition: background var(--fast) ease, transform var(--fast) ease, box-shadow var(--fast) ease;
 }
 
 .ld-cta:hover {
@@ -4464,7 +4581,7 @@ html[dir='rtl'] .meter-hint {
   display: flex;
   gap: 12px;
   align-items: baseline;
-  font-size: 14.5px;
+  font-size: var(--t4);
   color: var(--muted);
 }
 
@@ -4489,7 +4606,7 @@ html[dir='rtl'] .meter-hint {
   position: relative;
   padding: 10px;
   /* leans toward the cursor, see useTilt in Welcome.tsx */
-  transition: transform 0.25s ease-out;
+  transition: transform var(--mid) ease-out;
   will-change: transform;
 }
 

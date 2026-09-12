@@ -62,7 +62,7 @@
 }
 
 .lb-lab {
-  font-size: 10.5px;
+  font-size: var(--t1);
   font-weight: 700;
   letter-spacing: 0.16em;
   text-transform: uppercase;
@@ -97,7 +97,7 @@
   margin-inline-start: auto;
   display: flex;
   gap: 22px;
-  font-size: 13.5px;
+  font-size: var(--t3);
   font-weight: 600;
   color: var(--muted);
   margin-inline-end: 26px;
@@ -127,13 +127,13 @@
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  font-size: 10.5px;
+  font-size: var(--t1);
   font-weight: 700;
   letter-spacing: 0.14em;
   text-transform: uppercase;
   padding: 5px 10px;
   border: 1px solid var(--amber);
-  border-radius: 3px;
+  border-radius: var(--r-sm);
   color: var(--amber);
   white-space: nowrap;
 }
@@ -149,12 +149,6 @@
 .lb-tier-provisional {
   border-color: var(--house-3);
   color: var(--muted);
-}
-
-.lb-signin {
-  font-size: 13px;
-  font-weight: 700;
-  color: var(--amber);
 }
 
 .lb-signout {
@@ -209,6 +203,13 @@
    come down together. Shrinking only the side with the picker would leave two
    different-sized fighters staring at each other. */
 .lb-select-compact {
+  --art: clamp(88px, min(15vw, 19vh), 176px);
+}
+
+/* Play a friend stacks a code, a link and a join box under the stage, about
+   150px of it. On a 768px-tall laptop the fighters at full size had nowhere
+   to go but up, and the hat went out through the top of the stage. */
+.lb-select:has(.lb-friend) {
   --art: clamp(88px, min(15vw, 19vh), 176px);
 }
 
@@ -361,17 +362,23 @@
   font-family: 'Ultra', serif;
   font-size: clamp(17px, 2vw, 24px);
   padding: 15px clamp(24px, 4vw, 44px);
-  border-radius: 4px;
+  border-radius: var(--r-sm);
   position: relative;
   z-index: 2;
   text-align: center;
-  transition: background 0.12s ease, transform 0.15s ease, box-shadow 0.15s ease;
+  transition: background var(--fast) ease, transform var(--fast) ease, box-shadow var(--fast) ease;
 }
 
 .lb-go:hover:not(:disabled) {
   background: #ff8f28;
   transform: translateY(-1px);
   box-shadow: 0 8px 24px rgba(240, 130, 30, 0.28);
+}
+
+.lb-go:active:not(:disabled) {
+  background: #d9741a;
+  transform: none;
+  box-shadow: none;
 }
 
 .lb-go:disabled {
@@ -423,8 +430,8 @@
   gap: 2px;
   width: 56px;
   padding: 6px 2px;
-  border-radius: 6px;
-  transition: background 0.12s ease;
+  border-radius: var(--r-md);
+  transition: background var(--fast) ease;
 }
 
 .lb-choice:hover {
@@ -444,7 +451,7 @@
 }
 
 .lb-choice-n {
-  font-size: 10.5px;
+  font-size: var(--t1);
   font-weight: 700;
   line-height: 1.1;
   max-width: 100%;
@@ -577,7 +584,7 @@
 
 .lb-friend-n {
   font-weight: 700;
-  font-size: 13.5px;
+  font-size: var(--t3);
   line-height: 1.15;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -585,7 +592,7 @@
 }
 
 .lb-friend-t {
-  font-size: 11.5px;
+  font-size: var(--t2);
   color: var(--muted);
 }
 
@@ -615,7 +622,7 @@
 }
 
 .lb-wings-empty {
-  font-size: 12.5px;
+  font-size: var(--t3);
   color: var(--muted);
   line-height: 1.5;
 }
@@ -631,7 +638,7 @@
   text-align: center;
   padding: 12px clamp(16px, 5vw, 60px) 11px;
   border-top: 1px solid var(--house-3);
-  font-size: 13.5px;
+  font-size: var(--t3);
   color: var(--muted);
   min-height: 44px;
 }
@@ -652,15 +659,19 @@
 
 .lb-act {
   background: var(--house-2);
-  border-radius: 4px;
+  border-radius: var(--r-sm);
   padding: 15px 16px;
-  transition: background 0.12s ease, transform 0.15s ease;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 8px;
   min-height: 62px;
-  transition: background 0.12s ease, color 0.12s ease;
+  /* One declaration. A second `transition` lower down used to win and drop
+     transform from the list, so the hover lift snapped instead of easing. */
+  transition:
+    background var(--fast) ease,
+    color var(--fast) ease,
+    transform var(--fast) ease;
 }
 
 .lb-act:hover {
@@ -668,10 +679,27 @@
   transform: translateY(-2px);
 }
 
+.lb-act:active {
+  transform: none;
+}
+
 .lb-act-t {
   font-family: 'Ultra', serif;
   font-size: clamp(14px, 1.5vw, 21px);
   line-height: 1;
+  /* a verb never breaks in two: "daily / rebuttal" with a streak beside it
+     read as a typo */
+  white-space: nowrap;
+}
+
+/* A verb with a streak or a live count after it: the count goes under the
+   verb, in the same place the phone dock already puts it. */
+.lb-act:has(.lb-act-k),
+.lb-act:has(.lb-act-live) {
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 4px;
 }
 
 .lb-act-on,
@@ -768,9 +796,9 @@
   z-index: 4;
   background: var(--house-2);
   border: 1px solid var(--line);
-  border-radius: 4px;
+  border-radius: var(--r-sm);
   padding: 9px 16px;
-  font-size: 13.5px;
+  font-size: var(--t3);
   max-width: min(560px, 92vw);
   text-align: center;
 }
@@ -840,7 +868,7 @@
 }
 
 .lb-ticket-head {
-  font-size: 13.5px;
+  font-size: var(--t3);
   color: var(--muted);
   margin: 0;
 }
@@ -968,7 +996,7 @@
   }
 
   .lb-caption {
-    font-size: 12.5px;
+    font-size: var(--t3);
     padding: 10px 16px 9px;
     min-height: 0;
   }
@@ -991,7 +1019,7 @@
   .lb-places {
     gap: 14px;
     margin-inline-end: 12px;
-    font-size: 12.5px;
+    font-size: var(--t3);
   }
 
   .lb-name {
@@ -1067,9 +1095,9 @@
   flex-direction: column;
   align-items: center;
   gap: 6px;
-  border-radius: 12px;
+  border-radius: var(--r-lg);
   padding: 4px 12px 8px;
-  transition: background 0.15s ease;
+  transition: background var(--fast) ease;
 }
 
 .lb-picked:hover {
@@ -1077,12 +1105,15 @@
 }
 
 .lb-change {
-  font-size: 11px;
+  font-size: var(--t1);
   font-weight: 700;
   letter-spacing: 0.14em;
   text-transform: uppercase;
   color: var(--muted);
   margin-top: 2px;
+  text-align: center;
+  white-space: nowrap;
+  transition: color var(--fast) ease;
 }
 
 .lb-picked:hover .lb-change {
@@ -1092,7 +1123,7 @@
 /* In bot mode the empty ring is the door to the roster. */
 .lb-empty-btn {
   cursor: pointer;
-  transition: border-color 0.15s ease, background 0.15s ease, transform 0.15s ease;
+  transition: border-color var(--fast) ease, background var(--fast) ease, transform var(--fast) ease;
 }
 
 .lb-empty-btn:hover {
@@ -1108,20 +1139,28 @@
   gap: 8px;
 }
 
-.lb-bar-btn {
-  padding: 8px 14px;
-  border-radius: 4px;
-  font-size: 13px;
+.lb-bar-btn,
+.lb-signin {
+  min-height: var(--ctl-sm);
+  padding: 6px 14px;
+  border-radius: var(--r-sm);
+  font-size: var(--t3);
   font-weight: 700;
   color: var(--paper);
   box-shadow: inset 0 0 0 1px var(--house-3);
-  transition: background 0.12s ease, box-shadow 0.12s ease;
+  transition: background var(--fast) ease, box-shadow var(--fast) ease, color var(--fast) ease;
   white-space: nowrap;
 }
 
-.lb-bar-btn:hover {
+.lb-bar-btn:hover,
+.lb-signin:hover {
   background: var(--house-2);
   box-shadow: inset 0 0 0 1px #33345e;
+}
+
+.lb-bar-btn:active,
+.lb-signin:active {
+  background: var(--house-3);
 }
 
 .lb-bar-btn-quiet {
@@ -1139,7 +1178,9 @@
   grid-column: 1 / -1;
   justify-self: center;
   display: flex;
-  align-items: center;
+  /* top-aligned so the two eyebrows ("use this code", "got a code?") sit on
+     one line; centred, the join box floated at a height of its own */
+  align-items: flex-start;
   gap: 26px;
   margin: 0 0 12px;
   position: relative;
@@ -1171,7 +1212,7 @@
   gap: 8px;
   padding: 18px 26px 16px;
   border: 2px dashed rgba(31, 194, 212, 0.5);
-  border-radius: 12px;
+  border-radius: var(--r-lg);
   text-align: center;
 }
 
@@ -1187,24 +1228,31 @@
 
 .lb-copy {
   margin-top: 4px;
-  padding: 8px 14px;
-  border-radius: 4px;
-  font-size: 13px;
+  min-height: var(--ctl-sm);
+  padding: 6px 14px;
+  border-radius: var(--r-sm);
+  font-size: var(--t3);
   font-weight: 700;
   color: var(--turq);
   box-shadow: inset 0 0 0 1px rgba(31, 194, 212, 0.5);
-  transition: background 0.12s ease;
+  transition: background var(--fast) ease;
 }
 
 .lb-copy:hover {
   background: rgba(31, 194, 212, 0.1);
 }
 
+.lb-copy:active {
+  background: rgba(31, 194, 212, 0.18);
+}
+
 .lb-join {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
+  /* the ticket's top padding plus its border, so the eyebrows line up */
+  padding-top: 20px;
 }
 
 @media (max-width: 720px) {
@@ -1236,8 +1284,11 @@
   align-items: center;
 }
 
+/* The box and the button beside it share one height (the ramp's medium). */
 .lb-join .input-code {
   width: 120px;
+  height: var(--ctl-md);
+  padding-block: 0;
   text-align: center;
   letter-spacing: 0.2em;
   font-family: var(--mono);
@@ -1297,12 +1348,18 @@
 
 /* The walk-in button beside the code box. */
 .lb-join-row .btn {
-  padding: 10px 14px;
-  border-radius: 4px;
+  min-height: var(--ctl-md);
+  padding: 6px 14px;
+  border-radius: var(--r-sm);
   font-weight: 700;
-  font-size: 13px;
+  font-size: var(--t3);
   color: var(--paper);
   box-shadow: inset 0 0 0 1px var(--house-3);
+  transition: background var(--fast) ease;
+}
+
+.lb-join-row .btn:hover:not(:disabled) {
+  background: var(--house-2);
 }
 
 .lb-join-row .btn:disabled {
@@ -1374,7 +1431,7 @@
   background: rgba(10, 11, 22, 0.74);
   backdrop-filter: blur(6px);
   -webkit-backdrop-filter: blur(6px);
-  animation: lbFade 0.18s ease-out;
+  animation: lbFade var(--mid) ease-out;
 }
 
 .lb-roster-panel {
@@ -1385,10 +1442,10 @@
   overscroll-behavior: contain;
   background: var(--house-2);
   border: 1px solid var(--house-3);
-  border-radius: 14px;
+  border-radius: var(--r-lg);
   padding: 24px 26px 26px;
   box-shadow: 0 30px 80px rgba(0, 0, 0, 0.55);
-  animation: lbPop 0.24s cubic-bezier(0.2, 0.9, 0.3, 1.15);
+  animation: lbPop var(--mid) cubic-bezier(0.2, 0.9, 0.3, 1.15);
 }
 
 .lb-roster-hd {
@@ -1423,7 +1480,7 @@
   background: var(--house-3);
   display: grid;
   place-items: center;
-  transition: background 0.12s ease, transform 0.12s ease;
+  transition: background var(--fast) ease, transform var(--fast) ease;
 }
 
 .lb-roster-x:hover {
@@ -1447,11 +1504,11 @@
   text-align: center;
   gap: 5px;
   padding: 18px 10px 14px;
-  border-radius: 10px;
+  border-radius: var(--r-md);
   background: var(--house);
   border: 1px solid var(--house-3);
-  transition: transform 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
-  animation: lbCardIn 0.38s ease-out both;
+  transition: transform var(--mid) ease, border-color var(--mid) ease, box-shadow var(--mid) ease;
+  animation: lbCardIn var(--slow) ease-out both;
   animation-delay: calc(var(--i) * 45ms);
 }
 
@@ -1518,14 +1575,14 @@
 }
 
 .lb-card-tag {
-  font-size: 12.5px;
+  font-size: var(--t3);
   font-style: italic;
   color: var(--muted);
 }
 
 .lb-card-blurb {
   margin: 4px 0 0;
-  font-size: 12.5px;
+  font-size: var(--t3);
   line-height: 1.4;
   color: var(--paper);
   opacity: 0.82;
@@ -1541,7 +1598,7 @@
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  font-size: 11.5px;
+  font-size: var(--t2);
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -1603,7 +1660,7 @@
 
   .lb-roster-panel {
     padding: 18px 14px 16px;
-    border-radius: 12px;
+    border-radius: var(--r-lg);
   }
 
   .lb-roster-grid {
