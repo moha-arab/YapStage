@@ -48,6 +48,34 @@ const ANIMALS: Record<string, string> = {
     <path d="M36 52 l10 4 -9 3z" fill="${D}"/><path d="M64 52 l-10 4 9 3z" fill="${D}"/>
     <circle cx="42" cy="55" r="3" fill="${D}"/><circle cx="58" cy="55" r="3" fill="${D}"/>
     <ellipse class="bot-mouth" cx="50" cy="66" rx="5" ry="4" fill="${D}"/>`,
+  // Border collie, the placement opponent (2026-09-12). Read it as a collie
+  // and not a generic dog by the blaze: one white stripe from the crown down
+  // over the muzzle, dark fur either side, one ear up and one folded over.
+  // The most centred, most symmetrical face on the ladder on purpose: it is
+  // the yardstick.
+  collie: `
+    <path d="M30 40 L18 10 L46 30Z" fill="#3a3130"/>
+    <path d="M70 40 L86 18 L88 50 L62 30Z" fill="#3a3130"/>
+    <ellipse cx="50" cy="56" rx="32" ry="30" fill="#3a3130"/>
+    <path d="M44 28 Q50 24 56 28 L60 56 Q62 80 50 84 Q38 80 40 56Z" fill="#f2e8d5"/>
+    <ellipse cx="50" cy="72" rx="18" ry="13" fill="#f2e8d5"/>
+    <circle cx="37" cy="54" r="4" fill="${D}"/><circle cx="63" cy="54" r="4" fill="${D}"/>
+    <ellipse cx="50" cy="67" rx="5.5" ry="4" fill="${D}"/>
+    <path class="bot-mouth" d="M44 76 q6 4 12 0" stroke="${D}" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+    <path d="M22 84 Q50 98 78 84 L80 92 Q50 106 20 92Z" fill="#2f5fd6"/>`,
+  // Elephant, rung 7 (2026-09-12). Ears drawn enormous and touching the
+  // frame, a trunk curled into a resting hook, cream tusks. Kind, a little
+  // tired eyes; nothing sharp anywhere.
+  elephant: `
+    <ellipse cx="19" cy="52" rx="19" ry="27" fill="#8d95a8"/><ellipse cx="81" cy="52" rx="19" ry="27" fill="#8d95a8"/>
+    <ellipse cx="20" cy="53" rx="11" ry="19" fill="#c9a5a0"/><ellipse cx="80" cy="53" rx="11" ry="19" fill="#c9a5a0"/>
+    <ellipse cx="50" cy="50" rx="28" ry="27" fill="#a3aab9"/>
+    <path d="M50 58 Q50 74 49 84 Q49 93 57 92" stroke="#a3aab9" stroke-width="13" fill="none" stroke-linecap="round"/>
+    <path d="M39 68 q-5 8 -1 15" stroke="#f2e8d5" stroke-width="4.5" fill="none" stroke-linecap="round"/>
+    <path d="M61 68 q5 8 1 15" stroke="#f2e8d5" stroke-width="4.5" fill="none" stroke-linecap="round"/>
+    <circle cx="39" cy="46" r="3.6" fill="${D}"/><circle cx="61" cy="46" r="3.6" fill="${D}"/>
+    <path d="M34 40 q5 -3 9 -1 M66 40 q-5 -3 -9 -1" stroke="#6f7787" stroke-width="2.2" fill="none" stroke-linecap="round"/>
+    <path class="bot-mouth" d="M44 64 q3 2 6 0" stroke="#6f7787" stroke-width="2" fill="none" stroke-linecap="round"/>`,
   owl: `
     <path d="M24 30 L34 44 L20 42Z" fill="#6a5a4a"/><path d="M76 30 L66 44 L80 42Z" fill="#6a5a4a"/>
     <ellipse cx="50" cy="56" rx="34" ry="32" fill="#6a5a4a"/>

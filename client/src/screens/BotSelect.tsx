@@ -65,7 +65,7 @@ export default function BotSelect({ localStream, mediaError, onRetryMedia, onSta
       .catch(() => {});
   }, []);
 
-  const maxRank = bots.reduce((m, b) => Math.max(m, b.rank), 6);
+  const maxRank = bots.reduce((m, b) => Math.max(m, b.rank), 8);
   const isLocked = (b: BotInfo) => level !== null && b.rank > level;
   const chosen = bots.find((b) => b.id === botId);
 

@@ -1122,19 +1122,6 @@ html[dir='rtl'] .meter-hint {
   gap: var(--s3);
 }
 
-.drill-types {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 8px;
-  width: min(560px, 94vw);
-}
-
-.drill-types .btn-on {
-  border-color: var(--amber);
-  color: var(--amber);
-}
-
 .drill-card {
   width: min(560px, 94vw);
   display: flex;

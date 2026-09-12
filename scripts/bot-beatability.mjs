@@ -6,14 +6,18 @@
 // Run the server with DEBATE_SPEED=fast (ideally ELEVENLABS_API_KEY='' to skip
 // TTS spend), then: node scripts/bot-beatability.mjs
 //
-// Ladder target: average human beats easy MOST of the time, splits medium,
-// loses to hard most of the time.
+// Ladder target (docs/CALIBRATION.md, phase D): the average profile beats
+// Pip and Cappy, splits with Vivi, loses to Nora and everything above; the
+// strong profile beats through Nora, splits with Ozzy, loses to Brutus and
+// above. The scripts cannot respond to the bot, so they are a lower bound.
 import { io } from 'socket.io-client';
 
 const URL = process.env.URL ?? 'http://localhost:3000';
 const RUNS = Number(process.env.RUNS ?? 3); // debates per (profile x bot)
-// rank 1 easy / 4 medium / 6 boss; BOTS=owl reruns a single rung after tuning
-const BOTS = (process.env.BOTS ?? 'duckling,owl,giraffe').split(',');
+// rank 1 floor / 4 placement / 8 boss; BOTS=owl reruns a single rung after
+// tuning. The full ladder, rank order:
+//   duckling,capybara,fox,collie,owl,bull,elephant,giraffe
+const BOTS = (process.env.BOTS ?? 'duckling,collie,giraffe').split(',');
 
 // Human argues FOR "money can buy happiness" (topic id money-happiness).
 // Lines are written the way Whisper renders live speech: lowercase, run-ons,

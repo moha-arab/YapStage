@@ -192,14 +192,14 @@ export default function Home({
       .catch(() => {});
   }, []);
 
-  const [drill, setDrill] = useState<{ skill: string; streak: number; doneToday: boolean } | null>(
+  const [drill, setDrill] = useState<{ tier: number; streak: number; doneToday: boolean } | null>(
     null,
   );
   useEffect(() => {
     void fetch('/drill')
       .then((r) => r.json())
       .then((d) => {
-        if (d?.drill) setDrill({ skill: d.skill, streak: d.streak ?? 0, doneToday: !!d.doneToday });
+        if (d?.drill) setDrill({ tier: Number(d.tier) || 1, streak: d.streak ?? 0, doneToday: !!d.doneToday });
       })
       .catch(() => {});
   }, [account.signedIn]);
@@ -551,7 +551,7 @@ export default function Home({
       <>
         <div className="lb-drill">
           <div className="lb-drill-clock">0:30</div>
-          <div className="lb-drill-t">{drill?.skill ?? t('lbDrillToday')}</div>
+          <div className="lb-drill-t">{drill ? t('drillTier', { n: drill.tier }) : t('lbDrillToday')}</div>
           <div className="lb-drill-s">{t('lbDrillSub')}</div>
         </div>
         <div className="lb-side" style={{ color: 'var(--turq)' }}>

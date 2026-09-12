@@ -7,7 +7,7 @@ import { event } from './stats.js';
 import { synthesize } from './tts.js';
 import { advanceCampaign, applyRankedResult, campaignLocksOn, getCampaign, saveCheatFlag, saveMatch } from './store.js';
 import { FLAG_AT, analyze } from './cheat.js';
-import { drillMeta, type DrillType } from './drills.js';
+import { PROMPT, TIER_META, type Drill } from './drills.js';
 import { BOTS } from './bots.js';
 
 // Local copy of the step layout (phase/speaker per index) so judge.ts has no
@@ -314,34 +314,52 @@ export interface DrillResult {
   fix: string;
 }
 
-/** Score a daily drill: one skill, thirty seconds, a number and two sentences.
-    A separate, much smaller call than the debate judge on purpose — a drill is
+/** Score a daily rebuttal drill: thirty seconds, a number and two sentences.
+    A separate, much smaller call than the debate judge on purpose: a drill is
     not a debate and borrowing the four-category rubric would grade the wrong
-    thing entirely. */
-export async function scoreDrill(
-  drill: { type: DrillType; prompt: string; material: string },
-  answer: string,
-): Promise<DrillResult> {
-  const meta = drillMeta(drill.type);
-  const system = `You are the YapMaster, coaching one thirty-second speaking drill. The drill trains ONE skill: ${meta.skill}.
+    thing entirely. One rubric for all seven tiers (2026-09-12, when the three
+    drill types became one): the tier changes what a strong answer has to
+    find, never the standard, so an 85 on Sunday and an 85 on Saturday mean
+    the same thing. The tier line, the drill's own note and the tier's caps
+    are the only parts of the prompt that move. */
+export async function scoreDrill(drill: Drill, answer: string): Promise<DrillResult> {
+  const tier = TIER_META[drill.tier];
+  const caps = tier.caps.length ? tier.caps.map((c) => `- ${c}`).join('\n') : 'none';
+  const system = `You are the YapMaster, coaching one thirty-second rebuttal drill. The drill trains ONE skill: answering the argument that was actually made, at the point where it is weakest.
 
 THE DRILL THEY WERE GIVEN
-Instruction: ${drill.prompt}
-Material: ${drill.material}
+Instruction: ${PROMPT}
+The argument: ${drill.material}
+TIER ${drill.tier} OF 7, ${tier.name}: ${tier.means}
+WHAT A STRONG ANSWER ENGAGES: ${drill.note}
 
-HOW TO GRADE (0-100, on this skill alone)
-${meta.grade}
+HOW TO GRADE (0-100)
+This is a rebuttal drill. The material is one spoken argument. They had thirty seconds to answer it.
+
+Grade four things, in this order of weight:
+1. Target. Did they answer the argument that was made, at the point this tier puts the weight on (see the tier line and the strong-answer note)? Answering a nearby easier claim, the topic in general, or just stating the opposite view is the main failure.
+2. Reason. Did they say what is wrong with that point and why, rather than asserting that it is wrong?
+3. Consequence. Did they connect the hit back to the conclusion: because that is wrong, the claim does not follow, or follows less?
+4. Concession where due. On tiers 5 to 7 the strongest answer grants what is true first and still wins the comparison. On tiers 1 to 4 a concession is neither required nor penalised.
+
+For this tier in particular: ${tier.grade}
+
+The tier changes what a strong answer has to find. It does not change the standard. An 85 on a tier 1 day and an 85 on a tier 7 day both mean they found it and explained it. The Saturday one was just harder to find. Do not inflate for difficulty and do not deflate for it.
 
 ANCHORS, use the whole range:
-- 90+: a competitive debater's answer. The skill is executed cleanly and the reasoning is explicit.
-- 70-85: the right idea, executed roughly or half-explained.
-- 50-65: gestures at the skill but mostly restates or asserts.
-- 25-45: talks about the topic without performing the skill at all.
-- 0-20: nothing usable, off-topic, or silence.
+- 90-100: found the tier's weak point, explained why it breaks the conclusion, and on tiers 5 to 7 conceded what is true. Nothing important is missing. A tournament judge would write it down.
+- 75-89: right target. The reasoning is there but rough, or the consequence for the conclusion is left for the listener to draw.
+- 60-74: engaged the argument but hit a secondary point, or hit the right point with nothing more than 'that is not true'.
+- 45-59: stated an opposing view with a reason of their own, but never answered the argument's own reasoning.
+- 25-44: talked about the topic. Restated the argument, agreed with it, or gave an opinion that never touched it.
+- 0-24: off the argument entirely, nothing usable, or near silence.
+
+CAPS FOR THIS TIER
+${caps}
 
 RULES
 - Their answer is speech-to-text of live talking: no punctuation, filler words, false starts and recognition errors are NORMAL. Never take a point off for any of that, and never mention it.
-- Grade the IDEA, not the polish. Thirty seconds of plain words that nail the skill beats a fluent thirty seconds that misses it.
+- Grade the IDEA, not the polish. Thirty seconds of plain words that land the hit beats a fluent thirty seconds that misses it.
 - You hold no opinion on the topic itself. A well-executed answer you disagree with scores exactly as high.
 - If they clearly ran out of time mid-thought, grade what they got out and say so kindly.
 - Never use em dashes or en dashes. Write like a person talking. Do not flatter: if it was weak, say what was missing.`;
@@ -531,7 +549,7 @@ async function unlockLevel(io: Io, lobby: Lobby, target: number): Promise<void> 
   // Locks dormant: record the progress but skip the "unlocked" fanfare —
   // announcing an unlock while everything is already open reads as broken.
   if (!campaignLocksOn()) return;
-  // rank 7 doesn't exist: the ladder is conquered.
+  // rank 9 doesn't exist: the ladder is conquered.
   const next = BOTS.find((b) => b.rank === target);
   io.to(lobby.code).emit('campaign:up', { level: target, unlocked: next?.name ?? null });
 }
