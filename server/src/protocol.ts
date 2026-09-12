@@ -149,8 +149,32 @@ export interface Framing {
     (mask_roster_4) — do not re-add an id here without art for it.
     TURNED OVER AGAIN 2026-09-04: goggles, hoodie and wrap came in; the oni and the
     calavera went to the vault, art intact, for a later drop. Saved lockers
-    follow the same nearest-survivor rule (mask_roster_basic). */
-export const AVATAR_IDS = ['ninja', 'oni', 'calavera', 'climber', 'gamer', 'huckster', 'alien', 'plague'] as const;
+    follow the same nearest-survivor rule (mask_roster_basic).
+    THE CAST 2026-09-12: the roster is fourteen characters drawn as busts
+    (client/src/cast.ts), his pick over a build-your-own character. Six of
+    the old masks were redrawn as busts under new names (oni to shuten,
+    calavera to marisol, gamer to quip, huckster to bally, plague to corvin,
+    alien to garn), and the ninja and the climber were drawn as busts the
+    same night under new names (fuma, crux). Saved lockers follow in
+    store.ts (mask_roster_cast). */
+export const AVATAR_IDS = [
+  'napoleon',
+  'socrates',
+  'aristotle',
+  'diogenes',
+  'athena',
+  'lincoln',
+  'dracula',
+  'humpty',
+  'bally',
+  'shuten',
+  'marisol',
+  'quip',
+  'corvin',
+  'garn',
+  'fuma',
+  'crux',
+] as const;
 export type AvatarId = (typeof AVATAR_IDS)[number];
 
 export interface LobbyUpdate {

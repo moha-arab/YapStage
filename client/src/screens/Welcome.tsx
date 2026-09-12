@@ -86,13 +86,13 @@ function ProductShot() {
         <div className="ld-app">
           <div className="ld-tile">
             <div className="ld-face">
-              <Mask id="climber" size="100%" bare />
+              <Mask id="napoleon" size="100%" bare />
             </div>
             <div className="ld-tag">zorvint · {t('sideFor')}</div>
           </div>
           <div className="ld-tile ld-tile-on">
             <div className="ld-face">
-              <Mask id="ninja" size="100%" bare />
+              <Mask id="shuten" size="100%" bare />
             </div>
             <div className="ld-tag">goat · {t('sideAgainst')}</div>
             <div className="ld-pill">{t('onTheMic')}</div>

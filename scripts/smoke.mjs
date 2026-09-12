@@ -896,11 +896,11 @@ console.log('\n=== Scenario 12: one queue per pace ===');
 
 // ---------- Scenario 13: every room starts masked ----------
 // The camera is opt-in: a seat is masked the moment it is taken, and the green
-// room toggle (pick:mask false) is how a face comes on. The roster is the four
-// current masks; a vaulted id is refused, not worn.
+// room toggle (pick:mask false) is how a face comes on. The roster is the
+// fourteen-character cast; a vaulted id is refused, not worn.
 console.log('\n=== Scenario 13: rooms start masked ===');
 {
-  const ROSTER = ['ninja', 'oni', 'calavera', 'climber', 'gamer', 'huckster', 'alien', 'plague'];
+  const ROSTER = ['napoleon', 'socrates', 'aristotle', 'diogenes', 'athena', 'lincoln', 'dracula', 'humpty', 'bally', 'shuten', 'marisol', 'quip', 'corvin', 'garn', 'fuma', 'crux'];
   const h = connect();
   const g = connect();
   const made = await emitP(h, 'lobby:create', { sessionId: 'mk-h', name: 'maskhost' });
@@ -916,12 +916,12 @@ console.log('\n=== Scenario 13: rooms start masked ===');
   const track = (u) => { last = u; };
   g.on('lobby:update', track);
   h.emit('pick:mask', false); // the host turns their camera on
-  h.emit('pick:avatar', 'oni'); // vaulted: must be refused
-  h.emit('pick:avatar', 'climber'); // on the roster: worn
+  h.emit('pick:avatar', 'ninja'); // vaulted: must be refused
+  h.emit('pick:avatar', 'napoleon'); // on the roster: worn
   await new Promise((r) => setTimeout(r, 500));
   g.off('lobby:update', track);
   check('mask: the toggle is how a camera comes on', last?.peerMasked === false && last?.yourMasked === true);
-  check('mask: a vaulted id is refused, a roster id is worn', last?.peerAvatar === 'climber');
+  check('mask: a vaulted id is refused, a roster id is worn', last?.peerAvatar === 'napoleon');
   h.disconnect();
   g.disconnect();
 }

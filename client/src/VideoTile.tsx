@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import type { Side } from '../../server/src/protocol';
 import { useI18n } from './i18n';
-import Mask from './Mask';
+import Mask, { MASK_IDS } from './Mask';
 
 interface Props {
   stream: MediaStream | null;
@@ -117,7 +117,7 @@ export default function VideoTile(props: Props) {
             which is the "masks are too small" he reported. */}
         <div className="tile-mask-wrap">
           <div className="mask-ring" style={{ '--lv': lv } as CSSProperties}>
-            <Mask id={props.maskId ?? 'ninja'} size="100%" bare />
+            <Mask id={props.maskId ?? MASK_IDS[0]} size="100%" bare />
           </div>
         </div>
         <div className="tag">

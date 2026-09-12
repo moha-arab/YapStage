@@ -251,6 +251,24 @@ export async function initStore(): Promise<void> {
       await pool!.query(`UPDATE accounts SET mask = 'climber' WHERE mask = 'goggles'`);
       await pool!.query(`UPDATE accounts SET mask = 'ninja' WHERE mask IN ('hoodie','wrap')`);
     });
+    await runOnce('mask_roster_cast', async () => {
+      // 2026-09-12: the roster is the fourteen-character cast (busts, cast.ts).
+      // Six of the old masks were redrawn as busts under new names, so their
+      // wearers follow them, and the ninja and the climber became Fuma and
+      // Crux, busts drawn the same night.
+      await pool!.query(`
+        UPDATE accounts SET mask = CASE mask
+          WHEN 'oni'      THEN 'shuten'
+          WHEN 'calavera' THEN 'marisol'
+          WHEN 'gamer'    THEN 'quip'
+          WHEN 'huckster' THEN 'bally'
+          WHEN 'plague'   THEN 'corvin'
+          WHEN 'alien'    THEN 'garn'
+          WHEN 'ninja'    THEN 'fuma'
+          WHEN 'climber'  THEN 'crux'
+          ELSE mask END
+        WHERE mask IN ('oni','calavera','gamer','huckster','plague','alien','ninja','climber')`);
+    });
     // The pre-launch waitlist (2026-08-22 to 2026-09-04) is gone with the
     // page that fed it. It only ever held one test row.
     await runOnce('drop_waitlist', async () => {

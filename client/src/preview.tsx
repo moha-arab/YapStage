@@ -24,7 +24,7 @@ import Spectate from './screens/Spectate';
 import type { Side, Verdict as VerdictData } from '../../server/src/protocol';
 import TierBadge from './TierBadge';
 import VideoTile from './VideoTile';
-import Mask from './Mask';
+import Mask, { MASK_IDS } from './Mask';
 import { ARISTOTLE_200, BOT_PORTRAITS, NAPOLEON_200 } from './dev/botPortraits';
 
 const noop = () => {};
@@ -77,7 +77,7 @@ const SCREENS: Record<string, () => JSX.Element> = {
       onRematch={noop}
       rematch={null}
       ranked
-      avatars={{ FOR: 'huckster', AGAINST: 'calavera' }}
+      avatars={{ FOR: 'bally', AGAINST: 'marisol' }}
       opponentRating={1180}
     />
   ),
@@ -220,13 +220,13 @@ const SCREENS: Record<string, () => JSX.Element> = {
       </p>
     </div>
   ),
-  /* The mask sheet: the two he kept beside the four candidates, at the sizes
-     they actually ship at (lobby stage, spectate, picker, friends list). */
+  /* The roster sheet: every character at the sizes they actually ship at
+     (lobby stage, spectate, picker, friends list). */
   masks: () => (
     <div style={{ padding: 32, background: 'var(--house)', minHeight: '100vh', color: 'var(--muted)' }}>
       {[200, 110, 54, 36].map((s) => (
         <div key={s} style={{ display: 'flex', gap: s > 100 ? 28 : 16, alignItems: 'flex-end', marginBottom: 26 }}>
-          {['ninja', 'oni', 'calavera', 'climber', 'gamer', 'huckster', 'alien', 'plague'].map((id) => (
+          {MASK_IDS.map((id) => (
             <div key={id} style={{ textAlign: 'center', fontSize: 12 }}>
               <Mask id={id} size={s} bare />
               {s === 200 ? <div style={{ marginTop: 8, fontFamily: 'Ultra, serif', fontSize: 16, color: 'var(--paper)' }}>{id}</div> : null}
@@ -250,10 +250,10 @@ const SCREENS: Record<string, () => JSX.Element> = {
         minHeight: '100vh',
       }}
     >
-      <VideoTile stream={null} muted label="zorvint" sub="FOR" side="FOR" maskId="luchador" level={0.85} active />
-      <VideoTile stream={null} muted label="goat" sub="AGAINST" side="AGAINST" maskId="calavera" level={0} />
-      <VideoTile stream={null} muted label="pizzamaster" sub="AGAINST" side="AGAINST" maskId="oni" level={0.4} active />
-      <VideoTile stream={null} muted label="kenji" sub="FOR" side="FOR" maskId="ninja" level={0} active />
+      <VideoTile stream={null} muted label="zorvint" sub="FOR" side="FOR" maskId="napoleon" level={0.85} active />
+      <VideoTile stream={null} muted label="goat" sub="AGAINST" side="AGAINST" maskId="marisol" level={0} />
+      <VideoTile stream={null} muted label="pizzamaster" sub="AGAINST" side="AGAINST" maskId="shuten" level={0.4} active />
+      <VideoTile stream={null} muted label="kenji" sub="FOR" side="FOR" maskId="diogenes" level={0} active />
     </div>
   ),
   claimName: () => <ClaimName onClaimed={noop} />,
@@ -284,7 +284,7 @@ const SCREENS: Record<string, () => JSX.Element> = {
           serverNow: Date.now(),
         },
         watchers: 3,
-        avatars: { FOR: 'climber', AGAINST: 'gamer' },
+        avatars: { FOR: 'quip', AGAINST: 'corvin' },
       }}
       onLeave={noop}
     />

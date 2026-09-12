@@ -1,3 +1,11 @@
+// THE ROSTER IS THE CAST (2026-09-12): fourteen characters drawn as busts,
+// in cast.ts, spread into MASKS below. Everything else in this file is the
+// vault: the head-only masks the roster used to be, drawn, kept, off the
+// roster. The notes below date from those masks and still hold for them.
+// The old oni, calavera, gamer, huckster, plague, alien and the helmet
+// athena are gone from here: their bust versions in cast.ts replaced them
+// (Shuten, Marisol, Quip, Bally, Corvin, Garn, Athena). git has the heads.
+//
 // Human masks. The bots are ANIMALS, so humans are MASKED FIGHTERS — you can
 // always tell a machine from a person at a glance, and the fight-poster world
 // gets its wrestling-poster half.
@@ -15,9 +23,15 @@
 // Drawn at the size they actually ship at (96-120px): details that read fine
 // at 300px turn to mud on a card. Same lesson the capybara taught.
 
+import { CAST } from './cast';
+
 const D = '#1a1712';
 
 export const MASKS: Record<string, string> = {
+  // The roster: the fourteen characters, drawn in cast.ts.
+  ...CAST,
+
+  /* ---- the vault: head-only masks, drawn, off the roster ---- */
   // Luchador: the classic. Bold face-mask panel, laced back, eye holes.
   luchador: `
     <path d="M50 12 C72 12 84 28 84 50 C84 72 68 88 50 88 C32 88 16 72 16 50 C16 28 28 12 50 12Z" fill="#d8342c"/>
@@ -29,18 +43,6 @@ export const MASKS: Record<string, string> = {
     <path d="M50 52 L46 62 L54 62Z" fill="#8f1f1a"/>
     <path d="M41 73 H59" stroke="#2a1410" stroke-width="3.5" stroke-linecap="round"/>
     <path d="M30 20 L34 26 M70 20 L66 26" stroke="#f2e8d5" stroke-width="3" stroke-linecap="round"/>`,
-  // Calavera: sugar skull. Festive-macabre, and the petal eyes carry the two
-  // stage gels, so the roster wears the brand without being told to.
-  calavera: `
-    <path d="M50 10 C72 10 82 26 82 46 C82 60 76 66 74 74 L70 88 L30 88 L26 74 C24 66 18 60 18 46 C18 26 28 10 50 10Z" fill="#f4efe4"/>
-    <circle cx="35" cy="44" r="11" fill="${D}"/><circle cx="65" cy="44" r="11" fill="${D}"/>
-    <circle cx="35" cy="44" r="5" fill="#1FC2D4"/><circle cx="65" cy="44" r="5" fill="#F0821E"/>
-    <path d="M35 29 l2.5 5 -5 0z M35 59 l2.5 -5 -5 0z M20 44 l5 2.5 0 -5z M50 44 l-5 2.5 0 -5z" fill="#e2574c"/>
-    <path d="M65 29 l2.5 5 -5 0z M65 59 l2.5 -5 -5 0z M50 44 l5 2.5 0 -5z M80 44 l-5 2.5 0 -5z" fill="#e2574c"/>
-    <path d="M50 56 L45 64 L55 64Z" fill="${D}"/>
-    <ellipse cx="50" cy="74" rx="15" ry="4" fill="${D}"/>
-    <path d="M40 70 L40 78 M47 70 L47 78 M54 70 L54 78 M61 70 L61 78" stroke="${D}" stroke-width="2.5" stroke-linecap="round"/>
-    <circle cx="50" cy="17" r="4" fill="#1FC2D4"/><circle cx="42" cy="14" r="2.5" fill="#F0821E"/><circle cx="58" cy="14" r="2.5" fill="#e2574c"/>`,
   // Ninja: hood, eye slit, all business. The dark one the roster lacked.
   ninja: `
     <path d="M50 10 C72 10 84 27 84 50 C84 73 70 90 50 90 C30 90 16 73 16 50 C16 27 28 10 50 10Z" fill="#303650"/>
@@ -50,49 +52,9 @@ export const MASKS: Record<string, string> = {
     <path d="M28 40 L42 43 M72 40 L58 43" stroke="${D}" stroke-width="2.5" stroke-linecap="round"/>
     <path d="M20 38 Q50 30 80 38 L80 42 Q50 34 20 42Z" fill="#F0821E"/>
     <path d="M78 40 L97 30 L92 38 L98 46 L80 46Z" fill="#F0821E"/>`,
-  // Oni: horned demon mask, angry brow, tusks. THE reference.
-  oni: `
-    <path d="M24 22 Q18 10 30 8 Q34 16 32 24Z" fill="#e8d7b8"/>
-    <path d="M76 22 Q82 10 70 8 Q66 16 68 24Z" fill="#e8d7b8"/>
-    <path d="M50 14 C70 14 84 30 84 52 C84 74 68 88 50 88 C32 88 16 74 16 52 C16 30 30 14 50 14Z" fill="#4d7fd6"/>
-    <path d="M24 38 L44 44 L42 50 L24 46Z" fill="${D}"/>
-    <path d="M76 38 L56 44 L58 50 L76 46Z" fill="${D}"/>
-    <circle cx="34" cy="47" r="4" fill="#ffd23e"/><circle cx="66" cy="47" r="4" fill="#ffd23e"/>
-    <path d="M40 30 Q50 26 60 30" stroke="${D}" stroke-width="3" fill="none" stroke-linecap="round"/>
-    <path d="M34 68 Q50 82 66 68 Q50 76 34 68Z" fill="#2a1410"/>
-    <path d="M38 70 L41 78 L44 70Z" fill="#f4efe4"/><path d="M56 70 L59 78 L62 70Z" fill="#f4efe4"/>`,
 
 
-  // Gamer: headset, braids, unbothered. Accent #d1305e.
-  gamer: `
-    <path d="M50 8 C74 8 89 25 89 47 C89 62 90 76 92 90 L84 90 L82 78 L76 90 L68 90 L66 76 L60 90 L52 90 L50 74 L48 90 L40 90 L34 76 L32 90 L24 90 L18 78 L16 90 L8 90 C10 76 11 62 11 47 C11 25 26 8 50 8Z" fill="#6b2038"/>
-    <path d="M17 50 L17 88 M25 54 L25 88 M75 54 L75 88 M83 50 L83 88" stroke="#4d1226" stroke-width="2.6" stroke-linecap="round"/>
-    <path d="M14 56 H21 M14 66 H21 M14 76 H21 M22 60 H29 M22 70 H29 M22 80 H29 M71 60 H78 M71 70 H78 M71 80 H78 M79 56 H86 M79 66 H86 M79 76 H86" stroke="#4d1226" stroke-width="2.2" stroke-linecap="round"/>
-    <path d="M41 11 C37 16 34 21 32 27 M59 11 C63 16 66 21 68 27" stroke="#4d1226" stroke-width="3.5" fill="none" stroke-linecap="round"/>
-    <path d="M50 20 C64 20 73 30 73 46 C73 63 63 76 50 76 C37 76 27 63 27 46 C27 30 36 20 50 20Z" fill="#85562f"/>
-    <path d="M31 40 L44 42.2 M69 40 L56 42.2" stroke="${D}" stroke-width="3.4" fill="none" stroke-linecap="round"/>
-    <circle cx="38" cy="47" r="4.5" fill="${D}"/><circle cx="62" cy="47" r="4.5" fill="${D}"/>
-    <circle cx="39.4" cy="45.6" r="1.6" fill="#fff"/><circle cx="63.4" cy="45.6" r="1.6" fill="#fff"/>
-    <path d="M50 52 L46.5 59 L53.5 59Z" fill="#6b4326"/>
-    <path d="M43.5 66.2 Q50 69.4 56.5 65.4" stroke="${D}" stroke-width="3.4" fill="none" stroke-linecap="round"/>
-    <path d="M17 52 C17 4 83 4 83 52" stroke="#d1305e" stroke-width="7" fill="none" stroke-linecap="round"/>
-    <rect x="7" y="42" width="20" height="23" rx="7" fill="${D}"/><rect x="73" y="42" width="20" height="23" rx="7" fill="${D}"/>
-    <rect x="10.5" y="45.5" width="13" height="16" rx="5" fill="#d1305e"/><rect x="76.5" y="45.5" width="13" height="16" rx="5" fill="#d1305e"/>
-    <rect x="14" y="49" width="6" height="9" rx="3" fill="#f4efe4"/><rect x="80" y="49" width="6" height="9" rx="3" fill="#f4efe4"/>
-    <path d="M85 66 C84 74 77 77 70 74.5" stroke="#f4efe4" stroke-width="4" fill="none" stroke-linecap="round"/>
-    <circle cx="67.5" cy="73.5" r="4.4" fill="#f4efe4"/>`,
 
-  // Huckster: carnival ringmaster. Accent crimson #e2574c hat with a turquoise #1FC2D4 hatband.
-  huckster: `
-    <path d="M50 18 C69 18 78 31 78 55 C78 76 66 91 50 91 C34 91 22 76 22 55 C22 31 31 18 50 18Z" fill="#dcae83"/>
-    <path d="M32 3.7 L71.9 6.5 L66 34.1 L34 31.9Z" fill="#e2574c"/>
-    <path d="M33.2 20.8 L68.3 23.3 L66 34.1 L34 31.9Z" fill="#1FC2D4"/>
-    <path d="M12.2 29.3 Q50.4 28 88 34.7 L87.6 40.1 Q49.3 42.5 11.8 34.8Z" fill="#e2574c"/>
-    <path d="M28 47 L41 51 M72 47 L59 51" stroke="${D}" stroke-width="3.6" stroke-linecap="round"/>
-    <circle cx="36" cy="54" r="4.7" fill="${D}"/><circle cx="64" cy="54" r="4.7" fill="${D}"/>
-    <circle cx="37.4" cy="52.6" r="1.7" fill="#fff"/><circle cx="65.4" cy="52.6" r="1.7" fill="#fff"/>
-    <path d="M50 66 C44 66 38 66 34 65 C31 64.3 28.8 63.2 26.6 61 C23.8 58.6 22.4 62.8 24.8 66.6 C26.6 70.4 29 74.2 32.2 76.5 C35.5 79 39 80.3 42.5 80.3 C46 80.3 48.5 77.7 50 74.2 C51.5 77.7 54 80.3 57.5 80.3 C61 80.3 64.5 79 67.8 76.5 C71 74.2 73.4 70.4 75.2 66.6 C77.6 62.8 76.2 58.6 73.4 61 C71.2 63.2 69 64.3 66 65 C62 66 56 66 50 66Z" fill="${D}"/>
-    <path d="M39.5 85 Q50 80.6 60.5 85" stroke="${D}" stroke-width="3.6" fill="none" stroke-linecap="round"/>`,
 
   /* ---- the basic four, take four (2026-09-04). What the ninja gets right
      and every failed draft broke: full head coverage, ONLY the eyes showing,
@@ -234,25 +196,6 @@ export const MASKS: Record<string, string> = {
 
 
 // Athena: the Corinthian helmet, worn DOWN. Two and a half thousand years
-  // ago somebody already solved the house rule — full head, only the eyes,
-  // and a crest that breaks the egg the way the oni horns do. Grey-eyed, per
-  // Homer. Bronze, never gold: gold means a win in this app.
-  athena: `
-    <path d="M39 32 L39 12 C39 5 44 0 50 0 C56 0 61 5 61 12 L61 32Z" fill="#1FC2D4"/>
-    <path d="M50 0 C56 0 59 5 59 12 L59 32 L50 32Z" fill="#5cd8e5"/>
-    <path d="M44 5 L44 32 M50 2 L50 32 M56 5 L56 32" stroke="#12889a" stroke-width="1.6"/>
-    <path d="M36 26 Q50 21 64 26 L64 34 Q50 29 36 34Z" fill="#79501f"/>
-    <path d="M50 22 C68 22 79 36 79 54 C79 65 75 73 70 79 L67 88 C66 91 63 93 60 93 L40 93 C37 93 34 91 33 88 L30 79 C25 73 21 65 21 54 C21 36 32 22 50 22Z" fill="#9c6c39"/>
-    <path d="M50 22 C68 22 79 36 79 54 L21 54 C21 36 32 22 50 22Z" fill="#c08a49"/>
-    <path d="M23 44 Q50 37 77 44 L77 49 Q50 42 23 49Z" fill="#79501f"/>
-    <path d="M24 52 Q34 45 44 51 L43 57 Q33 62 24 56Z" fill="#141210"/>
-    <path d="M76 52 Q66 45 56 51 L57 57 Q67 62 76 56Z" fill="#141210"/>
-    <ellipse cx="33.5" cy="53" rx="3.4" ry="2.8" fill="#e2f1f4"/><ellipse cx="66.5" cy="53" rx="3.4" ry="2.8" fill="#e2f1f4"/>
-    <circle cx="32.6" cy="52.3" r="1" fill="#fff"/><circle cx="65.6" cy="52.3" r="1" fill="#fff"/>
-    <path d="M45.5 63 L54.5 63 L53.5 93 L46.5 93Z" fill="#141210"/>
-    <path d="M46 42 L54 42 L52.8 66 Q50 69 47.2 66Z" fill="#c08a49"/>
-    <path d="M46 42 L50 42 L50 68 Q48 68 47.2 66Z" fill="#a8763f"/>
-    <path d="M32 69 Q35 79 34 89 M68 69 Q65 79 66 89" stroke="#79501f" stroke-width="2.4" fill="none" stroke-linecap="round"/>`,
 
   /* ---- saved for later (2026-09-04, his call: too good for the free set) ---- */
 
@@ -270,21 +213,6 @@ export const MASKS: Record<string, string> = {
     <path d="M50 42 L45 68 L50 92Z" fill="#a8281f"/>
     <path d="M28 74 Q39 67 46 76 Q40 79 30 80Z" fill="#f4efe4"/>
     <path d="M72 74 Q61 67 54 76 Q60 79 70 80Z" fill="#f4efe4"/>`,
-  // Plague doctor: leather hood, brass goggles, the beak. The forehead
-  // strap is the one hard black shape it needs to read at 36px.
-  plague: `
-    <path d="M50 8 C75 8 87 27 87 52 C87 74 74 89 58 92 L42 92 C26 89 13 74 13 52 C13 27 25 8 50 8Z" fill="#4a3c2c"/>
-    <path d="M50 8 C75 8 87 27 87 52 C87 62 84 71 79 78 C82 69 83 60 83 52 C83 30 72 14 50 14 C28 14 17 30 17 52 C17 60 18 69 21 78 C16 71 13 62 13 52 C13 27 25 8 50 8Z" fill="#5f4d38"/>
-    <path d="M14 34 Q50 20 86 34 L86 41 Q50 27 14 41Z" fill="${D}"/>
-    <rect x="22" y="35" width="9" height="7" rx="2" fill="#b8863b"/><rect x="69" y="35" width="9" height="7" rx="2" fill="#b8863b"/>
-    <circle cx="33" cy="48" r="13" fill="#b8863b"/><circle cx="67" cy="48" r="13" fill="#b8863b"/>
-    <circle cx="33" cy="48" r="9.5" fill="#14333a"/><circle cx="67" cy="48" r="9.5" fill="#14333a"/>
-    <path d="M26 44 Q31 39 38 42 Q31 43 27 47Z" fill="#f4efe4" opacity="0.8"/>
-    <path d="M60 44 Q65 39 72 42 Q65 43 61 47Z" fill="#f4efe4" opacity="0.8"/>
-    <path d="M38 56 Q50 51 62 56 C63 67 61 78 56 87 C53.5 92 51.5 96 50 99 C48.5 96 46.5 92 44 87 C39 78 37 67 38 56Z" fill="#7a6144"/>
-    <path d="M50 52.5 Q62 55 62 56 C63 67 61 78 56 87 C53.5 92 51.5 96 50 99Z" fill="#5c4831"/>
-    <path d="M41 62 Q50 59 59 62" stroke="${D}" stroke-width="2" fill="none" stroke-linecap="round"/>
-    <path d="M43 72 Q50 70 57 72" stroke="${D}" stroke-width="1.8" fill="none" stroke-linecap="round"/>`,
   // Tiki: carved wood. Geometric eyes, a wall of teeth, and a crest that
   // wears the gels the way the calavera's petals do.
   tiki: `
@@ -298,24 +226,11 @@ export const MASKS: Record<string, string> = {
     <rect x="18" y="66" width="64" height="17" rx="3" fill="${D}"/>
     <path d="M22 66 L27 75 L32 66Z M34 66 L39 75 L44 66Z M46 66 L51 75 L56 66Z M58 66 L63 75 L68 66Z M70 66 L75 75 L80 66Z" fill="#f4efe4"/>
     <path d="M16 56 V84 M84 56 V84" stroke="#7a4218" stroke-width="3" stroke-linecap="round"/>`,
-  // Alien: the grey. All eyes. Nothing on it smiles.
-  alien: `
-    <path d="M50 3 C77 3 91 22 91 44 C91 61 80 77 65 88 C59 92 54 95 50 95 C46 95 41 92 35 88 C20 77 9 61 9 44 C9 22 23 3 50 3Z" fill="#8b93a6"/>
-    <path d="M50 3 C77 3 91 22 91 44 C91 52 88 60 84 67 C86 58 87 50 87 44 C87 24 74 9 50 9 C26 9 13 24 13 44 C13 50 14 58 16 67 C12 60 9 52 9 44 C9 22 23 3 50 3Z" fill="#a6aec0"/>
-    <path d="M34 16 Q50 12 66 16" stroke="#79819a" stroke-width="2.6" fill="none" stroke-linecap="round"/>
-    <path d="M28 24 Q50 19 72 24" stroke="#79819a" stroke-width="2.2" fill="none" stroke-linecap="round"/>
-    <path d="M14 40 Q31 30 46 50 Q41 69 23 62 Q10 54 14 40Z" fill="#0e1116"/>
-    <path d="M86 40 Q69 30 54 50 Q59 69 77 62 Q90 54 86 40Z" fill="#0e1116"/>
-    <path d="M17 43 Q26 37 34 45 Q26 42 19 47Z" fill="#333c4a"/>
-    <path d="M83 43 Q74 37 66 45 Q74 42 81 47Z" fill="#333c4a"/>
-    <circle cx="22.5" cy="48" r="2.2" fill="#1FC2D4"/><circle cx="77.5" cy="48" r="2.2" fill="#1FC2D4"/>
-    <path d="M47.5 70 L46.5 74 M52.5 70 L53.5 74" stroke="#6f7789" stroke-width="2.2" stroke-linecap="round"/>
-    <path d="M44.5 82 H55.5" stroke="#6f7789" stroke-width="2.6" stroke-linecap="round"/>`,
 };
 
 /** The set the picker offers, in display order. Mirrors AVATAR_IDS. Explicit,
     not Object.keys: MASKS also holds candidates that are not on the roster. */
-export const MASK_IDS = ['ninja', 'oni', 'calavera', 'climber', 'gamer', 'huckster', 'alien', 'plague'];
+export const MASK_IDS = ['napoleon', 'socrates', 'aristotle', 'diogenes', 'athena', 'lincoln', 'dracula', 'humpty', 'bally', 'shuten', 'marisol', 'quip', 'corvin', 'garn', 'fuma', 'crux'];
 
 interface Props {
   id: string;
@@ -328,7 +243,7 @@ interface Props {
 }
 
 export default function Mask({ id, size = 120, color, bare }: Props) {
-  const svg = MASKS[id] ?? MASKS.oni;
+  const svg = MASKS[id] ?? MASKS.shuten;
   if (bare) {
     return (
       <svg
