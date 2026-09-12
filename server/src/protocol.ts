@@ -6,13 +6,21 @@ export type Side = 'FOR' | 'AGAINST';
 export type Role = 'host' | 'guest';
 export type PhaseLabel = 'opening' | 'rebuttal' | 'defense' | 'closing';
 
+/** The host's side setting for a friend room or a bot game: a fixed side,
+    or 'random' for the coin. The coin is the default and stays the norm
+    (arguing the side you were dealt is the skill); a chosen side is for the
+    host who wants to practise one argument, or who set the motion knowing
+    which half of it they want. */
+export type SidePick = Side | 'random';
+
 // How the debate's topic gets decided (host chooses):
-//  agree    — both pick the exact topic + sides (the negotiated flow)
-//  category — host picks a category; server rolls a random topic + sides from it
-//  random   — server rolls category, topic, and sides
-//  dispute  — settle-it mode: you both describe a REAL argument you're having
-//             in your own words, and the judge rules who's right, not who
-//             argued a motion better.
+//  agree:    the host names the exact motion from the deck
+//  category: host picks a category; server rolls a random topic from it
+//  random:   server rolls category and topic
+//  dispute:  settle-it mode: you both describe a REAL argument you're having
+//            in your own words, and the judge rules who's right, not who
+//            argued a motion better.
+// Sides are a separate setting (SidePick), the same in every mode.
 export type TopicMode = 'agree' | 'category' | 'random' | 'dispute';
 
 export type Difficulty = 'easy' | 'medium' | 'hard';
@@ -116,13 +124,13 @@ export interface TopicCategory {
   topics: TopicText[];
 }
 
-/** Pregame picks (topic ids). The debate starts only when both players
-    picked the same topic, opposite sides, and both confirmed. */
+/** Pregame picks (topic ids). The host names the topic and the server
+    mirrors it, so the two ids only differ for a moment; the debate starts
+    when both have confirmed. Sides live on LobbyUpdate.hostSide, not here:
+    they are one host setting, not a pick per seat. */
 export interface PickState {
   yourTopicId: string | null;
   peerTopicId: string | null;
-  yourSide: Side | null;
-  peerSide: Side | null;
   youConfirmed: boolean;
   peerConfirmed: boolean;
   /** Dispute mode: your own account of the argument, in your own words. You
@@ -194,6 +202,9 @@ export interface LobbyUpdate {
   topicMode: TopicMode;
   /** In 'category' mode, the host-chosen category key (else null). */
   categoryKey: string | null;
+  /** The host's side, or 'random' for the coin (the default). The guest
+      argues the other one. Ranked never leaves 'random'. */
+  hostSide: SidePick;
   pace: Pace;
   pick: PickState;
   iceServers: IceServer[];
@@ -331,10 +342,12 @@ export interface ClientToServer {
   'pick:avatar': (id: string) => void; // any seat, pre-debate: choose your mask
   'pick:mask': (on: boolean) => void; // any seat, custom only: mask instead of camera
   'pick:spectators': (allowed: boolean) => void; // host only, custom: open the door to watchers
-  'pick:topic': (topicId: string) => void; // set YOUR topic choice (by id)
+  'pick:topic': (topicId: string) => void; // host only: the exact motion (by id)
   /** Dispute mode: describe the argument in YOUR own words (≤400 chars). */
   'pick:dispute': (text: string) => void;
-  'pick:side': (side: Side) => void; // set YOUR side
+  /** Host only, any topic mode: which side the host argues, or 'random' for
+      the coin. Used to be a per-seat pick that nothing read. */
+  'pick:side': (side: SidePick) => void;
   'pick:confirm': () => void; // second confirm (with matching picks) starts the debate
   'rtc:ready': () => void;
   'rtc:signal': (p: SignalPayload) => void;

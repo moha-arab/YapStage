@@ -55,7 +55,28 @@ const en: Dict = {
   lbGoWatch: 'watch',
   lbWaitFriend: 'Pick a friend first',
   lbWaitBot: 'Pick a bot first',
+  lbWaitCategory: 'Pick a category first',
+  lbWaitTopic: 'Pick a topic first',
   lbWaitWatch: 'Nothing live right now',
+
+  /* The match settings panel (MatchSetup), on the stage and in the green
+     room. Two facts and their chips, then the guest's read-only sentences. */
+  setupTopic: 'topic',
+  setupSide: 'side',
+  setupFrom: 'from',
+  setupMode_random: 'random',
+  setupMode_category: 'a category',
+  setupMode_agree: 'one I pick',
+  setupSide_random: 'coin flip',
+  setupSide_FOR: 'for',
+  setupSide_AGAINST: 'against',
+  setupTopicRandom: 'Topic: random.',
+  setupTopicCategory: 'Topic: random from {x}.',
+  setupTopicCategoryNone: 'Topic: {x} is picking a category.',
+  setupTopicOne: 'Topic: {x}.',
+  setupTopicOneNone: 'Topic: {x} is picking one.',
+  setupSideCoin: 'Side: the coin decides.',
+  setupSideSet: 'Side: {x} argues {s}, you argue {o}.',
 
   lbPickFriend: 'pick a<br>friend',
   lbPickBot: 'pick a<br>bot',
@@ -130,9 +151,9 @@ const en: Dict = {
   lbCap_ranked:
     'A stranger and a random topic, five minutes. The coin picks your side, the judge picks the winner. <b>This one moves your rating.</b>',
   lbCap_friend:
-    'Send the code or the link to one friend and <b>they walk straight in.</b> You pick the topic, the coin picks the sides, and nobody’s rating moves.',
+    'Send the code or the link to one friend and <b>they walk straight in.</b> You set the topic and the sides, or leave both to chance. Nobody’s rating moves.',
   lbCapFriendPicked:
-    '<b>{x}</b> gets a knock on the door and lands in your room. You pick the topic, the coin picks the sides, and <b>nobody’s rating moves.</b>',
+    '<b>{x}</b> gets a knock on the door and lands in your room. You set the topic and the sides, and <b>nobody’s rating moves.</b>',
   lbCap_bot:
     'Eight bots, easiest to hardest, each with a <b>fixed rating</b>. Beat the one above you to climb. Bot matches do not move your rating.',
   lbCapBotPicked:
@@ -433,10 +454,11 @@ const en: Dict = {
   mode_agree: 'Pick a topic',
   mode_category: 'Random from a category',
   mode_random: 'Surprise us',
-  modeHostControls: '{x} sets the topic.',
-  categoryDesc: "you'll get a random topic from this category. sides are random too.",
-  randomDesc: 'A random topic, right now. Sides are flipped for you.',
-  sidesFlipped: 'Sides are flipped like a coin once you both confirm.',
+  modeHostControls: '{x} sets the topic and the sides.',
+  // These two stopped promising a coin on 2026-09-12: the side is its own
+  // setting now, and the panel next to them says what it is.
+  categoryDesc: 'A random topic from this category, revealed when you both confirm.',
+  randomDesc: 'A random topic, revealed when you both confirm.',
   waitTopic: '{x} is choosing the topic',
   paceLabel: 'Pace',
   pace_standard: 'Standard',
@@ -951,10 +973,9 @@ const ar: Dict = {
   mode_agree: 'اختر موضوعاً',
   mode_category: 'عشوائي من فئة',
   mode_random: 'فاجئنا',
-  modeHostControls: '{x} يحدّد الموضوع.',
-  categoryDesc: 'ستحصلان على موضوع عشوائي من هذه الفئة، والأطراف عشوائية أيضاً.',
-  randomDesc: 'موضوع عشوائي، الآن. والأطراف تُقلب لكما.',
-  sidesFlipped: 'تُقلب الأطراف كالعملة بعد تأكيدكما.',
+  modeHostControls: '{x} يحدّد الموضوع والأطراف.',
+  categoryDesc: 'موضوع عشوائي من هذه الفئة، يُكشف بعد تأكيدكما.',
+  randomDesc: 'موضوع عشوائي، يُكشف بعد تأكيدكما.',
   waitTopic: '{x} يختار الموضوع',
   paceLabel: 'الإيقاع',
   pace_standard: 'عادي',

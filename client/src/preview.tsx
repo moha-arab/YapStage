@@ -22,7 +22,8 @@ import ClaimName from './screens/ClaimName';
 import BotSelect from './screens/BotSelect';
 import Spectate from './screens/Spectate';
 import Home from './screens/Home';
-import type { Side, Verdict as VerdictData } from '../../server/src/protocol';
+import GreenRoom from './screens/GreenRoom';
+import type { LobbyUpdate, Side, Verdict as VerdictData } from '../../server/src/protocol';
 import TierBadge from './TierBadge';
 import VideoTile from './VideoTile';
 import Mask, { MASK_IDS } from './Mask';
@@ -57,6 +58,61 @@ const VERDICT: VerdictData = {
 };
 
 const names: Record<Side, string> = { FOR: 'zorvint', AGAINST: 'goat' };
+
+// A two-seat friend room, the host having asked for a category and a side.
+// Three fake tabs stand in for the deck (the client cannot import it).
+const GREEN: LobbyUpdate = {
+  code: 'ABCDEF',
+  role: 'host',
+  yourName: 'zorvint',
+  peerName: 'goat',
+  participantCount: 2,
+  locked: true,
+  deck: [
+    {
+      key: 'sport',
+      label: { en: 'sport', ar: 'الرياضة' },
+      topics: [
+        { id: 'messi-ronaldo', en: 'Messi is better than Ronaldo', ar: '' },
+        { id: 'chess-sport', en: 'Chess is a sport', ar: '' },
+        { id: 'var-ruined', en: 'VAR has ruined football', ar: '' },
+      ],
+    },
+    {
+      key: 'food',
+      label: { en: 'food', ar: 'الطعام' },
+      topics: [
+        { id: 'cereal-soup', en: 'Cereal is a soup', ar: '' },
+        { id: 'tea-coffee', en: 'Tea is better than coffee', ar: '' },
+      ],
+    },
+    {
+      key: 'money',
+      label: { en: 'money', ar: 'المال' },
+      topics: [{ id: 'money-happiness', en: 'Money can buy happiness', ar: '' }],
+    },
+  ],
+  topicMode: 'category',
+  categoryKey: 'sport',
+  hostSide: 'AGAINST',
+  pace: 'standard',
+  pick: {
+    yourTopicId: null,
+    peerTopicId: null,
+    youConfirmed: false,
+    peerConfirmed: false,
+    yourDispute: null,
+    peerDisputeReady: false,
+    disputeProblem: null,
+  },
+  iceServers: [],
+  sttAvailable: true,
+  yourAvatar: 'quip',
+  peerAvatar: 'corvin',
+  yourMasked: true,
+  peerMasked: true,
+  spectatorsAllowed: true,
+};
 
 const SCREENS: Record<string, () => JSX.Element> = {
   verdict: () => (
@@ -384,6 +440,30 @@ const SCREENS: Record<string, () => JSX.Element> = {
   ),
   /* The opening, held at the end of its run (no timer, no exit). */
   splash: () => <Splash hold />,
+  // The green room with the friend in: the host's settings panel, and what
+  // the guest reads instead of it.
+  greenRoomHost: () => (
+    <GreenRoom
+      lobby={{ ...GREEN, role: 'host', yourName: 'zorvint', peerName: 'goat' }}
+      localStream={null}
+      remoteStream={null}
+      mediaError={null}
+      speechSupported
+      rtcState="connected"
+      onRetryMedia={noop}
+    />
+  ),
+  greenRoomGuest: () => (
+    <GreenRoom
+      lobby={{ ...GREEN, role: 'guest', yourName: 'goat', peerName: 'zorvint' }}
+      localStream={null}
+      remoteStream={null}
+      mediaError={null}
+      speechSupported
+      rtcState="connected"
+      onRetryMedia={noop}
+    />
+  ),
   botSelect: () => (
     <BotSelect
       localStream={null}

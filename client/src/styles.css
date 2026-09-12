@@ -3417,6 +3417,59 @@ html[dir='rtl'] .meter-hint {
   color: var(--muted);
 }
 
+/* The match settings panel (MatchSetup): two labelled rows of chips, plus a
+   category row or a list of motions when asked for. Shared by the lobby stage
+   and the green room, so it wears the green room's chips (.cat-tab) and lives
+   here rather than in lobby.css. */
+.ms {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  text-align: start;
+}
+.ms-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.ms-lab {
+  flex: 0 0 auto;
+  width: 44px;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.ms-lab-quiet {
+  color: rgba(154, 151, 176, 0.55); /* --muted, faded: a sub-row, not a fact */
+}
+.ms-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-width: 0;
+}
+.ms-chips .cat-tab {
+  padding: 6px 11px;
+  letter-spacing: 0.1em;
+  white-space: nowrap;
+}
+/* The motions wrap as chips rather than stacking as full-width rows: seven
+   rows of 40px is a screen, seven chips is three lines. */
+.ms-topics {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-inline-start: 54px;
+}
+.ms-topics .topic-btn {
+  font-size: 13px;
+  padding: 6px 10px;
+  border-width: 1px;
+  border-radius: 4px;
+}
+
 /* debate school */
 .learn-link {
   margin-top: 2px;

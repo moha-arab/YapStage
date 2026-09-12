@@ -218,21 +218,12 @@ export function startDebate(io: Io, lobby: Lobby): void {
   if (lobby.status !== 'greenroom' || !lobby.host || !lobby.guest) return;
   const { pick, topicMode } = lobby;
 
-  // Resolve the motion and who argues which side, per mode. Random modes roll
-  // here (server-authoritative) so the fight-card reveal is the first anyone
-  // sees of the topic — no one can preview-and-bail.
+  // Resolve the motion per mode. Random modes roll here (server-authoritative)
+  // so the fight-card reveal is the first anyone sees of the topic: no one
+  // can preview-and-bail.
   let topic: TopicText | undefined;
-  let hostSide: Side;
-  let guestSide: Side;
-
   if (topicMode === 'agree') {
-    // The host names the topic; sides are a coin flip. Letting people CHOOSE a
-    // side sounds fair and isn't — everyone grabs the side they already believe,
-    // which is the opposite of a debating exercise. Arguing the side you were
-    // dealt is the skill.
     topic = pick.hostTopicId ? TOPIC_BY_ID.get(pick.hostTopicId) : undefined;
-    if (!topic) return;
-    [hostSide, guestSide] = Math.random() < 0.5 ? ['FOR', 'AGAINST'] : ['AGAINST', 'FOR'];
   } else {
     const pool =
       topicMode === 'category'
@@ -240,13 +231,22 @@ export function startDebate(io: Io, lobby: Lobby): void {
         : randomOf(TOPIC_CATEGORIES).topics;
     if (!pool || pool.length === 0) return;
     topic = randomOf(pool);
-    // Coin-flip who's FOR — you don't get to grab the easy side.
-    [hostSide, guestSide] = Math.random() < 0.5 ? ['FOR', 'AGAINST'] : ['AGAINST', 'FOR'];
   }
   if (!topic) return;
 
+  // Sides: the host's setting, the same in every mode. Until 2026-09-12 this
+  // was a coin flip in every mode, on the grounds that letting people CHOOSE
+  // a side sounds fair and isn't: everyone grabs the side they already
+  // believe, and arguing the side you were dealt is the skill. His call
+  // reversed it for friend rooms ("choose for or against, make it random"),
+  // and the old reasoning survives as the default: hostSide is 'random'
+  // unless the host reached for a side, and ranked never lets them.
+  const hostSide: Side =
+    lobby.hostSide === 'random' ? (Math.random() < 0.5 ? 'FOR' : 'AGAINST') : lobby.hostSide;
+  const guestSide: Side = hostSide === 'FOR' ? 'AGAINST' : 'FOR';
+
   touch(lobby);
-  event('debate_started', { code: lobby.code, topic: topic.id, mode: topicMode });
+  event('debate_started', { code: lobby.code, topic: topic.id, mode: topicMode, side: lobby.hostSide });
   lobby.status = 'in_debate';
   lobby.topic = topic;
   lobby.sides = { host: hostSide, guest: guestSide };

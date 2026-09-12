@@ -200,7 +200,16 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    socket.on('lobby:update', (u) => setLobby(u));
+    socket.on('lobby:update', (u) => {
+      // A one-seat update with no lobby set is the host's own settings echo
+      // from the stage (Home listens for those). Taking it would flip the
+      // host into the green room's waiting view on the first chip tap. Every
+      // real entry still lands: the guest is seated by the join ack, the host
+      // sees two seats when the friend walks in, ranked comes by queue:matched,
+      // and a guest leaving the green room happens while the lobby is set.
+      if (!lobbyRef.current && u.participantCount === 1) return;
+      setLobby(u);
+    });
     // Spectator plumbing: the snapshot (kept here so the Spectate screen can
     // mount with it instead of racing the event) and the watcher count that
     // debaters must always see.

@@ -704,12 +704,11 @@ function updateFor(lobby: Lobby, receiver: Participant): LobbyUpdate {
     deck: TOPIC_CATEGORIES,
     topicMode: lobby.topicMode,
     categoryKey: lobby.categoryKey,
+    hostSide: lobby.hostSide,
     pace: lobby.pace,
     pick: {
       yourTopicId: isHost ? pick.hostTopicId : pick.guestTopicId,
       peerTopicId: isHost ? pick.guestTopicId : pick.hostTopicId,
-      yourSide: isHost ? pick.hostSide : pick.guestSide,
-      peerSide: isHost ? pick.guestSide : pick.hostSide,
       youConfirmed: isHost ? pick.hostConfirmed : pick.guestConfirmed,
       peerConfirmed: isHost ? pick.guestConfirmed : pick.hostConfirmed,
       // You get YOUR OWN account back, and only whether theirs has landed.
@@ -780,12 +779,10 @@ function resetForRematch(lobby: Lobby): void {
   lobby.rematch = { host: false, guest: false };
   lobby.coachAsks = 0;
   lobby.coachLog = [];
-  // Keep topicMode + categoryKey (they land back on the same setup). Clear the
-  // per-player picks + confirms so they choose fresh.
+  // Keep topicMode, categoryKey and hostSide (they land back on the same
+  // setup). Clear the topic picks + confirms so they choose fresh.
   lobby.pick.hostTopicId = null;
   lobby.pick.guestTopicId = null;
-  lobby.pick.hostSide = null;
-  lobby.pick.guestSide = null;
   lobby.pick.hostConfirmed = false;
   lobby.pick.guestConfirmed = false;
   touch(lobby);
@@ -1051,11 +1048,15 @@ io.on('connection', (socket) => {
     broadcastLobbyUpdate(lobby);
   });
 
-  // Host picks the category for 'category' mode.
+  // Host picks the category for 'category' mode. 'waiting' is allowed, like
+  // pick:mode: the host sets the match up on the stage before the friend
+  // walks in, and a pick dropped for arriving early would have to be made
+  // again in the green room without anyone saying so.
   socket.on('pick:category', (key) => {
     if (!allow(`pick:${socket.id}`, 60, 10_000)) return;
     const lobby = socket.data.code ? getLobby(socket.data.code) : undefined;
-    if (!lobby || lobby.status !== 'greenroom' || lobby.topicMode !== 'category') return;
+    if (!lobby || (lobby.status !== 'greenroom' && lobby.status !== 'waiting')) return;
+    if (lobby.topicMode !== 'category') return;
     if (participantOf(lobby, socket.id) !== lobby.host) return; // host-only
     const k = String(key ?? '');
     if (!TOPIC_CATEGORIES.some((c) => c.key === k)) return;
@@ -1067,10 +1068,12 @@ io.on('connection', (socket) => {
     broadcastLobbyUpdate(lobby);
   });
 
+  // 'waiting' is allowed for the same reason as pick:category.
   socket.on('pick:topic', (topicId) => {
     if (!allow(`pick:${socket.id}`, 60, 10_000)) return;
     const lobby = socket.data.code ? getLobby(socket.data.code) : undefined;
-    if (!lobby || lobby.status !== 'greenroom' || lobby.topicMode !== 'agree') return;
+    if (!lobby || (lobby.status !== 'greenroom' && lobby.status !== 'waiting')) return;
+    if (lobby.topicMode !== 'agree') return;
     const me = participantOf(lobby, socket.id);
     if (!me) return;
     const id = String(topicId ?? '');
@@ -1079,9 +1082,10 @@ io.on('connection', (socket) => {
     // sense"). The old flow needed BOTH players to land on the same topic AND
     // opposite sides AND both confirm — four negotiations before a debate could
     // start, and a green room full of "waiting for them to pick the same
-    // topic". Now the HOST sets the topic and the server coin-flips sides,
-    // which is how every challenge-based game works: the challenger names the
-    // terms, the other accepts.
+    // topic". Now the HOST sets the terms, which is how every challenge-based
+    // game works: the challenger names them, the other accepts. Sides are
+    // the host's call too since 2026-09-12 (pick:side below); the coin is
+    // still the default.
     if (me !== lobby.host) return;
     if (lobby.pick.hostTopicId === id) return; // no-op picks don't rebroadcast
     lobby.pick.hostTopicId = id;
@@ -1093,16 +1097,23 @@ io.on('connection', (socket) => {
     broadcastLobbyUpdate(lobby);
   });
 
+  // The host's side: FOR, AGAINST, or 'random' for the coin. Host-only, any
+  // topic mode, stage or green room. Until 2026-09-12 this was a per-seat
+  // pick that nothing read: the design held that sides are always dealt,
+  // because everyone grabs the side they already believe. His call reversed
+  // it for friend rooms and bot games ("choose for or against, make it
+  // random"), and the answer to the old worry is the default: the coin stays
+  // the norm, a side is something the host has to reach for, and ranked
+  // never takes this event at all.
   socket.on('pick:side', (side) => {
     if (!allow(`pick:${socket.id}`, 60, 10_000)) return;
     const lobby = socket.data.code ? getLobby(socket.data.code) : undefined;
-    if (!lobby || lobby.status !== 'greenroom' || lobby.topicMode !== 'agree') return;
-    const me = participantOf(lobby, socket.id);
-    if (!me) return;
-    if (side !== 'FOR' && side !== 'AGAINST') return;
-    if ((me === lobby.host ? lobby.pick.hostSide : lobby.pick.guestSide) === side) return;
-    if (me === lobby.host) lobby.pick.hostSide = side;
-    else lobby.pick.guestSide = side;
+    if (!lobby || (lobby.status !== 'greenroom' && lobby.status !== 'waiting')) return;
+    if (lobby.ranked) return; // ranked is fixed-format
+    if (participantOf(lobby, socket.id) !== lobby.host) return; // host-only
+    if (side !== 'FOR' && side !== 'AGAINST' && side !== 'random') return;
+    if (lobby.hostSide === side) return;
+    lobby.hostSide = side;
     lobby.pick.hostConfirmed = false;
     lobby.pick.guestConfirmed = false;
     touch(lobby);
@@ -1136,7 +1147,8 @@ io.on('connection', (socket) => {
     const { pick } = lobby;
     // What "ready to confirm" means depends on the mode. In 'agree' the host
     // names the topic and the server mirrors it, so there is exactly one thing
-    // to wait for. Sides are dealt at the start, never chosen.
+    // to wait for. The side setting never blocks: it always has a value, and
+    // 'random' means the coin at the start.
     const ready =
       lobby.topicMode === 'agree'
         ? pick.hostTopicId !== null
@@ -1725,7 +1737,6 @@ io.on('connection', (socket) => {
         lobby.status = 'waiting';
         // clear the departed guest's picks and all confirmations
         lobby.pick.guestTopicId = null;
-        lobby.pick.guestSide = null;
         lobby.pick.hostConfirmed = false;
         lobby.pick.guestConfirmed = false;
         if (lobby.host) lobby.host.rtcReady = false;

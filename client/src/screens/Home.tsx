@@ -13,10 +13,20 @@
 //   4. NO FRIENDS LIST (2026-09-04, his call: "overcomplicating it"). Play a
 //      friend is a code and a link, full stop. The server still has friends;
 //      the UI does not. "Maybe we can look at it later."
-//   5. NO SIDES IN THE LOBBY. You were always drawn as FOR, and he asked why
-//      ("isn't that kind of weird?"). The coin deals sides when the match
-//      starts; here it is just you and whoever is opposite. Watch mode is the
-//      one exception: those two really are FOR and AGAINST.
+//   5. NO SIDES ON THE ART. You were always drawn as FOR, and he asked why
+//      ("isn't that kind of weird?"), so the stage shows you and whoever is
+//      opposite, no labels. Watch mode is the one exception: those two really
+//      are FOR and AGAINST. Since 2026-09-12 the side IS a setting, in the
+//      panel under the fighters (MatchSetup), for friend rooms and bot games:
+//      coin flip by default, for or against if the host reaches for it. The
+//      coin stays the default because arguing the side you were dealt is the
+//      skill; the choice is there for practising one argument.
+//   9. THE HOST SETS THE MATCH (2026-09-12). One panel, the same in friend
+//      rooms and bot games: topic (random, a category, one motion) and side.
+//      It sits under the fighters with the go button, so it adds no second
+//      navigation. In a friend room it is server state, echoed back in every
+//      lobby:update, and the guest reads it in the green room; in a bot game
+//      it is local until bot:start.
 //   6. NO LOCKER SCREEN. Tap your own mask (or "change mask" under it) and the
 //      roster walks out, same shape as the bot roster.
 //   7. RATING LIVES IN THE RANKED MODE, and there is one of them. Ranked is
@@ -28,10 +38,23 @@
 //      bot opposite you instead of an empty ring, one line says why, and the
 //      go button starts that game. No placement counter anywhere.
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { NAME_RE, tierFor, type JoinError, type LobbyUpdate } from '../../../server/src/protocol';
+import {
+  NAME_RE,
+  tierFor,
+  type JoinError,
+  type LobbyUpdate,
+  type TopicCategory,
+} from '../../../server/src/protocol';
 import type { BotStartConfig } from './BotSelect';
 import BotRoster from './BotRoster';
 import MaskRoster from './MaskRoster';
+import MatchSetup, {
+  DEFAULT_SETUP,
+  emitSetup,
+  setupComplete,
+  setupOf,
+  type MatchSetupValue,
+} from '../MatchSetup';
 import { session, socket } from '../socket';
 import { playerId, saveLocker, signIn, signOut, type Account } from '../player';
 import { unlockSpectateAudio } from '../specaudio';
@@ -157,10 +180,16 @@ export default function Home({
   const placing = mode === 'ranked' && rank?.placed === false;
 
   const [bots, setBots] = useState<Bot[]>([]);
+  // The deck rides along with the ladder, for the bot game's settings panel.
+  // A friend room gets its deck from the server's LobbyUpdate instead.
+  const [deck, setDeck] = useState<TopicCategory[]>([]);
   useEffect(() => {
     void fetch('/bots')
       .then((r) => r.json())
-      .then((d: { bots?: Bot[] }) => setBots(d.bots ?? []))
+      .then((d: { bots?: Bot[]; topics?: TopicCategory[] }) => {
+        setBots(d.bots ?? []);
+        setDeck(d.topics ?? []);
+      })
       .catch(() => {});
   }, []);
 
@@ -254,7 +283,10 @@ export default function Home({
   // the stage without another tap (his spec). It is left again when you pick
   // another mode. It is NOT left on unmount: the friend walking in is what
   // unmounts this screen, and leaving then would slam the door on them.
-  const [room, setRoom] = useState<{ code: string } | null>(null);
+  // The whole LobbyUpdate, not just the code: the match settings the host
+  // picks here are server state, and the server's echo is what the panel
+  // shows, so the stage and the green room can never disagree.
+  const [room, setRoom] = useState<LobbyUpdate | null>(null);
   const [joinCode, setJoinCode] = useState(arrival);
   const [copied, setCopied] = useState(false);
   const opening = useRef(false);
@@ -266,7 +298,7 @@ export default function Home({
     socket.emit('lobby:create', { sessionId: session.id, name: effName }, (res) => {
       opening.current = false;
       if (!res.ok) return setError(ERROR_KEYS[res.error]);
-      setRoom({ code: res.update.code });
+      setRoom(res.update);
     });
   }, [effName, validName]);
 
@@ -278,11 +310,28 @@ export default function Home({
   useEffect(() => {
     // The server closed it (idle timeout) while we sat here holding the code.
     const onClosed = () => setRoom(null);
+    // Every setting the host picks comes back as an update for this room.
+    // App ignores these while the room has one seat (see its listener), so
+    // the host stays on the stage until the friend actually walks in.
+    const onUpdate = (u: LobbyUpdate) => setRoom((cur) => (cur && cur.code === u.code ? u : cur));
     socket.on('lobby:closed', onClosed);
+    socket.on('lobby:update', onUpdate);
     return () => {
       socket.off('lobby:closed', onClosed);
+      socket.off('lobby:update', onUpdate);
     };
   }, []);
+
+  /* ---- the match settings: topic and side ---- */
+
+  // Bot games keep them here until bot:start. Friend rooms keep them on the
+  // server (setupOf(room)); the panel is the same either way.
+  const [botSetup, setBotSetup] = useState<MatchSetupValue>(DEFAULT_SETUP);
+  const roomSetup = room ? setupOf(room) : null;
+  function changeRoomSetup(next: MatchSetupValue) {
+    if (!roomSetup) return;
+    emitSetup(roomSetup, next);
+  }
 
   function leaveRoom() {
     if (!room) return;
@@ -346,10 +395,13 @@ export default function Home({
     initAudio();
     unlockBotVoice();
     if (pickedBot === 'tutor') return onTutorial(effName);
+    if (!setupComplete(botSetup)) return;
     onBotStart(effName, {
       botId: pickedBot,
-      topicMode: 'random',
-      side: 'random',
+      topicMode: botSetup.topicMode,
+      categoryKey: botSetup.topicMode === 'category' ? (botSetup.categoryKey ?? undefined) : undefined,
+      topicId: botSetup.topicMode === 'agree' ? (botSetup.topicId ?? undefined) : undefined,
+      side: botSetup.side,
       pace: 'standard',
     });
   }
@@ -610,9 +662,19 @@ export default function Home({
       </button>
     );
   } else if (mode === 'bot') {
-    go = pickedBot ? (
+    go = pickedBot === 'tutor' ? (
       <button className="lb-go" onClick={startBot}>
-        {pickedBot === 'tutor' ? t('lbGoTutor') : t('lbGoBot', { x: chosenBot?.name ?? '' })}
+        {t('lbGoTutor')}
+      </button>
+    ) : pickedBot && !setupComplete(botSetup) ? (
+      // A category or a motion was asked for and not picked yet: the button
+      // says what is missing, in the waiting clothes, not a dead amber one.
+      <button className="lb-go lb-go-wait" disabled>
+        {t(botSetup.topicMode === 'category' ? 'lbWaitCategory' : 'lbWaitTopic')}
+      </button>
+    ) : pickedBot ? (
+      <button className="lb-go" onClick={startBot}>
+        {t('lbGoBot', { x: chosenBot?.name ?? '' })}
       </button>
     ) : (
       <button className="lb-go" onClick={() => setRoster(true)}>
@@ -659,6 +721,15 @@ export default function Home({
         : placing
           ? t('lbCap_placement', { x: esc(rank?.placementBot ?? '') })
           : t(`lbCap_${mode}`);
+
+  // The settings panel under the ticket is already a lot of stage, and it
+  // grows a row (or a list of motions) once the host asks for a category or
+  // one motion. Both fighters come down to make the room, the same way the
+  // old bot picker row did: one step for the panel next to a ticket or an
+  // open category row, two for the motion list.
+  const setupShown = mode === 'friend' ? roomSetup : mode === 'bot' && chosenBot ? botSetup : null;
+  const setupTall = Boolean(setupShown && (mode === 'friend' || setupShown.topicMode !== 'random'));
+  const setupTaller = Boolean(setupShown && setupShown.topicMode === 'agree');
 
   /* ---- render ---- */
 
@@ -712,7 +783,7 @@ export default function Home({
           </div>
         ) : null}
 
-        <div className="lb-select">
+        <div className={`lb-select ${setupTaller ? 'lb-select-tight' : setupTall ? 'lb-select-compact' : ''}`}>
           <div className="lb-fighter lb-fighter-a">
             <Cone color="#F0821E" id="lbConeA" />
             {watchingFeatured ? (
@@ -800,6 +871,20 @@ export default function Home({
                   </button>
                 </div>
               </div>
+            </div>
+          ) : null}
+
+          {/* The host sets the match: topic and side. Under the fighters,
+              with the go button, in a friend room (once the room is open)
+              and in a bot game (once a bot is picked). The lesson has no
+              settings: the YapMaster brings the motion. */}
+          {mode === 'friend' && room && roomSetup ? (
+            <div className="lb-setup">
+              <MatchSetup deck={room.deck} value={roomSetup} onChange={changeRoomSetup} />
+            </div>
+          ) : mode === 'bot' && chosenBot ? (
+            <div className="lb-setup">
+              <MatchSetup deck={deck} value={botSetup} onChange={setBotSetup} />
             </div>
           ) : null}
 

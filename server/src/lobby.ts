@@ -4,6 +4,7 @@ import type {
   Framing,
   Pace,
   Side,
+  SidePick,
   TopicMode,
   TopicText,
   Verdict,
@@ -36,8 +37,6 @@ export interface Participant {
 export interface Pick {
   hostTopicId: string | null;
   guestTopicId: string | null;
-  hostSide: Side | null;
-  guestSide: Side | null;
   hostConfirmed: boolean;
   guestConfirmed: boolean;
   /** Dispute mode: each player's own account of the argument. Private to its
@@ -82,6 +81,10 @@ export interface Lobby {
   status: LobbyStatus;
   topicMode: TopicMode; // how the topic is decided (host-controlled)
   categoryKey: string | null; // chosen category in 'category' mode
+  /** The host's side, or 'random' for the coin (host-controlled, any mode;
+      survives rematch like topicMode). Bot games resolve their side at
+      bot:start instead and never read this. */
+  hostSide: SidePick;
   pace: Pace; // turn lengths (host-controlled; survives rematch like topicMode)
   /** Set only in bots mode: the AI opponent. host is the human; there's no guest. */
   bot?: { id: string; name: string; difficulty: Difficulty; rank: number; side: Side; lang: 'en' | 'ar' };
@@ -172,14 +175,18 @@ export function createLobby(socketId: string, sessionId: string, name: string): 
     code: generateCode(),
     host: { socketId, sessionId, name, avatarId: randomAvatar(), masked: false, rtcReady: false },
     status: 'waiting',
-    topicMode: 'agree',
+    // Random, since 2026-09-12: the settings panel opens on two plain rows
+    // (random topic, coin flip) and the host reaches for a category or a
+    // motion. It was 'agree', from when the green room opened on the deck;
+    // with the panel on the lobby stage that meant every new room walked out
+    // with fifty-six motions already unrolled under the fighters.
+    topicMode: 'random',
     categoryKey: null,
+    hostSide: 'random',
     pace: 'standard',
     pick: {
       hostTopicId: null,
       guestTopicId: null,
-      hostSide: null,
-      guestSide: null,
       hostConfirmed: false,
       guestConfirmed: false,
       hostDispute: null,

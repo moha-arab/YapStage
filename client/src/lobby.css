@@ -183,7 +183,11 @@
 
 .lb-stage {
   position: relative;
-  overflow: hidden;
+  /* Scrolls rather than clips (2026-09-12). With the settings panel open on
+     a motion list, a short laptop runs out of height; before this the
+     fighters' row collapsed to nothing and the art was cut off above the
+     bar, which looked like a broken page. Nothing scrolls when it fits. */
+  overflow: hidden auto;
   display: grid;
   /* one column since the wings (friends list) came out, 2026-09-04 */
   grid-template-columns: minmax(0, 1fr);
@@ -198,7 +202,9 @@
   position: relative;
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
-  grid-template-rows: minmax(0, 1fr) auto;
+  /* min-content, not 0: the fighters keep their height and whatever is left
+     over scrolls (see .lb-stage), instead of the row collapsing under them. */
+  grid-template-rows: minmax(min-content, 1fr) auto;
   align-items: center;
   padding: 0 clamp(8px, 2vw, 30px);
   min-height: 0;
@@ -210,6 +216,12 @@
    different-sized fighters staring at each other. */
 .lb-select-compact {
   --art: clamp(88px, min(15vw, 19vh), 176px);
+}
+
+/* The motion list under the settings panel costs another ~150px, so both
+   faces come down a second step. */
+.lb-select-tight {
+  --art: clamp(80px, min(12vw, 13vh), 130px);
 }
 
 .lb-fighter {
@@ -1144,6 +1156,47 @@
   margin: 0 0 12px;
   position: relative;
   z-index: 2;
+}
+
+/* ---- the match settings, under the fighters with the go button ---- */
+/* One panel for friend rooms and bot games (client/src/MatchSetup.tsx). It
+   is a strip, not a card: a boxed panel under a boxed ticket read as a form,
+   which is the thing the 2026-08-21 rebuild was undoing. */
+
+.lb-setup {
+  grid-column: 1 / -1;
+  justify-self: center;
+  /* Wide enough for the eight category chips on one line at laptop widths:
+     every wrapped line here is a line taken from the fighters. */
+  width: min(100%, 900px);
+  margin: 0 0 10px;
+  position: relative;
+  z-index: 2;
+}
+
+@media (max-width: 720px) {
+  .lb-setup {
+    width: 100%;
+    margin-bottom: 10px;
+  }
+
+  /* One scrolling line per row, like the old bot picker on a phone: three
+     wrapped lines of category chips would push the ring off the stage. */
+  .lb-setup .ms-chips {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    padding-bottom: 2px;
+    scroll-snap-type: x proximity;
+  }
+
+  .lb-setup .ms-chips .cat-tab {
+    flex: 0 0 auto;
+    scroll-snap-align: center;
+  }
+
+  .lb-setup .ms-topics {
+    margin-inline-start: 0;
+  }
 }
 
 /* Your rating, for the length you picked, under your own name in ranked. */

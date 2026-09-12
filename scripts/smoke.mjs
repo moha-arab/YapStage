@@ -68,12 +68,14 @@ a.emit('rtc:signal', { description: { type: 'offer', sdp: 'fake-sdp' } });
 const sig = await relayed;
 check('rtc:signal relayed verbatim', sig?.description?.sdp === 'fake-sdp');
 
-// picks: the HOST names the topic (guests cannot), sides are dealt by the
-// server, then both confirm. Choosing your own side sounds fair and isn't:
-// everyone grabs the side they already believe.
+// picks: the HOST asks for one motion and names it (guests cannot), then both
+// confirm. A new room is random-topic by default (2026-09-12), so the host
+// switches to 'agree' first. Sides are the host's setting too (Scenario 5
+// drives that); this room leaves it at the default, so the coin deals them.
 const PICKED = 'messi-ronaldo';
 let early = false;
 a.once('debate:start', () => { early = true; });
+a.emit('pick:mode', 'agree');
 b.emit('pick:topic', PICKED); // guest pick: must not register
 await new Promise((r) => setTimeout(r, 300));
 a.emit('pick:confirm'); // no topic on the table: must be a no-op
@@ -211,6 +213,7 @@ const code2 = created2.update.code;
 await emitP(b2, 'lobby:join', { code: code2, sessionId: 'sess-b2', name: 'guestgal' });
 
 const start2 = once(a2, 'debate:start');
+a2.emit('pick:mode', 'agree');
 a2.emit('pick:topic', 'cereal-soup');
 b2.emit('pick:topic', 'cereal-soup');
 a2.emit('pick:side', 'FOR');
@@ -266,6 +269,7 @@ const code3 = created3.update.code;
 await emitP(b3, 'lobby:join', { code: code3, sessionId: 'sess-b3', name: 'blinker' });
 
 const start3 = once(a3, 'debate:start');
+a3.emit('pick:mode', 'agree');
 a3.emit('pick:topic', 'crypto-scam');
 b3.emit('pick:topic', 'crypto-scam');
 a3.emit('pick:side', 'FOR');
@@ -320,6 +324,7 @@ const hLobby = await emitP(h, 'lobby:create', { sessionId: 'sess-h', name: 'cras
 const h2 = connect();
 await emitP(h2, 'lobby:join', { code: hLobby.update.code, sessionId: 'sess-h2', name: 'victim' });
 // drive to in_debate so acceptChunk's early guards pass and it reaches the deref
+h.emit('pick:mode', 'agree');
 h.emit('pick:topic', 'money-happiness');
 h2.emit('pick:topic', 'money-happiness');
 h.emit('pick:side', 'FOR');
@@ -355,6 +360,7 @@ const pRes = await emitP(p1, 'lobby:create', { sessionId: 'sess-p1', name: 'star
 const pCode = pRes.update.code;
 const p2 = connect();
 await emitP(p2, 'lobby:join', { code: pCode, sessionId: 'sess-p2', name: 'joiner' });
+p1.emit('pick:mode', 'agree');
 p1.emit('pick:topic', 'messi-ronaldo');
 p2.emit('pick:topic', 'messi-ronaldo');
 p1.emit('pick:side', 'FOR');
@@ -387,19 +393,50 @@ orphanCheck.disconnect();
 console.log('\n=== Scenario 5: topic modes ===');
 const MONEY_IDS = ['money-happiness', 'landlords', 'crypto-scam', 'no-billionaires', 'invite-pays', 'rent-vs-buy', 'salary-public'];
 
-// category mode
+// category mode, set up by the host on the stage BEFORE the friend walks in
+// (the lobby's settings panel, 2026-09-12): the join ack has to carry the
+// category and the side, the guest cannot touch either, and the debate has
+// to honour both.
 {
   const host = connect();
   const guest = connect();
   const cr = await emitP(host, 'lobby:create', { sessionId: 'm-h', name: 'modehost' });
   const code = cr.update.code;
-  check('new lobby defaults to agree mode', cr.update.topicMode === 'agree');
-  await emitP(guest, 'lobby:join', { code, sessionId: 'm-g', name: 'modeguest' });
+  check('new lobby defaults to a random topic', cr.update.topicMode === 'random');
+  check('new lobby defaults to the coin for sides', cr.update.hostSide === 'random');
+  const stageEcho = once(host, 'lobby:update', 4000);
   host.emit('pick:mode', 'category');
-  guest.emit('pick:mode', 'random'); // guest is not host — must be ignored
+  host.emit('pick:category', 'money');
+  host.emit('pick:side', 'AGAINST');
+  const echo = await stageEcho;
+  check('stage: the host hears their own settings echoed while waiting', echo.participantCount === 1);
   await new Promise((r) => setTimeout(r, 150));
 
-  // confirm must be blocked until a category is chosen
+  const jn = await emitP(guest, 'lobby:join', { code, sessionId: 'm-g', name: 'modeguest' });
+  check(
+    'stage settings ride in on the join ack (category and side)',
+    jn.ok && jn.update.topicMode === 'category' && jn.update.categoryKey === 'money' && jn.update.hostSide === 'AGAINST',
+  );
+
+  // Only the host owns the settings: a guest's attempts change nothing, and
+  // since a refused pick sends no update, "nothing" means no update at all.
+  // (The join's own broadcast lands a beat after its ack: let it pass first.)
+  await new Promise((r) => setTimeout(r, 300));
+  let guestUpdates = 0;
+  const countUpdates = () => { guestUpdates += 1; };
+  guest.on('lobby:update', countUpdates);
+  guest.emit('pick:mode', 'random');
+  guest.emit('pick:category', 'sport');
+  guest.emit('pick:side', 'FOR');
+  await new Promise((r) => setTimeout(r, 300));
+  guest.off('lobby:update', countUpdates);
+  check('a guest cannot change the mode, the category or the side', guestUpdates === 0);
+
+  // confirm must be blocked until a category is chosen: leave and re-enter
+  // category mode, which clears the pick
+  host.emit('pick:mode', 'random');
+  host.emit('pick:mode', 'category');
+  await new Promise((r) => setTimeout(r, 150));
   let startedEarly = false;
   const earlyHandler = () => { startedEarly = true; };
   host.once('debate:start', earlyHandler);
@@ -419,6 +456,7 @@ const MONEY_IDS = ['money-happiness', 'landlords', 'crypto-scam', 'no-billionair
   const ac = await afterChange;
   check('rewind: changing category after locking in clears the lock', ac.pick.peerConfirmed === false);
   check('rewind: the category actually changed', ac.categoryKey === 'sport');
+  check('the side setting survives mode and category changes', ac.hostSide === 'AGAINST');
 
   const SPORT_IDS = ['messi-ronaldo', 'esports-sport', 'athletes-overpaid', 'var-ruined', 'chess-sport', 'club-loyalty', 'trophies-stats'];
   const started = once(host, 'debate:start', 8000);
@@ -428,7 +466,33 @@ const MONEY_IDS = ['money-happiness', 'landlords', 'crypto-scam', 'no-billionair
   const ds = await started;
   const gds = await gStarted;
   check('category mode: topic comes from the (re-picked) category', SPORT_IDS.includes(ds.topic.id));
-  check('category mode: sides are opposite', ds.yourSide !== gds.yourSide);
+  check('the host argues the side they chose, the guest the other', ds.yourSide === 'AGAINST' && gds.yourSide === 'FOR');
+  check('names follow the chosen sides', ds.names.AGAINST === 'modehost' && ds.names.FOR === 'modeguest');
+  host.disconnect();
+  guest.disconnect();
+}
+
+// the coin: a side picked and then handed back to the coin is a coin again
+{
+  const host = connect();
+  const guest = connect();
+  const cr = await emitP(host, 'lobby:create', { sessionId: 'c-h', name: 'coinhost' });
+  await emitP(guest, 'lobby:join', { code: cr.update.code, sessionId: 'c-g', name: 'coinguest' });
+  host.emit('pick:side', 'FOR');
+  await new Promise((r) => setTimeout(r, 100));
+  const back = once(guest, 'lobby:update', 4000);
+  host.emit('pick:side', 'random');
+  const u = await back;
+  check('the host can hand the side back to the coin', u.hostSide === 'random');
+  host.emit('pick:side', 'sideways'); // not a side: must be ignored
+  host.emit('pick:mode', 'random');
+  await new Promise((r) => setTimeout(r, 150));
+  const started = once(host, 'debate:start', 8000);
+  const gStarted = once(guest, 'debate:start', 8000);
+  host.emit('pick:confirm');
+  guest.emit('pick:confirm');
+  const [ds, gds] = await Promise.all([started, gStarted]);
+  check('coin: sides are still dealt opposite', ds.yourSide !== gds.yourSide && ['FOR', 'AGAINST'].includes(ds.yourSide));
   host.disconnect();
   guest.disconnect();
 }
@@ -496,6 +560,7 @@ async function runToVerdict(a, b, aId, bId, name, topic) {
   const cr = await emitP(a, 'lobby:create', { sessionId: aId, name });
   const code = cr.update.code;
   await emitP(b, 'lobby:join', { code, sessionId: bId, name: name + 'two' });
+  a.emit('pick:mode', 'agree');
   a.emit('pick:topic', topic);
   b.emit('pick:topic', topic);
   a.emit('pick:side', 'FOR');
@@ -622,6 +687,9 @@ console.log('\n=== Scenario 7: bots mode ===');
   });
   check('bot:start accepted (campaign fails open when store down)', res.ok === true);
   const start = await once(h, 'debate:start', 12000);
+  // The lobby's settings panel feeds bot:start: the chosen motion and side
+  // have to be the ones on the fight card.
+  check('bot debate: the chosen motion and side are honoured', start.topic.id === 'money-happiness' && start.yourSide === 'FOR');
   const rep7 = await emitP(h, 'report', { reason: 'other' });
   check('report: bots cannot be reported', rep7.ok === false);
   check(
@@ -693,9 +761,16 @@ console.log('\n=== Scenario 9: ranked + spectate ===');
   check('queue: ranked seats are masked', u1.update.yourMasked === true && u1.update.peerMasked === true);
   const code9 = u1.update.code;
 
-  // Ranked settings are fixed: a host trying to slow the game down is ignored.
+  // Ranked settings are fixed: a host trying to slow the game down, or to
+  // pick a side, is ignored (no update is sent for a refused pick).
+  let rankedUpdates = 0;
+  const countRanked = () => { rankedUpdates += 1; };
+  r1.on('lobby:update', countRanked);
   r1.emit('pick:pace', 'long');
+  r1.emit('pick:side', 'FOR');
   await new Promise((s) => setTimeout(s, 300));
+  r1.off('lobby:update', countRanked);
+  check('ranked: pace and side picks are refused', rankedUpdates === 0);
 
   const s1 = once(r1, 'debate:start', 15000);
   r1.emit('pick:confirm');

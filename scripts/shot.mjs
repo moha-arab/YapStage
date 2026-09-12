@@ -118,7 +118,12 @@ try {
   await send(ws, 'Page.navigate', { url: URL_ });
   await sleep(Number(args.wait ?? 1500));
 
-  for (const key of ['step1', 'step2', 'step3', 'step4', 'step5', 'step6']) {
+  // stepN in numeric order, as many as were given (a settings panel three
+  // taps past a roster needs more than six).
+  const stepKeys = Object.keys(args)
+    .filter((k) => /^step\d+$/.test(k))
+    .sort((x, y) => Number(x.slice(4)) - Number(y.slice(4)));
+  for (const key of stepKeys) {
     const raw = args[key];
     if (!raw) continue;
     const eq = raw.indexOf('=');

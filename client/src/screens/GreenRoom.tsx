@@ -11,6 +11,7 @@ import { useI18n } from '../i18n';
 import MicMeter from '../MicMeter';
 import VideoTile from '../VideoTile';
 import MaskPicker from '../MaskPicker';
+import MatchSetup, { describeSetup, emitSetup, setupOf } from '../MatchSetup';
 
 interface Props {
   lobby: LobbyUpdate;
@@ -38,7 +39,6 @@ export default function GreenRoom({
 }: Props) {
   const { lang, t } = useI18n();
   const [consent, setConsent] = useState(false);
-  const [cat, setCat] = useState(0);
   const [copied, setCopied] = useState(false);
   function copyLink() {
     const link = `${window.location.origin}/?code=${lobby.code}`;
@@ -87,6 +87,8 @@ export default function GreenRoom({
 
   const isHost = lobby.role === 'host';
   const mode = lobby.topicMode;
+  // The guest's view of the settings, as sentences.
+  const described = describeSetup(lobby, peer, t, lang);
   // The host names the topic and the server mirrors it to the guest, so there
   // is nothing left to negotiate: one pick and the room is ready.
   const bothDescribed = Boolean(pick.yourDispute && pick.peerDisputeReady);
@@ -246,27 +248,21 @@ export default function GreenRoom({
                 ) : null}
               </div>
             ) : isHost ? (
-              <div className="mode-row">
-                {(['agree', 'random'] as const).map((m) => (
-                  <button
-                    key={m}
-                    className={`cat-tab ${mode === m ? 'cat-active' : ''}`}
-                    onClick={() => socket.emit('pick:mode', m)}
-                  >
-                    {t(`mode_${m}`)}
-                  </button>
-                ))}
-              </div>
+              // The same panel the host had on the stage, so nothing has to
+              // be set twice and the friend arriving changes nothing about
+              // what the host is looking at.
+              <MatchSetup deck={deck} value={setupOf(lobby)} onChange={(next) => emitSetup(setupOf(lobby), next)} />
             ) : null}
 
-            {/* Guests see the host's choices as facts, not as rows of greyed
-                buttons pretending to be options. */}
+            {/* Guests see the host's choices as facts, in plain words, not as
+                rows of greyed buttons pretending to be options. */}
             {!isHost && !lobby.ranked ? (
               <div className="host-choices">
                 {mode !== 'dispute' ? (
-                  <span className="tape tape-static">
-                    {t('modeWord')}: {t(`mode_${mode}`)}
-                  </span>
+                  <>
+                    <span className="tape tape-static">{described.topic}</span>
+                    <span className="tape tape-static">{described.side}</span>
+                  </>
                 ) : null}
                 <span className="tape tape-static">
                   {t('paceLabel')}: {t(`pace_${lobby.pace}`)}
@@ -275,51 +271,7 @@ export default function GreenRoom({
               </div>
             ) : null}
 
-            {mode === 'agree' ? (
-              <>
-                <div className="cat-tabs">
-                  {deck.map((c, i) => (
-                    <button
-                      key={c.key}
-                      className={`cat-tab ${i === cat ? 'cat-active' : ''}`}
-                      onClick={() => setCat(i)}
-                    >
-                      {c.label[lang]}
-                    </button>
-                  ))}
-                </div>
-
-                <div className="topic-list">
-                  {deck[cat]?.topics.map((topic) => (
-                    <button
-                      key={topic.id}
-                      className={`topic-btn ${pick.yourTopicId === topic.id ? 'topic-on-table' : ''}`}
-                      disabled={!isHost}
-                      onClick={() => socket.emit('pick:topic', topic.id)}
-                    >
-                      {topic[lang]}
-                    </button>
-                  ))}
-                </div>
-                <p className="mode-desc">{t('sidesFlipped')}</p>
-              </>
-            ) : mode === 'category' ? (
-              <>
-                <div className="cat-tabs">
-                  {deck.map((c) => (
-                    <button
-                      key={c.key}
-                      className={`cat-tab ${lobby.categoryKey === c.key ? 'cat-active' : ''}`}
-                      disabled={!isHost}
-                      onClick={() => socket.emit('pick:category', c.key)}
-                    >
-                      {c.label[lang]}
-                    </button>
-                  ))}
-                </div>
-                <p className="mode-desc">{t('categoryDesc')}</p>
-              </>
-            ) : mode === 'dispute' ? (
+            {mode === 'agree' || mode === 'category' ? null : mode === 'dispute' ? (
               <>
                 {/* You describe the argument in your own words and never see
                     theirs first: reading their version would turn an honest
@@ -357,9 +309,9 @@ export default function GreenRoom({
                   </div>
                 ) : null}
               </>
-            ) : (
+            ) : isHost ? (
               <p className="mode-desc">{t('randomDesc')}</p>
-            )}
+            ) : null}
 
             {/* Settle-it entry PARKED (see PRD): the dispute flow below this
                 point still works, it just has no doors. The server also gates
