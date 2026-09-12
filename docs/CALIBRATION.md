@@ -170,6 +170,40 @@ blind reader:
 URL=http://localhost:3010 CASES=scripts/judge-cases.json node scripts/judge-eval.mjs
 ```
 
+Three more instruments sit next to it, and every prompt change should run
+all four before the bot calibration (numbers for every run live in
+`docs/judge-tightening-log.md`):
+
+```bash
+# bias families, each case in both orders (labels exchanged, motion negated)
+URL=http://localhost:3010 CASES=scripts/judge-cases-bias.json MIRROR=1 node scripts/judge-eval.mjs
+# swap and order harness: does the same speech win regardless of its label and slot?
+URL=http://localhost:3010 node scripts/judge-fairness.mjs
+# run-to-run noise: compare two OUT files of the same cases
+node scripts/judge-noise.mjs runA.json runB.json
+```
+
+`scripts/judge-cases-bias.json` holds ten families, each with a clearly
+built-to-win side and a note saying why: length (short and tight vs long and
+padded), confidence (assertive and empty vs hedged and substantive), adhom
+(mockery vs argument), dodge (never answering the strongest point), concession
+(conceding a minor point and winning the major clash), stats (unexplained
+figures vs an explained mechanism), stt (the better case rendered as noisy
+speech-to-text), offtopic, repeat (one point four times vs a case developed),
+and paste (polished chatbot text that never engages). Five families carry a
+third case that is a false-positive trap, where the long, confident, rude,
+conceding or polished side is the better one, so an over-corrected judge is
+caught too.
+
+`scripts/judge-fairness.mjs` judges every case three ways: as written, with
+the sides swapped (the same words with FOR and AGAINST exchanged, each speech
+moved to the same phase on the other side, under the negated motion), and with
+only the running order flipped. It tracks the two speeches by identity and
+reports how often the winning speech changes, the signed bonus a speech gets
+from wearing the FOR label or the FOR slots, and the mean absolute score
+movement. A fair judge picks the same speech under all three, and the bonuses
+sit inside the run-to-run noise.
+
 ## Reading the results
 
 Convert a measured win rate into a rating claim before believing it:
