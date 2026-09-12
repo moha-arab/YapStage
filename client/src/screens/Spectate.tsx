@@ -111,7 +111,7 @@ export default function Spectate({ code, initial, onLeave, onNext }: Props) {
             // this and nothing else — the mask IS the face of the sport.
             <Mask id={state.avatars[side]!} size="100%" bare />
           ) : (
-            <span className="spec-fighter-glyph">{side === 'FOR' ? '🔴' : '🔵'}</span>
+            <span className="spec-fighter-glyph">?</span>
           )}
         </div>
         <span className="spec-fighter-name">{names?.[side] ?? '...'}</span>
