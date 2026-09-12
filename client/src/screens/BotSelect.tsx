@@ -16,6 +16,9 @@ export interface BotStartConfig {
   topicId?: string;
   side: Side | 'random';
   pace: Pace;
+  /** The placement match: the server picks the bot, the motion and the
+      sides itself and the verdict sets the starting rating. */
+  placement?: boolean;
 }
 
 interface Props {

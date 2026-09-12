@@ -48,7 +48,7 @@ import {
   startDispute,
   type Io,
 } from './debate.js';
-import { BOT_BY_ID, publicBots } from './bots.js';
+import { BOT_BY_ID, placementBot, publicBots } from './bots.js';
 import { sttConfigured } from './stt.js';
 import { namesOf, runJudge, scoreDrill, scoreTranscript } from './judge.js';
 import { DRILL_SECONDS, drillById, drillMeta, drillOfDay, drillOfDayByType, isDrillType, today } from './drills.js';
@@ -72,7 +72,6 @@ import {
   loadCheatFlags,
   loadMatch,
   loadReports,
-  PLACEMENT_MATCHES,
   recentRanked,
   recordDrill,
   recordShutdown,
@@ -248,29 +247,35 @@ app.get<{ Querystring: { playerId?: string } }>('/rating', async (req) => {
   const id = String(req.query.playerId ?? '').slice(0, 64);
   if (!id) return { rating: null };
   // No row yet is not "no rating": it is a player at the seed with nothing
-  // played. Saying so lets the chip read "placing, 0 of 5" instead of vanishing.
+  // played, who still has the placement match ahead of them. That is only
+  // knowable while the store is up: down, `placed` is null and the client
+  // shows the queue rather than sending everyone to the placement bot for a
+  // game that could not be recorded.
   const row = await getRating(id);
+  const placed: boolean | null = row ? row.placed : storeReady() ? false : null;
   const standing = (pace: Pace) => {
     const r = row?.[pace] ?? { rating: SEED_RATING, wins: 0, losses: 0 };
-    const games = r.wins + r.losses;
     return {
       rating: r.rating,
       wins: r.wins,
       losses: r.losses,
-      games,
-      // Below placement the number exists but is not shown: it is still moving
-      // 64 points a match and would be a lie dressed as a measurement.
-      provisional: games < PLACEMENT_MATCHES,
-      placementsLeft: Math.max(0, PLACEMENT_MATCHES - games),
+      games: r.wins + r.losses,
+      // Unplaced, the number exists (the seed) but is not shown: it says
+      // nothing about the player yet. Both fields predate one-match placement
+      // and are kept in the shape older clients read.
+      provisional: placed !== true,
+      placementsLeft: placed === true ? 0 : 1,
     };
   };
-  // One ladder per pace. The top-level fields ARE the standard ladder, kept
-  // where older clients expect them; `paces` carries all three.
+  // Ranked is standard only, so the top-level fields ARE the ladder. `paces`
+  // still carries all three for clients built before the change; the other
+  // two never move now. `placementBot` is who the placement match is against,
+  // so the lobby can name them.
   const paces = Object.fromEntries(PACES.map((p) => [p, standing(p)])) as Record<
     Pace,
     ReturnType<typeof standing>
   >;
-  return { ...paces.standard, paces };
+  return { ...paces.standard, paces, placed, placementBot: placementBot().name };
 });
 
 // ---- the daily drill ----
@@ -556,21 +561,19 @@ const io: Io = new Server<ClientToServer, ServerToClient, Record<string, never>,
 // In-memory like the lobbies. An entry is one waiting socket; pairing is
 // strictly first-come-first-served (rating-window matchmaking is pointless
 // until there are enough concurrent players for a window to select from).
+// ONE queue. There was a queue per pace from 2026-09-04 to 2026-09-12, and he
+// took it out: "make all the people play one mode so that we have as many
+// players as possible". A pool this size cannot afford to be split three
+// ways, and a ranked game is a standard game.
 interface QueueEntry {
   socketId: string;
   sessionId: string;
   playerId: string;
   name: string;
-  /** Which queue this is, and which ladder the result moves. A pace only
-      ever pairs with itself; the queues share an array, nothing else. */
-  pace: Pace;
-  /** Their rating on THAT pace's ladder, for the waiting screen. */
+  /** Their rating, for the waiting screen. */
   rating: number;
 }
 const rankedQueue: QueueEntry[] = [];
-
-/** How many are waiting for a game at this pace. */
-const waitingAt = (pace: Pace): number => rankedQueue.filter((q) => q.pace === pace).length;
 
 function dropFromQueue(socketId: string): void {
   const i = rankedQueue.findIndex((q) => q.socketId === socketId);
@@ -579,34 +582,25 @@ function dropFromQueue(socketId: string): void {
 
 function broadcastQueue(): void {
   for (const q of rankedQueue) {
-    // Your count is your pace's count: a blitz player waiting alone must not
-    // read "3 waiting" because three people want a long game.
-    io.to(q.socketId).emit('queue:update', { waiting: waitingAt(q.pace), rating: q.rating, pace: q.pace });
+    io.to(q.socketId).emit('queue:update', { waiting: rankedQueue.length, rating: q.rating, pace: 'standard' });
   }
 }
 
-/** Pair the two longest-waiting players AT EACH PACE into a ranked green
-    room. The paces are separate queues that happen to share an array. */
+/** Pair the two longest-waiting players into a ranked green room. */
 function tryMatch(): void {
-  for (const pace of PACES) tryMatchAt(pace);
-  broadcastQueue();
-}
-
-function tryMatchAt(pace: Pace): void {
   for (;;) {
-    const ai = rankedQueue.findIndex((q) => q.pace === pace);
-    if (ai < 0) return;
+    if (rankedQueue.length === 0) break;
+    const ai = 0;
     const a = rankedQueue[ai]!;
     // Never pair someone with themselves. A signed-in player has one stable
     // playerId across tabs, so without this two tabs are an ELO printing press
     // and the judge ends up scoring one person arguing both sides. Take the
-    // first entry AT THIS PACE that is genuinely somebody else; if there is
-    // none, leave A in line and wait for a real opponent rather than
-    // inventing one.
+    // first entry that is genuinely somebody else; if there is none, leave A
+    // in line and wait for a real opponent rather than inventing one.
     const bi = rankedQueue.findIndex(
-      (q, i) => i !== ai && q.pace === pace && q.playerId !== a.playerId && q.sessionId !== a.sessionId,
+      (q, i) => i !== ai && q.playerId !== a.playerId && q.sessionId !== a.sessionId,
     );
-    if (bi < 0) return;
+    if (bi < 0) break;
     const b = rankedQueue[bi]!;
     const sa = io.sockets.sockets.get(a.socketId);
     const sb = io.sockets.sockets.get(b.socketId);
@@ -616,7 +610,7 @@ function tryMatchAt(pace: Pace): void {
       if (!sb) dropFromQueue(b.socketId);
       if (!sa) dropFromQueue(a.socketId);
       if (!sa && !sb) continue;
-      return;
+      break;
     }
     // Higher index first so the lower one is still where we found it.
     rankedQueue.splice(Math.max(ai, bi), 1);
@@ -626,7 +620,7 @@ function tryMatchAt(pace: Pace): void {
     lobby.guest = { socketId: b.socketId, sessionId: b.sessionId, name: b.name, avatarId: randomAvatar(), masked: false, playerId: b.playerId, rtcReady: false };
     lobby.status = 'greenroom';
     lobby.topicMode = 'random'; // strangers never negotiate a topic
-    lobby.pace = pace; // the queue they stood in is the ladder the verdict moves
+    lobby.pace = 'standard'; // ranked is standard only; pick:pace is refused in a ranked room
     lobby.ranked = { host: a.playerId, guest: b.playerId };
     // Ranked is faceless by format: both strangers are behind masks.
     lobby.host!.masked = true;
@@ -637,10 +631,11 @@ function tryMatchAt(pace: Pace): void {
     sb.data.role = 'guest';
     void sa.join(lobby.code);
     void sb.join(lobby.code);
-    event('ranked_matched', { code: lobby.code, pace });
+    event('ranked_matched', { code: lobby.code });
     io.to(a.socketId).emit('queue:matched', { update: updateFor(lobby, lobby.host!) });
     io.to(b.socketId).emit('queue:matched', { update: updateFor(lobby, lobby.guest!) });
   }
+  broadcastQueue();
 }
 
 // ---- spectators ----
@@ -1371,24 +1366,27 @@ io.on('connection', (socket) => {
     });
   });
 
-  // Ranked: enter the queue for ONE pace. The rating on that pace's ladder is
-  // looked up (or created at the seed) so the waiting screen can show it;
-  // pairing is first-come-first-served within the pace.
+  // Ranked: enter the queue. The rating is looked up (or created at the
+  // seed) so the waiting screen can show it; pairing is first-come-first-
+  // served. Whatever pace the payload carries is ignored: ranked is standard
+  // only, and an older client asking for blitz gets the same game as
+  // everyone else rather than a line nobody else is standing in.
   socket.on('queue:join', (p, cb) => {
     if (typeof cb !== 'function') return;
     if (!FAST && !allow(`join:${ipOf(socket)}`, 30, 5 * 60_000)) {
       return cb({ ok: false, error: 'rate_limited' });
     }
+    // Ranked needs an account: there is a rating on the line and a stranger
+    // counting on it. The client already says so before it asks; this is the
+    // gate for anything that skips the client. Keyed on Google being
+    // configured so a deployment (or the smoke suite) without sign-in still
+    // has a queue.
+    if (googleConfigured() && !socket.data.account) return cb({ ok: false, error: 'signed_out' });
     const name = nameOf(String(p?.name ?? '').trim());
     if (!NAME_RE.test(name)) return cb({ ok: false, error: 'bad_name' });
     const playerId = idOf(String(p?.playerId ?? '').slice(0, 64));
     if (!playerId) return cb({ ok: false, error: 'bad_name' });
-    // Same shape as pick:pace, except an unknown pace means standard rather
-    // than nothing: old clients never send one and still deserve a game.
-    const pace: Pace = p?.pace === 'blitz' || p?.pace === 'long' ? p.pace : 'standard';
-    // Already in THIS queue: nothing to do. A different pace means they
-    // changed their mind, and they move lines below.
-    if (rankedQueue.some((q) => q.socketId === socket.id && q.pace === pace)) return cb({ ok: true });
+    if (rankedQueue.some((q) => q.socketId === socket.id)) return cb({ ok: true });
     releasePreviousSeat(socket);
     dropFromQueue(socket.id);
     // One slot per PLAYER, not per socket. A second tab takes over the queue
@@ -1405,13 +1403,12 @@ io.on('connection', (socket) => {
         sessionId: String(p?.sessionId ?? '').slice(0, 64),
         playerId,
         name,
-        pace,
         // SEED_RATING, not a hardcoded 1000: that was the seed before the
         // rating_seed_700 migration, and it made a store blip queue a brand
         // new player as if they were 300 points better than they are.
-        rating: row?.[pace].rating ?? SEED_RATING,
+        rating: row?.standard.rating ?? SEED_RATING,
       });
-      event('queue_joined', { waiting: waitingAt(pace), pace });
+      event('queue_joined', { waiting: rankedQueue.length });
       cb({ ok: true });
       tryMatch();
     });
@@ -1508,7 +1505,11 @@ io.on('connection', (socket) => {
     }
     const name = nameOf(String(p?.name ?? '').trim());
     if (!NAME_RE.test(name)) return cb({ ok: false, error: 'bad_name' });
-    const bot = BOT_BY_ID.get(String(p?.botId ?? ''));
+    // The placement match: the server picks the bot (whoever on the roster
+    // is nearest 1400), and the client's botId is ignored so a stale roster
+    // in an old tab cannot place someone against the wrong rung.
+    const placement = p?.placement === true;
+    const bot = placement ? placementBot() : BOT_BY_ID.get(String(p?.botId ?? ''));
     if (!bot || bot.hidden) return cb({ ok: false, error: 'not_found' });
     if (lobbyCount() >= MAX_LOBBIES) return cb({ ok: false, error: 'rate_limited' });
 
@@ -1518,6 +1519,24 @@ io.on('connection', (socket) => {
     // for now, same parking pattern as DISPUTE_MODE). Progress still records
     // while dormant, so wins earned in the open period count when locks return.
     const playerId = idOf(String(p?.playerId ?? '').slice(0, 64));
+    if (placement) {
+      // Placement is ranked business, so the same account rule as the queue,
+      // and the same identity: the ladder id, which for a signed-in player
+      // is the account's and never the payload's.
+      if (googleConfigured() && !socket.data.account) return cb({ ok: false, error: 'signed_out' });
+      if (!playerId) return cb({ ok: false, error: 'bad_name' });
+      // One shot. A placement game already running for this id (a second
+      // tab) is refused here; a finished one is refused by the store, whose
+      // `placed` flag is the truth. With the store down the game still runs
+      // (a dead database never bricks a debate) and simply sets nothing.
+      const running = allLobbies().some(
+        (l) => l.placement?.playerId === playerId && l.status !== 'verdict',
+      );
+      if (running) return cb({ ok: false, error: 'in_progress' });
+      const standing = await getRating(playerId);
+      if (standing?.placed) return cb({ ok: false, error: 'placed' });
+      if (!io.sockets.sockets.get(socket.id)) return;
+    }
     if (playerId && campaignLocksOn()) {
       const level = await getCampaign(playerId);
       if (level !== null && bot.rank > level) {
@@ -1527,9 +1546,12 @@ io.on('connection', (socket) => {
       if (!io.sockets.sockets.get(socket.id)) return;
     }
 
-    const topicMode = p?.topicMode === 'agree' || p?.topicMode === 'category' ? p.topicMode : 'random';
+    // Placement is played on ranked terms: a random motion, the coin deals
+    // the sides, standard pace. Nothing about it is the player's pick.
+    const topicMode =
+      !placement && (p?.topicMode === 'agree' || p?.topicMode === 'category') ? p.topicMode : 'random';
     const lang = p?.lang === 'ar' ? 'ar' : 'en';
-    const pace = p?.pace === 'blitz' || p?.pace === 'long' ? p.pace : 'standard';
+    const pace = !placement && (p?.pace === 'blitz' || p?.pace === 'long') ? p.pace : 'standard';
 
     // Resolve the motion.
     let topic;
@@ -1545,7 +1567,11 @@ io.on('connection', (socket) => {
       topic = cat.topics[Math.floor(Math.random() * cat.topics.length)];
     }
     const humanSide =
-      p?.side === 'FOR' || p?.side === 'AGAINST' ? p.side : Math.random() < 0.5 ? 'FOR' : 'AGAINST';
+      !placement && (p?.side === 'FOR' || p?.side === 'AGAINST')
+        ? p.side
+        : Math.random() < 0.5
+          ? 'FOR'
+          : 'AGAINST';
     const botSide = humanSide === 'FOR' ? 'AGAINST' : 'FOR';
 
     releasePreviousSeat(socket);
@@ -1555,6 +1581,7 @@ io.on('connection', (socket) => {
     lobby.pace = pace;
     lobby.bot = { id: bot.id, name: bot.name, difficulty: bot.difficulty, rank: bot.rank, side: botSide, lang };
     if (playerId) lobby.campaign = { playerId, botRank: bot.rank };
+    if (placement && playerId) lobby.placement = { playerId };
 
     // BOT MATCHES ARE UNRATED, the same rule chess.com runs, and the reasons
     // are stronger here than the cold-start argument that briefly overrode
@@ -1566,6 +1593,13 @@ io.on('connection', (socket) => {
     // possible farm for anyone with a chatbot open in the next tab.
     // The bot ladder is a yardstick you measure yourself against, not a source
     // of rating. Ranked means humans.
+    // The ONE exception (his call 2026-09-12) is the placement match above:
+    // one game, against the bot nearest 1400, that sets a new player's
+    // starting rating instead of three placement games nobody in a small
+    // pool could find. It fires once per player, ever (store.placePlayer),
+    // so neither argument comes back: you cannot farm a game you cannot
+    // replay, and the fast K on the human games after it corrects whatever
+    // the bot got wrong.
     socket.data.code = lobby.code;
     socket.data.role = 'host';
     void socket.join(lobby.code);

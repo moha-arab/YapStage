@@ -21,6 +21,7 @@ import Welcome from './screens/Welcome';
 import ClaimName from './screens/ClaimName';
 import BotSelect from './screens/BotSelect';
 import Spectate from './screens/Spectate';
+import Home from './screens/Home';
 import type { Side, Verdict as VerdictData } from '../../server/src/protocol';
 import TierBadge from './TierBadge';
 import VideoTile from './VideoTile';
@@ -81,6 +82,68 @@ const SCREENS: Record<string, () => JSX.Element> = {
       opponentRating={1180}
     />
   ),
+  /* The placement verdict: a starting rating, no delta, nothing gold. */
+  placed: () => (
+    <Verdict
+      info={{
+        verdict: VERDICT,
+        names: { FOR: 'zorvint', AGAINST: 'Brutus' },
+        heard: { FOR: 214, AGAINST: 188 },
+        placement: { rating: 1512 },
+      }}
+      status={null}
+      mySide="FOR"
+      topic={{ id: 'demo', en: 'college is no longer worth it', ar: '' }}
+      localStream={null}
+      remoteStream={null}
+      rtcConnected={false}
+      peerName="Brutus"
+      myName="zorvint"
+      onLeaveCall={noop}
+      onRetry={noop}
+      onRematch={noop}
+      rematch={null}
+      botOpponent={{ id: 'bull', name: 'Brutus', color: 'for' }}
+      avatars={{ FOR: 'bally' }}
+      opponentRating={1350}
+    />
+  ),
+  /* The lobby for a player who has not placed yet: the placement bot stands
+     where a stranger would. /rating and the rest are faked in place, since
+     the dev server proxies nothing but /bots and the socket. */
+  placement: () => {
+    const real = window.fetch.bind(window);
+    window.fetch = (input, init) => {
+      const url = String(input);
+      const json = (body: unknown) =>
+        Promise.resolve(new Response(JSON.stringify(body), { headers: { 'content-type': 'application/json' } }));
+      if (url.startsWith('/rating')) return json({ rating: 700, placed: false, placementBot: 'Brutus' });
+      if (url.startsWith('/bots'))
+        return json({
+          bots: [
+            { id: 'owl', name: 'Ozzy', color: 'against', elo: 1200, rank: 4, tagline: 'a scholarly owl', blurb: '' },
+            { id: 'bull', name: 'Brutus', color: 'for', elo: 1350, rank: 5, tagline: 'a raging bull', blurb: '' },
+            { id: 'giraffe', name: 'Gigi', color: 'gold', elo: 1500, rank: 6, tagline: 'THE FINAL BOSS', blurb: '' },
+          ],
+        });
+      if (url.startsWith('/live')) return json({ live: 0, watchable: 0, featured: null });
+      if (url.startsWith('/drill')) return json({});
+      return real(input, init);
+    };
+    return (
+      <Home
+        account={{ signedIn: false, google: false }}
+        notice={null}
+        onEntered={noop}
+        onSpectate={noop}
+        onMatches={noop}
+        onDrill={noop}
+        onBotStart={noop}
+        onTutorial={noop}
+        onMaskSaved={noop}
+      />
+    );
+  },
   verdictWait: () => (
     <Verdict
       info={null}

@@ -131,6 +131,26 @@ BOTS.push(TUTOR);
 
 export const BOT_BY_ID = new Map(BOTS.map((b) => [b.id, b]));
 
+/** Where the placement match is anchored: a new player's one game against
+    a bot is scored as if that bot were rated 1400, and their starting rating
+    is 1400 moved by the margin (store.ts placementRating). 1400 sits between
+    Ozzy and Gigi, high enough that a loss still lands a decent debater above
+    the seed and a rout lands a strong one near Headliner. */
+export const PLACEMENT_ANCHOR = 1400;
+
+/** The bot the placement match is played against: whoever on the roster is
+    rated nearest the anchor. Looked up by rating rather than by id because
+    the roster is edited freely (bots come and go, ratings get recalibrated)
+    and a hardcoded id would silently point at a gone or repurposed bot. */
+export function placementBot(): Bot {
+  let best: Bot | undefined;
+  for (const b of BOTS) {
+    if (b.hidden) continue;
+    if (!best || Math.abs(b.elo - PLACEMENT_ANCHOR) < Math.abs(best.elo - PLACEMENT_ANCHOR)) best = b;
+  }
+  return best!;
+}
+
 /** Fields safe to send to the client for the pick screen. */
 export function publicBots() {
   return BOTS.filter((b) => !b.hidden)

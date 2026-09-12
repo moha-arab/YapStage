@@ -19,12 +19,16 @@
 //      one exception: those two really are FOR and AGAINST.
 //   6. NO LOCKER SCREEN. Tap your own mask (or "change mask" under it) and the
 //      roster walks out, same shape as the bot roster.
-//   7. RATING LIVES IN THE RANKED MODE, per length. Blitz, standard and long
-//      each carry their own rating, like chess.com's time controls, and the
-//      chip under your name shows the one for the length you picked.
-//      "Placing · 1 of 3" belongs there too, not in the bar.
+//   7. RATING LIVES IN THE RANKED MODE, and there is one of them. Ranked is
+//      standard only (his call 2026-09-12: one mode, so every player is in
+//      the same queue); the per-length ratings and the three chips under
+//      the stage from 2026-09-04 are gone. The chip under your name shows
+//      your tier and rating, or "not placed yet".
+//   8. PLACEMENT IS ONE MATCH. Unplaced, the ranked stage puts the placement
+//      bot opposite you instead of an empty ring, one line says why, and the
+//      go button starts that game. No placement counter anywhere.
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { NAME_RE, tierFor, type JoinError, type LobbyUpdate, type Pace } from '../../../server/src/protocol';
+import { NAME_RE, tierFor, type JoinError, type LobbyUpdate } from '../../../server/src/protocol';
 import type { BotStartConfig } from './BotSelect';
 import BotRoster from './BotRoster';
 import MaskRoster from './MaskRoster';
@@ -46,19 +50,14 @@ const ERROR_KEYS: Record<JoinError, string> = {
   rate_limited: 'errRateLimited',
   locked: 'errLocked',
   self: 'errSelf',
+  // The server's own account gate for ranked, same words the client uses.
+  signed_out: 'signInRanked',
+  placed: 'errPlaced',
 };
 
 type Mode = 'ranked' | 'bot' | 'friend' | 'watch' | 'drill';
 // His order (2026-09-04): online, bots, a friend, watch, drill.
 const MODES: Mode[] = ['ranked', 'bot', 'friend', 'watch', 'drill'];
-
-/** Match length per pace, in minutes, for the chip. Eight turns at the
-    scripted seconds (debate.ts): blitz ~3, standard 5, long ~8. */
-const PACES: { id: Pace; minutes: number }[] = [
-  { id: 'blitz', minutes: 3 },
-  { id: 'standard', minutes: 5 },
-  { id: 'long', minutes: 8 },
-];
 
 interface Bot {
   id: string;
@@ -72,9 +71,12 @@ interface Bot {
 
 interface Rank {
   rating: number;
-  provisional: boolean;
-  placementsLeft: number;
-  games: number;
+  /** false = the placement match is still ahead; null = the store is down
+      and the server cannot say, so the queue shows as if placed. */
+  placed: boolean | null;
+  /** Who the placement match is against, named by the server so the stage
+      can put them up before the roster has loaded. */
+  placementBot: string;
 }
 
 interface Props {
@@ -106,16 +108,6 @@ function Cone({ color, id }: { color: string; id: string }) {
       <polygon points="100,-20 200,-20 300,560 0,560" fill={`url(#${id})`} />
     </svg>
   );
-}
-
-function readPace(): Pace {
-  try {
-    const p = localStorage.getItem('yapstage.pace');
-    if (p === 'blitz' || p === 'long' || p === 'standard') return p;
-  } catch {
-    // storage blocked
-  }
-  return 'standard';
 }
 
 export default function Home({
@@ -152,15 +144,6 @@ export default function Home({
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [name, setName] = useState('');
-  const [pace, setPaceState] = useState<Pace>(readPace);
-  const setPace = (p: Pace) => {
-    setPaceState(p);
-    try {
-      localStorage.setItem('yapstage.pace', p);
-    } catch {
-      // storage blocked: it just will not stick
-    }
-  };
 
   const [queueing, setQueueing] = useState(false);
   const [queueInfo, setQueueInfo] = useState<{ waiting: number } | null>(null);
@@ -169,20 +152,25 @@ export default function Home({
 
   /* ---- everything the stage needs to know ---- */
 
-  // One rating per length. The server answers with `paces`; a build that
-  // predates it answers with the standard numbers at the top level, and the
-  // fallback reads those so the chip never goes blank mid-deploy.
-  const [ranks, setRanks] = useState<Partial<Record<Pace, Rank>> | null>(null);
+  // Your one rating, and whether the placement match is still ahead. A server
+  // built before one-match placement answers without `placed`; that reads as
+  // null, which is the queue, so nothing on the stage changes mid-deploy.
+  const [rank, setRank] = useState<Rank | null>(null);
   useEffect(() => {
     void fetch(`/rating?playerId=${encodeURIComponent(playerId())}`)
       .then((r) => r.json())
       .then((d) => {
-        if (d && typeof d === 'object' && d.paces) return setRanks(d.paces);
-        if (typeof d?.rating === 'number') setRanks({ standard: d, blitz: d, long: d });
+        if (typeof d?.rating !== 'number') return;
+        setRank({
+          rating: d.rating,
+          placed: typeof d.placed === 'boolean' ? d.placed : null,
+          placementBot: typeof d.placementBot === 'string' ? d.placementBot : '',
+        });
       })
       .catch(() => {});
   }, [account.signedIn]);
-  const rank = ranks?.[pace] ?? null;
+  // Unplaced means the placement bot stands opposite you in ranked mode.
+  const placing = mode === 'ranked' && rank?.placed === false;
 
   const [bots, setBots] = useState<Bot[]>([]);
   useEffect(() => {
@@ -352,9 +340,7 @@ export default function Home({
   function joinQueue() {
     if (queueing || !requireAccount() || !requireName()) return;
     setError(null);
-    // A plain object, not a literal in the call: the pace field is new and a
-    // client built against the older event type must still compile.
-    const payload = { sessionId: session.id, playerId: playerId(), name: effName, pace };
+    const payload = { sessionId: session.id, playerId: playerId(), name: effName };
     socket.emit('queue:join', payload, (res) => {
       if (!res.ok) return setError(ERROR_KEYS[res.error ?? 'rate_limited']);
       setQueueing(true);
@@ -381,6 +367,22 @@ export default function Home({
       topicMode: 'random',
       side: 'random',
       pace: 'standard',
+    });
+  }
+
+  /** The placement match. Ranked terms (an account, a random motion, the
+      coin deals the sides), but the opponent is the placement bot and the
+      server picks it; the botId here is only what the stage showed. */
+  function startPlacement() {
+    if (!rank || !requireAccount() || !requireName()) return;
+    initAudio();
+    unlockBotVoice();
+    onBotStart(effName, {
+      botId: placementBot?.id ?? '',
+      topicMode: 'random',
+      side: 'random',
+      pace: 'standard',
+      placement: true,
     });
   }
 
@@ -460,6 +462,8 @@ export default function Home({
 
   const ladder = bots.filter((b) => b.id !== 'tutor').sort((a, b) => a.rank - b.rank);
   const chosenBot = ladder.find((b) => b.id === pickedBot) ?? null;
+  // The server names the placement bot; the roster gives it a face.
+  const placementBot = rank ? (ladder.find((b) => b.name === rank.placementBot) ?? null) : null;
   const watchingFeatured = mode === 'watch' ? live.featured : null;
 
   // YOU, on the amber side, in every mode but watch. Your mask is a button:
@@ -473,23 +477,37 @@ export default function Home({
         <div className="lb-fname">{effName || t('lbYou')}</div>
         <span className="lb-change">{t('lbChangeMask')}</span>
       </button>
-      {mode === 'ranked' && rank ? (
-        rank.provisional ? (
-          <span className="lb-tier lb-tier-provisional">
-            {t('lbPlacing', { n: rank.games, m: rank.games + rank.placementsLeft })}
-          </span>
-        ) : (
-          <span className="lb-tier">
-            <TierBadge tier={tierFor(rank.rating).key} size={15} />
-            {t(`tier_${tierFor(rank.rating).key}`)} · <span className="lb-elo">{rank.rating}</span>
-          </span>
-        )
+      {/* Placed: your tier and number. Unplaced: say so. Unknown (the store
+          is down, so /rating is the seed for everyone): say nothing, since
+          "Bronze 700" under a Master is a lie the chip would be telling. */}
+      {mode === 'ranked' && rank?.placed === true ? (
+        <span className="lb-tier">
+          <TierBadge tier={tierFor(rank.rating).key} size={15} />
+          {t(`tier_${tierFor(rank.rating).key}`)} · <span className="lb-elo">{rank.rating}</span>
+        </span>
+      ) : mode === 'ranked' && rank?.placed === false ? (
+        <span className="lb-tier lb-tier-provisional">{t('lbUnplaced')}</span>
       ) : null}
     </>
   );
 
   let opponent;
-  if (mode === 'ranked') {
+  if (placing && rank) {
+    // Unplaced: the placement bot stands where a stranger would, and the one
+    // line under it says what the game is for.
+    opponent = (
+      <>
+        <div className="lb-art">
+          <BotAvatar botId={placementBot?.id ?? ''} color={placementBot?.color ?? 'against'} size="var(--art)" bare />
+        </div>
+        <div className="lb-fname">
+          {rank.placementBot}
+          {placementBot ? <span className="lb-frating">{placementBot.elo}</span> : null}
+        </div>
+        <div className="lb-soft lb-soft-placement">{t('lbPlacementLine', { x: rank.placementBot })}</div>
+      </>
+    );
+  } else if (mode === 'ranked') {
     opponent = (
       <>
         <div className={`lb-empty ${queueing ? 'lb-searching' : ''}`}>
@@ -581,7 +599,13 @@ export default function Home({
   /* ---- the one button ---- */
 
   let go;
-  if (mode === 'ranked') {
+  if (placing) {
+    go = (
+      <button className="lb-go" onClick={startPlacement}>
+        {t('lbGoPlacement', { x: rank?.placementBot ?? '' })}
+      </button>
+    );
+  } else if (mode === 'ranked') {
     go = queueing ? (
       <button className="lb-go lb-go-cancel" onClick={leaveQueue}>
         {t('queueCancel')}
@@ -648,7 +672,9 @@ export default function Home({
         })
       : mode === 'bot' && pickedBot === 'tutor'
         ? t('lbCapTutor')
-        : t(`lbCap_${mode}`);
+        : placing
+          ? t('lbCap_placement', { x: esc(rank?.placementBot ?? '') })
+          : t(`lbCap_${mode}`);
 
   /* ---- render ---- */
 
@@ -753,25 +779,6 @@ export default function Home({
                 }}
               />
               {name && !validName ? <span className="lb-err">{t('errBadName')}</span> : null}
-            </div>
-          ) : null}
-
-          {/* Ranked: pick a length. Each one is its own ladder. */}
-          {mode === 'ranked' ? (
-            <div className="lb-pace" role="radiogroup" aria-label={t('paceLabel')}>
-              {PACES.map((p) => (
-                <button
-                  key={p.id}
-                  className={`lb-pace-c ${pace === p.id ? 'lb-pace-on' : ''}`}
-                  role="radio"
-                  aria-checked={pace === p.id}
-                  disabled={queueing}
-                  onClick={() => setPace(p.id)}
-                >
-                  {t(`lbPace_${p.id}`)}
-                  <small>{t('lbPaceMin', { n: p.minutes })}</small>
-                </button>
-              ))}
             </div>
           ) : null}
 

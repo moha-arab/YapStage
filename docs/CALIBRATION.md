@@ -37,10 +37,33 @@ outrank the cold-start argument:
    file precisely because of that.
 
 The cold-start problem is real: in a closed human-only pool your number encodes
-your rank among twenty friends and little else. The answer is to fix placement
-(three matches, not five, so the threshold is reachable) and to keep the bot
-ladder as a published yardstick you measure yourself against, not as a source
-of rating.
+your rank among twenty friends and little else. Placement was three ranked
+matches for a while (three, not five, so the threshold was reachable), and on
+2026-09-12 it became **one match against the bot rated nearest 1400**, his
+call: nobody in a small pool was finding three strangers, and a rating that
+never arrives is worse than a rough one. The placement match is the one bot
+game that touches a rating, and it can only do so once per player:
+
+- The judge's 100-point scorecard gives a margin (your total minus the bot's).
+  Starting rating = 1400 + 8 × margin, clamped to [-400, +300], so the band is
+  1000 to 1700. Dead even is 1400; a loss by 50 lands at 1000 (Vivi's rung); a
+  win by 38 or more lands at 1700, the Headliner line, which a bot game is not
+  allowed to cross.
+- Wins and losses are untouched, and `placed` flips to true in the same
+  statement that writes the rating, guarded by `WHERE placed = false`. A
+  second placement game cannot be started once placed, and cannot write even
+  if it were.
+- If we barely heard you (under 40 words), nothing is set and you are still
+  unplaced. A silent mic is our outage, not your rating.
+- After placement, K is 96 for your first five human games, 40 until twenty,
+  then 24. The bot game is a rough fix; the fast K lets real opponents correct
+  it within a week.
+
+Neither argument above comes back: you cannot farm a game you cannot replay,
+and a one-off measurement that human games immediately start overwriting is
+not a source of rating, it is a starting point. Ranked is also standard pace
+only now, one queue, so the placement rating and every game after it live on
+one ladder.
 
 So the bot ratings on this page are a scale you can compare yourself to. They
 are not something you can win or lose.
@@ -75,11 +98,12 @@ zero-sum: the numbers encode who is above whom and nothing more, so "you are
 fixed ratings break that on purpose. Beating a locked 1120 bot means the same
 thing this year and next.
 
-Bot matches are currently **unrated** for the human ladder (chess.com does the
-same). That is the conservative choice: it removes any incentive to farm the
-weakest rung. The cost is that the anchor is informational rather than
-mechanical. If the human pool ever needs pinning, the change is to make bot
-results rated with the bot's K at zero.
+Bot matches are **unrated** for the human ladder (chess.com does the same),
+with the single exception of the placement match described above. That is the
+conservative choice: it removes any incentive to farm the weakest rung. The
+cost is that the anchor is informational rather than mechanical. If the human
+pool ever needs pinning, the change is to make bot results rated with the
+bot's K at zero.
 
 ## How the numbers were set
 

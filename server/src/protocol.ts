@@ -17,10 +17,12 @@ export type TopicMode = 'agree' | 'category' | 'random' | 'dispute';
 
 export type Difficulty = 'easy' | 'medium' | 'hard';
 
-// Debate pacing — the same four-round format at three sizes. Turn lengths are
+// Debate pacing, the same four-round format at three sizes. Turn lengths are
 // maximums everywhere: "pass the mic" ends a turn early.
-// Each pace is ALSO its own ladder, the way chess keeps bullet, blitz and
-// classical apart: a rating, a record and a placement run per pace.
+// Blitz and long are for friend rooms only. Ranked is STANDARD ONLY (his call
+// 2026-09-12: "make all the people play one mode so that we have as many
+// players as possible"); the per-pace ladders from 2026-09-04 still exist in
+// the database but nothing enters them any more.
 export const PACES = ['standard', 'blitz', 'long'] as const;
 export type Pace = (typeof PACES)[number];
 
@@ -295,7 +297,12 @@ export type JoinError =
   | 'bad_name'
   | 'rate_limited'
   | 'locked'
-  | 'self';
+  | 'self'
+  /** Ranked needs an account: the queue and the placement match both refuse
+      a signed-out socket wherever Google sign-in is configured. */
+  | 'signed_out'
+  /** The placement match is one shot, and this player has already played it. */
+  | 'placed';
 
 export type CreateResult =
   | { ok: true; update: LobbyUpdate }
@@ -343,8 +350,9 @@ export interface ClientToServer {
   'rematch': () => void; // want to run it back with the same person
   /** Ranked: enter the matchmaking queue. playerId is a persistent per-device
       identity (localStorage), which is what the rating is keyed to. `pace`
-      picks WHICH queue you stand in and which ladder the result moves; a
-      pace only ever pairs with itself. Absent or unknown means standard. */
+      is accepted from older clients and ignored: ranked is standard only,
+      one queue and one ladder, so everyone who wants a game is in the same
+      line. Signed out is refused ('signed_out') wherever sign-in exists. */
   'queue:join': (
     p: { sessionId: string; playerId: string; name: string; pace?: Pace },
     cb: (res: { ok: boolean; error?: JoinError }) => void,
@@ -397,6 +405,11 @@ export interface ClientToServer {
       playerId?: string;
       /** Default true: the ladder counts. false = sparring, unrated. */
       rated?: boolean;
+      /** The placement match: one game against the roster bot nearest 1400
+          that sets an unplaced player's starting rating. The server picks
+          the bot, the topic and the sides itself (botId, topicMode and side
+          are ignored) and refuses a player who is already placed. */
+      placement?: boolean;
     },
     cb: (res: {
       ok: boolean;
@@ -449,9 +462,12 @@ export interface ServerToClient {
         heard them — which must be said out loud, not left to look like a
         crushing defeat they earned. */
     heard?: Record<Side, number>;
-    /** Ranked only: what the match did to each side's rating on the ladder
-        of the pace it was played at (the lobby's pace). */
+    /** Ranked only: what the match did to each side's rating. */
     elo?: Record<Side, { before: number; after: number }>;
+    /** The placement match only: the starting rating it set. Absent when
+        the store was down or the player was barely heard, in which case
+        nothing was set and they are still unplaced. */
+    placement?: { rating: number };
   }) => void;
   /** Rematch handshake state (per recipient's own view). */
   'rematch:update': (p: { youWant: boolean; peerWant: boolean; peerLeft: boolean }) => void;
@@ -462,9 +478,8 @@ export interface ServerToClient {
   /** What we have transcribed of YOUR current turn so far. Sent only to the
       speaker. Proof, while you talk, that the judge is receiving you. */
   'caption': (p: { stepIndex: number; text: string }) => void;
-  /** Ranked queue heartbeat: how many are waiting IN YOUR PACE (the other
-      queues are invisible to you), your rating on that pace's ladder, and
-      the pace itself so the waiting screen can name it. */
+  /** Ranked queue heartbeat: how many are waiting, your rating, and the pace
+      (always standard now; kept so older waiting screens still render). */
   'queue:update': (p: { waiting: number; rating: number; pace: Pace }) => void;
   /** Paired: both players land in a ranked green room together. */
   'queue:matched': (p: { update: LobbyUpdate }) => void;

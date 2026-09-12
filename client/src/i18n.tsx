@@ -91,11 +91,10 @@ const en: Dict = {
   mask_fuma: 'Fuma',
   mask_crux: 'Crux',
   lbAFriendSoft: 'A friend',
-  lbPlacing: 'Placing · {n} of {m}',
-  lbPace_blitz: 'blitz',
-  lbPace_standard: 'standard',
-  lbPace_long: 'long',
-  lbPaceMin: '{n} min',
+  lbPlacementLine: 'Your first match is against {x}. It sets your starting rating.',
+  lbGoPlacement: 'play {x}',
+  lbCap_placement:
+    'One match against <b>{x}</b> decides where you start. A random topic, the coin picks your side, the judge scores it. After that, strangers, and every match moves your rating.',
   lbUseCode: 'Use this code',
   lbCopyLink: 'Copy invite link',
   lbGotCode: 'Got a code?',
@@ -129,7 +128,7 @@ const en: Dict = {
   lbWatchEmptySub: 'Check back in a bit',
 
   lbCap_ranked:
-    'A stranger and a random topic. The coin picks your side, the judge picks the winner. <b>This one moves your rating</b> for the length you picked.',
+    'A stranger and a random topic, five minutes. The coin picks your side, the judge picks the winner. <b>This one moves your rating.</b>',
   lbCap_friend:
     'Send the code or the link to one friend and <b>they walk straight in.</b> You pick the topic, the coin picks the sides, and nobody’s rating moves.',
   lbCapFriendPicked:
@@ -202,7 +201,9 @@ const en: Dict = {
   eloReason_cap: "that's three against this bot today.",
   eloReason_spar: 'Sparring, by your choice.',
   eloReason_quiet: 'We barely heard you, so it stays off your record.',
-  placingChip: 'Placing · {n} of 5',
+  placedLine: 'Your starting rating. It will move a lot over your first few matches.',
+  errPlaced: 'You are already placed. Find an opponent instead.',
+  errPlacing: 'Your placement match is already running in another tab.',
   friendsPill: 'Friends',
   friendsTitle: 'YOUR PEOPLE',
   friendsOnline: '{n} of {total} here right now',
@@ -728,7 +729,13 @@ const ar: Dict = {
   eloReason_cap: 'هذه ثالث مواجهة مع هذا البوت اليوم.',
   eloReason_spar: 'تدريب، باختيارك.',
   eloReason_quiet: 'بالكاد سمعناك، فلن تُحتسب.',
-  placingChip: 'التصنيف · {n} من ٥',
+  placedLine: 'تقييمك الأول. سيتحرك كثيراً في مبارياتك الأولى.',
+  errPlaced: 'تقييمك محدد بالفعل. ابحث عن خصم.',
+  errPlacing: 'مباراة التحديد تجري في تبويب آخر.',
+  lbPlacementLine: 'مباراتك الأولى ضد {x}. تحدد تقييمك الأول.',
+  lbGoPlacement: 'العب ضد {x}',
+  lbCap_placement:
+    'مباراة واحدة ضد <b>{x}</b> تحدد من أين تبدأ. موضوع عشوائي، والقرعة تختار جانبك، والحكم يسجّل. بعدها غرباء، وكل مباراة تحرّك تقييمك.',
   friendsPill: 'الأصدقاء',
   friendsTitle: 'أصدقاؤك',
   friendsOnline: '{n} من {total} متصلون الآن',

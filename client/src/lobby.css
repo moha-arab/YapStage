@@ -143,9 +143,9 @@
   letter-spacing: 0;
 }
 
-/* Provisional ratings do not get a badge. A number still swinging 64 points a
-   match is a guess, and a guess dressed as a measurement is how a ladder
-   loses trust. */
+/* Unplaced players do not get a badge or a number. Before the placement
+   match the rating is the seed, which says nothing about them, and a guess
+   dressed as a measurement is how a ladder loses trust. */
 .lb-tier-provisional {
   border-color: var(--house-3);
   color: var(--muted);
@@ -1151,53 +1151,15 @@
   margin-top: 8px;
 }
 
-/* ---- ranked: pick a length; each one is its own ladder ---- */
+/* ---- ranked: the placement match ---- */
+/* The three length chips that stood here (2026-09-04) are gone with the
+   per-length ladders: ranked is standard only. What is left under the
+   placement bot is one sentence, kept to a readable measure. */
 
-.lb-pace {
-  grid-column: 1 / -1;
-  justify-self: center;
-  display: flex;
-  gap: 6px;
-  margin: 0 0 12px;
-  position: relative;
-  z-index: 2;
-}
-
-.lb-pace-c {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 1px;
-  min-width: 96px;
-  padding: 8px 14px;
-  border-radius: 4px;
-  box-shadow: inset 0 0 0 1px var(--house-3);
-  font-family: 'Ultra', serif;
-  font-size: 15px;
-  color: var(--muted);
-  transition: color 0.12s ease, box-shadow 0.12s ease, background 0.12s ease;
-}
-
-.lb-pace-c small {
-  font-family: var(--mono);
-  font-size: 11px;
-  color: var(--muted);
-}
-
-.lb-pace-c:hover:not(:disabled) {
-  color: var(--paper);
-}
-
-.lb-pace-on,
-.lb-pace-on:hover:not(:disabled) {
-  background: var(--house-2);
-  color: var(--paper);
-  box-shadow: inset 0 0 0 1px var(--amber);
-}
-
-.lb-pace-c:disabled {
-  cursor: default;
-  opacity: 0.6;
+.lb-soft-placement {
+  max-width: 26ch;
+  margin-inline: auto;
+  line-height: 1.35;
 }
 
 /* ---- play a friend: the code on the stage ---- */
