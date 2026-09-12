@@ -717,7 +717,7 @@ export default function App() {
     );
   }, [botName, resetToHome]);
 
-  // "Go fight Pip": from the debrief straight into the training picker, same
+  // "Go fight Nib": from the debrief straight into the training picker, same
   // name, fresh camera (the media effect reacquires off botPicking).
   const trainAfterTutorial = useCallback(() => {
     stopBotVoice();

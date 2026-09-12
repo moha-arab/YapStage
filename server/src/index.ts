@@ -1656,8 +1656,8 @@ io.on('connection', (socket) => {
 
     // BOT MATCHES ARE UNRATED, the same rule chess.com runs, and the reasons
     // are stronger here than the cold-start argument that briefly overrode
-    // them. A bot is a FIXED strategy: Ozzy never weighs impacts, so once you
-    // learn that you beat Ozzy forever with the same move and a rating would
+    // them. A bot is a FIXED strategy: Wendell never weighs impacts, so once you
+    // learn that you beat Wendell forever with the same move and a rating would
     // climb while your debating did not. Elo assumes an opponent whose
     // strength is stable across all players, and a prompt is not. Worse, a bot
     // match has no witness, so rating movement against one is the cheapest

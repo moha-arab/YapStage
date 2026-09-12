@@ -482,8 +482,8 @@ export const FRESH_GAMES = 5;
 /** The placement rating, from the judge's 100-point scorecard: 1400 moved
     by eight points per point of margin (human total minus bot total),
     clamped to [-400, +300]. A dead-even game lands at 1400; a loss by 50 at
-    1000, which is Vivi's rung and a fair start for someone Brutus beat
-    comfortably; a win by 38 or more at 1700, the Headliner boundary, which
+    1000, which is Jinx's rung and a fair start for someone Clover beat
+    comfortably; a win by 38 or more at 1700, the cap, which
     a bot game must not hand out above. Floored like everything else. */
 export function placementRating(margin: number): number {
   const shift = Math.max(-400, Math.min(300, Math.round(margin * 8)));
@@ -491,20 +491,23 @@ export function placementRating(margin: number): number {
 }
 
 /** Where a new player starts.
-    700 was chosen from the bot ladder, not from chess. At 700 you are a 57%
-    favourite over Pip (650) and a 30% underdog to Cappy (850), so your first
+    700 was chosen from the bot ladder of the time, not from chess. At 700
+    you were a 57% favourite over Pip (650) and a 30% underdog to Cappy (850)
+    on the old six-rung ladder, so your first
     rated match is probably a win and not certainly one, which is the right
     prior for someone who has never debated.
-    1000 was wrong for a specific reason: 1000 IS Vivi, rank 3 of 6. Every new
+    1000 was wrong for a specific reason: 1000 WAS Vivi, rank 3 of 6. Every new
     account was being handed the claim that it could already take half the
     ladder. Chess.com has the same shape as this: its bots start at 250 and a
     self-declared beginner starts at 400, so a newcomer has one rung below them
     and a long way up. */
 export const SEED_RATING = 700;
 
-/** A floor, not a kindness. 500 against Pip means the gentlest bot on the
-    ladder beats you 70% of the time; everything below that is dead space that
-    exists only to humiliate someone. It also plugs the leak: points that fall
+/** A floor, not a kindness. Set against the old ladder, where 500 against
+    Pip (650) meant the gentlest bot beat you 70% of the time. On the
+    2026-09-12 ladder the floor sits between Nib (200) and Moss (600), so a
+    floored player is still a clear favourite over Nib. Everything below it is
+    dead space that exists only to humiliate someone. It also plugs the leak: points that fall
     out of the bottom of a pool never come back. */
 export const RATING_FLOOR = 500;
 
@@ -1155,7 +1158,7 @@ export async function listFriends(sub: string): Promise<FriendRow[] | null> {
 
 // ---- campaign (the bot ladder as levels) ----
 // level = the highest bot rank this player may face. 0 = only the tutorial;
-// finishing the tutorial reaches 1 (Pip); beating rank r reaches r+1.
+// finishing the tutorial reaches 1 (Nib); beating rank r reaches r+1.
 // null everywhere means "store down": callers FAIL OPEN — a dead database
 // unlocks the ladder rather than bricking training mode.
 

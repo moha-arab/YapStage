@@ -33,7 +33,7 @@
 //      standard only (his call 2026-09-12: one mode, so every player is in
 //      the same queue); the per-length ratings and the three chips under
 //      the stage from 2026-09-04 are gone. The chip under your name shows
-//      your tier and rating, or "not placed yet".
+//      your rating, or "not placed yet".
 //   8. PLACEMENT IS ONE MATCH. Unplaced, the ranked stage puts the placement
 //      bot opposite you instead of an empty ring, one line says why, and the
 //      go button starts that game. No placement counter anywhere.
@@ -50,7 +50,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   NAME_RE,
-  tierFor,
   type JoinError,
   type LiveList,
   type LiveMatch,
@@ -77,7 +76,6 @@ import { useI18n } from '../i18n';
 import Mask, { MASK_IDS } from '../Mask';
 import BotAvatar from '../BotAvatar';
 import Cone from '../Cone';
-import TierBadge from '../TierBadge';
 
 const ERROR_KEYS: Record<JoinError, string> = {
   not_found: 'errNotFound',
@@ -616,13 +614,13 @@ export default function Home({
         <div className="lb-fname">{effName || t('lbYou')}</div>
         <span className="lb-change">{t('lbChangeMask')}</span>
       </button>
-      {/* Placed: your tier and number. Unplaced: say so. Unknown (the store
-          is down, so /rating is the seed for everyone): say nothing, since
-          "Bronze 700" under a Master is a lie the chip would be telling. */}
+      {/* Placed: your number, and only the number (no tier names since
+          2026-09-12). Unplaced: say so. Unknown (the store is down, so
+          /rating is the seed for everyone): say nothing, since "700" under a
+          2400 player is a lie the chip would be telling. */}
       {mode === 'ranked' && rank?.placed === true ? (
         <span className="lb-tier">
-          <TierBadge tier={tierFor(rank.rating).key} size={15} />
-          {t(`tier_${tierFor(rank.rating).key}`)} · <span className="lb-elo">{rank.rating}</span>
+          <span className="lb-elo">{rank.rating}</span>
         </span>
       ) : mode === 'ranked' && rank?.placed === false ? (
         <span className="lb-tier lb-tier-provisional">{t('lbUnplaced')}</span>

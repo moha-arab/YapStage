@@ -10,7 +10,7 @@
        an app about arguing reads Republican vs Democrat before it reads two
        debaters; bastard amber and turquoise are the two cheapest lights in
        any real theatre and carry no team.
-     - GOLD IS A PRIZE. It appears on a win, a rank-up and a tier chip. If it
+     - GOLD IS A PRIZE. It appears on a win and a rating gain. If it
        is on a button, it stops meaning anything.
      - Paper is the key light: one warm panel per screen, on the thing that
        matters most, and nowhere else. */
@@ -2190,7 +2190,7 @@ html[dir='rtl'] .meter-hint {
 }
 
 /* The face IS the tile: an avatar frame inside a tile frame is two nested
-   boxes around one duckling. */
+   boxes around one mouse. */
 .tile .bot-avatar {
   border: 0;
   background: none;

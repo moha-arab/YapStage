@@ -1256,3 +1256,39 @@ and Debater B.
 6. The ledger adds roughly 300 to 400 output tokens per verdict (a few
    seconds and a few cents); `max_tokens` is 3200 and no call truncated in
    about 1000 calls, but a very long debate could.
+
+## Independent re-run, 2026-09-12 afternoon (after the credit top-up)
+
+The overnight numbers above were measured by the agent that made the change.
+These were run afterwards, on the shipped prompt, by a separate session, as a
+check rather than a tuning pass.
+
+`judge-eval.mjs` with MIRROR=1 over judge-cases, judge-cases-hard and
+judge-cases-bias (96 judge calls, about $3.84):
+
+| measure | result |
+| --- | --- |
+| picked the side built to argue better | 91/91 |
+| rewarded the well-argued unpopular side | 9/9 |
+| agreed with the independent blind reader | 28/29 |
+| injection flagged exactly when a debater talks to the judge | 6/6 |
+| wins by label across all cases | FOR 46, AGAINST 50 |
+| misses | 0 |
+
+On the five balanced charged debates the AGAINST label won four, by 2 to 4
+points, inside the per-case noise of about 8.
+
+`judge-fairness.mjs`, conditions asis, swap and order (131 judge calls, about $5.24):
+
+| measure | result |
+| --- | --- |
+| winner flips under swap | 2/41, decisive 0/39 |
+| winner flips under order | 3/45, decisive 0/42 |
+| FOR-label bonus per speech | -1.4 (was -2.4 at baseline, -2.0 after tightening) |
+| AGAINST-label advantage for the losing speech | +2.9 (reported 2.6 after tightening, 4.4 before) |
+| FOR-slot bonus per speech | -0.9 |
+| accuracy | asis 42/42, swap 39/39, order 42/42 |
+
+Every flip was on bal-1, bal-2 or bal-3, with margins of 5 or less. The
+tightening result holds: the residual label effect is about 1.5 to 3 points
+on a speech and it never decides a case with a real margin.

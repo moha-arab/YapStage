@@ -11,17 +11,17 @@ Eight bots, 400 apart, 200 to 3000. Bot ratings are **fixed** and never move.
 
 | rank | bot | rating | the one skill this rung adds |
 | --- | --- | --- | --- |
-| 1 | Pip, duckling | 200 | the floor: holds one point, hears the opponent, answers nothing |
-| 2 | Cappy, capybara | 600 | one rebuttal per turn, aimed at the easiest thing said |
-| 3 | Vivi, fox | 1000 | a second point, both kept alive all debate |
-| 4 | Nora, border collie | 1400 | concrete support: named examples, mechanisms, history |
-| 5 | Ozzy, owl | 1800 | answers the opponent's strongest argument instead of the easiest |
-| 6 | Brutus, bull | 2200 | defends under attack: repairs every hit point, pre-empts the obvious objection |
-| 7 | Vera, elephant | 2600 | weighs: names the measure and says why her side wins on it |
-| 8 | Gigi, giraffe | 3000 | resolves the clash: names the one question, settles it, uses your own words |
+| 1 | Nib, mouse | 200 | the floor: holds one point, hears the opponent, answers nothing |
+| 2 | Moss, sloth | 600 | one rebuttal per turn, aimed at the easiest thing said |
+| 3 | Jinx, raccoon | 1000 | a second point, both kept alive all debate |
+| 4 | Clover, rabbit | 1400 | concrete support: named examples, mechanisms, history |
+| 5 | Wendell, tortoise | 1800 | answers the opponent's strongest argument instead of the easiest |
+| 6 | Rocco, boar | 2200 | defends under attack: repairs every hit point, pre-empts the obvious objection |
+| 7 | Sable, cat | 2600 | weighs: names the measure and says why her side wins on it |
+| 8 | Vesper, wolf | 3000 | resolves the clash: names the one question, settles it, uses your own words |
 
-Nora is the placement opponent: fair, no gimmick, her only ceiling is the
-skills above her. Gigi is the final boss and has every skill on the list.
+Clover is the placement opponent: fair, no gimmick, her only ceiling is the
+skills above her. Vesper is the final boss and has every skill on the list.
 
 **These numbers are designed, not measured.** The order comes from the rung
 contracts in `server/src/bots.ts` (`rungDirective`): each rung adds exactly one
@@ -31,8 +31,8 @@ spacing is a claim the calibration plan below has to make true. Until it has
 run, treat every gap as a statement of intent with an error bar of the whole
 gap.
 
-The six animals that survived the 2026-09-12 re-rating (Pip, Cappy, Vivi,
-Ozzy, Brutus, Gigi) kept their names, art and voices but were given new rung
+The six animals that survived the 2026-09-12 re-rating (Nib, Moss, Jinx,
+Wendell, Rocco, Vesper) kept their names, art and voices but were given new rung
 contracts, so the 2026-08-11 measurements below no longer describe them.
 
 ### Why 200 to 3000
@@ -67,18 +67,17 @@ So adjacent rungs should measure as about 9 in 10 for the higher bot and two
 rungs apart as about 99 in 100. If they do not, the directives move, never the
 numbers (see "when it fails").
 
-## Tiers
+## No tiers
 
-Every tier boundary above Iron is a bot you can go and fight
-(`server/src/protocol.ts` TIERS): Bronze 200 (Pip), Silver 600 (Cappy), Gold
-1000 (Vivi), Platinum 1400 (Nora), Diamond 1800 (Ozzy), Master 2200 (Brutus),
-Headliner 2600 (Vera). A tier means you are at or above that bot's rating, which
-is a 50 percent claim against it. Gigi at 3000 sits above every tier on purpose.
+The ladder used to name eight metals (Iron to Headliner) with a bot at every
+boundary. He cut them on 2026-09-12 ("remove the ranks, only numbers"): a
+rating is the whole rank now, and the eight bots are the only fixed numbers
+on it. "I am above Clover" is what a tier used to say, and it still says it.
 
 ## Where humans start
 
 Nobody seeds any more. A new player's first number comes from one placement
-debate against the roster bot rated nearest 1400 (Nora), his call on
+debate against the roster bot rated nearest 1400 (Clover), his call on
 2026-09-12: in a small pool nobody was finding three strangers for placement
 matches, and a rating that never arrives is worse than a rough one. The rule,
 as implemented in `server/src/judge.ts` and `store.placePlayer`:
@@ -86,7 +85,7 @@ as implemented in `server/src/judge.ts` and `store.placePlayer`:
 - The judge's 100-point scorecard gives a margin (your total minus the
   bot's). Starting rating = 1400 + 8 x margin, clamped to [-400, +300], never
   below the floor of 500. Dead even is 1400; a loss by 50 lands at 1000
-  (Vivi's rung); a win by 38 or more lands at 1700, the most a bot game may
+  (Jinx's rung); a win by 38 or more lands at 1700, the most a bot game may
   hand out.
 - Wins and losses are untouched, and `placed` flips to true in the same
   statement that writes the rating, guarded by `WHERE placed = false`, so it
@@ -111,8 +110,8 @@ Ranked means humans, the same rule chess.com runs. This was briefly reversed
 problem in a twenty-person pool, and reverted 2026-08-12. Two reasons, and both
 outrank the cold-start argument:
 
-1. **A bot is a fixed strategy.** Ozzy never repairs a point you hit. Once you
-   learn that, you beat Ozzy forever with the same move, and a rating would
+1. **A bot is a fixed strategy.** Wendell never repairs a point you hit. Once you
+   learn that, you beat Wendell forever with the same move, and a rating would
    climb while your debating did not. Elo assumes an opponent whose strength is
    stable across all players; a prompt is not that.
 2. **A bot match has no witness.** Rating movement against one is the cheapest
@@ -122,7 +121,7 @@ outrank the cold-start argument:
 
 So the bot ratings on this page are a scale you can compare yourself to. They
 are not something you can win or lose. The one exception is placement: a new
-player's first number comes from one debate against Nora, which attaches the
+player's first number comes from one debate against Clover, which attaches the
 human scale to the bot scale, and after that the bots never move a rating
 again.
 
@@ -138,7 +137,7 @@ thing this year and next.
 
 Three things pin the numbers. The design fixes the order (one skill per rung).
 Bot-versus-bot debates fix the spacing (400 apart must measure as about 9 in
-10). The placement debate against Nora attaches the human scale to the bot
+10). The placement debate against Clover attaches the human scale to the bot
 scale.
 
 **Prerequisite.** A bot-versus-bot harness: `scripts/bot-ladder.mjs`, or a
@@ -150,10 +149,10 @@ FOR. A debate is about 8 generations and one judge call, roughly 10 cents.
 
 | phase | what | debates | pass |
 | --- | --- | --- | --- |
-| A. Order, adjacent pairs | Pip v Cappy, Cappy v Vivi, Vivi v Nora, Nora v Ozzy, Ozzy v Brutus, Brutus v Vera, Vera v Gigi; 20 each, 10 with the higher bot FOR | 140 | the higher bot wins at least 15 of 20 in every pair |
-| B. Spacing, two rungs apart | Pip v Vivi, Cappy v Nora, Vivi v Ozzy, Nora v Brutus, Ozzy v Vera, Brutus v Gigi; 10 each | 60 | the higher bot wins at least 9 of 10 in every pair, and its mean margin is larger than in the adjacent pair below it |
-| C. Placement fairness and endpoints | Nora v Nora, 20, sides alternated; Pip v Gigi, 4 | 24 | Nora v Nora splits between 7 and 13 of 20 for FOR (outside that band the judge or the format has a side bias that would poison every placement, and that gets fixed before anything else); Pip v Gigi goes 4 to 0 |
-| D. Human scale, scripted profiles | both profiles in `bot-beatability.mjs` against all eight bots, 3 runs each | 48 | average beats Pip 3 of 3 and Cappy at least 2 of 3, splits with Vivi, loses to Nora and above; strong beats through Nora, splits with Ozzy, loses to Brutus and above |
+| A. Order, adjacent pairs | Nib v Moss, Moss v Jinx, Jinx v Clover, Clover v Wendell, Wendell v Rocco, Rocco v Sable, Sable v Vesper; 20 each, 10 with the higher bot FOR | 140 | the higher bot wins at least 15 of 20 in every pair |
+| B. Spacing, two rungs apart | Nib v Jinx, Moss v Clover, Jinx v Wendell, Clover v Rocco, Wendell v Sable, Rocco v Vesper; 10 each | 60 | the higher bot wins at least 9 of 10 in every pair, and its mean margin is larger than in the adjacent pair below it |
+| C. Placement fairness and endpoints | Clover v Clover, 20, sides alternated; Nib v Vesper, 4 | 24 | Clover v Clover splits between 7 and 13 of 20 for FOR (outside that band the judge or the format has a side bias that would poison every placement, and that gets fixed before anything else); Nib v Vesper goes 4 to 0 |
+| D. Human scale, scripted profiles | both profiles in `bot-beatability.mjs` against all eight bots, 3 runs each | 48 | average beats Nib 3 of 3 and Moss at least 2 of 3, splits with Jinx, loses to Clover and above; strong beats through Clover, splits with Wendell, loses to Rocco and above |
 
 Total about 272 debates, about 27 dollars. After any prompt change, rerun
 phase A at 10 per pair (70 debates, 7 dollars).
@@ -162,7 +161,7 @@ phase A at 10 per pair (70 debates, 7 dollars).
 14 and 19 wins of 20 for the higher bot (an implied gap of about 190 to 510 by
 `gap = 400 x log10(w / (20 - w))`, target 18 of 20, which is 382); margins that
 grow with the gap; and the human profiles crossing the ladder where the scale
-says they should, average near Vivi and strong near Ozzy.
+says they should, average near Jinx and strong near Wendell.
 
 **When it fails:**
 
@@ -183,9 +182,41 @@ on a true 91 percent rate is roughly 70 to 99. Pinning a gap to plus or minus
 100 needs about 50 debates per pair, which is 35 dollars for the seven adjacent
 pairs and is the second pass once the first is clean.
 
-## What was measured before (the old six-rung ladder, 2026-08-11)
+## What was measured on 2026-09-12 (the eight-rung ladder)
 
-Kept for the lessons, not the numbers. The old rungs were 650 to 1500, the
+Phase D only, at 2 runs per cell instead of 3, with the new cast and the
+tightened judge. Phases A to C still need the bot-versus-bot harness.
+
+| rung | bot | rating | average profile | strong profile |
+| --- | --- | --- | --- | --- |
+| 1 | Nib | 200 | 2/2, +61 | 2/2, +60 |
+| 2 | Moss | 600 | 2/2, +36 | 2/2, +46 |
+| 3 | Jinx | 1000 | 1/2, +8 | 2/2, +22 |
+| 4 | Clover | 1400 | 0/2, −25 | 0/2, −12 |
+| 5 | Wendell | 1800 | 0/2, −33 | 0/2, −24 |
+| 6 | Rocco | 2200 | 0/2, −31 | 0/2, −17 |
+| 7 | Sable | 2600 | 0/2, −24 | 0/2, −12 |
+| 8 | Vesper | 3000 | 0/2, −38 | 0/2, −28 |
+
+The order holds from rung 1 to rung 4. The average profile splits with Jinx,
+as the scale says it should. The strong profile beats Jinx and loses to
+Clover, a rung below the "near Wendell" the plan expects.
+
+From rung 4 up both profiles lose every match and the margins stop ordering
+the bots: Sable measured easier than Rocco and Wendell for both profiles.
+Those gaps are inside the judge's run-to-run noise at two runs, and a scripted
+human cannot separate the top of the ladder. That is what phases A and B are
+for.
+
+Against the same run the night before (old cast, judge not yet tightened),
+the floor widened: Nib +61 where Pip was +37. That fits the tightened judge
+scoring clear cases more decisively (mean margin on clear cases 48 to 56).
+
+## What was measured before (the old six-rung ladder and the old cast, 2026-08-11)
+
+Kept for the lessons, not the numbers. The names are the cast of the time
+(Pip the duckling up to Gigi the giraffe, replaced 2026-09-12). The old rungs
+were 650 to 1500, the
 "average" profile in `bot-beatability.mjs`, 3 runs per rung:
 
 | rung | bot | win rate | avg margin | old rating |
@@ -224,7 +255,7 @@ what "strong" means, so a prompt edit invalidates the numbers.
 
 ```bash
 PORT=3010 DEBATE_SPEED=fast ELEVENLABS_API_KEY= node server/dist/index.js
-URL=http://localhost:3010 RUNS=3 BOTS=duckling,capybara,fox,collie,owl,bull,elephant,giraffe node scripts/bot-beatability.mjs
+URL=http://localhost:3010 RUNS=3 BOTS=mouse,sloth,raccoon,rabbit,tortoise,boar,cat,wolf node scripts/bot-beatability.mjs
 ```
 
 Judge fairness has its own harness and should be run alongside it. It checks

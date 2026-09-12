@@ -24,7 +24,6 @@ import Home from './screens/Home';
 import GreenRoom from './screens/GreenRoom';
 import Drill from './screens/Drill';
 import type { LobbyUpdate, Side, Verdict as VerdictData } from '../../server/src/protocol';
-import TierBadge from './TierBadge';
 import VideoTile from './VideoTile';
 import Mask, { MASK_IDS } from './Mask';
 import FightCard from './FightCard';
@@ -98,9 +97,9 @@ function room(over: Partial<LobbyUpdate>): LobbyUpdate {
 
 const BOTS_FAKE = {
   bots: [
-    { id: 'duckling', name: 'Pip', color: 'gold', elo: 200, rank: 1, tagline: 'a nervous little duckling', blurb: '' },
-    { id: 'collie', name: 'Nora', color: 'against', elo: 1400, rank: 5, tagline: 'a steady border collie', blurb: '' },
-    { id: 'giraffe', name: 'Gigi', color: 'gold', elo: 3000, rank: 9, tagline: 'THE FINAL BOSS', blurb: '' },
+    { id: 'mouse', name: 'Nib', color: 'ink', elo: 200, rank: 1, tagline: 'a nervous little mouse', blurb: '' },
+    { id: 'rabbit', name: 'Clover', color: 'against', elo: 1400, rank: 5, tagline: 'an earnest rabbit', blurb: '' },
+    { id: 'wolf', name: 'Vesper', color: 'ink', elo: 3000, rank: 9, tagline: 'THE FINAL BOSS', blurb: '' },
   ],
 };
 
@@ -227,7 +226,7 @@ const SCREENS: Record<string, () => JSX.Element> = {
     <Verdict
       info={{
         verdict: VERDICT,
-        names: { FOR: 'zorvint', AGAINST: 'Brutus' },
+        names: { FOR: 'zorvint', AGAINST: 'Rocco' },
         heard: { FOR: 214, AGAINST: 188 },
         placement: { rating: 1512 },
       }}
@@ -237,13 +236,13 @@ const SCREENS: Record<string, () => JSX.Element> = {
       localStream={null}
       remoteStream={null}
       rtcConnected={false}
-      peerName="Brutus"
+      peerName="Rocco"
       myName="zorvint"
       onLeaveCall={noop}
       onRetry={noop}
       onRematch={noop}
       rematch={null}
-      botOpponent={{ id: 'bull', name: 'Brutus', color: 'for' }}
+      botOpponent={{ id: 'boar', name: 'Rocco', color: 'for' }}
       avatars={{ FOR: 'bally' }}
       opponentRating={1350}
     />
@@ -257,13 +256,13 @@ const SCREENS: Record<string, () => JSX.Element> = {
       const url = String(input);
       const json = (body: unknown) =>
         Promise.resolve(new Response(JSON.stringify(body), { headers: { 'content-type': 'application/json' } }));
-      if (url.startsWith('/rating')) return json({ rating: 700, placed: false, placementBot: 'Brutus' });
+      if (url.startsWith('/rating')) return json({ rating: 700, placed: false, placementBot: 'Clover' });
       if (url.startsWith('/bots'))
         return json({
           bots: [
-            { id: 'owl', name: 'Ozzy', color: 'against', elo: 1200, rank: 4, tagline: 'a scholarly owl', blurb: '' },
-            { id: 'bull', name: 'Brutus', color: 'for', elo: 1350, rank: 5, tagline: 'a raging bull', blurb: '' },
-            { id: 'giraffe', name: 'Gigi', color: 'gold', elo: 1500, rank: 6, tagline: 'the final boss', blurb: '' },
+            { id: 'raccoon', name: 'Jinx', color: 'for', elo: 1000, rank: 3, tagline: 'a raccoon with a plan', blurb: '' },
+            { id: 'rabbit', name: 'Clover', color: 'against', elo: 1400, rank: 4, tagline: 'an earnest rabbit', blurb: '' },
+            { id: 'tortoise', name: 'Wendell', color: 'against', elo: 1800, rank: 5, tagline: 'a tortoise who corrects your grammar', blurb: '' },
           ],
         });
       if (url.startsWith('/live')) return json({ live: 0, watchable: 0, featured: null });
@@ -332,7 +331,7 @@ const SCREENS: Record<string, () => JSX.Element> = {
       const url = String(input);
       const json = (body: unknown) =>
         Promise.resolve(new Response(JSON.stringify(body), { headers: { 'content-type': 'application/json' } }));
-      if (url.startsWith('/rating')) return json({ rating: 1400, placed: true, placementBot: 'Nora' });
+      if (url.startsWith('/rating')) return json({ rating: 1400, placed: true, placementBot: 'Clover' });
       if (url.startsWith('/bots')) return json({ bots: [] });
       if (url.startsWith('/live'))
         return json(
@@ -408,10 +407,10 @@ const SCREENS: Record<string, () => JSX.Element> = {
       onRetryMedia={noop}
     />
   ),
-  /* Signed in and placed: the tier chip under your name, two bar buttons. */
+  /* Signed in and placed: the rating chip under your name, two bar buttons. */
   homeSigned: () => {
     fakeFetch({
-      '/rating': { rating: 1512, placed: true, placementBot: 'Nora' },
+      '/rating': { rating: 1512, placed: true, placementBot: 'Clover' },
       '/bots': BOTS_FAKE,
       '/live': { live: 0, watchable: 0, featured: null },
       '/drill': { drill: { id: 'd', tier: 3 }, tier: 3, streak: 4, doneToday: false },
@@ -422,7 +421,7 @@ const SCREENS: Record<string, () => JSX.Element> = {
      with step1=click=.lb-dock button:nth-child(4). */
   watchLive: () => {
     fakeFetch({
-      '/rating': { rating: 1512, placed: true, placementBot: 'Nora' },
+      '/rating': { rating: 1512, placed: true, placementBot: 'Clover' },
       '/bots': BOTS_FAKE,
       '/live': {
         live: 3,
@@ -488,7 +487,7 @@ const SCREENS: Record<string, () => JSX.Element> = {
       '/matches': {
         matches: [
           row(1, 'ranked', 'college is no longer worth it', true, 'goat'),
-          row(2, 'bots', 'anime is just cartoons', false, 'Nora'),
+          row(2, 'bots', 'anime is just cartoons', false, 'Clover'),
           row(3, 'custom', 'social media should be banned for under-16s', true, 'pizzamaster'),
         ],
       },
@@ -519,7 +518,7 @@ const SCREENS: Record<string, () => JSX.Element> = {
       debrief={{
         praise: 'you never once said "um, so basically". that is rarer than you think.',
         fix: 'you answered the easy half of their point and left the hard half alone.',
-        next: 'go take Pip. same shape, real opponent, nothing on the line.',
+        next: 'go take Nib. same shape, real opponent, nothing on the line.',
       }}
       unlocked={null}
       onTrain={noop}
@@ -534,22 +533,6 @@ const SCREENS: Record<string, () => JSX.Element> = {
       onStart={noop}
       onBack={noop}
     />
-  ),
-  badges: () => (
-    <div style={{ padding: 40, display: 'flex', flexDirection: 'column', gap: 28 }}>
-      {[72, 36, 20].map((s) => (
-        <div key={s} style={{ display: 'flex', gap: 24, alignItems: 'center' }}>
-          {['iron', 'bronze', 'silver', 'gold', 'platinum', 'diamond', 'master', 'headliner'].map(
-            (k) => (
-              <div key={k} style={{ textAlign: 'center', color: '#9A97B0', fontSize: 11 }}>
-                <TierBadge tier={k} size={s} />
-                {s === 72 ? <div style={{ marginTop: 6 }}>{k}</div> : null}
-              </div>
-            ),
-          )}
-        </div>
-      ))}
-    </div>
   ),
   /* The Napoleon attempt at every size it would ship at. */
   napoleon: () => (
@@ -678,11 +661,11 @@ const SCREENS: Record<string, () => JSX.Element> = {
       start={{
         topic: { id: 'demo', en: 'college is no longer worth it', ar: '' },
         yourSide: 'FOR',
-        names: { FOR: 'zorvint', AGAINST: 'Cappy' },
+        names: { FOR: 'zorvint', AGAINST: 'Moss' },
         startsAt: Date.now() + 8000,
         serverNow: Date.now(),
         avatars: { FOR: 'bally' },
-        bot: { id: 'capybara', name: 'Cappy', color: 'ink', elo: 1400 },
+        bot: { id: 'sloth', name: 'Moss', color: 'ink', elo: 1400 },
       }}
       localStream={null}
       remoteStream={null}

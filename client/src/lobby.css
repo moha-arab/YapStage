@@ -430,7 +430,7 @@
   justify-content: center;
   flex-wrap: wrap;
   /* Seven chips (the lesson plus six rungs) at 56px plus gaps. One pixel
-     under and Gigi wraps onto her own line looking like an afterthought. */
+     under and Vesper wraps onto her own line looking like an afterthought. */
   max-width: 452px;
   margin-top: 12px;
 }
@@ -1745,7 +1745,7 @@
    THE BOT ROSTER (BotRoster.tsx)
    Press "pick a bot" and the whole ladder walks out: a takeover over the
    stage, seven cards in ladder order, big art, one line of personality, and
-   the tier each one guards. Replaced a row of 40px chips under the slot.
+   the rating each one sits at. Replaced a row of 40px chips under the slot.
    ========================================================================= */
 
 .lb-roster {

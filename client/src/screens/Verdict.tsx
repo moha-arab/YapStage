@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { tierFor, type CategoryScores, type Framing, type Side, type TopicText, type Verdict as VerdictData } from '../../../server/src/protocol';
+import { type CategoryScores, type Framing, type Side, type TopicText, type Verdict as VerdictData } from '../../../server/src/protocol';
 import { isSoundMuted, playCrash, playDrumRoll, playHit, setSoundMuted, speak } from '../sound';
 import { socket } from '../socket';
 import { useI18n } from '../i18n';
@@ -711,7 +711,6 @@ export default function VerdictScreen({
           {info.placement ? (
             <div className="elo-result placed">
               <span className="elo-delta elo">{info.placement.rating}</span>
-              <span className="elo-line elo">{t(`tier_${tierFor(info.placement.rating).key}`)}</span>
               <span className="elo-why">{t('placedLine')}</span>
             </div>
           ) : null}

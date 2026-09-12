@@ -11,10 +11,8 @@
 // pre-picked (the lobby's rule): the ring around a card only appears once you
 // have chosen, and choosing closes the roster.
 import { useEffect, type CSSProperties } from 'react';
-import { tierFor } from '../../../server/src/protocol';
 import { useI18n } from '../i18n';
 import BotAvatar from '../BotAvatar';
-import TierBadge from '../TierBadge';
 
 export interface RosterBot {
   id: string;
@@ -62,7 +60,7 @@ export default function BotRoster({ bots, picked, onPick, onClose }: Props) {
 
         <div className="lb-roster-grid">
           {/* Rung zero: the lesson. The YapMaster demos rather than competes,
-              so its card carries "lesson" where the others carry a tier. */}
+              so its card carries "lesson" where the others carry a number. */}
           <button
             className={`lb-card lb-card-tutor ${picked === 'tutor' ? 'lb-card-on' : ''}`}
             style={stagger(0)}
@@ -79,7 +77,6 @@ export default function BotRoster({ bots, picked, onPick, onClose }: Props) {
           </button>
 
           {bots.map((b, i) => {
-            const tier = tierFor(b.elo).key;
             return (
               <button
                 key={b.id}
@@ -95,8 +92,6 @@ export default function BotRoster({ bots, picked, onPick, onClose }: Props) {
                 <div className="lb-card-tag">{b.tagline}</div>
                 <p className="lb-card-blurb">{b.blurb}</p>
                 <div className="lb-card-foot">
-                  <TierBadge tier={tier} size={22} />
-                  <span>{t(`tier_${tier}`)}</span>
                   <span className="lb-card-elo">{b.elo}</span>
                 </div>
               </button>

@@ -1,5 +1,5 @@
 // End of the lesson. No winner, no scoreboard — the YapMaster's three notes:
-// what you did well, the one fix, and where to go next (Pip is waiting).
+// what you did well, the one fix, and where to go next (Nib is waiting).
 import { useEffect, useState } from 'react';
 import { useI18n } from '../i18n';
 import { playBotTurn, stopBotVoice } from '../botvoice';

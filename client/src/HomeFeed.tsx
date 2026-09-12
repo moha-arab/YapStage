@@ -73,7 +73,7 @@ export default function HomeFeed() {
 
   // One ladder, humans and bots together, sorted by rating. The bots are the
   // reason it is never empty, and they are the only fixed points on it: their
-  // ratings never move, so "I beat Ozzy" means the same thing next year.
+  // ratings never move, so "I beat Wendell" means the same thing next year.
   const ladder: Rung[] = [
     ...top,
     ...bots.map((b) => ({ name: b.name, rating: b.elo, wins: 0, losses: 0, bot: true })),

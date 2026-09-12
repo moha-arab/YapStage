@@ -847,7 +847,7 @@ const DEBRIEF_SCHEMA = {
   properties: {
     praise: { type: 'string', description: 'One specific thing the student genuinely did well, referencing their actual words. 1-2 sentences.' },
     fix: { type: 'string', description: 'The single most valuable improvement for next time, concrete and doable, naming which scoring area it falls under: making your case, backing it up with real evidence, answering what the opponent actually said, or using your speaking time. 1-2 sentences.' },
-    next: { type: 'string', description: 'A warm one-sentence send-off telling them they are ready to face Pip the duckling in training mode.' },
+    next: { type: 'string', description: 'A warm one-sentence send-off telling them they are ready to face Nib the mouse in training mode.' },
   },
 } as const;
 
@@ -915,7 +915,7 @@ export async function runTutorialDebrief(io: Io, lobby: Lobby): Promise<void> {
         : {
             praise: 'You made it through all four rounds, and that alone puts you ahead of most people.',
             fix: 'Keep practicing one habit: every turn, answer your opponent\'s strongest point instead of repeating your own.',
-            next: 'You are ready to face Pip in training mode. Go get them.',
+            next: 'You are ready to face Nib in training mode. Go get them.',
           };
   }
 
@@ -931,7 +931,7 @@ export async function runTutorialDebrief(io: Io, lobby: Lobby): Promise<void> {
     mime: audio?.mime,
     audio: audio ? (audio.data as unknown as ArrayBuffer) : undefined,
   });
-  // Finishing the lesson opens the ladder: level 1 is Pip. No win required —
+  // Finishing the lesson opens the ladder: level 1 is Nib. No win required —
   // the tutorial has no winner to require.
   await unlockLevel(io, lobby, 1);
   setTimeout(() => {

@@ -680,7 +680,7 @@ console.log('\n=== Scenario 7: bots mode ===');
   const res = await emitP(h, 'bot:start', {
     sessionId: 'bot-h',
     name: 'botfighter',
-    botId: 'capybara',
+    botId: 'sloth',
     topicMode: 'agree',
     topicId: 'money-happiness',
     side: 'FOR',
@@ -695,7 +695,7 @@ console.log('\n=== Scenario 7: bots mode ===');
   check('report: bots cannot be reported', rep7.ok === false);
   check(
     'bot debate: opponent is the chosen character',
-    Boolean(start.bot) && start.bot.id === 'capybara' && start.names.AGAINST === 'Cappy',
+    Boolean(start.bot) && start.bot.id === 'sloth' && start.names.AGAINST === 'Moss',
   );
   // The fight card draws you from this. It was missing from bot starts for a
   // long time and the client fell back to the first mask on the roster.
@@ -731,7 +731,7 @@ console.log('\n=== Scenario 7: bots mode ===');
     botPhaseHasSpeakClock && humanPhaseClean,
   );
   check('bot was scored (it argued a real transcript)', v.verdict.scores.AGAINST.argument > 0);
-  check('verdict carries the bot name', v.names.AGAINST === 'Cappy');
+  check('verdict carries the bot name', v.names.AGAINST === 'Moss');
   h.disconnect();
 }
 
@@ -1106,15 +1106,10 @@ console.log('\n=== Scenario 14: ladder, deck, daily rebuttal ===');
   check('ladder: eight public bots, ranks 1 to 8 in order', bots.length === 8 && bots.every((b, i) => b.rank === i + 1));
   check('ladder: anchored to the 200-to-3000 grid', bots.map((b) => b.elo).join() === GRID.join());
   check('ladder: the tutor never leaks onto the pick screen', bots.every((b) => b.id !== 'tutor'));
-  check('ladder: gigi is the boss and pip is the floor', bots[0].name === 'Pip' && bots[7].name === 'Gigi');
-  check('ladder: a bot sits at 1400 for placement', bots.some((b) => b.elo === 1400 && b.id === 'collie'));
-  const { TIERS, tierFor } = await import('../server/dist/protocol.js');
-  const names = new Set(bots.map((b) => b.name));
-  check(
-    'tiers: every boundary above iron is a bot on the ladder',
-    TIERS.slice(1).every((t) => names.has(t.beats) && bots.find((b) => b.name === t.beats).elo === t.min),
-  );
-  check('tiers: the boss sits above every tier', tierFor(3000).key === 'headliner' && tierFor(2599).key === 'master');
+  check('ladder: vesper is the boss and nib is the floor', bots[0].name === 'Nib' && bots[7].name === 'Vesper');
+  check('ladder: a bot sits at 1400 for placement', bots.some((b) => b.elo === 1400 && b.id === 'rabbit'));
+  const { TIERS } = await import('../server/dist/protocol.js');
+  check('tiers: gone, only numbers (2026-09-12)', TIERS === undefined);
   const { rungDirective, lengthRule } = await import('../server/dist/bots.js');
   check(
     'rungs: every rank has its own directive and its own length rows',
@@ -1197,7 +1192,7 @@ console.log('\n=== Scenario 15: placement ===');
     sessionId: 'place-h',
     name: 'newcomer',
     playerId: 'pid-place-1',
-    botId: 'duckling',
+    botId: 'mouse',
     topicMode: 'agree',
     topicId: 'money-happiness',
     side: 'FOR',
@@ -1282,7 +1277,7 @@ console.log('\n=== Scenario 17: guest play, ranked gated ===');
   const q = await emitP(g, 'queue:join', { sessionId: 'guest-1', playerId: 'pid-guest-1', name: 'walkin' });
   if (googleOn) {
     check('guest: ranked queue refuses a signed-out socket (Google on)', q.ok === false && q.error === 'signed_out');
-    const pl = await emitP(g, 'bot:start', { sessionId: 'guest-1', name: 'walkin', playerId: 'pid-guest-1', botId: 'collie', topicMode: 'random', placement: true });
+    const pl = await emitP(g, 'bot:start', { sessionId: 'guest-1', name: 'walkin', playerId: 'pid-guest-1', botId: 'rabbit', topicMode: 'random', placement: true });
     check('guest: the placement match refuses a signed-out socket (Google on)', pl.ok === false && pl.error === 'signed_out');
   } else {
     check('guest: ranked queue open where nobody can sign in (Google off)', q.ok === true);
@@ -1296,7 +1291,7 @@ console.log('\n=== Scenario 17: guest play, ranked gated ===');
   ).json();
   check('guest: the drill answers a guest too (silence refused, not scored)', short.error === 'too_short');
 
-  const bs = await emitP(g, 'bot:start', { sessionId: 'guest-1', name: 'walkin', playerId: 'pid-guest-1', botId: 'duckling', topicMode: 'random', lang: 'en' });
+  const bs = await emitP(g, 'bot:start', { sessionId: 'guest-1', name: 'walkin', playerId: 'pid-guest-1', botId: 'mouse', topicMode: 'random', lang: 'en' });
   check('guest: a bot game starts with no cookie', bs.ok === true);
   const gs = await once(g, 'debate:start', 12000);
   check('guest: the guest is seated under the typed name', gs.names[gs.yourSide] === 'walkin');
