@@ -66,7 +66,7 @@ const en: Dict = {
   lbWatchElapsed: '{t} in',
   lbWatchNoneCat: 'Nothing on in {x} yet. Try another tab.',
   lbWatchRow: 'Watch {a} vs {b}',
-  lbWatchCodeHint: 'A friend’s code gets you into their room, ranked or not.',
+  lbWatchCodeHint: 'A friend's code gets you into their room, ranked or not.',
 
   /* The match settings panel (MatchSetup), on the stage and in the green
      room. Two facts and their chips, then the guest's read-only sentences. */
