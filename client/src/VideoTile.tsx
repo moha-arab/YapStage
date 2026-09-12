@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type CSSProperties } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import type { Side } from '../../server/src/protocol';
 import { useI18n } from './i18n';
 import Mask, { MASK_IDS } from './Mask';
@@ -15,10 +15,35 @@ interface Props {
   /** Remote camera died while the connection stayed up — overlay the tile. */
   dead?: boolean;
   /** Mask mode: no camera at all, this player debates behind a mask. The tile
-      renders the mask instead of video and the mouth works off `level`. */
+      renders the character instead of video. */
   maskId?: string;
-  /** 0..1 mic level, so the mask reacts to YOUR voice (own tile only). */
+  /** Accepted and ignored since 2026-09-12. It drove the speaking ring, which
+      is gone (see the note on the lit tile below); the green room still
+      passes it, and the mic meters under the tiles carry the level now. */
   level?: number;
+  /** Your own tile in a match: a "you · for" badge in the side's colour, so
+      the coin's call is on your face from the first frame to the last. `side`
+      is left off where the side is a sentence (settle-it). */
+  you?: { label: string; side?: string };
+}
+
+/** The character standing in the frame: a head-and-shoulders bust, bottom
+    centred, as tall as the tile and never wider than it, so the shoulders sit
+    on the tile's bottom edge like a portrait in its frame. Shared with the
+    bot's tile (Debate.tsx) and the spectator's frames (Spectate.tsx). */
+export function TileBust({ children }: { children: ReactNode }) {
+  return <div className="tile-bust">{children}</div>;
+}
+
+/** Your side, on your own tile, in the side's colour. On a phone-sized tile
+    the side word drops (styles.css) and the coloured tag under it carries it. */
+function YouBadge({ label, side }: { label: string; side?: string }) {
+  return (
+    <div className="you-badge">
+      {label}
+      {side ? <span className="you-badge-side"> · {side}</span> : null}
+    </div>
+  );
 }
 
 export default function VideoTile(props: Props) {
@@ -97,14 +122,12 @@ export default function VideoTile(props: Props) {
   // Masked player: the tile IS the mask. No video element is ever created, so
   // a masked debate needs no camera permission at all.
   if (props.maskId || (props.stream && !hasVideo)) {
-    // THE MASK IS STILL. It stopped pretending to talk on 2026-09-04: the old
-    // amplitude-gated mouth flap read as "a smiley face that moves up and
-    // down" (his words), and a mask that fails at being a face is worse than
-    // a mask. Who is talking is carried by the RING around it instead: a
-    // circle in the side's gel that thickens and glows with the voice, the
-    // Discord speaking ring in the house colours. 0.12 gate so a fan or an
-    // idle room never lights it; above that the level drives it directly.
-    const lv = (props.level ?? 0) > 0.12 ? props.level! : 0;
+    // THE CHARACTER IS STILL, and since 2026-09-12 so is everything around it.
+    // Who has the floor used to be a ring round the face that thickened with
+    // the voice; his note: "remove the circle that vibrates when people talk,
+    // just light up each rectangle when it's that person's turn". The whole
+    // tile lights now (.tile-active in styles.css), the same for a camera, a
+    // character or a bot, and it holds steady for the length of the turn.
     return (
       <div className={`tile tile-masked ${sideClass} ${props.active ? 'tile-active' : ''}`}>
         {/* The <video> element we're NOT rendering was also what played the
@@ -112,18 +135,14 @@ export default function VideoTile(props: Props) {
         {props.stream && !props.muted ? (
           <audio ref={audioRef} autoPlay playsInline />
         ) : null}
-        {/* bare + percentage-sized: the face SCALES WITH THE TILE. The old
-            fixed 132px made the mask a sticker in the corner of a 600px tile,
-            which is the "masks are too small" he reported. */}
-        <div className="tile-mask-wrap">
-          <div className="mask-ring" style={{ '--lv': lv } as CSSProperties}>
-            <Mask id={props.maskId ?? MASK_IDS[0]} size="100%" bare />
-          </div>
-        </div>
+        <TileBust>
+          <Mask id={props.maskId ?? MASK_IDS[0]} size="100%" bare />
+        </TileBust>
         <div className="tag">
           <span className="tag-name">{props.label}</span>
           {props.sub ? <span className="tag-sub">{props.sub}</span> : null}
         </div>
+        {props.you ? <YouBadge {...props.you} /> : null}
         {props.active ? <div className="live-pill">{t('onTheMic')}</div> : null}
       </div>
     );
@@ -144,6 +163,7 @@ export default function VideoTile(props: Props) {
         <span className="tag-name">{props.label}</span>
         {props.sub ? <span className="tag-sub">{props.sub}</span> : null}
       </div>
+      {props.you ? <YouBadge {...props.you} /> : null}
       {props.active ? <div className="live-pill">{t('onTheMic')}</div> : null}
     </div>
   );

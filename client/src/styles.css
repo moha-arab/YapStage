@@ -657,43 +657,30 @@ html[dir='rtl'] .meter-hint {
   color: var(--muted);
 }
 
+/* The spectator sees the debaters' own frames: each fighter a tile with the
+   character standing on its bottom edge, and the tile of whoever has the
+   floor lit in their colour (.tile-active), never gold: gold here would
+   announce a winner three rounds before there is one. */
 .spec-fighters {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 22px;
-  flex-wrap: wrap;
+  gap: clamp(10px, 3vw, 28px);
+  width: min(100%, 760px);
 }
 
 .spec-fighter {
+  flex: 0 1 300px;
+  min-width: 0;
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 4px;
-  min-width: 180px;
-  padding: 18px 16px 14px;
-  border: 1px solid var(--line);
-  border-radius: var(--r-md);
-  background: var(--panel);
-  position: relative;
 }
 
-.spec-fighter.for {
-  border-color: var(--for);
-}
-
-.spec-fighter.against {
-  border-color: var(--against);
-}
-
-/* Whoever has the mic is ringed in THEIR colour, not in gold: gold here would
-   announce a winner three rounds before there is one. */
-.spec-fighter.for.spec-live {
-  box-shadow: 0 0 0 2px var(--for);
-}
-
-.spec-fighter.against.spec-live {
-  box-shadow: 0 0 0 2px var(--against);
+.spec-frame {
+  width: 100%;
+  margin-bottom: 6px;
 }
 
 /* Nobody drawn yet: the lobby's question mark, in the side's gel. */
@@ -707,7 +694,11 @@ html[dir='rtl'] .meter-hint {
 
 .spec-fighter-name {
   font-family: 'Ultra', serif;
-  font-size: 22px;
+  font-size: clamp(16px, 2.2vw, 22px);
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .spec-fighter-side {
@@ -2128,7 +2119,10 @@ html[dir='rtl'] .meter-hint {
   border: 3px solid var(--house-3);
   border-radius: var(--r-md);
   overflow: hidden;
-  transition: border-color var(--fast) ease;
+  transition:
+    border-color var(--mid) ease,
+    box-shadow var(--mid) ease,
+    opacity var(--mid) ease;
 }
 
 .tile video {
@@ -2171,12 +2165,50 @@ html[dir='rtl'] .meter-hint {
   background: rgba(11, 10, 8, 0.72);
 }
 
-.tile-for.tile-active {
-  border-color: var(--for);
+/* THE LIT TILE (2026-09-12). Whoever has the floor, their whole rectangle
+   lights in their gel: the frame, a glow thrown past it, and the ground
+   behind them lifted toward the colour. It replaced the speaking ring, a
+   circle round the face that shook with every syllable (his note: "remove
+   the circle that vibrates when people talk, just light up each rectangle
+   when it's that person's turn"). It holds steady for the whole turn and is
+   the same for a camera, a character and a bot. Never gold: gold is a win. */
+.tile-for {
+  --gel: var(--for);
+  --gel-ink: #241203;
+  --gel-glow: rgba(240, 130, 30, 0.5);
+  --gel-wash: rgba(240, 130, 30, 0.34);
 }
 
-.tile-against.tile-active {
-  border-color: var(--against);
+.tile-against {
+  --gel: var(--against);
+  --gel-ink: #04262a;
+  --gel-glow: rgba(31, 194, 212, 0.45);
+  --gel-wash: rgba(31, 194, 212, 0.3);
+}
+
+.tile-active {
+  border-color: var(--gel, var(--paper));
+  box-shadow:
+    0 0 0 1px var(--gel, var(--paper)),
+    0 0 30px 3px var(--gel-glow, transparent);
+}
+
+/* A camera covers the tile's ground, so its lift is a soft band of the gel
+   round the inside of the frame, over the video. A character's tile lifts its
+   ground instead (.tile-masked.tile-active), so no light lands on the art. */
+.tile::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  opacity: 0;
+  box-shadow: inset 0 0 28px 2px var(--gel-glow, transparent);
+  transition: opacity var(--mid) ease;
+}
+
+.tile-active:not(.tile-masked)::after {
+  opacity: 1;
 }
 
 /* Whoever is not talking dims, so the eye lands on the person with the mic
@@ -2200,7 +2232,7 @@ html[dir='rtl'] .meter-hint {
   position: absolute;
   inset-inline-start: 10px;
   bottom: 10px;
-  /* over the mask, which lifts itself above the speaking ring (.mask-ring svg) */
+  /* over the character and over a camera tile's lit band (.tile::after) */
   z-index: 2;
   background: rgba(11, 11, 22, 0.9);
   border-radius: var(--r-sm);
@@ -2220,6 +2252,48 @@ html[dir='rtl'] .meter-hint {
   letter-spacing: 0.1em;
 }
 
+/* The side under each name, in that side's gel, on every tile. */
+.tile-for .tag-sub,
+.tile-against .tag-sub {
+  color: var(--gel);
+}
+
+/* One line, always. A settle-it side is a whole sentence; wrapped in capitals
+   on a phone it became a block over the face. The paper panel carries it in
+   full ("You're arguing that ..."), so the tag can clip it. */
+.tag {
+  max-width: calc(100% - 20px);
+}
+
+.tag-name {
+  flex: none;
+}
+
+.tag-sub {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* A phone tile is ~107px tall: a smaller tag, tighter to the corner, so it
+   covers less of the shoulders standing on that edge. */
+@media (max-width: 620px) {
+  .tag {
+    inset-inline-start: 6px;
+    bottom: 6px;
+    max-width: calc(100% - 12px);
+    padding: 3px 7px;
+    gap: 6px;
+    font-size: 12px;
+  }
+
+  .tag-sub {
+    font-size: 10px;
+    letter-spacing: 0.08em;
+  }
+}
+
 /* Not gold. Gold is the prize; this is a status. */
 .live-pill {
   position: absolute;
@@ -2234,6 +2308,48 @@ html[dir='rtl'] .meter-hint {
   font-weight: 700;
   letter-spacing: 0.14em;
   animation: livePulse 1.6s ease-in-out infinite;
+}
+
+/* "You · for" on your own tile, the whole match long. Solid gel with dark
+   type, so it never reads as the paper "on the mic" pill across from it. */
+.you-badge {
+  position: absolute;
+  top: 10px;
+  inset-inline-end: 10px;
+  z-index: 2;
+  background: var(--gel, var(--paper));
+  color: var(--gel-ink, #101018);
+  border-radius: var(--r-sm);
+  padding: 3px 10px;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+/* A phone tile is ~170px wide: "on the mic" and "you · against" collide.
+   The side word drops from the badge; the coloured tag still says it. */
+@media (max-width: 620px) {
+  .you-badge-side {
+    display: none;
+  }
+
+  .you-badge,
+  .tile .live-pill {
+    top: 6px;
+    padding: 2px 7px;
+    font-size: 10px;
+    letter-spacing: 0.1em;
+  }
+
+  .tile .live-pill {
+    inset-inline-start: 6px;
+  }
+
+  .you-badge {
+    inset-inline-end: 6px;
+  }
 }
 
 @keyframes livePulse {
@@ -2328,6 +2444,61 @@ html[dir='rtl'] .meter-hint {
   padding: 0 var(--s3);
 }
 
+/* "You're arguing FOR", straight under the motion, in your gel. The one line
+   on this card that is about you, so it is the loudest thing after the
+   motion and it lands before the fighters walk on. */
+.fc-yourside {
+  margin: 0;
+  display: inline-flex;
+  align-items: baseline;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 0 0.4em;
+  max-width: min(100%, 760px);
+  padding: 8px 22px 10px;
+  border: 2px solid var(--gel);
+  border-radius: var(--r-md);
+  background: var(--gel-wash);
+  box-shadow: 0 0 30px var(--gel-glow);
+  animation: fcStamp var(--slow) cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+.fc-yourside-for {
+  --gel: var(--amber);
+  --gel-wash: rgba(240, 130, 30, 0.14);
+  --gel-glow: rgba(240, 130, 30, 0.22);
+}
+
+.fc-yourside-against {
+  --gel: var(--turq);
+  --gel-wash: rgba(31, 194, 212, 0.12);
+  --gel-glow: rgba(31, 194, 212, 0.2);
+}
+
+.fc-yourside span {
+  font-size: clamp(17px, 2vw, 24px);
+  font-weight: 700;
+  color: var(--paper);
+}
+
+.fc-yourside b {
+  font-family: 'Ultra', serif;
+  font-weight: 400;
+  font-size: clamp(28px, 3.4vw, 44px);
+  line-height: 1.05;
+  letter-spacing: 0.02em;
+  color: var(--gel);
+}
+
+/* Settle-it: the side is a sentence, so it wraps as body type, not Ultra. */
+.fc-yourside-long b {
+  font-family: inherit;
+  font-weight: 700;
+  font-size: clamp(18px, 2.2vw, 26px);
+  letter-spacing: 0;
+  text-wrap: balance;
+}
+
 .fc-select {
   /* Same idea as the lobby's --art, a touch bigger: there is no dock and no
      picker below this stage, so the fighters can take the height. */
@@ -2372,18 +2543,6 @@ html[dir='rtl'] .meter-hint {
 
 .fc-fighter-b {
   --glow: var(--turq);
-}
-
-/* The match's resting speaking ring, in the fighter's gel. .mask-ring sets
-   its own --gel, so the override has to land on the ring, not the fighter. */
-.fc-fighter-a .mask-ring {
-  --gel: var(--amber);
-  --gel-glow: rgba(240, 130, 30, 0.55);
-}
-
-.fc-fighter-b .mask-ring {
-  --gel: var(--turq);
-  --gel-glow: rgba(31, 194, 212, 0.55);
 }
 
 .fc-art {
@@ -2456,17 +2615,26 @@ html[dir='rtl'] .meter-hint {
   color: var(--turq);
 }
 
-/* The coin dealt the sides, so you have to be able to find yourself. */
+/* The coin dealt the sides, so you have to be able to find yourself: solid
+   in your gel, the same chip that rides on your tile through the match. */
 .fc-you {
   margin-top: var(--s1);
   padding: 2px 9px;
-  border: 1px solid var(--paper);
   border-radius: var(--r-sm);
   font-size: var(--t1);
-  font-weight: 700;
+  font-weight: 800;
   letter-spacing: 0.14em;
   text-transform: uppercase;
-  color: var(--paper);
+}
+
+.fc-fighter-a .fc-you {
+  background: var(--amber);
+  color: #241203;
+}
+
+.fc-fighter-b .fc-you {
+  background: var(--turq);
+  color: #04262a;
 }
 
 .fc-you-hidden {
@@ -2531,6 +2699,10 @@ html[dir='rtl'] .meter-hint {
     font-size: clamp(22px, 6.5vw, 32px);
   }
 
+  .fc-yourside {
+    padding: 6px 14px 8px;
+  }
+
   /* a 170px column: eleven letters of Ultra at 19px do not fit */
   .fc-fname {
     font-size: 17px;
@@ -2544,6 +2716,7 @@ html[dir='rtl'] .meter-hint {
 @media (prefers-reduced-motion: reduce) {
   .fight-card,
   .fc-fighter,
+  .fc-yourside,
   .fc-vs,
   .stage.debate {
     animation: none;
@@ -2708,6 +2881,55 @@ html[dir='rtl'] .meter-hint {
   line-height: 1.05;
   margin: 0;
   color: #101018;
+}
+
+/* "You're arguing FOR" under the motion: your side as a solid chip in its
+   gel, the same chip as the badge on your tile. */
+.bill .bill-side {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  font-size: 13px;
+  font-weight: 700;
+  color: #3a3830;
+}
+
+.bill-side b {
+  padding: 2px 9px;
+  border-radius: var(--r-sm);
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.bill-side.for b {
+  background: var(--amber);
+  color: #241203;
+}
+
+.bill-side.against b {
+  background: var(--turq);
+  color: #04262a;
+}
+
+/* Settle-it: a sentence, set as type in the side's ink-safe tone. */
+.bill-side.bill-side-long b {
+  background: none;
+  padding: 0;
+  font-size: 13px;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.bill-side-long.for b {
+  color: #b45a09;
+}
+
+.bill-side-long.against b {
+  color: #0f8f9e;
 }
 
 .bill-round {
@@ -3823,9 +4045,9 @@ html[dir='rtl'] .meter-hint {
   flex: none;
 }
 /* The mouth-flap and frame-bob that used to run while a bot or a mask spoke
-   were removed 2026-09-04: the speaking ring (.mask-ring) carries the voice
-   now, and the drawings hold still. botpulse survives for the thinking
-   caption only. */
+   were removed 2026-09-04, and the speaking ring that replaced them on
+   2026-09-12: the lit tile (.tile-active) says who has the floor now, and
+   the drawings hold still. botpulse survives for the thinking caption only. */
 @keyframes botpulse {
   0%,
   100% {
@@ -4010,94 +4232,38 @@ html[dir='rtl'] .meter-hint {
   background: radial-gradient(circle at 50% 42%, var(--house-3), var(--house) 72%);
 }
 
-.tile-mask-wrap {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  height: 100%;
-  /* enough air that the face reads as standing in the frame, not taped
-     over it — but the face IS most of the tile now */
-  padding: 8% 0;
+/* Lit, a character's tile lifts its ground toward the side's gel, strongest
+   at the foot of the frame where the shoulders stand, so the light reads as
+   coming up off the stage and never lands on the drawing itself. */
+.tile-masked.tile-active {
+  background:
+    radial-gradient(ellipse 90% 80% at 50% 100%, var(--gel-wash), transparent 72%),
+    radial-gradient(circle at 50% 42%, #2e2f58, var(--house-2) 72%);
 }
 
-/* THE SPEAKING RING (2026-09-04). The mask holds still; the voice shows up as
-   a ring around it in the side's gel, the way Discord draws a green ring
-   around whoever is talking. --lv is the 0..1 mic level: at 0 the ring is a
-   faint hairline, at 1 it is thick and throwing light. The mask sits INSIDE
-   the ring, so horns and hoods poke out over it, which is what sells depth. */
-.mask-ring {
-  --lv: 0;
-  --gel: var(--paper);
-  --gel-glow: rgba(239, 232, 216, 0.4);
-  position: relative;
-  height: 100%;
-  aspect-ratio: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.tile-for .mask-ring {
-  --gel: var(--amber);
-  --gel-glow: rgba(240, 130, 30, 0.55);
-}
-
-.tile-against .mask-ring {
-  --gel: var(--turq);
-  --gel-glow: rgba(31, 194, 212, 0.55);
-}
-
-.mask-ring::before {
-  content: '';
+/* THE BUST IN ITS FRAME (2026-09-12). The characters and the bots are drawn
+   head and shoulders in a 0 0 100 100 box with the shoulders running off its
+   bottom edge. They used to float mid-tile inside a ring, which cut them off
+   at the chest in mid-air; his note: "put the shoulders of the character on
+   the bottom edge of the rectangle". So the drawing is a square, bottom
+   centred, as tall as the tile and never wider than it (100cqh capped by
+   100cqw), and the shoulders sit on the frame like a portrait's. The
+   !important beats the size="100%" the components set inline; a browser
+   without container units keeps that 100% and a centred bust. */
+.tile-bust {
   position: absolute;
-  /* hugs the head: the drawings fill roughly the middle 80% of their box,
-     so a ring at 92% sits just off the cheeks and horns cross it */
-  inset: 4%;
-  border-radius: 50%;
-  border: calc(2px + var(--lv) * 5px) solid var(--gel);
-  opacity: calc(0.18 + var(--lv) * 0.82);
-  box-shadow:
-    0 0 calc(var(--lv) * 36px) calc(var(--lv) * 4px) var(--gel-glow),
-    inset 0 0 calc(var(--lv) * 30px) var(--gel-glow);
-  transform: scale(calc(1 + var(--lv) * 0.05));
-  transition:
-    border-width 0.08s linear,
-    opacity 0.08s linear,
-    box-shadow 0.08s linear,
-    transform 0.08s linear;
+  inset: 0;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  container-type: size;
   pointer-events: none;
 }
 
-/* Only the person on the mic wears the ring at rest. A listener's mask is
-   just a mask; the moment they get the mic the hairline appears. */
-.tile:not(.tile-active) .mask-ring::before {
-  opacity: calc(var(--lv) * 0.82);
-}
-
-.mask-ring svg {
-  position: relative;
-  z-index: 1;
-}
-
-/* The spectator's two fighters wear the same ring at a fixed size, keyed
-   on the fighter card's side rather than a tile's. */
-.spec-ring {
-  width: 110px;
-  height: 110px;
-}
-
-.spec-fighter.for .mask-ring {
-  --gel: var(--amber);
-  --gel-glow: rgba(240, 130, 30, 0.55);
-}
-
-.spec-fighter.against .mask-ring {
-  --gel: var(--turq);
-  --gel-glow: rgba(31, 194, 212, 0.55);
-}
-
-.spec-fighter:not(.spec-live) .mask-ring::before {
-  opacity: calc(var(--lv) * 0.82);
+.tile-bust > svg {
+  flex: none;
+  width: min(100cqw, 100cqh) !important;
+  height: min(100cqw, 100cqh) !important;
 }
 
 .face-controls {

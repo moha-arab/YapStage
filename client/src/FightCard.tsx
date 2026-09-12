@@ -11,7 +11,6 @@
 //
 // Nothing here drives the match. The server ends the reveal with the first
 // debate:phase, and Debate.tsx swaps this out the moment it lands.
-import type { CSSProperties } from 'react';
 import type { DebateStart, Side } from '../../server/src/protocol';
 import { useI18n } from './i18n';
 import BotAvatar from './BotAvatar';
@@ -38,24 +37,16 @@ export default function FightCard({ start, localStream, remoteStream, revealMs }
   const leaving = revealMs < 400;
 
   // What stands in the light. A bot is its drawing; a masked person is their
-  // mask; a person on camera is their camera. The ring is the same resting
-  // speaking ring the match uses, so nothing changes shape when the match
-  // mounts, and it stays at rest because nobody has the mic yet.
+  // mask; a person on camera is their camera. No ring round anyone: the match
+  // dropped its speaking ring for a lit tile (2026-09-12), so the card that
+  // introduces the match drops it too.
   const art = (side: Side) => {
     if (start.bot && side === peerSide) {
-      return (
-        <div className="mask-ring" style={{ '--lv': 0 } as CSSProperties}>
-          <BotAvatar botId={start.bot.id} color={start.bot.color} size="100%" bare />
-        </div>
-      );
+      return <BotAvatar botId={start.bot.id} color={start.bot.color} size="100%" bare />;
     }
     const mask = start.avatars?.[side];
     if (mask) {
-      return (
-        <div className="mask-ring" style={{ '--lv': 0 } as CSSProperties}>
-          <Mask id={mask} size="100%" bare />
-        </div>
-      );
+      return <Mask id={mask} size="100%" bare />;
     }
     return side === mySide ? (
       <VideoTile stream={localStream} muted mirror label={start.names[side]} side={side} />
@@ -82,6 +73,17 @@ export default function FightCard({ start, localStream, remoteStream, revealMs }
     <div className={`stage fight-card ${leaving ? 'fc-leaving' : ''}`}>
       <p className="kicker">{t('tonightsMotion')}</p>
       <h1 className="display fc-motion">{start.topic[lang]}</h1>
+      {/* His note: "when you load into a game I should know what side I'm on
+          immediately without being confused". A small "you" under one of two
+          fighters made you find yourself; this says it, under the motion it
+          refers to, in your side's colour, before your eye reaches the art. */}
+      <p
+        className={`fc-yourside ${mySide === 'FOR' ? 'fc-yourside-for' : 'fc-yourside-against'} ${
+          start.framing ? 'fc-yourside-long' : ''
+        }`}
+      >
+        <span>{start.framing ? t('youreArguingThat') : t('youreArguing')}</span> <b>{label(mySide)}</b>
+      </p>
       <div className="fc-select">
         {fighter('FOR')}
         <div className="fc-vs">{t('vs')}</div>

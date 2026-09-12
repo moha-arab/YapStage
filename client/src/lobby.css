@@ -2133,3 +2133,162 @@
     bottom: 168px;
   }
 }
+
+/* ---- the codes, bigger and apart (2026-09-12, his note: "make Your Code
+   bigger and the code bigger, make them separated") ---- */
+.lb-sheet {
+  width: min(680px, 100%);
+}
+
+.lb-mid-top {
+  bottom: calc(100% + 18px);
+}
+
+.lb-mid-bot {
+  top: calc(100% - 38px);
+}
+
+.lb-mid-top.lb-ticket {
+  gap: 6px;
+  padding: 12px 22px 14px;
+  background: var(--house-2);
+  border: 1px solid rgba(31, 194, 212, 0.45);
+  border-radius: var(--r-lg);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+}
+
+.lb-mid-top .lb-lab,
+.lb-mid-bot .lb-lab {
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: none;
+  color: var(--paper);
+}
+
+.lb-mid-top .lb-code {
+  font-size: clamp(30px, 5.2vh, 46px);
+}
+
+.lb-mid-top .lb-copy {
+  width: 100%;
+  min-height: 38px;
+  padding: 8px 16px;
+  font-size: 14px;
+  background: rgba(31, 194, 212, 0.12);
+}
+
+.lb-mid-bot.lb-join {
+  gap: 8px;
+  padding: 12px 16px 14px;
+  background: var(--house-2);
+  border: 1px solid var(--house-3);
+  border-radius: var(--r-lg);
+}
+
+.lb-mid-bot .input-code {
+  width: 150px;
+  height: 46px;
+  font-size: 20px;
+}
+
+.lb-mid-bot .lb-join-row .btn {
+  height: 46px;
+  padding: 0 18px;
+  font-size: 15px;
+}
+
+@media (max-width: 620px) {
+  .lb-mid-top.lb-ticket {
+    padding: 6px 12px;
+    gap: 10px;
+  }
+
+  .lb-mid-top .lb-lab {
+    font-size: 12px;
+  }
+
+  .lb-mid-top .lb-code {
+    font-size: 22px;
+  }
+
+  .lb-mid-top .lb-copy {
+    width: auto;
+    min-height: 32px;
+    padding: 4px 10px;
+    font-size: 13px;
+  }
+
+  .lb-mid-bot.lb-join {
+    padding: 0;
+    background: none;
+    border: 0;
+  }
+
+  .lb-mid-bot .input-code {
+    width: 130px;
+    height: 44px;
+    font-size: 18px;
+  }
+
+  .lb-mid-bot .lb-join-row .btn {
+    height: 44px;
+  }
+}
+
+/* The desktop offsets above must not reach a phone: the phone keeps its own code positions, and a short laptop gets a smaller code card. */
+@media (max-width: 620px) {
+  .lb-mid-top {
+    top: 4px;
+    bottom: auto;
+  }
+
+  .lb-mid-bot {
+    top: auto;
+    bottom: 84px;
+  }
+
+  .lb-select:has(.lb-guest:not(.lb-hide)) .lb-mid-bot {
+    bottom: 168px;
+  }
+}
+
+@media (min-width: 621px) and (max-height: 780px) {
+  .lb-mid-top.lb-ticket {
+    gap: 4px;
+    padding: 8px 16px 10px;
+  }
+
+  .lb-mid-top .lb-code {
+    font-size: clamp(26px, 4.6vh, 40px);
+  }
+
+  .lb-mid-top .lb-copy {
+    min-height: 32px;
+    padding: 5px 12px;
+  }
+}
+
+/* A short laptop lays the code and the copy button side by side, so the card never reaches the top of the stage. */
+@media (min-width: 621px) and (max-height: 780px) {
+  .lb-mid-top {
+    bottom: calc(100% + 12px);
+  }
+
+  .lb-mid-top.lb-ticket {
+    display: grid;
+    grid-template-columns: auto auto;
+    align-items: center;
+    column-gap: 12px;
+    row-gap: 4px;
+  }
+
+  .lb-mid-top .lb-lab {
+    grid-column: 1 / -1;
+  }
+
+  .lb-mid-top .lb-copy {
+    width: auto;
+    margin-top: 0;
+  }
+}

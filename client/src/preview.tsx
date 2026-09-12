@@ -9,6 +9,7 @@
  *
  * Add a screen to SCREENS with realistic props. Fake data only.
  */
+import { useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { LangProvider } from './i18n';
 import './styles.css';
@@ -23,10 +24,11 @@ import Spectate from './screens/Spectate';
 import Home from './screens/Home';
 import GreenRoom from './screens/GreenRoom';
 import Drill from './screens/Drill';
-import type { LobbyUpdate, Side, Verdict as VerdictData } from '../../server/src/protocol';
+import type { DebateStart, LobbyUpdate, Side, Verdict as VerdictData } from '../../server/src/protocol';
 import VideoTile from './VideoTile';
 import Mask, { MASK_IDS } from './Mask';
 import FightCard from './FightCard';
+import Debate from './screens/Debate';
 import Splash from './Splash';
 import { ARISTOTLE_200, BOT_PORTRAITS, NAPOLEON_200 } from './dev/botPortraits';
 
@@ -139,6 +141,105 @@ const VERDICT: VerdictData = {
 };
 
 const names: Record<Side, string> = { FOR: 'zorvint', AGAINST: 'goat' };
+
+/* A stand-in camera: a canvas drawn as a dim room with a head and shoulders
+   in it, captured as a MediaStream. No permission prompt, no device, the
+   same picture every run, so a camera tile can be judged next to a mask. */
+function fakeCam(): MediaStream {
+  const c = document.createElement('canvas');
+  c.width = 640;
+  c.height = 400;
+  const g = c.getContext('2d')!;
+  const draw = () => {
+    const bg = g.createLinearGradient(0, 0, 0, 400);
+    bg.addColorStop(0, '#4d5262');
+    bg.addColorStop(1, '#22242c');
+    g.fillStyle = bg;
+    g.fillRect(0, 0, 640, 400);
+    g.fillStyle = '#3a4a6b';
+    g.beginPath();
+    g.ellipse(320, 430, 200, 150, 0, Math.PI, 0);
+    g.fill();
+    g.fillStyle = '#c99a78';
+    g.beginPath();
+    g.ellipse(320, 180, 72, 90, 0, 0, Math.PI * 2);
+    g.fill();
+  };
+  draw();
+  setInterval(draw, 250);
+  return c.captureStream(8);
+}
+
+const DISPUTE_FRAMING: DebateStart['framing'] = {
+  argument: 'the dishes are a shared job, not a favour',
+  positions: {
+    FOR: 'doing the dishes is part of living here',
+    AGAINST: 'whoever cooks is off dishes that night',
+  },
+  said: {
+    FOR: 'he never does the dishes',
+    AGAINST: 'i cook, so the dishes are his',
+  },
+};
+
+/* The live match, mid-rebuttal. `me` is how you appear (a character or a
+   camera), `opp` is who you face. ?floor=them hands the opponent the mic;
+   the default is your turn. The socket is dead here, so nothing advances. */
+function debateScene(o: {
+  me: 'mask' | 'cam';
+  opp: 'bot' | 'mask' | 'cam';
+  mySide: Side;
+  myMask?: string;
+  oppMask?: string;
+  dispute?: boolean;
+}) {
+  return function DebateScene() {
+    const theirs = new URLSearchParams(location.search).get('floor') === 'them';
+    const peerSide: Side = o.mySide === 'FOR' ? 'AGAINST' : 'FOR';
+    const speaker: Side = theirs ? peerSide : o.mySide;
+    const [now] = useState(() => Date.now());
+    const [cam] = useState(() => (o.me === 'cam' || o.opp === 'cam' ? fakeCam() : null));
+    const bot = o.opp === 'bot' ? { id: 'sloth', name: 'Moss', color: 'ink', elo: 1400 } : undefined;
+    const avatars: Partial<Record<Side, string>> = {};
+    if (o.me === 'mask') avatars[o.mySide] = o.myMask ?? 'bally';
+    if (o.opp === 'mask') avatars[peerSide] = o.oppMask ?? 'marisol';
+    const stepIndex = speaker === 'FOR' ? 2 : 3;
+    const start: DebateStart = {
+      topic: o.dispute
+        ? { id: 'dispute', en: 'the dishes are a shared job, not a favour', ar: '' }
+        : { id: 'demo', en: 'college is no longer worth it', ar: '' },
+      yourSide: o.mySide,
+      names: { [o.mySide]: 'zorvint', [peerSide]: bot ? bot.name : 'goat' } as Record<Side, string>,
+      startsAt: now - 60000,
+      serverNow: now,
+      avatars: avatars as DebateStart['avatars'],
+      bot,
+      framing: o.dispute ? DISPUTE_FRAMING : undefined,
+    };
+    return (
+      <Debate
+        start={start}
+        phase={{ stepIndex, phase: 'rebuttal', activeSpeaker: speaker, seconds: 45, deadline: now + 31000, serverNow: now }}
+        localStream={o.me === 'cam' ? cam : null}
+        remoteStream={o.opp === 'cam' ? cam : null}
+        remoteVideoDead={false}
+        peerLostUntil={null}
+        rtcState="connected"
+        speechHeard
+        speechSupported
+        sttServer
+        mediaError={null}
+        onRetryMedia={noop}
+        botOpponent={bot ? { id: bot.id, name: bot.name, color: bot.color } : null}
+        botTurn={bot && theirs ? { stepIndex, text: 'a degree is a receipt, not an education.' } : null}
+        botSpeakDeadline={bot && theirs ? now + 31000 : null}
+        heardWords={theirs ? 0 : 14}
+        watchers={2}
+        onPassMic={noop}
+      />
+    );
+  };
+}
 
 // A two-seat friend room, the host having asked for a category and a side.
 // Three fake tabs stand in for the deck (the client cannot import it).
@@ -639,8 +740,38 @@ const SCREENS: Record<string, () => JSX.Element> = {
       ))}
     </div>
   ),
-  /* The speaking ring at four voice levels: on the mic and loud, on the mic
-     and mid-word, on the mic but silent, and listening. */
+  /* The live match. Your turn by default; add &floor=them for theirs.
+       debateBot       your character (FOR) vs a bot
+       debateMask      your character (AGAINST) vs a masked human
+       debateCam       you on camera (FOR) vs a masked human
+       debatePeerCam   your character (AGAINST) vs a human on camera
+       debateDispute   settle-it: the sides are sentences */
+  debateBot: debateScene({ me: 'mask', opp: 'bot', mySide: 'FOR' }),
+  debateMask: debateScene({ me: 'mask', opp: 'mask', mySide: 'AGAINST', myMask: 'fuma', oppMask: 'marisol' }),
+  debateCam: debateScene({ me: 'cam', opp: 'mask', mySide: 'FOR', oppMask: 'corvin' }),
+  debatePeerCam: debateScene({ me: 'mask', opp: 'cam', mySide: 'AGAINST', myMask: 'quip' }),
+  debateDispute: debateScene({ me: 'mask', opp: 'mask', mySide: 'FOR', myMask: 'garn', oppMask: 'athena', dispute: true }),
+  /* The fight card with you on camera against a character. */
+  fightCam: function FightCam() {
+    const [cam] = useState(fakeCam);
+    return (
+      <FightCard
+        start={{
+          topic: { id: 'demo', en: 'phones belong in lockers during school', ar: '' },
+          yourSide: 'FOR',
+          names: { FOR: 'zorvint', AGAINST: 'goat' },
+          startsAt: Date.now() + 8000,
+          serverNow: Date.now(),
+          avatars: { AGAINST: 'lincoln' },
+        }}
+        localStream={cam}
+        remoteStream={null}
+        revealMs={6400}
+      />
+    );
+  },
+  /* Tiles in both states: lit (the one with the floor) and calm. The speaking
+     ring these used to show at four voice levels is gone (2026-09-12). */
   ring: () => (
     <div
       style={{
@@ -653,10 +784,10 @@ const SCREENS: Record<string, () => JSX.Element> = {
         minHeight: '100vh',
       }}
     >
-      <VideoTile stream={null} muted label="zorvint" sub="FOR" side="FOR" maskId="napoleon" level={0.85} active />
-      <VideoTile stream={null} muted label="goat" sub="AGAINST" side="AGAINST" maskId="marisol" level={0} />
-      <VideoTile stream={null} muted label="pizzamaster" sub="AGAINST" side="AGAINST" maskId="shuten" level={0.4} active />
-      <VideoTile stream={null} muted label="kenji" sub="FOR" side="FOR" maskId="diogenes" level={0} active />
+      <VideoTile stream={null} muted label="zorvint" sub="FOR" side="FOR" maskId="napoleon" you={{ label: 'You', side: 'FOR' }} active />
+      <VideoTile stream={null} muted label="goat" sub="AGAINST" side="AGAINST" maskId="marisol" />
+      <VideoTile stream={null} muted label="pizzamaster" sub="AGAINST" side="AGAINST" maskId="shuten" active />
+      <VideoTile stream={null} muted label="kenji" sub="FOR" side="FOR" maskId="diogenes" you={{ label: 'You', side: 'FOR' }} />
     </div>
   ),
   claimName: () => <ClaimName onClaimed={noop} />,
@@ -756,6 +887,7 @@ const SCREENS: Record<string, () => JSX.Element> = {
       onBack={noop}
     />
   ),
+  /* Watching two characters; &floor=FOR hands FOR the mic (default AGAINST). */
   spectate: () => (
     <Spectate
       code="ABCDEF"
@@ -767,7 +899,7 @@ const SCREENS: Record<string, () => JSX.Element> = {
         phase: {
           stepIndex: 2,
           phase: 'rebuttal',
-          activeSpeaker: 'AGAINST',
+          activeSpeaker: new URLSearchParams(location.search).get('floor') === 'FOR' ? 'FOR' : 'AGAINST',
           seconds: 45,
           deadline: Date.now() + 31000,
           serverNow: Date.now(),
@@ -776,6 +908,31 @@ const SCREENS: Record<string, () => JSX.Element> = {
         avatars: { FOR: 'quip', AGAINST: 'corvin' },
       }}
       onLeave={noop}
+    />
+  ),
+  /* Watching a training bout: a character against a bot, the bot on the mic. */
+  spectateBot: () => (
+    <Spectate
+      code="ABCDEF"
+      initial={{
+        code: 'ABCDEF',
+        status: 'in_debate',
+        topic: { id: 'demo', en: 'college is no longer worth it', ar: '' },
+        names: { FOR: 'zorvint', AGAINST: 'Moss' },
+        bot: { id: 'sloth', name: 'Moss', color: 'ink', side: 'AGAINST' },
+        phase: {
+          stepIndex: 3,
+          phase: 'rebuttal',
+          activeSpeaker: 'AGAINST',
+          seconds: 45,
+          deadline: Date.now() + 31000,
+          serverNow: Date.now(),
+        },
+        watchers: 1,
+        avatars: { FOR: 'bally' },
+      }}
+      onLeave={noop}
+      onNext={noop}
     />
   ),
 };

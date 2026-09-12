@@ -2,12 +2,9 @@ import { useEffect, useState } from 'react';
 import type { DebateStart, PhaseUpdate, Side } from '../../../server/src/protocol';
 import { formatClock, useCountdown } from '../useCountdown';
 import { useAudioLevel } from '../useAudioLevel';
-import { useElementLevel } from '../useElementLevel';
-import { botVoiceElement } from '../botvoice';
-import type { CSSProperties } from 'react';
 import { useI18n } from '../i18n';
 import MicMeter from '../MicMeter';
-import VideoTile from '../VideoTile';
+import VideoTile, { TileBust } from '../VideoTile';
 import BotAvatar from '../BotAvatar';
 import ReportFlag from '../Report';
 import Brand from '../Brand';
@@ -63,7 +60,6 @@ export default function Debate({
   onRetryMedia,
   botOpponent,
   botTurn,
-  botSpeaking,
   botSpeakDeadline,
   botFailed,
   heardWords = 0,
@@ -84,12 +80,15 @@ export default function Debate({
     botSpeakDeadline ? Date.now() : undefined,
   );
   const graceMs = useCountdown(peerLostUntil ?? undefined, peerLostUntil ? Date.now() : undefined);
+  // The mic meters under the tiles still read these. The speaking ring that
+  // also did (and the bot's copy of it) is gone: the lit tile says who has
+  // the floor, steadily, instead of a circle that shook with every syllable.
   const localLevel = useAudioLevel(localStream);
   const remoteLevel = useAudioLevel(remoteStream);
-  // The bot's ring reads the level straight off its voice element, so it
-  // moves with the words rather than looping for the whole clip.
-  const botLevel = useElementLevel(botVoiceElement());
   // (Wake lock lives in App now — it must span the verdict screens too.)
+  // Your side, on your own tile for the whole match. Settle-it's sides are
+  // sentences, too long for a badge; the tag under the face carries those.
+  const youBadge = { label: t('you'), side: start.framing ? undefined : t(mySide) };
 
   // "Pass the mic" arms 2s into your turn so a click aimed at something else
   // can't yield a turn that just started under the cursor.
@@ -150,9 +149,9 @@ export default function Debate({
             muted
             mirror
             maskId={start.avatars?.[mySide]}
-            level={localLevel}
             label={start.names[mySide]}
-            sub={`${t('you')} · ${label(mySide)}`}
+            sub={label(mySide)}
+            you={youBadge}
             side={mySide}
             active={myTurn}
           />
@@ -160,17 +159,12 @@ export default function Debate({
         </div>
         {isBot && botOpponent ? (
           <div className="tile-stack">
-            <div className={`tile bot-tile tile-${peerSide === 'FOR' ? 'for' : 'against'} ${!myTurn ? 'tile-active' : ''}`}>
-              {/* Scales with the tile, like the masks — a fixed 200px bot in a
-                  600px tile was the same "too small" problem twice. */}
-              <div className="tile-mask-wrap">
-                <div
-                  className="mask-ring"
-                  style={{ '--lv': botSpeaking && !myTurn ? botLevel : 0 } as CSSProperties}
-                >
-                  <BotAvatar botId={botOpponent.id} color={botOpponent.color} size="100%" bare />
-                </div>
-              </div>
+            <div className={`tile tile-masked bot-tile tile-${peerSide === 'FOR' ? 'for' : 'against'} ${!myTurn ? 'tile-active' : ''}`}>
+              {/* The same frame as a masked player's: the animal stands on the
+                  tile's bottom edge and the tile lights on its turn. */}
+              <TileBust>
+                <BotAvatar botId={botOpponent.id} color={botOpponent.color} size="100%" bare />
+              </TileBust>
               <div className="tag">
                 <span className="tag-name">{botOpponent.name}</span>
                 <span className="tag-sub">{label(peerSide)}</span>
@@ -186,7 +180,6 @@ export default function Debate({
               stream={remoteStream}
               muted={remoteMuted}
               maskId={start.avatars?.[peerSide]}
-              level={remoteLevel}
               label={start.names[peerSide]}
               sub={label(peerSide)}
               side={peerSide}
@@ -202,6 +195,11 @@ export default function Debate({
       <aside className="bill">
         <div className="bill-sec">{t('theMotion')}</div>
         <p className="bill-motion display">{start.topic[lang]}</p>
+        {/* Which side of that sentence is yours, right under it, from the
+            first frame: the fight card said it, and this keeps saying it. */}
+        <p className={`bill-side ${mySide === 'FOR' ? 'for' : 'against'} ${start.framing ? 'bill-side-long' : ''}`}>
+          {start.framing ? t('youreArguingThat') : t('youreArguing')} <b>{label(mySide)}</b>
+        </p>
 
         <div className="bill-round">
           <b>{t(PHASES.find((p) => p.key === phase.phase)?.labelKey ?? 'openings')}</b>

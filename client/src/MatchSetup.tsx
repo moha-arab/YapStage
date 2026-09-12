@@ -20,6 +20,7 @@ import { useState } from 'react';
 import type { LobbyUpdate, SidePick, TopicCategory } from '../../server/src/protocol';
 import { socket } from './socket';
 import { useI18n } from './i18n';
+import './matchsetup.css';
 
 export interface MatchSetupValue {
   /** 'agree' is the protocol's name for "one exact motion". */
@@ -82,65 +83,66 @@ const SIDES: SidePick[] = ['random', 'FOR', 'AGAINST'];
 
 export default function MatchSetup({ deck, value, onChange }: Props) {
   const { lang, t } = useI18n();
-  // Which category's motions are on show in "one I pick". Local: it is a
+  // Which category's motions are on show in "pick the topic". Local: it is a
   // browsing position, not a setting, and the chosen motion stays chosen
-  // while you look at other tabs (the green room always worked this way).
-  // Until you browse, the tab follows the chosen motion, so a room echoed
-  // back from the server opens on the right one.
+  // while you look at other tabs. Until you browse, the tab follows the
+  // chosen motion, so a room echoed back from the server opens on it.
   const chosenTab = value.topicId ? deck.findIndex((c) => c.topics.some((x) => x.id === value.topicId)) : -1;
   const [tab, setTab] = useState<number | null>(null);
   const shownTab = Math.min(tab ?? Math.max(chosenTab, 0), Math.max(0, deck.length - 1));
 
   const set = (patch: Partial<MatchSetupValue>) => onChange({ ...value, ...patch });
 
+  // Two plain questions, three labelled answers each (his note 2026-09-12:
+  // the old rows of small chips were cluttered and did not say what they did).
   return (
-    <div className="ms">
-      <div className="ms-row">
-        <span className="ms-lab">{t('setupTopic')}</span>
-        <div className="ms-chips">
+    <div className="ms2">
+      <section className="ms2-sec">
+        <h3 className="ms2-h">{t('setupQTopic')}</h3>
+        <div className="ms2-cards">
           {TOPIC_MODES.map((m) => (
             <button
               key={m}
               type="button"
-              className={`cat-tab ${value.topicMode === m ? 'cat-active' : ''}`}
+              className={`ms2-card ${value.topicMode === m ? 'ms2-on' : ''}`}
               aria-pressed={value.topicMode === m}
               onClick={() => set({ topicMode: m })}
             >
-              {t(`setupMode_${m}`)}
+              <span className="ms2-tick" aria-hidden="true" />
+              <span className="ms2-t">{t(`setupModeT_${m}`)}</span>
+              <span className="ms2-s">{t(`setupModeSub_${m}`)}</span>
             </button>
           ))}
         </div>
-      </div>
 
-      {value.topicMode === 'category' ? (
-        <div className="ms-row">
-          <span className="ms-lab ms-lab-quiet">{t('setupFrom')}</span>
-          <div className="ms-chips">
-            {deck.map((c) => (
-              <button
-                key={c.key}
-                type="button"
-                className={`cat-tab ${value.categoryKey === c.key ? 'cat-active' : ''}`}
-                aria-pressed={value.categoryKey === c.key}
-                onClick={() => set({ categoryKey: c.key })}
-              >
-                {c.label[lang]}
-              </button>
-            ))}
+        {value.topicMode === 'category' ? (
+          <div className="ms2-more">
+            <span className="ms2-q">{t('setupPickCat')}</span>
+            <div className="ms2-pills">
+              {deck.map((c) => (
+                <button
+                  key={c.key}
+                  type="button"
+                  className={`ms2-pill ${value.categoryKey === c.key ? 'ms2-on' : ''}`}
+                  aria-pressed={value.categoryKey === c.key}
+                  onClick={() => set({ categoryKey: c.key })}
+                >
+                  {c.label[lang]}
+                </button>
+              ))}
+            </div>
           </div>
-        </div>
-      ) : null}
+        ) : null}
 
-      {value.topicMode === 'agree' ? (
-        <>
-          <div className="ms-row">
-            <span className="ms-lab ms-lab-quiet">{t('setupFrom')}</span>
-            <div className="ms-chips">
+        {value.topicMode === 'agree' ? (
+          <div className="ms2-more">
+            <span className="ms2-q">{t('setupPickTopic')}</span>
+            <div className="ms2-pills">
               {deck.map((c, i) => (
                 <button
                   key={c.key}
                   type="button"
-                  className={`cat-tab ${i === shownTab ? 'cat-active' : ''}`}
+                  className={`ms2-pill ${i === shownTab ? 'ms2-on' : ''}`}
                   aria-pressed={i === shownTab}
                   onClick={() => setTab(i)}
                 >
@@ -148,39 +150,42 @@ export default function MatchSetup({ deck, value, onChange }: Props) {
                 </button>
               ))}
             </div>
+            <div className="ms2-list">
+              {deck[shownTab]?.topics.map((topic) => (
+                <button
+                  key={topic.id}
+                  type="button"
+                  className={`ms2-row ${value.topicId === topic.id ? 'ms2-on' : ''}`}
+                  aria-pressed={value.topicId === topic.id}
+                  onClick={() => set({ topicId: topic.id })}
+                >
+                  <span className="ms2-radio" aria-hidden="true" />
+                  <span>{topic[lang]}</span>
+                </button>
+              ))}
+            </div>
           </div>
-          <div className="ms-topics">
-            {deck[shownTab]?.topics.map((topic) => (
-              <button
-                key={topic.id}
-                type="button"
-                className={`topic-btn ${value.topicId === topic.id ? 'topic-on-table' : ''}`}
-                aria-pressed={value.topicId === topic.id}
-                onClick={() => set({ topicId: topic.id })}
-              >
-                {topic[lang]}
-              </button>
-            ))}
-          </div>
-        </>
-      ) : null}
+        ) : null}
+      </section>
 
-      <div className="ms-row">
-        <span className="ms-lab">{t('setupSide')}</span>
-        <div className="ms-chips">
-          {SIDES.map((s) => (
+      <section className="ms2-sec">
+        <h3 className="ms2-h">{t('setupQSide')}</h3>
+        <div className="ms2-cards">
+          {SIDES.map((sd) => (
             <button
-              key={s}
+              key={sd}
               type="button"
-              className={`cat-tab ${value.side === s ? 'cat-active' : ''}`}
-              aria-pressed={value.side === s}
-              onClick={() => set({ side: s })}
+              className={`ms2-card ms2-side-${sd.toLowerCase()} ${value.side === sd ? 'ms2-on' : ''}`}
+              aria-pressed={value.side === sd}
+              onClick={() => set({ side: sd })}
             >
-              {t(`setupSide_${s}`)}
+              <span className="ms2-tick" aria-hidden="true" />
+              <span className="ms2-t">{t(`setupSideT_${sd}`)}</span>
+              <span className="ms2-s">{t(`setupSideSub_${sd}`)}</span>
             </button>
           ))}
         </div>
-      </div>
+      </section>
     </div>
   );
 }
