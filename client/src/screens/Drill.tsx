@@ -12,6 +12,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { setSpeechSink, speechSupported, startTurn, stopTurn } from '../speech';
 import { useI18n } from '../i18n';
+import { localDrillState, recordLocalDrill } from '../guest';
 import Brand from '../Brand';
 
 interface DrillInfo {
@@ -62,8 +63,11 @@ export default function Drill({ onBack }: Props) {
     void fetch('/drill')
       .then((r) => r.json())
       .then((d: DrillInfo) => {
-        setInfo(d);
-        setStreak(d.streak);
+        // A guest's streak is the device's (guest.ts); the server's zeros
+        // are for people it cannot name.
+        const info = d.signedIn ? d : { ...d, ...localDrillState(d.day) };
+        setInfo(info);
+        setStreak(info.streak);
       })
       .catch(() => setError('drillDown'));
   }
@@ -123,7 +127,7 @@ export default function Drill({ onBack }: Props) {
         body: JSON.stringify({ text, id: info?.drill.id }),
       })
         .then((r) => r.json())
-        .then((d: { result?: Result; streak?: number; error?: string }) => {
+        .then((d: { result?: Result; streak?: number; error?: string; day?: string; daily?: boolean }) => {
           if (d.error === 'too_short') {
             setStage('ready');
             return setError('drillTooShort');
@@ -133,7 +137,10 @@ export default function Drill({ onBack }: Props) {
             return setError('drillDown');
           }
           setResult(d.result);
-          setStreak(d.streak ?? 0);
+          // Signed out, the device keeps the streak, on the server's day and
+          // only for the day's own drill, the same two rules recordDrill uses.
+          if (info && !info.signedIn && d.daily && d.day) setStreak(recordLocalDrill(d.day, d.result.score).streak);
+          else setStreak(d.streak ?? 0);
           setStage('done');
         })
         .catch(() => {

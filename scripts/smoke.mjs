@@ -12,8 +12,10 @@ function check(name, cond) {
 
 const connect = () => io(URL, { forceNew: true, transports: ['websocket'] });
 
-// The masks a seat may wear (mirrors AVATAR_IDS in server/src/protocol.ts).
-const ROSTER = ['napoleon', 'socrates', 'aristotle', 'diogenes', 'athena', 'lincoln', 'dracula', 'humpty', 'bally', 'shuten', 'marisol', 'quip', 'corvin', 'garn', 'fuma', 'crux'];
+// The masks a seat may wear, read from the build rather than copied here: the
+// copy went stale the night the roster became the sixteen-character cast, and
+// three fight-card checks failed on a list nothing else used any more.
+const { AVATAR_IDS: ROSTER } = await import('../server/dist/protocol.js');
 // The fight card is on screen from debate:start until startsAt. FAST is 3s and
 // long form 8s; anything outside that is a clock bug the card would expose.
 const revealOk = (start) => {
@@ -1254,6 +1256,61 @@ console.log('\n=== Scenario 15: placement ===');
   }
   h.disconnect();
   h2.disconnect();
+}
+
+// ---------- Scenario 16: no account for anything but ranked ----------
+// A raw socket with no cookie is a guest. It opens a friend room, plays a bot
+// to a verdict under its device id, reads and answers the drill, and is
+// turned away from ranked only where sign-in exists. The suite runs without
+// a Google client id, so the live queue must still accept it here; the gate's
+// other answer is checked on the pure function (server/src/gate.ts) and on
+// the live queue whenever /healthz says Google is on.
+console.log('\n=== Scenario 17: guest play, ranked gated ===');
+{
+  const { rankedRefusal } = await import('../server/dist/gate.js');
+  check('gate: signed out is refused wherever Google is configured', rankedRefusal(false, true) === 'signed_out');
+  check('gate: signed in passes', rankedRefusal(true, true) === null);
+  check('gate: without Google nobody is turned away', rankedRefusal(false, false) === null && rankedRefusal(true, false) === null);
+
+  const health = await fetch(`${URL}/healthz`).then((r) => r.json());
+  const googleOn = health.auth !== 'off';
+  const g = connect();
+  const room = await emitP(g, 'lobby:create', { sessionId: 'guest-1', name: 'walkin', playerId: 'pid-guest-1' });
+  check('guest: opens a friend room with no cookie', room.ok === true && room.update.code.length === 6);
+  g.emit('lobby:leave');
+
+  const q = await emitP(g, 'queue:join', { sessionId: 'guest-1', playerId: 'pid-guest-1', name: 'walkin' });
+  if (googleOn) {
+    check('guest: ranked queue refuses a signed-out socket (Google on)', q.ok === false && q.error === 'signed_out');
+    const pl = await emitP(g, 'bot:start', { sessionId: 'guest-1', name: 'walkin', playerId: 'pid-guest-1', botId: 'collie', topicMode: 'random', placement: true });
+    check('guest: the placement match refuses a signed-out socket (Google on)', pl.ok === false && pl.error === 'signed_out');
+  } else {
+    check('guest: ranked queue open where nobody can sign in (Google off)', q.ok === true);
+    g.emit('queue:leave');
+  }
+
+  const drill = await fetch(`${URL}/drill`).then((r) => r.json());
+  check('guest: the drill reads as signed out with no streak to show', drill.signedIn === false && drill.streak === 0 && typeof drill.day === 'string');
+  const short = await (
+    await fetch(`${URL}/drill`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ text: 'still too short', id: drill.drill.id }) })
+  ).json();
+  check('guest: the drill answers a guest too (silence refused, not scored)', short.error === 'too_short');
+
+  const bs = await emitP(g, 'bot:start', { sessionId: 'guest-1', name: 'walkin', playerId: 'pid-guest-1', botId: 'duckling', topicMode: 'random', lang: 'en' });
+  check('guest: a bot game starts with no cookie', bs.ok === true);
+  const gs = await once(g, 'debate:start', 12000);
+  check('guest: the guest is seated under the typed name', gs.names[gs.yourSide] === 'walkin');
+  g.on('debate:phase', (ph) => {
+    if (ph.activeSpeaker === gs.yourSide) {
+      g.emit('speech:chunk', { stepIndex: ph.stepIndex, text: 'the guest makes one plain point and holds it through every round of this debate' });
+      setTimeout(() => g.emit('turn:done', { stepIndex: ph.stepIndex }), 250);
+    }
+  });
+  g.on('bot:turn', (bt) => g.emit('bot:done', { stepIndex: bt.stepIndex }));
+  const gv = await once(g, 'verdict:result', 120000);
+  check('guest: the verdict reaches a guest', ['FOR', 'AGAINST'].includes(gv.verdict.winner));
+  check('guest: a bot game never moves a rating', gv.elo === undefined && gv.placement === undefined);
+  g.disconnect();
 }
 
 console.log(`\n${failures === 0 ? 'ALL CHECKS PASSED' : failures + ' CHECK(S) FAILED'}`);

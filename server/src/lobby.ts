@@ -25,8 +25,12 @@ export interface Participant {
   avatarId: AvatarId;
   /** True = debating behind the mask, no camera at all. Ranked forces this. */
   masked: boolean;
-  /** Set only for SIGNED-IN players: where this debate gets filed afterwards.
-      Guests have no account, so they get no history — by design, not omission. */
+  /** Where this debate gets filed afterwards: the account's id when signed
+      in, the device id a guest plays under otherwise. Until 2026-09-12 only
+      signed-in seats carried one ("guests get no history, by design"); that
+      was reversed so a guest's games are waiting for them when they sign in
+      and the device id is adopted (store.ts linkAccount). Absent only for a
+      client too old to send one. */
   playerId?: string;
   rtcReady: boolean; // gUM done, tracks added, handlers registered
   disconnectedAt?: number;

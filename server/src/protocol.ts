@@ -361,12 +361,14 @@ export type CreateResult =
   | { ok: false; error: JoinError };
 
 export interface ClientToServer {
+  /** playerId is the device id a guest plays under (a signed-in socket's
+      comes from the cookie instead), so the game can be filed for them. */
   'lobby:create': (
-    p: { sessionId: string; name: string },
+    p: { sessionId: string; name: string; playerId?: string },
     cb: (res: CreateResult) => void,
   ) => void;
   'lobby:join': (
-    p: { code: string; sessionId: string; name: string },
+    p: { code: string; sessionId: string; name: string; playerId?: string },
     cb: (res: CreateResult) => void,
   ) => void;
   'lobby:resume': (

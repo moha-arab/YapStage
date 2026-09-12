@@ -3,6 +3,8 @@
 // rating and a campaign follow you to a new device. Everything downstream is
 // keyed on this one string, so account support cost the rest of the app nothing.
 
+import { carriedDrill, clearGuest } from './guest';
+
 const KEY = 'yapstage.playerId';
 
 let override: string | null = null;
@@ -75,7 +77,8 @@ export async function whoAmI(): Promise<Account> {
 }
 
 /** Send the browser to Google, carrying this device's id so a first sign-in
-    adopts progress already earned here instead of starting from zero.
+    adopts progress already earned here instead of starting from zero, and
+    the drill streak a guest kept on the device (guest.ts) for the same reason.
 
     An invite code in the URL is stashed first: the OAuth round trip lands back
     on a bare `/?auth=ok`, and without this the person a friend called out
@@ -89,14 +92,29 @@ export function signIn(): void {
   } catch {
     // storage blocked: they sign in and type the code by hand, which works
   }
-  window.location.assign(`/auth/google?claim=${encodeURIComponent(playerId())}`);
+  const q = new URLSearchParams({ claim: playerId() });
+  const drill = carriedDrill();
+  if (drill) q.set('drill', drill);
+  window.location.assign(`/auth/google?${q.toString()}`);
 }
 
+/** Sign out, and leave the device as a stranger would find it. The account's
+    canonical id was adopted into localStorage at boot; left there, the next
+    guest on this laptop would play under it, and their first sign-in would
+    try to claim it (the server refuses, store.ts adoptable, but a fresh id
+    here is the honest fix). The guest name, mask and streak go with it. */
 export async function signOut(): Promise<void> {
   try {
     await fetch('/auth/logout', { method: 'POST' });
   } catch {
     // ignore
   }
+  override = null;
+  try {
+    localStorage.removeItem(KEY);
+  } catch {
+    // storage blocked: nothing was kept here anyway
+  }
+  clearGuest();
   window.location.assign('/');
 }

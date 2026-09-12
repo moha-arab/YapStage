@@ -90,6 +90,7 @@ import { TOPIC_BY_ID, TOPIC_CATEGORIES } from './topics.js';
 import { event, recentEvents, statsSnapshot } from './stats.js';
 import { allow } from './ratelimit.js';
 import { googleConfigured, readSession, readSessionCookie, registerAuth } from './auth.js';
+import { rankedRefusal } from './gate.js';
 
 // Deployed on Railway via Dockerfile (see railway.json). Fastify serves the
 // built client from client/dist and hosts the Socket.IO signaling server.
@@ -325,8 +326,11 @@ app.get<{ Querystring: { playerId?: string } }>('/rating', async (req) => {
 // ---- the daily rebuttal challenge ----
 // Same drill for everyone, every day, derived from the date so there is nothing
 // to store or schedule. Playable signed out (the point is that a stranger can
-// try the product in forty seconds); the streak needs an account, because a
-// streak is a promise you keep to a name.
+// try the product in forty seconds). The streak used to need an account ("a
+// promise you keep to a name"); since 2026-09-12 a guest keeps one on the
+// device (client/src/guest.ts, from the `day` and `daily` fields the POST
+// answers with) and it rides the claim into the account at sign-in. The
+// server still only counts a streak it can put a name to.
 // One drill a day and no other on offer (the `?type=` picker went with the
 // other drill types, 2026-09-12): the tier climbs Sunday to Saturday, and the
 // only way to get Saturday's is to come back on Saturday.
@@ -371,7 +375,16 @@ app.post<{ Body: { text?: string; id?: string } }>(
       const s = readSession(req);
       const streak = s && countsForStreak ? await recordDrill(s.sub, day, result.score) : null;
       event('drill_done', { score: result.score });
-      return { result, streak: streak?.streak ?? 0, best: streak?.best ?? 0, already: streak?.already ?? false };
+      return {
+        result,
+        streak: streak?.streak ?? 0,
+        best: streak?.best ?? 0,
+        already: streak?.already ?? false,
+        // For a guest keeping the streak on the device: which day this was,
+        // and whether it was the day's own drill (the only kind that counts).
+        day,
+        daily: countsForStreak,
+      };
     } catch (err) {
       req.log.error({ err }, 'drill scoring failed');
       return reply.code(503).send({ error: 'judge_down' });
@@ -908,7 +921,9 @@ io.on('connection', (socket) => {
     if (lobbyCount() >= MAX_LOBBIES) return cb({ ok: false, error: 'rate_limited' });
     releasePreviousSeat(socket);
     const lobby = createLobby(socket.id, String(p.sessionId ?? '').slice(0, 64), name);
-    lobby.host!.playerId = socket.data.account?.playerId;
+    // The ladder identity, account or device (see Participant.playerId): a
+    // guest's friend games are filed under the device id since 2026-09-12.
+    lobby.host!.playerId = idOf(String(p?.playerId ?? '').slice(0, 64)) || undefined;
     Object.assign(lobby.host!, seatLook());
     event('lobby_created', { code: lobby.code });
     socket.data.code = lobby.code;
@@ -947,7 +962,7 @@ io.on('connection', (socket) => {
       sessionId: String(p.sessionId ?? '').slice(0, 64),
       name,
       ...seatLook(),
-      playerId: socket.data.account?.playerId,
+      playerId: idOf(String(p?.playerId ?? '').slice(0, 64)) || undefined,
       rtcReady: false,
     };
     lobby.status = 'greenroom';
@@ -1432,10 +1447,9 @@ io.on('connection', (socket) => {
     }
     // Ranked needs an account: there is a rating on the line and a stranger
     // counting on it. The client already says so before it asks; this is the
-    // gate for anything that skips the client. Keyed on Google being
-    // configured so a deployment (or the smoke suite) without sign-in still
-    // has a queue.
-    if (googleConfigured() && !socket.data.account) return cb({ ok: false, error: 'signed_out' });
+    // gate for anything that skips the client (gate.ts has the rule).
+    const refused = rankedRefusal(Boolean(socket.data.account), googleConfigured());
+    if (refused) return cb({ ok: false, error: refused });
     const name = nameOf(String(p?.name ?? '').trim());
     if (!NAME_RE.test(name)) return cb({ ok: false, error: 'bad_name' });
     const playerId = idOf(String(p?.playerId ?? '').slice(0, 64));
@@ -1577,7 +1591,8 @@ io.on('connection', (socket) => {
       // Placement is ranked business, so the same account rule as the queue,
       // and the same identity: the ladder id, which for a signed-in player
       // is the account's and never the payload's.
-      if (googleConfigured() && !socket.data.account) return cb({ ok: false, error: 'signed_out' });
+      const refused = rankedRefusal(Boolean(socket.data.account), googleConfigured());
+      if (refused) return cb({ ok: false, error: refused });
       if (!playerId) return cb({ ok: false, error: 'bad_name' });
       // One shot. A placement game already running for this id (a second
       // tab) is refused here; a finished one is refused by the store, whose
@@ -1630,7 +1645,9 @@ io.on('connection', (socket) => {
 
     releasePreviousSeat(socket);
     const lobby = createLobby(socket.id, String(p?.sessionId ?? '').slice(0, 64), name);
-    lobby.host!.playerId = socket.data.account?.playerId;
+    // The same id the campaign rides: a guest's bot games are filed under the
+    // device id (2026-09-12) so signing in later finds them.
+    lobby.host!.playerId = playerId || undefined;
     Object.assign(lobby.host!, seatLook());
     lobby.pace = pace;
     lobby.bot = { id: bot.id, name: bot.name, difficulty: bot.difficulty, rank: bot.rank, side: botSide, lang };
@@ -1724,11 +1741,11 @@ io.on('connection', (socket) => {
 
     releasePreviousSeat(socket);
     const lobby = createLobby(socket.id, String(p?.sessionId ?? '').slice(0, 64), name);
-    lobby.host!.playerId = socket.data.account?.playerId;
+    const playerId = idOf(String(p?.playerId ?? '').slice(0, 64));
+    lobby.host!.playerId = playerId || undefined;
     Object.assign(lobby.host!, seatLook());
     lobby.tutorial = true;
     lobby.bot = { id: tutor.id, name: tutor.name, difficulty: tutor.difficulty, rank: tutor.rank, side: 'FOR', lang };
-    const playerId = idOf(String(p?.playerId ?? '').slice(0, 64));
     if (playerId) lobby.campaign = { playerId, botRank: 0 };
     socket.data.code = lobby.code;
     socket.data.role = 'host';

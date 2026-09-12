@@ -177,7 +177,11 @@ export async function initStore(): Promise<void> {
     await pool.query(`ALTER TABLE players ADD COLUMN IF NOT EXISTS placed boolean NOT NULL DEFAULT false`);
     // Match history: the account's own debates, so a verdict is re-openable
     // and the coach can still read the transcript days later. Disclosed at
-    // sign-up; his call 2026-08-08 (save by default).
+    // sign-up; his call 2026-08-08 (save by default). Since 2026-09-12 a
+    // guest's bot and friend games are filed too, under the device id, with
+    // the line under the lobby's name box as the disclosure: that is what
+    // lets signing in later pick those games up (linkAccount) instead of
+    // losing them, which is the point of not needing an account to start.
     await pool.query(`
       CREATE TABLE IF NOT EXISTS matches (
         id         bigserial PRIMARY KEY,
@@ -682,45 +686,144 @@ export async function setLocker(sub: string, mask: string, maskDefault: boolean)
   }
 }
 
+/** The drill streak a guest kept on the device (client/src/guest.ts), sent
+    along with the claim at sign-in so the account picks it up where the
+    device left off. Trusted once, capped by auth.ts, and only if it is still
+    alive; nothing ranks on a streak, so a forged one cheats nobody but its
+    owner. */
+export interface CarriedDrill {
+  last: string;
+  streak: number;
+  best: number;
+}
+
+/** The calendar day before `day` (UTC, the same clock the drill runs on). */
+function dayBefore(day: string): string {
+  return new Date(new Date(`${day}T00:00:00Z`).getTime() - 86_400_000).toISOString().slice(0, 10);
+}
+
+/** A carried streak is worth keeping only if it has not already lapsed. */
+function aliveDrill(d: CarriedDrill | null, day: string): CarriedDrill | null {
+  if (!d || (d.last !== day && d.last !== dayBefore(day))) return null;
+  return d;
+}
+
+/** Whether a claimed device id may be adopted at all. Two rules, both about
+    the family laptop: an id another account already owns is refused (two
+    accounts on one player row would share a rating, a campaign and a match
+    history), and so is a canonical acct_ id, which is never a guest's. */
+async function adoptable(claim: string | null): Promise<string | null> {
+  if (!claim || claim.startsWith('acct_')) return null;
+  const owned = await pool!.query(`SELECT 1 FROM accounts WHERE player_id = $1`, [claim]);
+  return owned.rowCount ? null : claim;
+}
+
+/** A returning account on a device that played as a guest first: move what
+    the guest id earned onto the account's own row, in one transaction. Bot
+    and friend matches are re-keyed, the campaign takes the higher level, and
+    the carried streak fills an account that never had one. The rating is
+    left alone on purpose: ranked is account-only wherever sign-in exists, so
+    a guest id carrying one means a deployment without Google, and that is
+    not a ladder this account stood on. The guest row itself stays; the
+    device adopts the account id on the next /auth/me and never uses it again. */
+async function mergeGuest(
+  claim: string,
+  mine: string,
+  sub: string,
+  drill: CarriedDrill | null,
+): Promise<void> {
+  const client = await pool!.connect();
+  try {
+    await client.query('BEGIN');
+    await client.query(`UPDATE matches SET player_id = $2 WHERE player_id = $1`, [claim, mine]);
+    await client.query(
+      `UPDATE players SET campaign = GREATEST(campaign, COALESCE((SELECT campaign FROM players WHERE id = $1), 0)),
+              updated_at = now()
+       WHERE id = $2`,
+      [claim, mine],
+    );
+    if (drill) {
+      await client.query(
+        `UPDATE accounts SET drill_last = $2, drill_streak = $3, drill_best = $4
+         WHERE sub = $1 AND drill_last IS NULL`,
+        [sub, drill.last, drill.streak, drill.best],
+      );
+    }
+    await client.query('COMMIT');
+    event('guest_merged');
+  } catch (err) {
+    await client.query('ROLLBACK').catch(() => {});
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
 export async function linkAccount(p: {
   sub: string;
   email: string;
   name: string;
   picture: string;
   claimPlayerId: string | null;
+  /** Today, for judging whether a carried streak is still alive. */
+  day: string;
+  drill: CarriedDrill | null;
 }): Promise<AccountRow | null> {
   if (!pool || !ready) return null;
   try {
+    const claim = await adoptable(p.claimPlayerId);
+    const drill = aliveDrill(p.drill, p.day);
     const existing = await pool.query(
       `SELECT player_id, name, username FROM accounts WHERE sub = $1`,
       [p.sub],
     );
     if (existing.rowCount === 1) {
       // Returning user: refresh the profile, keep the canonical player row.
+      const mine = existing.rows[0].player_id as string;
       await pool.query(
         `UPDATE accounts SET email = $2, name = $3, picture = $4, seen_at = now() WHERE sub = $1`,
         [p.sub, p.email.slice(0, 200), p.name.slice(0, 64), p.picture.slice(0, 500)],
       );
+      // Played here as a guest before signing in (a new laptop, a cleared
+      // browser): that progress follows the account too, not only what was
+      // earned on the very first device. A merge that fails costs the guest
+      // games, never the sign-in.
+      if (claim && claim !== mine) {
+        await mergeGuest(claim, mine, p.sub, drill).catch((err) =>
+          console.error('[store] guest merge failed:', err),
+        );
+      }
       return {
         sub: p.sub,
-        playerId: existing.rows[0].player_id as string,
+        playerId: mine,
         name: (existing.rows[0].username as string) || (existing.rows[0].name as string) || p.name,
         username: (existing.rows[0].username as string) || null,
       };
     }
     // First sign-in: adopt this device's progress rather than starting over.
-    const playerId = p.claimPlayerId || `acct_${p.sub}`;
+    // The players row (campaign, and every match filed under it) is kept as
+    // is; the streak the device kept becomes the account's.
+    const playerId = claim || `acct_${p.sub}`;
     await pool.query(
       `INSERT INTO players (id, name) VALUES ($1, $2) ON CONFLICT (id) DO NOTHING`,
       [playerId, p.name.slice(0, 24) || 'player'],
     );
     await pool.query(
-      `INSERT INTO accounts (sub, player_id, email, name, picture)
-       VALUES ($1, $2, $3, $4, $5)
+      `INSERT INTO accounts (sub, player_id, email, name, picture, drill_last, drill_streak, drill_best)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
        ON CONFLICT (sub) DO NOTHING`,
-      [p.sub, playerId, p.email.slice(0, 200), p.name.slice(0, 64), p.picture.slice(0, 500)],
+      [
+        p.sub,
+        playerId,
+        p.email.slice(0, 200),
+        p.name.slice(0, 64),
+        p.picture.slice(0, 500),
+        drill?.last ?? null,
+        drill?.streak ?? 0,
+        drill?.best ?? 0,
+      ],
     );
-    event('account_created');
+    event('account_created', { adopted: Boolean(claim), streak: drill?.streak ?? 0 });
     return { sub: p.sub, playerId, name: p.name, username: null };
   } catch (err) {
     console.error('[store] linkAccount failed:', err);
@@ -784,10 +887,7 @@ export async function recordDrill(
     const streakNow = row.drill_streak ?? 0;
     const best = Math.max(row.drill_best ?? 0, score);
     if (last === day) return { streak: streakNow, best, already: true };
-    const yesterday = new Date(new Date(`${day}T00:00:00Z`).getTime() - 86_400_000)
-      .toISOString()
-      .slice(0, 10);
-    const streak = last === yesterday ? streakNow + 1 : 1;
+    const streak = last === dayBefore(day) ? streakNow + 1 : 1;
     await pool.query(
       `UPDATE accounts SET drill_last = $2, drill_streak = $3, drill_best = $4 WHERE sub = $1`,
       [sub, day, streak, best],
@@ -817,12 +917,9 @@ export async function drillState(
       drill_best: number | null;
     };
     const last = r.drill_last ? String(r.drill_last).slice(0, 10) : null;
-    const yesterday = new Date(new Date(`${day}T00:00:00Z`).getTime() - 86_400_000)
-      .toISOString()
-      .slice(0, 10);
     // A streak you have already broken should read as broken before you play,
     // not flip to 1 the moment you submit.
-    const alive = last === day || last === yesterday;
+    const alive = last === day || last === dayBefore(day);
     return {
       streak: alive ? (r.drill_streak ?? 0) : 0,
       best: r.drill_best ?? 0,

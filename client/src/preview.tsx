@@ -17,7 +17,6 @@ import Verdict from './screens/Verdict';
 import Matches from './screens/Matches';
 import TutorialDone from './screens/TutorialDone';
 import TutorialIntro from './screens/TutorialIntro';
-import Welcome from './screens/Welcome';
 import ClaimName from './screens/ClaimName';
 import BotSelect from './screens/BotSelect';
 import Spectate from './screens/Spectate';
@@ -339,7 +338,6 @@ const SCREENS: Record<string, () => JSX.Element> = {
       ))}
     </div>
   ),
-  welcome: () => <Welcome />,
   /* The Napoleon attempt at every size it would ship at. */
   napoleon: () => (
     <div style={{ padding: 32, background: 'var(--house)', minHeight: '100vh', display: 'flex', gap: 40, alignItems: 'flex-end' }}>
