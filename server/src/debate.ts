@@ -365,6 +365,12 @@ export function startBotDebate(io: Io, lobby: Lobby, topic: TopicText, humanSide
     names,
     startsAt,
     serverNow: now,
+    // The host's own mask rides along like it does for a friend or ranked
+    // start. It was left off here for a long time and the client quietly fell
+    // back to the first mask on the roster, so every bot match showed you
+    // wearing a face you never picked. The bot side carries no entry: the
+    // client draws the bot from `bot` itself.
+    avatars: avatarsOf(lobby),
     bot: { id: lobby.bot.id, name: lobby.bot.name, color: meta?.color ?? 'gold', elo: meta?.elo },
   });
   lobby.stepIndex = -1;

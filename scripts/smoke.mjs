@@ -11,6 +11,15 @@ function check(name, cond) {
 }
 
 const connect = () => io(URL, { forceNew: true, transports: ['websocket'] });
+
+// The masks a seat may wear (mirrors AVATAR_IDS in server/src/protocol.ts).
+const ROSTER = ['ninja', 'oni', 'calavera', 'climber', 'gamer', 'huckster', 'alien', 'plague'];
+// The fight card is on screen from debate:start until startsAt. FAST is 3s and
+// long form 8s; anything outside that is a clock bug the card would expose.
+const revealOk = (start) => {
+  const ms = start.startsAt - start.serverNow;
+  return ms >= 2500 && ms <= 8500;
+};
 const emitP = (sock, ev, payload) =>
   new Promise((res) => sock.emit(ev, payload, res));
 const once = (sock, ev, timeoutMs = 20000) =>
@@ -86,6 +95,7 @@ check(
   'names carried on both sides',
   sa.names[sa.yourSide] === 'pizzamaster' && sa.names[sb.yourSide] === 'yapqueen',
 );
+check('the reveal is a real window on both sides', revealOk(sa) && revealOk(sb));
 
 const forSock = sa.yourSide === 'FOR' ? a : b;
 const againstSock = sa.yourSide === 'FOR' ? b : a;
@@ -617,6 +627,13 @@ console.log('\n=== Scenario 7: bots mode ===');
     'bot debate: opponent is the chosen character',
     Boolean(start.bot) && start.bot.id === 'capybara' && start.names.AGAINST === 'Cappy',
   );
+  // The fight card draws you from this. It was missing from bot starts for a
+  // long time and the client fell back to the first mask on the roster.
+  check(
+    'bot debate: the fight card gets your mask, and no entry for the bot',
+    ROSTER.includes(start.avatars?.FOR) && start.avatars.AGAINST === undefined,
+  );
+  check('bot debate: the reveal is a real window', revealOk(start));
   let botTurns = 0;
   let botPhaseHasSpeakClock = false;
   let humanPhaseClean = true;
@@ -684,6 +701,12 @@ console.log('\n=== Scenario 9: ranked + spectate ===');
   r2.emit('pick:confirm');
   const st1 = await s1;
   check('ranked: debate starts straight from double-confirm', Boolean(st1.topic?.en));
+  // Ranked is masked by format, so the fight card has a mask for BOTH sides.
+  check(
+    'ranked: the fight card gets a roster mask for both seats',
+    ROSTER.includes(st1.avatars?.FOR) && ROSTER.includes(st1.avatars?.AGAINST),
+  );
+  check('ranked: the reveal is a real window', revealOk(st1));
 
   const rep9 = await emitP(r1, 'report', { reason: 'harassment' });
   check('report: honest failure when the store is down', rep9.ok === false);
@@ -747,6 +770,10 @@ console.log('\n=== Scenario 10: tutorial ===');
     Boolean(start.bot) && start.bot.id === 'tutor' && start.names.FOR === 'YapMaster',
   );
   check('tutorial: student is always AGAINST', start.yourSide === 'AGAINST');
+  check(
+    'tutorial: the fight card gets the student mask, and no entry for the teacher',
+    ROSTER.includes(start.avatars?.AGAINST) && start.avatars.FOR === undefined,
+  );
   let tutorTurns = 0;
   h.on('debate:phase', (ph) => {
     if (ph.activeSpeaker === 'AGAINST' && STUDENT[ph.stepIndex]) {

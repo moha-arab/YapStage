@@ -11,6 +11,7 @@ import VideoTile from '../VideoTile';
 import BotAvatar from '../BotAvatar';
 import ReportFlag from '../Report';
 import Brand from '../Brand';
+import FightCard from '../FightCard';
 
 interface Props {
   start: DebateStart;
@@ -99,24 +100,11 @@ export default function Debate({
     return () => clearTimeout(id);
   }, [phase?.stepIndex]);
 
-  // Before the first phase event: the fight card.
+  // Before the first phase event: the fight card (both fighters on the
+  // lobby's stage; see FightCard.tsx). The first debate:phase replaces it.
   if (!phase) {
     return (
-      <div className="stage center-col reveal">
-        <p className="kicker">{t('tonightsMotion')}</p>
-        <h1 className="display motion">{start.topic[lang]}</h1>
-        <div className="versus">
-          <span className="fighter for">{start.names.FOR}</span>
-          <span className="vs">VS</span>
-          <span className="fighter against">{start.names.AGAINST}</span>
-        </div>
-        <div className={`side-badge ${mySide === 'FOR' ? 'for' : 'against'}`}>
-          {t('youArgue', { x: label(mySide) })}
-        </div>
-        <p className="subtitle">
-          {t('noTakebacks', { x: start.names.FOR, n: Math.max(1, Math.ceil(revealMs / 1000)) })}
-        </p>
-      </div>
+      <FightCard start={start} localStream={localStream} remoteStream={remoteStream} revealMs={revealMs} />
     );
   }
 

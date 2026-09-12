@@ -1806,6 +1806,88 @@ html[dir='rtl'] .meter-hint {
   line-height: 1;
 }
 
+/* THE OPENING (Splash.tsx). The house colour, the lockup dead centre, the two
+   quotes landing one after the other and the word coming up under them. It
+   sits over the app while the app boots, and the same lockup at rest is the
+   boot screen while /auth/me answers, so the two are one image. */
+.splash {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: grid;
+  place-items: center;
+  background: var(--house);
+  transition: opacity var(--mid) ease;
+}
+
+.splash-out {
+  opacity: 0;
+}
+
+.splash .brand-lockup {
+  gap: 14px;
+}
+
+/* Each quote scales up out of its own centre; the answering one lands a beat
+   after the opening one, which is the whole joke of the mark. */
+.splash svg path {
+  transform-box: fill-box;
+  transform-origin: center;
+  opacity: 0;
+  animation: splashQuote var(--slow) cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+.splash svg path:last-child {
+  animation-delay: 0.12s;
+}
+
+.splash .brand-word {
+  opacity: 0;
+  transform: translateY(8px);
+  transition:
+    opacity var(--slow) ease,
+    transform var(--slow) cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.splash-word-in .brand-word {
+  opacity: 1;
+  transform: none;
+}
+
+/* The boot screen: the same lockup, already landed, going nowhere. */
+.splash-hold {
+  z-index: 0;
+}
+
+.splash-hold svg path,
+.splash-hold .brand-word {
+  animation: none;
+  transition: none;
+  opacity: 1;
+  transform: none;
+}
+
+@keyframes splashQuote {
+  from {
+    opacity: 0;
+    transform: scale(0.6);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .splash svg path,
+  .splash .brand-word {
+    animation: none;
+    transition: opacity var(--mid) ease;
+    opacity: 1;
+    transform: none;
+  }
+}
+
 .pill {
   border: 1px solid var(--line);
   border-radius: 3px;
@@ -2116,12 +2198,261 @@ html[dir='rtl'] .meter-hint {
   margin: 0;
 }
 
-/* Fight card reveal */
-.reveal .motion {
-  font-size: clamp(28px, 5vw, 54px);
-  max-width: 880px;
+/* ============================ THE FIGHT CARD ============================
+   The beat between the green room and the first turn, in the lobby's own
+   grammar: two fighters in their cones of light, the motion over them, vs
+   between them. It used to be five lines of type down the middle of an empty
+   screen (his note: "make it look better in the empty space"), so the stage
+   that introduced you to your opponent in the lobby now introduces the fight.
+   The parts are named fc- rather than reusing lb- because lobby.css scopes its
+   sizes to the lobby's 100vh grid and this card lives on a scrolling stage. */
+.fight-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  gap: var(--s3);
+  animation: fadeUp var(--slow) ease;
+  transition: opacity var(--mid) ease;
 }
 
+/* The reveal is over (a resumed debate, or the last beat before the first
+   turn): fade so the switch to the match is not a hard cut. */
+.fc-leaving {
+  opacity: 0;
+  animation: none;
+}
+
+.fc-motion {
+  font-size: clamp(24px, 4.6vw, 50px);
+  max-width: 880px;
+  padding: 0 var(--s3);
+}
+
+.fc-select {
+  /* Same idea as the lobby's --art, a touch bigger: there is no dock and no
+     picker below this stage, so the fighters can take the height. */
+  --art: clamp(104px, min(24vw, 30vh), 260px);
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  width: min(100%, 1100px);
+  min-height: min(52vh, 480px);
+  padding: 0 clamp(8px, 2vw, 30px);
+  margin-top: var(--s3);
+}
+
+.fc-fighter {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  height: 100%;
+  justify-content: center;
+  min-width: 0;
+  padding: 8px 0;
+  /* They walk on from their own wings. Ease-out, no overshoot: the old badge
+     stamped in with a 1.6 bounce that read cartoonish next to flat surfaces. */
+  animation: fcFromLeft var(--slow) cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+.fc-fighter-b {
+  animation-name: fcFromRight;
+}
+
+.fc-fighter > *:not(.lb-cone) {
+  position: relative;
+  z-index: 1;
+}
+
+.fc-fighter-a {
+  --glow: var(--amber);
+}
+
+.fc-fighter-b {
+  --glow: var(--turq);
+}
+
+/* The match's resting speaking ring, in the fighter's gel. .mask-ring sets
+   its own --gel, so the override has to land on the ring, not the fighter. */
+.fc-fighter-a .mask-ring {
+  --gel: var(--amber);
+  --gel-glow: rgba(240, 130, 30, 0.55);
+}
+
+.fc-fighter-b .mask-ring {
+  --gel: var(--turq);
+  --gel-glow: rgba(31, 194, 212, 0.55);
+}
+
+.fc-art {
+  position: relative;
+  width: var(--art);
+  height: var(--art);
+  filter: drop-shadow(0 18px 22px rgba(0, 0, 0, 0.45));
+}
+
+/* The pool of light they are standing in. */
+.fc-art::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  bottom: 6px;
+  width: 106%;
+  height: 20px;
+  transform: translateX(-50%);
+  border-radius: 50%;
+  background: var(--glow);
+  opacity: 0.28;
+  z-index: -1;
+}
+
+/* A camera-on fighter is their camera, cut square so it stands where a mask
+   would. The tile's own name tag is off: the name is set under the art in
+   Ultra like everyone else's. */
+.fc-art .tile {
+  width: 100%;
+  height: 100%;
+  aspect-ratio: 1;
+}
+
+.fc-art .tile .tag,
+.fc-art .tile .live-pill {
+  display: none;
+}
+
+.fc-fname {
+  font-family: 'Ultra', serif;
+  font-size: clamp(19px, 2.6vw, 30px);
+  margin-top: 12px;
+  text-align: center;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fc-side {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+}
+
+/* Settle-it: the side is a sentence, not a word, so it wraps and loses the
+   letter-spacing that only works on three capitals. */
+.fc-side-long {
+  letter-spacing: 0;
+  font-size: var(--t3);
+  max-width: min(100%, 280px);
+  text-wrap: balance;
+}
+
+.fc-fighter-a .fc-side {
+  color: var(--amber);
+}
+
+.fc-fighter-b .fc-side {
+  color: var(--turq);
+}
+
+/* The coin dealt the sides, so you have to be able to find yourself. */
+.fc-you {
+  margin-top: var(--s1);
+  padding: 2px 9px;
+  border: 1px solid var(--paper);
+  border-radius: 3px;
+  font-size: var(--t1);
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--paper);
+}
+
+.fc-you-hidden {
+  visibility: hidden;
+}
+
+.fc-vs {
+  font-family: 'Ultra', serif;
+  font-size: clamp(22px, 3.4vw, 44px);
+  align-self: center;
+  /* lifted so it sits level with the art, not with the names under it */
+  padding: 0 clamp(4px, 1.5vw, 16px) 60px;
+  animation: fcStamp var(--slow) cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  animation-delay: 0.2s;
+}
+
+.fc-caption {
+  font-size: var(--t4);
+}
+
+@keyframes fcFromLeft {
+  from {
+    opacity: 0;
+    transform: translateX(-40px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes fcFromRight {
+  from {
+    opacity: 0;
+    transform: translateX(40px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes fcStamp {
+  from {
+    opacity: 0;
+    transform: scale(1.5);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (max-width: 620px) {
+  .fc-select {
+    --art: clamp(96px, 27vw, 150px);
+    padding: 0 6px;
+    min-height: 0;
+  }
+
+  .fc-motion {
+    font-size: clamp(22px, 6.5vw, 32px);
+  }
+
+  /* a 170px column: eleven letters of Ultra at 19px do not fit */
+  .fc-fname {
+    font-size: 17px;
+  }
+
+  .fc-vs {
+    padding-bottom: 46px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fight-card,
+  .fc-fighter,
+  .fc-vs,
+  .stage.debate {
+    animation: none;
+  }
+}
+
+/* The names-around-a-VS line the verdict and match history still set. */
 .versus {
   display: flex;
   align-items: center;
@@ -2143,14 +2474,6 @@ html[dir='rtl'] .meter-hint {
 
 .against {
   color: var(--against);
-}
-
-.side-badge {
-  font-family: 'Ultra', serif;
-  font-size: clamp(20px, 3vw, 30px);
-  padding: 12px 28px;
-  border: 1px solid currentColor;
-  animation: stampIn 0.35s cubic-bezier(0.2, 1.6, 0.4, 1);
 }
 
 @keyframes stampIn {
@@ -2179,6 +2502,9 @@ html[dir='rtl'] .meter-hint {
 .stage.debate {
   display: flex;
   flex-direction: column;
+  /* The fight card fades out ahead of the first turn; the match fades in
+     behind it, so the one screen change a debater cannot control is soft. */
+  animation: fadeUp var(--mid) ease;
 }
 
 .debate .arena {

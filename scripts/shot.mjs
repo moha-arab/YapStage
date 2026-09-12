@@ -22,7 +22,8 @@
  *
  * Other args: url= (default http://localhost:3012/), wait= (ms before the
  * shot), clickWait=, port= (debugger port, vary it to run several at once),
- * dir= (output directory, default the repo's .shots/).
+ * dir= (output directory, default the repo's .shots/), reduced=1 (the page
+ * sees prefers-reduced-motion, for anything that animates).
  */
 import { spawn } from 'node:child_process';
 import { writeFileSync, rmSync, mkdirSync } from 'node:fs';
@@ -109,6 +110,11 @@ try {
     deviceScaleFactor: 1,
     mobile: args.mobile === '1',
   });
+  if (args.reduced === '1') {
+    await send(ws, 'Emulation.setEmulatedMedia', {
+      features: [{ name: 'prefers-reduced-motion', value: 'reduce' }],
+    });
+  }
   await send(ws, 'Page.navigate', { url: URL_ });
   await sleep(Number(args.wait ?? 1500));
 

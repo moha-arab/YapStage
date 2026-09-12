@@ -38,6 +38,7 @@ import ClaimName from './screens/ClaimName';
 import Matches from './screens/Matches';
 import Drill from './screens/Drill';
 import Welcome from './screens/Welcome';
+import Splash, { splashWanted } from './Splash';
 import { MASK_IDS } from './Mask';
 import { playBotTurn, stopBotVoice } from './botvoice';
 
@@ -138,6 +139,11 @@ export default function App() {
   useEffect(() => {
     void whoAmI().then(setAccount);
   }, []);
+  // The opening: the mark drawn over the boot, once per tab. It lives ABOVE
+  // `content`, never in place of it, so the /auth/me fetch and the socket
+  // handlers below start on the first render exactly as they did before.
+  const [splash, setSplash] = useState(splashWanted);
+  const endSplash = useCallback(() => setSplash(false), []);
 
   // Server-STT availability (for bot mode, which has no LobbyUpdate to carry it).
   const sttGlobalRef = useRef(false);
@@ -923,10 +929,13 @@ export default function App() {
     );
   } else if (!account) {
     // The boot /auth/me has not answered yet, so we do not know whether this
-    // person gets Welcome or the lobby. Render the empty house instead of
+    // person gets Welcome or the lobby. Hold the brand lockup instead of
     // guessing: guessing the lobby meant every signed-out visitor watched the
-    // stage flash for a frame before Welcome replaced it.
-    content = <div className="lb" aria-hidden="true" />;
+    // stage flash for a frame before Welcome replaced it, and the empty plum
+    // div that replaced the guess made the first frame of the app a blank
+    // screen. The held lockup is the same drawing the splash ends on, so on a
+    // cold load the two are one image.
+    content = <Splash hold />;
   } else if (account.google && !account.signedIn) {
     content = (
       <Welcome />
@@ -954,6 +963,7 @@ export default function App() {
     <>
       <LangToggle />
       {content}
+      {splash ? <Splash ready={Boolean(account)} onDone={endSplash} /> : null}
     </>
   );
 }
