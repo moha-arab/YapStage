@@ -25,6 +25,8 @@ import type { Side, Verdict as VerdictData } from '../../server/src/protocol';
 import TierBadge from './TierBadge';
 import VideoTile from './VideoTile';
 import Mask from './Mask';
+import FightCard from './FightCard';
+import Splash from './Splash';
 import { ARISTOTLE_200, BOT_PORTRAITS, NAPOLEON_200 } from './dev/botPortraits';
 
 const noop = () => {};
@@ -257,6 +259,68 @@ const SCREENS: Record<string, () => JSX.Element> = {
     </div>
   ),
   claimName: () => <ClaimName onClaimed={noop} />,
+  /* The fight card three ways: against a bot, a masked ranked match, and a
+     settle-it where the sides are sentences. revealMs is frozen so the shot
+     never lands on the fade-out. */
+  fightBot: () => (
+    <FightCard
+      start={{
+        topic: { id: 'demo', en: 'college is no longer worth it', ar: '' },
+        yourSide: 'FOR',
+        names: { FOR: 'zorvint', AGAINST: 'Cappy' },
+        startsAt: Date.now() + 8000,
+        serverNow: Date.now(),
+        avatars: { FOR: 'huckster' },
+        bot: { id: 'capybara', name: 'Cappy', color: 'ink', elo: 1400 },
+      }}
+      localStream={null}
+      remoteStream={null}
+      revealMs={6400}
+    />
+  ),
+  fightHuman: () => (
+    <FightCard
+      start={{
+        topic: { id: 'demo', en: 'social media should be banned for under-16s', ar: '' },
+        yourSide: 'AGAINST',
+        names: { FOR: 'pizzamaster', AGAINST: 'goat' },
+        startsAt: Date.now() + 8000,
+        serverNow: Date.now(),
+        avatars: { FOR: 'calavera', AGAINST: 'ninja' },
+      }}
+      localStream={null}
+      remoteStream={null}
+      revealMs={6400}
+    />
+  ),
+  fightDispute: () => (
+    <FightCard
+      start={{
+        topic: { id: 'dispute', en: 'the dishes are a shared job, not a favour', ar: '' },
+        yourSide: 'FOR',
+        names: { FOR: 'zorvint', AGAINST: 'goat' },
+        startsAt: Date.now() + 8000,
+        serverNow: Date.now(),
+        avatars: { FOR: 'alien' },
+        framing: {
+          argument: 'the dishes are a shared job, not a favour',
+          positions: {
+            FOR: 'doing the dishes is part of living here',
+            AGAINST: 'whoever cooks is off dishes that night',
+          },
+          said: {
+            FOR: 'he never does the dishes',
+            AGAINST: 'i cook, so the dishes are his',
+          },
+        },
+      }}
+      localStream={null}
+      remoteStream={null}
+      revealMs={6400}
+    />
+  ),
+  /* The opening, held at the end of its run (no timer, no exit). */
+  splash: () => <Splash hold />,
   botSelect: () => (
     <BotSelect
       localStream={null}
