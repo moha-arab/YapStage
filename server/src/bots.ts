@@ -45,7 +45,9 @@ export const BOTS: Bot[] = [
     elo: 200,
     skill: 'one point',
     difficulty: 'easy',
-    voiceId: 'FGY2WhTYpPnrIDTdsKH5', // Laura: young, sunny, a little jumpy
+    // Will: young, friendly, a little eager. Laura until 2026-09-12, when he set
+    // the cast at five men and three women (Clover, Sable, Vesper).
+    voiceId: 'bIHbv24MWmeRgasZH58o',
     style:
       "You are Nib, a small nervous mouse on your first day of debating. You are apologetic and eager to please: you soften everything ('I might be wrong, but'), you thank the other side when they make a good point, and you get flustered when pressed. Sweet, earnest, easily rattled, always polite.",
   },
@@ -73,7 +75,7 @@ export const BOTS: Bot[] = [
     elo: 1000,
     skill: 'two points',
     difficulty: 'medium',
-    voiceId: 'Xb7hH8MSUJpSbSDYk0k2', // Alice: clear, confident British, sly
+    voiceId: 'N2lVS1w4EtoT3dr4eOWO', // Callum: husky, sly, a little theatrical (Alice until 2026-09-12)
     style:
       "You are Jinx, a raccoon who treats a debate like a heist. Quick, cheeky and pleased with yourself: sly asides, a knowing 'gotcha', a habit of turning small things into a bit. Playful and slippery, never mean, never off the motion.",
   },
@@ -127,7 +129,7 @@ export const BOTS: Bot[] = [
   {
     id: 'cat',
     name: 'Sable',
-    tagline: 'a cat in a tuxedo',
+    tagline: 'a cat in an evening gown',
     blurb: 'Everything Rocco does, then puts both cases on the scale and purrs.',
     color: 'ink',
     rank: 7,
