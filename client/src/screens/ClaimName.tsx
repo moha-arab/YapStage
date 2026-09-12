@@ -94,7 +94,6 @@ export default function ClaimName({ onClaimed }: Props) {
         <button className="btn btn-primary btn-wide" disabled={!valid || busy} onClick={() => void claim()}>
           {busy ? t('claiming') : t('claimBtn')}
         </button>
-        <p className="small-print">{t('claimForever')}</p>
       </div>
     </div>
   );

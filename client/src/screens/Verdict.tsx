@@ -574,11 +574,9 @@ export default function VerdictScreen({
           </div>
 
           <div className="verdict-actions">
-            {botOpponent || ranked ? (
-              <button className="btn btn-primary" onClick={() => window.location.assign('/')}>
-                {t(ranked ? 'backToQueue' : 'newOpponent')}
-              </button>
-            ) : rematch?.peerLeft ? (
+            {/* Bot and ranked debates have no rematch, and "new opponent" went
+                to the same lobby as "back to the lobby" did, so one button. */}
+            {botOpponent || ranked ? null : rematch?.peerLeft ? (
               <button className="btn btn-primary" disabled>
                 {t('rematchPeerLeft', { x: peerName })}
               </button>
@@ -591,7 +589,10 @@ export default function VerdictScreen({
                 {rematch?.peerWant ? t('rematchAccept', { x: peerName }) : t('rematch')}
               </button>
             )}
-            <button className="btn" onClick={() => window.location.assign('/')}>
+            <button
+              className={`btn ${botOpponent || ranked ? 'btn-primary' : ''}`}
+              onClick={() => window.location.assign('/')}
+            >
               {t('backHome')}
             </button>
             <button className="btn" onClick={toggleMute}>

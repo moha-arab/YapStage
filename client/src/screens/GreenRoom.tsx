@@ -203,7 +203,6 @@ export default function GreenRoom({
             <button className="btn" onClick={copyLink}>
               {copied ? t('copied') : t('copyInvite')}
             </button>
-            <p className="subtitle">{t('sendToOne')}</p>
           </div>
           {selfTile}
         </>
