@@ -230,6 +230,43 @@ export interface SpectateState {
   avatars?: Partial<Record<Side, AvatarId>>;
 }
 
+/** One row of the lobby's browse list: a live ranked debate anyone can watch.
+    Only what a spectator gets anyway (spectateStateFor); no player ids. */
+export interface LiveMatch {
+  code: string;
+  topic: TopicText;
+  /** The deck category the motion came from. Ranked rolls a category first
+      and keeps categoryKey null, so this is read back from the topic id. */
+  category: string | null;
+  names: Record<Side, string>;
+  avatars: Partial<Record<Side, AvatarId>>;
+  /** Null during the reveal countdown, before step 0. */
+  phase: PhaseLabel | null;
+  stepIndex: number; // -1 during the reveal countdown
+  watchers: number;
+  /** Server clock at step 0, so the lobby can tick "how far in" against
+      serverNow the same way the shot clock does. Null during the reveal. */
+  startedAt: number | null;
+}
+
+/** GET /live: what the lobby's watch mode shows. `featured` is the first
+    open bout, kept so the stage can stand two real faces on it. */
+export interface LiveList {
+  live: number;
+  watchable: number;
+  featured: {
+    code: string;
+    names: Record<Side, string>;
+    avatars: Partial<Record<Side, AvatarId>>;
+    phase: PhaseLabel | null;
+    watchers: number;
+  } | null;
+  matches: LiveMatch[];
+  /** The deck's categories, so the filter chips need no second fetch. */
+  categories: { key: string; label: { en: string; ar: string } }[];
+  serverNow: number;
+}
+
 export interface DebateStart {
   topic: TopicText;
   yourSide: Side;

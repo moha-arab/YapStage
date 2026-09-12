@@ -34,6 +34,14 @@ export default defineConfig({
       '/bots': {
         target: 'http://localhost:3000',
       },
+      // Watch mode polls these; without the proxy `vite dev` answers 404 and
+      // the lobby quietly shows nothing live.
+      '/live': {
+        target: 'http://localhost:3000',
+      },
+      '/spectate': {
+        target: 'http://localhost:3000',
+      },
     },
   },
 });

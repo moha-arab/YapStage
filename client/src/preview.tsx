@@ -146,6 +146,87 @@ const SCREENS: Record<string, () => JSX.Element> = {
       />
     );
   },
+  /* Watch a match with three live bouts on the list. ?empty=1 for the
+     nothing-live line, which keeps only the code box. */
+  watch: () => {
+    const real = window.fetch.bind(window);
+    const empty = new URLSearchParams(window.location.search).has('empty');
+    const now = Date.now();
+    const matches = [
+      {
+        code: 'ABCDEF',
+        topic: { id: 'early-riser', en: 'Waking up early is overrated', ar: '' },
+        category: 'everyday',
+        names: { FOR: 'zorvint', AGAINST: 'goat' },
+        avatars: { FOR: 'napoleon', AGAINST: 'shuten' },
+        phase: 'rebuttal',
+        stepIndex: 2,
+        watchers: 4,
+        startedAt: now - 134000,
+      },
+      {
+        code: 'GHIJKL',
+        topic: { id: 'aliens', en: 'We are not alone in the universe', ar: '' },
+        category: 'big',
+        names: { FOR: 'pizzamaster', AGAINST: 'yapqueen' },
+        avatars: { FOR: 'marisol', AGAINST: 'diogenes' },
+        phase: 'opening',
+        stepIndex: 1,
+        watchers: 0,
+        startedAt: now - 41000,
+      },
+      {
+        code: 'MNOPQR',
+        topic: { id: 'success-luck', en: 'Success is mostly luck', ar: '' },
+        category: 'big',
+        names: { FOR: 'corvin_x', AGAINST: 'lena' },
+        avatars: { FOR: 'corvin', AGAINST: 'athena' },
+        phase: null,
+        stepIndex: -1,
+        watchers: 1,
+        startedAt: null,
+      },
+    ];
+    const categories = ['everyday life', 'school', 'tech', 'sport', 'food', 'culture', 'money', 'big questions'].map(
+      (en, i) => ({ key: ['everyday', 'school', 'tech', 'sport', 'food', 'culture', 'money', 'big'][i], label: { en, ar: '' } }),
+    );
+    window.fetch = (input, init) => {
+      const url = String(input);
+      const json = (body: unknown) =>
+        Promise.resolve(new Response(JSON.stringify(body), { headers: { 'content-type': 'application/json' } }));
+      if (url.startsWith('/rating')) return json({ rating: 1400, placed: true, placementBot: 'Nora' });
+      if (url.startsWith('/bots')) return json({ bots: [] });
+      if (url.startsWith('/live'))
+        return json(
+          empty
+            ? { live: 0, watchable: 0, featured: null, matches: [], categories, serverNow: Date.now() }
+            : {
+                live: 3,
+                watchable: 3,
+                featured: { ...matches[0] },
+                matches,
+                categories,
+                serverNow: Date.now(),
+              },
+        );
+      if (url.startsWith('/drill')) return json({});
+      return real(input, init);
+    };
+    return (
+      <Home
+        account={{ signedIn: false, google: false }}
+        notice={null}
+        onEntered={noop}
+        onSpectate={noop}
+        onMatches={noop}
+        onDrill={noop}
+        onBotStart={noop}
+        onTutorial={noop}
+        onMaskSaved={noop}
+        initialMode="watch"
+      />
+    );
+  },
   verdictWait: () => (
     <Verdict
       info={null}

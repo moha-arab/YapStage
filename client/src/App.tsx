@@ -118,8 +118,9 @@ export default function App() {
   // Spectating a lobby by code (state + the latest server snapshot for it).
   const [spectating, setSpectating] = useState<string | null>(null);
   // Arrived through the ranked feed (vs a friend's code): only the feed offers
-  // a 'next debate', because a custom lobby is one room, not a channel.
-  const [specFeed, setSpecFeed] = useState(false);
+  // a 'next debate', because a custom lobby is one room, not a channel. The
+  // feed remembers the tab it was opened from, so "next" stays in it.
+  const [specFeed, setSpecFeed] = useState<{ category: string | null } | null>(null);
   const [specState, setSpecState] = useState<SpectateState | null>(null);
   // How many people are watching MY debate (shown to debaters).
   const [watchers, setWatchers] = useState(0);
@@ -196,6 +197,11 @@ export default function App() {
     setBotTurn(null);
     setBotSpeaking(false);
     setBotSpeakDeadline(null);
+    // A watcher too: lobby:closed reaches the spectator room as well, and
+    // before this a swept debate left the watching screen up with a dead code.
+    setSpectating(null);
+    setSpecState(null);
+    setSpecFeed(null);
     setNotice(message);
   }, []);
 
@@ -777,31 +783,32 @@ export default function App() {
         onLeave={() => {
           setSpectating(null);
           setSpecState(null);
-          setSpecFeed(false);
+          setSpecFeed(null);
         }}
         onNext={
           specFeed
             ? () => {
                 setSpecState(null);
-                void fetch(`/spectate/random?not=${spectating}`)
+                const cat = specFeed.category ? `&category=${encodeURIComponent(specFeed.category)}` : '';
+                void fetch(`/spectate/random?not=${spectating}${cat}`)
                   .then((r) => r.json())
                   .then((d: { code: string | null }) => {
                     if (!d.code) {
                       setSpectating(null);
-                      setSpecFeed(false);
+                      setSpecFeed(null);
                       return;
                     }
                     socket.emit('spectate:join', { code: d.code }, (res) => {
                       if (res.ok) setSpectating(d.code!);
                       else {
                         setSpectating(null);
-                        setSpecFeed(false);
+                        setSpecFeed(null);
                       }
                     });
                   })
                   .catch(() => {
                     setSpectating(null);
-                    setSpecFeed(false);
+                    setSpecFeed(null);
                   });
               }
             : undefined
