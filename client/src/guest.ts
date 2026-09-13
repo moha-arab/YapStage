@@ -1,10 +1,12 @@
 // What a guest keeps on this device. Nothing but ranked needs an account
-// (his call 2026-09-12), so the name you typed, the mask you picked and the
+// (his call 2026-09-12), so the name the device was given, the mask you picked and the
 // drill streak you are on all live in localStorage until you sign in. At
 // sign-in the streak rides the claim (player.ts signIn) into the account,
 // and the rest stops mattering: an account has a yap name and a locker of
 // its own. Signing out clears all of it along with the device id, so the
 // next person on a shared laptop starts as the stranger they are.
+
+import { NAME_RE } from '../../server/src/protocol';
 
 const NAME_KEY = 'yapstage.guestName';
 const MASK_KEY = 'yapstage.guestMask';
@@ -27,12 +29,16 @@ function write(key: string, value: string | null): void {
   }
 }
 
+/** What a guest is called. Guests don't pick a name (his call, 2026-09-13):
+    each device is given one, made once and kept, until they sign in and claim
+    their own. A name typed before this (still valid) is kept; a half-typed
+    one left behind by the old name box is replaced. */
 export function guestName(): string {
-  return read(NAME_KEY) ?? '';
-}
-
-export function setGuestName(name: string): void {
-  write(NAME_KEY, name || null);
+  const saved = read(NAME_KEY);
+  if (saved && NAME_RE.test(saved)) return saved;
+  const made = `Guest${Math.floor(1000 + Math.random() * 9000)}`;
+  write(NAME_KEY, made);
+  return made;
 }
 
 export function guestMask(): string | null {

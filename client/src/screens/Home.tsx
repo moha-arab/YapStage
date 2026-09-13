@@ -174,7 +174,7 @@ export default function Home({
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   // A guest's name is typed once and kept on the device, never asked again.
-  const [name, setName] = useState(guest.guestName);
+  const [name] = useState(guest.guestName);
 
   const [queueing, setQueueing] = useState(false);
   const [queueInfo, setQueueInfo] = useState<{ waiting: number } | null>(null);
@@ -310,7 +310,6 @@ export default function Home({
   function requireName(): boolean {
     if (validName) return true;
     setError('nameFirst');
-    document.getElementById('yapname')?.focus();
     return false;
   }
 
@@ -994,33 +993,17 @@ export default function Home({
             {opponent}
           </div>
 
-          {/* Guests need a name before anything will start. Not for watching
-              (the crowd is anonymous) and not on a ranked stage that is
-              asking for an account instead. The line under it is the
-              disclosure for filing a guest's games under the device id. */}
+          {/* Guests don't pick a name (his call, 2026-09-13): the device gives
+              them one (guest.ts). One line says who they are playing as, and
+              it is also the disclosure for filing a guest's games under the
+              device id. Not for watching (the crowd is anonymous) and not on
+              a ranked stage that is asking for an account instead. */}
           {!account.signedIn && !(mode === 'ranked' && needAccount) ? (
-            <>
-              <div className={`lb-guest${mode === 'watch' ? ' lb-hide' : ''}`} aria-hidden={mode === 'watch'}>
-                <label className="lb-lab" htmlFor="yapname">
-                  {t('yourYapName')}
-                </label>
-                <input
-                  id="yapname"
-                  className="input"
-                  placeholder={t('namePlaceholder')}
-                  maxLength={16}
-                  value={name}
-                  onChange={(e) => {
-                    const v = e.target.value.replace(/\s/g, '');
-                    setName(v);
-                    guest.setGuestName(v);
-                    setError(null);
-                  }}
-                />
-                {name && !validName ? <span className="lb-err">{t('errBadName')}</span> : null}
-              </div>
-              <p className={`lb-guest-note${mode === 'watch' ? ' lb-hide' : ''}`}>{t(account.google ? 'lbGuestKept' : 'lbGuestKeptLocal')}</p>
-            </>
+            <p
+              className={`lb-guest-note${mode === 'watch' ? ' lb-hide' : ''}`}
+              aria-hidden={mode === 'watch'}
+              dangerouslySetInnerHTML={{ __html: t(account.google ? 'lbGuestKept' : 'lbGuestKeptLocal', { x: esc(name) }) }}
+            />
           ) : null}
 
           {/* Ranked is the one thing that needs an account. Said on the stage

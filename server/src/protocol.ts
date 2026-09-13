@@ -612,6 +612,10 @@ export function nameProblem(raw: string): NameProblem {
   if (!NAME_RE.test(name)) return 'bad_name';
   const fold = foldName(name);
   if (RESERVED.has(fold)) return 'reserved';
+  // "Guest4821" is what a signed-out device is called (client/src/guest.ts).
+  // No account may claim that pattern, so a guest and a player are never
+  // mistaken for each other. Guests' own names are checked by NAME_RE only.
+  if (/^guest\d*$/.test(fold)) return 'reserved';
   // "___" is not a name; require something readable in there.
   if (!/[A-Za-z0-9]{2,}/.test(name)) return 'bad_name';
   return null;

@@ -2447,3 +2447,12 @@
 .lb-bar-ico:hover svg {
   color: var(--paper);
 }
+
+/* A guest's "Playing as" line sits just over the button on a phone (the name
+   box that used to sit there is gone, 2026-09-13): lift whatever sits under
+   the VS clear of it. */
+@media (max-width: 620px) {
+  .lb-select:has(.lb-guest-note:not(.lb-hide)) .lb-mid-bot {
+    bottom: 118px;
+  }
+}
