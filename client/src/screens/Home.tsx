@@ -44,11 +44,14 @@
 //      the stage is the freshest bout in the tab you are on.
 //  10. NO ACCOUNT FOR ANYTHING BUT RANKED (his call 2026-09-12, reversing
 //      2026-08-22). A guest plays bots, a friend, watches and drills under a
-//      name typed once and a mask picked once, both kept on the device
-//      (guest.ts). Ranked alone asks for the account, on its own stage with
-//      the reason in one line, and the bar carries a quiet sign-in.
+//      name the device is given (guest.ts), wearing the grey silhouette:
+//      characters come with an account (2026-09-12). The line under the
+//      silhouette says so, and tapping it shows the roster locked, with the
+//      sign-in button. Ranked alone asks for the account, on its own stage
+//      with the reason in one line, and the bar carries a quiet sign-in.
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import {
+  GUEST_AVATAR,
   NAME_RE,
   type JoinError,
   type LiveList,
@@ -56,7 +59,7 @@ import {
   type LobbyUpdate,
   type TopicCategory,
 } from '../../../server/src/protocol';
-import type { BotStartConfig } from './BotSelect';
+import type { BotStartConfig, StartResult } from './BotSelect';
 import BotRoster from './BotRoster';
 import MaskRoster from './MaskRoster';
 import LobbySheet from './LobbySheet';
@@ -69,6 +72,8 @@ import MatchSetup, {
   type MatchSetupValue,
 } from '../MatchSetup';
 import { session, socket } from '../socket';
+import { ensureLocalStream, releaseMedia } from '../webrtc';
+import { recordingSupported } from '../recorder';
 import { playerId, saveLocker, signIn, type Account } from '../player';
 import * as guest from '../guest';
 import { unlockSpectateAudio } from '../specaudio';
@@ -82,7 +87,10 @@ import Cone from '../Cone';
 const ERROR_KEYS: Record<JoinError, string> = {
   not_found: 'errNotFound',
   full: 'errFull',
-  in_progress: 'errInProgress',
+  // Opening a room or joining the queue while this socket still sits in a
+  // debate. (A join that finds the room's debate already running says so
+  // itself, in join() below.)
+  in_progress: 'errBusy',
   bad_name: 'errBadName',
   rate_limited: 'errRateLimited',
   locked: 'errLocked',
@@ -90,9 +98,14 @@ const ERROR_KEYS: Record<JoinError, string> = {
   // The server's own account gate for ranked, same words the client uses.
   signed_out: 'signInRanked',
   placed: 'errPlaced',
+  // The queue refuses an unplaced player: the stage turns to placement.
+  unplaced: 'errUnplaced',
+  // The model API is failing (the server's breaker): nothing rated starts.
+  judge_down: 'errJudgeDown',
 };
 
-type Mode = 'ranked' | 'bot' | 'friend' | 'watch' | 'drill';
+export type LobbyMode = 'ranked' | 'bot' | 'friend' | 'watch' | 'drill';
+type Mode = LobbyMode;
 // His order (2026-09-04): online, bots, a friend, watch, drill.
 const MODES: Mode[] = ['ranked', 'bot', 'friend', 'watch', 'drill'];
 
@@ -125,13 +138,16 @@ interface Props {
       button (then the watching screen offers a next one, in the same
       category); null when it came from a friend's code, which is one room. */
   onSpectate: (code: string, feed: { category: string | null } | null) => void;
-  /** Dev harness only (preview.tsx): open on a mode other than ranked. */
+  /** Open on this mode instead of the default (App, after the lesson: the
+      bots; the dev harness: anything). */
   initialMode?: Mode;
   /** Dev harness only (preview.tsx): open with a friend room already made. */
   initialRoom?: LobbyUpdate;
   onMatches: () => void;
   onDrill: () => void;
-  onBotStart: (name: string, config: BotStartConfig) => void;
+  /** Resolves 'ok' once the server took it (debate:start follows), 'mic'
+      when the mic was refused, anything else when it did not start. */
+  onBotStart: (name: string, config: BotStartConfig) => Promise<StartResult> | void;
   onTutorial: (name: string) => void;
   /** The mask was saved to the account; App keeps its copy in step. */
   onMaskSaved: (mask: string) => void;
@@ -166,7 +182,13 @@ export default function Home({
     return (fromUrl ?? stashed ?? '').toUpperCase().slice(0, 6);
   });
 
-  const [mode, setMode] = useState<Mode>(arrival ? 'friend' : (initialMode ?? 'ranked'));
+  const needAccount = account.google && !account.signedIn;
+
+  // A guest lands on the bots, which they can play this second, never on
+  // the one stage that asks them to sign in first.
+  const [mode, setMode] = useState<Mode>(
+    arrival ? 'friend' : (initialMode ?? (needAccount ? 'bot' : 'ranked')),
+  );
   const [pickedBot, setPickedBot] = useState<string | null>(null);
   const [roster, setRoster] = useState(false);
   const [maskRoster, setMaskRoster] = useState(false);
@@ -178,8 +200,13 @@ export default function Home({
 
   const [queueing, setQueueing] = useState(false);
   const [queueInfo, setQueueInfo] = useState<{ waiting: number } | null>(null);
-
-  const needAccount = account.google && !account.signedIn;
+  const queueingRef = useRef(false);
+  queueingRef.current = queueing;
+  // What the last queue:join sent, so a reconnect can send it again.
+  const queuePayload = useRef<{ sessionId: string; playerId: string; name: string } | null>(null);
+  // One start in flight at a time: a double tap on a go button must not
+  // start two debates. Cleared by a failed ack, or by debate:start.
+  const startingRef = useRef(false);
 
   /* ---- everything the stage needs to know ---- */
 
@@ -187,19 +214,22 @@ export default function Home({
   // built before one-match placement answers without `placed`; that reads as
   // null, which is the queue, so nothing on the stage changes mid-deploy.
   const [rank, setRank] = useState<Rank | null>(null);
-  useEffect(() => {
+  // `unplaced`: the queue just said so, whatever the last /rating read, so
+  // the stage turns to the placement match either way.
+  const loadRank = useCallback((unplaced = false) => {
     void fetch(`/rating?playerId=${encodeURIComponent(playerId())}`)
       .then((r) => r.json())
       .then((d) => {
         if (typeof d?.rating !== 'number') return;
         setRank({
           rating: d.rating,
-          placed: typeof d.placed === 'boolean' ? d.placed : null,
+          placed: unplaced ? false : typeof d.placed === 'boolean' ? d.placed : null,
           placementBot: typeof d.placementBot === 'string' ? d.placementBot : '',
         });
       })
       .catch(() => {});
-  }, [account.signedIn]);
+  }, []);
+  useEffect(() => loadRank(), [account.signedIn, loadRank]);
   // Unplaced means the placement bot stands opposite you in ranked mode.
   // Not for a guest: their stage carries the sign-in ask instead.
   const placing = mode === 'ranked' && !needAccount && rank?.placed === false;
@@ -273,7 +303,18 @@ export default function Home({
   /* ---- the ranked queue ---- */
 
   useEffect(() => {
-    const onUpdate = (p: { waiting: number }) => setQueueInfo(p);
+    const onUpdate = (p: { waiting: number; replaced?: boolean }) => {
+      // Another tab of this player took the place in line: this one has
+      // stopped searching, and says so rather than pulsing at nobody.
+      if (p.replaced) {
+        setQueueing(false);
+        setQueueInfo(null);
+        releaseMedia();
+        setError('queueReplaced');
+        return;
+      }
+      setQueueInfo(p);
+    };
     const onMatched = (p: { update: LobbyUpdate }) => {
       setQueueing(false);
       onEntered(p.update);
@@ -287,6 +328,33 @@ export default function Home({
     };
   }, [onEntered]);
 
+  // The server drops a queued socket when it reconnects, so a wifi blip
+  // would leave this screen searching in a line it is no longer in. Join
+  // again on the new connection, with what was sent the first time.
+  useEffect(() => {
+    const onConnect = () => {
+      const payload = queuePayload.current;
+      if (!queueingRef.current || !payload) return;
+      socket.emit('queue:join', payload, (res) => {
+        if (res.ok) return;
+        setQueueing(false);
+        setQueueInfo(null);
+        releaseMedia();
+        if (res.error === 'unplaced') loadRank(true);
+        setError(ERROR_KEYS[res.error ?? 'rate_limited']);
+      });
+    };
+    const onStart = () => {
+      startingRef.current = false;
+    };
+    socket.on('connect', onConnect);
+    socket.on('debate:start', onStart);
+    return () => {
+      socket.off('connect', onConnect);
+      socket.off('debate:start', onStart);
+    };
+  }, [loadRank]);
+
   const [authNote] = useState(() => new URLSearchParams(window.location.search).get('auth'));
   useEffect(() => {
     if (!authNote) return;
@@ -299,13 +367,10 @@ export default function Home({
 
   const effName = account.signedIn && account.name ? account.name : name;
   const validName = NAME_RE.test(effName);
-  // Signed out, the pick is kept on the device (guest.ts) so it is still
-  // yours tomorrow; signed in, the locker has it.
-  const [guestMask, setGuestMask] = useState(() => {
-    const saved = guest.guestMask();
-    return saved && (MASK_IDS as readonly string[]).includes(saved) ? saved : MASK_IDS[0];
-  });
-  const myMask = account.signedIn ? (account.mask ?? MASK_IDS[0]) : guestMask;
+  // Signed in, the locker has your character. Signed out you are the grey
+  // silhouette, the same one the server seats you in whatever this page
+  // says (index.ts seatLookOf): characters come with an account.
+  const myMask = account.signedIn ? (account.mask ?? MASK_IDS[0]) : GUEST_AVATAR;
 
   function requireName(): boolean {
     if (validName) return true;
@@ -318,6 +383,53 @@ export default function Home({
     if (!needAccount) return true;
     setError('signInRanked');
     return false;
+  }
+
+  /* ---- the mic: asked on the tap that starts a match ---- */
+
+  // Asked before the server hears about the match, so a refused mic never
+  // becomes a debate with a silent seat. `asking` is the line that says why
+  // while the browser's prompt is up; `blocked` is the fix and a Retry.
+  const [mic, setMic] = useState<null | 'asking' | 'blocked'>(null);
+  const micRetry = useRef<'bot' | 'placement' | 'ranked'>('bot');
+  async function askMic(what: 'bot' | 'placement' | 'ranked'): Promise<boolean> {
+    setMic(null);
+    // Already allowed, the answer comes back in a few milliseconds: only say
+    // why when a prompt is actually on screen.
+    const slow = setTimeout(() => setMic('asking'), 250);
+    try {
+      await ensureLocalStream();
+      setMic(null);
+      return true;
+    } catch {
+      micRetry.current = what;
+      setMic('blocked');
+      return false;
+    } finally {
+      clearTimeout(slow);
+    }
+  }
+
+  /** What came back from App's start: 'ok' leaves the guard up until
+      debate:start; anything else lowers it so the button works again. */
+  function settleStart(r: StartResult | void, what: 'bot' | 'placement') {
+    if (r === 'ok') return;
+    startingRef.current = false;
+    if (r === 'mic') {
+      micRetry.current = what;
+      setMic('blocked');
+    }
+    // The server said no and App put the reason on the stage (the notice):
+    // the setup sheet would sit on top of it, so it steps aside.
+    if (r === 'failed') setSheet(null);
+  }
+
+  function retryMic() {
+    setMic(null);
+    const what = micRetry.current;
+    if (what === 'ranked') void joinQueue();
+    else if (what === 'placement') void startPlacement();
+    else void startBot();
   }
 
   /* ---- the friend room: a code, made the moment you pick the mode ---- */
@@ -410,20 +522,33 @@ export default function Home({
       (res) => {
         setBusy(false);
         if (res.ok) return onEntered(res.update);
-        setError(ERROR_KEYS[res.error]);
+        // On a join, in_progress almost always means their debate started.
+        setError(res.error === 'in_progress' ? 'errInProgress' : ERROR_KEYS[res.error]);
       },
     );
   }
 
   /* ---- the things the go button can do ---- */
 
-  function joinQueue() {
-    if (queueing || !requireAccount() || !requireName()) return;
+  async function joinQueue() {
+    if (queueing || startingRef.current || !requireAccount() || !requireName()) return;
+    // Ranked is audio only and the server transcribes it: a browser that
+    // cannot record would sit through a debate the judge never heard.
+    if (!recordingSupported) return setError('errNoRecord');
     setError(null);
+    startingRef.current = true;
+    if (!(await askMic('ranked'))) {
+      startingRef.current = false;
+      return;
+    }
     const payload = { sessionId: session.id, playerId: playerId(), name: effName };
+    queuePayload.current = payload;
     socket.emit('queue:join', payload, (res) => {
-      if (!res.ok) return setError(ERROR_KEYS[res.error ?? 'rate_limited']);
-      setQueueing(true);
+      startingRef.current = false;
+      if (res.ok) return setQueueing(true);
+      releaseMedia();
+      if (res.error === 'unplaced') loadRank(true);
+      setError(ERROR_KEYS[res.error ?? 'rate_limited']);
     });
   }
 
@@ -431,10 +556,12 @@ export default function Home({
     socket.emit('queue:leave');
     setQueueing(false);
     setQueueInfo(null);
+    // Nobody to talk to: the mic light goes out with the search.
+    releaseMedia();
   }
 
-  function startBot() {
-    if (!pickedBot || !requireName()) return;
+  async function startBot() {
+    if (!pickedBot || startingRef.current || !requireName()) return;
     // Both of these must happen INSIDE this tap, and losing them is exactly
     // how the redesign brought the robot voice back: initAudio unlocks the
     // AudioContext and speech synthesis, unlockBotVoice unlocks the one
@@ -443,7 +570,13 @@ export default function Home({
     unlockBotVoice();
     if (pickedBot === 'tutor') return onTutorial(effName);
     if (!setupComplete(botSetup)) return;
-    onBotStart(effName, {
+    startingRef.current = true;
+    setError(null);
+    if (!(await askMic('bot'))) {
+      startingRef.current = false;
+      return;
+    }
+    const r = await onBotStart(effName, {
       botId: pickedBot,
       topicMode: botSetup.topicMode,
       categoryKey: botSetup.topicMode === 'category' ? (botSetup.categoryKey ?? undefined) : undefined,
@@ -451,22 +584,31 @@ export default function Home({
       side: botSetup.side,
       pace: 'standard',
     });
+    settleStart(r, 'bot');
   }
 
   /** The placement match. Ranked terms (an account, a random motion, the
       coin deals the sides), but the opponent is the placement bot and the
       server picks it; the botId here is only what the stage showed. */
-  function startPlacement() {
-    if (!rank || !requireAccount() || !requireName()) return;
+  async function startPlacement() {
+    if (!rank || startingRef.current || !requireAccount() || !requireName()) return;
+    if (!recordingSupported) return setError('errNoRecord');
     initAudio();
     unlockBotVoice();
-    onBotStart(effName, {
+    startingRef.current = true;
+    setError(null);
+    if (!(await askMic('placement'))) {
+      startingRef.current = false;
+      return;
+    }
+    const r = await onBotStart(effName, {
       botId: placementBot?.id ?? '',
       topicMode: 'random',
       side: 'random',
       pace: 'standard',
       placement: true,
     });
+    settleStart(r, 'placement');
   }
 
   /* ---- watching: the list, a random one, or a friend's code ---- */
@@ -526,6 +668,7 @@ export default function Home({
     if (queueing && next !== 'ranked') leaveQueue();
     if (mode === 'friend' && next !== 'friend') leaveRoom();
     setError(null);
+    setMic(null);
     setMode(next);
     setPickedBot(null);
     setRoster(false);
@@ -542,11 +685,8 @@ export default function Home({
   const closeMaskRoster = useCallback(() => setMaskRoster(false), []);
   function pickMask(id: string) {
     setMaskRoster(false);
-    if (!account.signedIn) {
-      guest.setGuestMask(id);
-      return setGuestMask(id);
-    }
-    if (id === account.mask) return;
+    // A guest's roster is locked and has nothing to pick.
+    if (!account.signedIn || id === account.mask) return;
     void saveLocker(id, true).then((ok) => {
       if (!ok) return;
       onMaskSaved(id);
@@ -561,13 +701,22 @@ export default function Home({
     });
   }
 
-  // On a phone the dock scrolls sideways, so the selected verb is dragged
-  // into view or the tap looks like it missed.
+  // Where the dock is narrower than its verbs (a tablet; a phone has the
+  // five-column tab bar), it scrolls sideways, so the selected verb is
+  // dragged into view or the tap looks like it missed. Sideways only:
+  // scrollIntoView also scrolls the page vertically, which on a short
+  // screen yanked the stage out from under the tap.
   const dockRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
-    dockRef.current
-      ?.querySelector('.lb-act-on')
-      ?.scrollIntoView({ block: 'nearest', inline: 'center', behavior: 'smooth' });
+    const dock = dockRef.current;
+    const on = dock?.querySelector<HTMLElement>('.lb-act-on');
+    if (!dock || !on || dock.scrollWidth <= dock.clientWidth) return;
+    const offset = on.getBoundingClientRect().left - dock.getBoundingClientRect().left;
+    const still = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    dock.scrollTo({
+      left: dock.scrollLeft + offset - (dock.clientWidth - on.offsetWidth) / 2,
+      behavior: still ? 'auto' : 'smooth',
+    });
   }, [mode]);
 
   /* ---- what stands on each side ---- */
@@ -617,12 +766,16 @@ export default function Home({
 
   const me = (
     <>
-      <button className="lb-picked" onClick={() => setMaskRoster(true)}>
+      <button
+        className="lb-picked"
+        aria-label={account.signedIn ? undefined : t('lbGuestMaskAria')}
+        onClick={() => setMaskRoster(true)}
+      >
         <div className="lb-art">
           <Mask id={myMask} size="var(--art)" bare />
         </div>
         <div className="lb-fname">{effName || t('lbYou')}</div>
-        <span className="lb-change">{t('lbChangeMask')}</span>
+        <span className="lb-change">{t(account.signedIn ? 'lbChangeMask' : 'lbChangeMaskGuest')}</span>
       </button>
       {/* Placed: your number, and only the number (no tier names since
           2026-09-12). Unplaced: say so. Unknown (the store is down, so
@@ -807,8 +960,10 @@ export default function Home({
           {t('lbGoLive')}
         </button>
       ) : (
-        <button className="lb-go lb-go-wait" disabled>
-          {t('lbWaitWatch')}
+        // Nothing live is the normal state at launch: the one button offers
+        // something to do now instead of a disabled dead end.
+        <button className="lb-go" onClick={() => pick('bot')}>
+          {t('lbGoWaitBot')}
         </button>
       );
   }
@@ -885,7 +1040,10 @@ export default function Home({
       {codeBox(joinCode, setJoinCode, join, t('walkIn'), busy)}
     </div>
   ) : mode === 'watch' ? (
-    <div className="lb-mid-bot lb-mid-stack">{codeBox(watchCode, setWatchCode, watchByCode, t('watchBtn'), watching)}</div>
+    <div className="lb-mid-bot lb-mid-stack">
+      {shown.length === 0 ? <div className="lb-mid-note lb-mid-note-wide">{t('lbNothingLive')}</div> : null}
+      {codeBox(watchCode, setWatchCode, watchByCode, t('watchBtn'), watching)}
+    </div>
   ) : null;
 
   const sheetError = error ? (
@@ -894,13 +1052,42 @@ export default function Home({
     </p>
   ) : null;
 
+  // Why the browser is asking, while it asks; then the fix, if refused.
+  const micNote =
+    mic === 'asking' ? (
+      <p className="lb-err lb-mic-why" role="status">
+        {t('micWhy')}
+      </p>
+    ) : mic === 'blocked' ? (
+      <p className="lb-err lb-mic-err" role="alert">
+        {t('micError')}{' '}
+        <button className="lb-retry" onClick={retryMic}>
+          {t('retry')}
+        </button>
+      </p>
+    ) : null;
+
+  // For a screen reader: the search, and the invite link landing on the
+  // clipboard. Always rendered, so the region exists before it has news.
+  const statusLine = copied
+    ? t('copied')
+    : queueing
+      ? queueInfo && queueInfo.waiting > 1
+        ? `${t('lbSearching')}. ${queueInfo.waiting === 2 ? t('queueWaitingOne') : t('queueWaiting', { n: queueInfo.waiting - 1 })}`
+        : t('lbSearching')
+      : '';
+
   /* ---- render ---- */
 
   return (
     <div className="lb">
+      <h1 className="sr-only">{t('lbH1')}</h1>
+      <p className="sr-only" role="status">
+        {statusLine}
+      </p>
       <header className="lb-bar">
         <div className="lb-lock">
-          <svg viewBox="0 0 64 64" width="28" height="28" aria-label="YapStage">
+          <svg viewBox="0 0 64 64" width="28" height="28" role="img" aria-label="YapStage">
             <path d="M8 14 h20 v20 q0 12 -14 16 v-8 q7 -3 7 -8 h-13 z" fill="var(--amber)" />
             <path d="M56 50 h-20 v-20 q0 -12 14 -16 v8 q-7 3 -7 8 h13 z" fill="var(--turq)" />
           </svg>
@@ -948,7 +1135,7 @@ export default function Home({
 
       <main className="lb-stage">
         {notice || (authNote && authNote !== 'ok') ? (
-          <div className="lb-notice lb-notice-warn">
+          <div className="lb-notice lb-notice-warn" role="alert">
             {notice
               ? t(notice)
               : t(
@@ -1012,6 +1199,8 @@ export default function Home({
             <p className="lb-stage-note lb-stage-ask">{t('lbRankedAsk')}</p>
           ) : null}
 
+          {sheet ? null : micNote}
+
           {error ? (
             <p className="lb-err" role="alert">
               {t(error)}
@@ -1019,11 +1208,21 @@ export default function Home({
           ) : null}
 
           {go}
+
+          {/* The terms, where the account is asked for. */}
+          {mode === 'ranked' && needAccount ? (
+            <p className="lb-agree" dangerouslySetInnerHTML={{ __html: t('signInAgree') }} />
+          ) : null}
         </div>
       </main>
 
       <footer>
         <div className="lb-caption" dangerouslySetInnerHTML={{ __html: caption }} />
+        <nav className="lb-legal" aria-label={t('settingsLegal')}>
+          <a href="/privacy">{t('lbPrivacy')}</a>
+          <span aria-hidden="true">·</span>
+          <a href="/terms">{t('lbTerms')}</a>
+        </nav>
         <div className="lb-dock" ref={dockRef}>
           {MODES.map((m) => (
             <button
@@ -1032,7 +1231,12 @@ export default function Home({
               aria-pressed={mode === m}
               onClick={() => pick(m)}
             >
-              <span className="lb-act-t">{t(`lbDock_${m}`)}</span>
+              {/* The phone's tab bar has a fifth of the width each: one
+                  short word there, the verb everywhere else. */}
+              <span className="lb-act-t">
+                <span className="lb-act-long">{t(`lbDock_${m}`)}</span>
+                <span className="lb-act-short">{t(`lbDockShort_${m}`)}</span>
+              </span>
               {m === 'drill' && drill && drill.streak > 0 ? (
                 <span className="lb-act-k">{t('lbStreak', { n: drill.streak })}</span>
               ) : null}
@@ -1050,11 +1254,12 @@ export default function Home({
       {sheet === 'setup' && mode === 'bot' && chosenBot ? (
         <LobbySheet title={t('lbSetupTitle')} onClose={closeSheet}>
           <MatchSetup deck={deck} value={botSetup} onChange={setBotSetup} />
+          {micNote}
           {sheetError}
           <div className="lb-sheet-go">
             {setupComplete(botSetup) ? (
               <button className="lb-go" onClick={startBot}>
-                {t('lbGoBot', { x: chosenBot.name })}
+                {t('lbGoStart')}
               </button>
             ) : (
               <button className="lb-go lb-go-wait" disabled>
@@ -1128,7 +1333,12 @@ export default function Home({
         <BotRoster bots={ladder} picked={pickedBot} onPick={pickBot} onClose={closeRoster} />
       ) : null}
       {maskRoster ? (
-        <MaskRoster picked={myMask} onPick={pickMask} onClose={closeMaskRoster} />
+        <MaskRoster
+          picked={myMask}
+          onPick={pickMask}
+          onClose={closeMaskRoster}
+          locked={account.signedIn ? undefined : { canSignIn: account.google }}
+        />
       ) : null}
       {settingsOpen ? (
         <SettingsSheet

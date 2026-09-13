@@ -2456,3 +2456,228 @@
     bottom: 118px;
   }
 }
+
+/* ============================================================================
+   LAUNCH POLISH (2026-09-12 reviews)
+   ========================================================================= */
+
+/* Keyboard focus on a dock tile: the ring sits inside the tile (the dock's
+   edge would clip an outside one), in ink on the paper tile you are on. */
+.lb-dock .lb-act:focus-visible {
+  outline-offset: -4px;
+}
+
+.lb-dock .lb-act-on:focus-visible {
+  outline-color: #101018;
+}
+
+/* One chip for every rating on the stage, yours and a bot's: a number in a
+   quiet frame. Amber is the FOR light, not "this one is yours". */
+.lb-fighter .lb-tier {
+  border-color: var(--house-3);
+  color: var(--paper);
+}
+
+.lb-fighter .lb-tier .lb-elo {
+  font-size: 14px;
+}
+
+.lb-fighter .lb-tier-provisional {
+  color: var(--muted);
+}
+
+/* The dock's short labels exist for the phone's tab bar only. */
+.lb-act-short {
+  display: none;
+}
+
+/* Privacy and Terms: one quiet line under the caption. */
+.lb-legal {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  margin: -6px 0 10px;
+  font-size: 11.5px;
+  color: var(--muted);
+}
+
+.lb-legal a {
+  color: var(--muted);
+  text-decoration: none;
+}
+
+.lb-legal a:hover {
+  color: var(--paper);
+  text-decoration: underline;
+}
+
+/* The terms, one small line under "Sign in with Google". */
+.lb-agree {
+  grid-column: 1 / -1;
+  justify-self: center;
+  margin: -6px 0 12px;
+  max-width: 46ch;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--muted);
+  text-align: center;
+  position: relative;
+  z-index: 2;
+}
+
+.lb-agree a {
+  color: var(--paper);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+/* The mic: why the browser is asking (paper, it is the stage talking), and
+   the fix with a real Retry button when it was refused. */
+.lb-err.lb-mic-why {
+  color: var(--paper);
+}
+
+.lb-mic-err {
+  max-width: 52ch;
+  justify-self: center;
+  line-height: 1.5;
+}
+
+.lb-retry {
+  margin-inline-start: 6px;
+  padding: 3px 10px;
+  border-radius: var(--r-sm);
+  font-weight: 700;
+  color: var(--paper);
+  box-shadow: inset 0 0 0 1px var(--house-3);
+  white-space: nowrap;
+}
+
+.lb-retry:hover {
+  background: var(--house-2);
+}
+
+.lb-sheet .lb-err {
+  margin: 14px 0 0;
+}
+
+/* A guest's line fits on one line wherever there is the width for it. */
+@media (min-width: 900px) {
+  .lb-guest-note {
+    max-width: 70ch;
+  }
+}
+
+/* Watch with nothing on: the line says why the rings are empty. */
+.lb-mid-note-wide {
+  max-width: 30ch;
+}
+
+/* A short phone (an iPhone SE, 375x667): centred, the fighters sit so low
+   that the room code under the VS covers your name. Standing them at the
+   top of their row leaves the codes their own space. Every tab gets the
+   same rule, so switching tabs moves nothing. */
+@media (max-width: 620px) and (max-height: 720px) {
+  .lb-fighter {
+    justify-content: flex-start;
+    padding-top: 14px;
+  }
+}
+
+/* ---- the phone: a five-column tab bar along the bottom ----
+   The dock used to scroll sideways here and cut "play a friend" in half.
+   Five equal columns, one short word each, the selected one lit in paper
+   like the desktop tile, and room for the home indicator on a notched
+   phone. */
+@media (max-width: 620px) {
+  .lb-caption {
+    min-height: 0;
+    padding: 8px 14px 7px;
+    font-size: 12.5px;
+    line-height: 1.4;
+  }
+
+  .lb-legal {
+    margin: -3px 0 6px;
+  }
+
+  .lb-dock {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 4px;
+    overflow: visible;
+    scroll-snap-type: none;
+    padding: 6px 6px calc(6px + env(safe-area-inset-bottom));
+    background: var(--house-2);
+    border-top: 1px solid var(--house-3);
+  }
+
+  .lb-dock .lb-act,
+  .lb-dock .lb-act:has(.lb-act-k),
+  .lb-dock .lb-act:has(.lb-act-live) {
+    min-width: 0;
+    min-height: 48px;
+    padding: 6px 2px;
+    border-radius: var(--r-sm);
+    background: transparent;
+    color: var(--muted);
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    text-align: center;
+  }
+
+  .lb-dock .lb-act:hover {
+    transform: none;
+    background: transparent;
+    color: var(--paper);
+  }
+
+  .lb-dock .lb-act-on,
+  .lb-dock .lb-act-on:hover {
+    background: var(--paper);
+    color: #101018;
+  }
+
+  .lb-act-long {
+    display: none;
+  }
+
+  .lb-act-short {
+    display: inline;
+  }
+
+  .lb-dock .lb-act-t {
+    font-family: 'Libre Franklin', system-ui, sans-serif;
+    font-size: 13px;
+    font-weight: 700;
+    line-height: 1.1;
+  }
+
+  .lb-dock .lb-act-k,
+  .lb-dock .lb-act-live {
+    font-size: 10px;
+    gap: 4px;
+  }
+
+  /* The join box keeps its label at every width: an unlabelled box under a
+     code reads as a second copy of the code. On a phone the label goes
+     beside the box, so the pair under the VS is no taller than before and
+     never climbs over your name on a short screen. */
+  .lb-mid-bot .lb-join-mid {
+    flex-direction: row;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .lb-mid-bot .lb-join-mid .lb-lab {
+    display: block;
+    font-size: 12px;
+    white-space: nowrap;
+  }
+
+  .lb-mid-bot .lb-join-mid .input-code {
+    width: 104px;
+  }
+}

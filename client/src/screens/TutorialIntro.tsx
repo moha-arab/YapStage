@@ -31,15 +31,16 @@ export default function TutorialIntro({ localStream, mediaError, onRetryMedia, o
 
   return (
     <div className="stage center-col tutorial-intro">
-      <header className="topbar">
-        <button className="btn btn-small" onClick={onBack}>
+      <header className="topbar scr-bar">
+        <Brand />
+        <button className="scr-btn" onClick={onBack}>
           {t('back')}
         </button>
-        <Brand />
-        <span className="pill">{t('tutorialPill')}</span>
       </header>
 
-      <BotAvatar botId="tutor" color="gold" size={120} />
+      <div className="bare-fig">
+        <BotAvatar botId="tutor" color="gold" size={120} bare />
+      </div>
       <p className="kicker">{t('tutorialKicker')}</p>
       <h1 className="display">{t('tutorialTitle')}</h1>
       <p className="tutorial-lore">{t('tutorialLore')}</p>
@@ -72,7 +73,9 @@ export default function TutorialIntro({ localStream, mediaError, onRetryMedia, o
         </div>
       ) : null}
 
-      <button className="btn btn-primary btn-wide" disabled={!ready} onClick={start}>
+      {/* Pinned to the bottom edge while the brief scrolls past, so the one
+          thing to press is in view on a laptop too. */}
+      <button className="btn btn-primary btn-wide tut-go" disabled={!ready} onClick={start}>
         {t('tutorialGo')}
       </button>
     </div>

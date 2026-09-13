@@ -21,6 +21,11 @@ export interface BotStartConfig {
   placement?: boolean;
 }
 
+/** How a start went, for the button that asked: 'ok' = the server took it
+    (debate:start follows), 'mic' = the mic was refused, 'busy' = another
+    start is already in flight, 'failed' = the server said no (App shows why). */
+export type StartResult = 'ok' | 'mic' | 'busy' | 'failed';
+
 interface Props {
   localStream: MediaStream | null;
   mediaError: string | null;

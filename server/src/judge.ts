@@ -1,11 +1,21 @@
 import Anthropic from '@anthropic-ai/sdk';
 import type { CategoryScores, Framing, PhaseLabel, Ruling, Side, Verdict } from './protocol.js';
-import type { Lobby } from './lobby.js';
-import { destroyLobby, touch } from './lobby.js';
+import type { Lobby, Participant } from './lobby.js';
+import { destroyLobby, getLobby, touch } from './lobby.js';
 import type { Io } from './debate.js';
-import { event } from './stats.js';
+import { errTag, event } from './stats.js';
 import { synthesize } from './tts.js';
-import { advanceCampaign, applyRankedResult, campaignLocksOn, getCampaign, placePlayer, saveCheatFlag, saveMatch } from './store.js';
+import {
+  advanceCampaign,
+  applyRankedResult,
+  campaignLocksOn,
+  getCampaign,
+  placePlayer,
+  saveCheatFlag,
+  saveMatch,
+  type MatchRow,
+} from './store.js';
+import { llmBudget, llmFailed, llmOk } from './llm.js';
 import { FLAG_AT, analyze } from './cheat.js';
 import { PROMPT, TIER_META, type Drill } from './drills.js';
 import { BOTS } from './bots.js';
@@ -445,6 +455,7 @@ RULES
 - If they clearly ran out of time mid-thought, grade what they got out and say so kindly.
 - Never use em dashes or en dashes. Write like a person talking. Do not flatter: if it was weak, say what was missing.`;
 
+  llmBudget();
   const response = await getClient().messages.create(
     {
       model: 'claude-opus-4-8',
@@ -472,6 +483,7 @@ export async function scoreTranscript(
     ? buildDisputePrompt(dispute)
     : buildSystemPrompt() + (opts?.composedSide ? channelNote(opts.composedSide) : '');
 
+  llmBudget();
   const response = await getClient().messages.create(
     {
       model: 'claude-opus-4-8',
@@ -582,8 +594,10 @@ function heardCounts(lobby: Lobby): Record<Side, number> {
   return out;
 }
 
-/** Send the ruling, with the YapMaster's voice attached when we have it. */
-function emitVerdict(io: Io, lobby: Lobby, to: string): void {
+/** Send the ruling, with the YapMaster's voice attached when we have it.
+    Exported so a resumed socket (debate.ts resendState) gets the very same
+    payload the reveal had. */
+export function emitVerdict(io: Io, lobby: Lobby, to: string): void {
   io.to(to).emit('verdict:result', {
     verdict: lobby.verdict!,
     names: namesOf(lobby),
@@ -612,6 +626,14 @@ async function applyPlacement(lobby: Lobby): Promise<void> {
     event('placement_quiet', { code: lobby.code });
     return;
   }
+  // Nor is a game the bot never played. A bot that failed a turn, or whose
+  // turns were cut before it said anything, hands the human a margin it
+  // did not earn, and the placement is one shot: nothing is set, so the
+  // player plays it again for real.
+  if (lobby.botFailures > 0 || heardCounts(lobby)[lobby.bot.side] < MIN_RATED_WORDS) {
+    event('placement_void', { code: lobby.code, botFailures: lobby.botFailures });
+    return;
+  }
   const margin = total(lobby.verdict.scores[human]) - total(lobby.verdict.scores[lobby.bot.side]);
   const rating = await placePlayer(lobby.placement.playerId, lobby.host?.name ?? 'player', margin);
   if (rating === null) return;
@@ -636,6 +658,9 @@ async function applyElo(lobby: Lobby): Promise<void> {
   const winnerIsHost = lobby.sides.host === lobby.verdict.winner;
   const winnerId = winnerIsHost ? lobby.ranked.host : lobby.ranked.guest;
   const loserId = winnerIsHost ? lobby.ranked.guest : lobby.ranked.host;
+  // An id is blanked when its account is deleted mid-debate (index.ts
+  // onAccountDeleted): a rating row must not be written back into being.
+  if (!winnerId || !loserId) return;
   // One ladder. Ranked plays at blitz length for now (2026-09-13) but moves
   // the one rating everybody already has, so the ladder is named here rather
   // than taken from the room's pace.
@@ -647,6 +672,26 @@ async function applyElo(lobby: Lobby): Promise<void> {
     [loserSide]: moved.loser,
   } as Record<Side, { before: number; after: number }>;
   event('elo_applied', { code: lobby.code, delta: moved.winner.after - moved.winner.before });
+}
+
+/** A ranked walk-out: the leaver dropped mid-debate and did not come back
+    inside the grace window (index.ts, just before abort 'abortWifi').
+    PRODUCT CALL by the launch coordinator, 2026-09-12: the leaver takes the
+    loss, but only if the player who stayed had already been heard
+    (MIN_RATED_WORDS). If neither had said enough, nothing moves, the same
+    as a debate where the mic never reached us. Once per debate. */
+export async function applyForfeit(lobby: Lobby, leaver: Participant): Promise<void> {
+  if (!lobby.ranked || !lobby.sides || lobby.bot || lobby.forfeitApplied) return;
+  const stayer = leaver === lobby.host ? lobby.guest : lobby.host;
+  if (!stayer || stayer.disconnectedAt) return; // both gone: nobody stayed to win
+  const stayerSide: Side = stayer === lobby.host ? lobby.sides.host : lobby.sides.guest;
+  if (heardCounts(lobby)[stayerSide] < MIN_RATED_WORDS) return;
+  const winnerId = stayer === lobby.host ? lobby.ranked.host : lobby.ranked.guest;
+  const loserId = leaver === lobby.host ? lobby.ranked.host : lobby.ranked.guest;
+  if (!winnerId || !loserId) return;
+  lobby.forfeitApplied = true;
+  const moved = await applyRankedResult(winnerId, loserId, 'standard');
+  if (moved) event('forfeit_applied', { code: lobby.code, delta: moved.loser.after - moved.loser.before });
 }
 
 /** Move the campaign frontier to `target` and announce it — but only when this
@@ -668,45 +713,57 @@ async function unlockLevel(io: Io, lobby: Lobby, target: number): Promise<void> 
   io.to(lobby.code).emit('campaign:up', { level: target, unlocked: next?.name ?? null });
 }
 
-/** File this debate under each player's history. Stored per PLAYER, not per
-    lobby, so each side keeps their own point of view (their side, their
-    score, their opponent) and can re-open the verdict, with the transcript,
-    long after the lobby is gone. Guests used to store nothing; since
-    2026-09-12 they file under the device id, which is what an account adopts
-    at sign-in. Fail-soft throughout. */
-async function fileMatch(lobby: Lobby, verdict: Verdict): Promise<void> {
-  if (!lobby.sides) return;
+/** What gets filed for each human seat. Stored per PLAYER, not per lobby,
+    so each side keeps their own point of view (their side, their score,
+    their opponent) and can re-open the verdict long after the lobby is
+    gone. Guests file under the device id (since 2026-09-12), which is what
+    an account adopts at sign-in.
+
+    NO TRANSCRIPT, and only this player's OWN best line. The in-app notice
+    promises "the transcript is deleted after the verdict unless someone
+    reports the debate", so the words never reach the match store: the row
+    keeps the scores, the ruling and the judge's feedback, and the one line
+    of theirs the judge quoted back to them. The opponent's quote is their
+    words, not this player's, and is blanked. Exported for the smoke suite. */
+export function matchRowsFor(lobby: Lobby, verdict: Verdict): MatchRow[] {
+  if (!lobby.sides) return [];
   const names = namesOf(lobby);
-  const t = total;
-  const mode: 'ranked' | 'custom' | 'bots' = lobby.ranked
-    ? 'ranked'
-    : lobby.bot
-      ? 'bots'
-      : 'custom';
+  const mode: 'ranked' | 'custom' | 'bots' = lobby.ranked ? 'ranked' : lobby.bot ? 'bots' : 'custom';
+  // Rated only when a rating actually moved: a ranked debate the mic never
+  // reached, or a placement the store did not write, moved nothing.
+  const rated = Boolean(lobby.eloResult) || Boolean(lobby.placementResult);
+  const rows: MatchRow[] = [];
   for (const p of [lobby.host, lobby.guest]) {
     if (!p?.playerId) continue; // a bot's empty seat, or a client too old to send an id
     const side = p === lobby.host ? lobby.sides.host : lobby.sides.guest;
     const other: Side = side === 'FOR' ? 'AGAINST' : 'FOR';
-    await saveMatch({
+    rows.push({
       playerId: p.playerId,
       mode,
       topic: lobby.topic?.en ?? '',
       mySide: side,
       won: verdict.winner === side,
-      myTotal: t(verdict.scores[side]),
-      theirTotal: t(verdict.scores[other]),
+      myTotal: total(verdict.scores[side]),
+      theirTotal: total(verdict.scores[other]),
       opponent: names[other],
-      // Ranked human matches move a rating, and so does the one placement
-      // match; every other bot game is sparring. The row remembers which.
-      rated: mode === 'ranked' || Boolean(lobby.placement),
+      rated,
       // The ladder a rated game moved: ranked and placement both move the one
       // standard ladder, even while ranked plays at blitz length.
       pace: mode === 'ranked' || lobby.placement ? 'standard' : lobby.pace,
-      verdict,
-      transcript: lobby.transcript,
+      verdict: {
+        ...verdict,
+        bestQuote: { [side]: verdict.bestQuote?.[side] ?? '', [other]: '' } as Record<Side, string>,
+      },
     });
   }
-  await fileCheatSignals(lobby, mode);
+  return rows;
+}
+
+/** File this debate under each player's history. Fail-soft throughout. */
+async function fileMatch(lobby: Lobby, verdict: Verdict): Promise<void> {
+  if (!lobby.sides) return;
+  for (const row of matchRowsFor(lobby, verdict)) await saveMatch(row);
+  await fileCheatSignals(lobby, lobby.ranked ? 'ranked' : lobby.bot ? 'bots' : 'custom');
 }
 
 /** Ranked only, and only when the numbers are actually interesting. A row per
@@ -763,6 +820,19 @@ async function callJudge(lobby: Lobby): Promise<Verdict> {
   };
 }
 
+/** Destroy the lobby ten minutes from now, unless something (a rematch)
+    cancels it first. The callback also checks the code still names THIS
+    lobby, so a stale timer can never delete a newer room. */
+function scheduleCleanup(io: Io, lobby: Lobby): void {
+  if (lobby.cleanupTimer) clearTimeout(lobby.cleanupTimer);
+  lobby.cleanupTimer = setTimeout(() => {
+    if (getLobby(lobby.code) !== lobby) return;
+    destroyLobby(lobby.code);
+    io.socketsLeave(lobby.code);
+  }, 10 * 60 * 1000);
+  lobby.cleanupTimer.unref();
+}
+
 export async function runJudge(io: Io, lobby: Lobby, requesterSocketId?: string): Promise<void> {
   if (!lobby.debateCompleted) return;
   if (lobby.judgeState === 'pending') return;
@@ -799,6 +869,7 @@ export async function runJudge(io: Io, lobby: Lobby, requesterSocketId?: string)
 
   try {
     const verdict = await callJudge(lobby);
+    llmOk();
     event('verdict_delivered', { code: lobby.code, injection: verdict.injectionDetected });
     lobby.judgeState = 'done';
     lobby.verdict = verdict;
@@ -809,8 +880,10 @@ export async function runJudge(io: Io, lobby: Lobby, requesterSocketId?: string)
     // Settle-it speaks the decree; debate mode speaks the hype summary.
     const spoken = verdict.ruling?.decree || verdict.summary;
     lobby.verdictAudio = (await synthesize(spoken, YAPMASTER_VOICE)) ?? undefined;
-    await fileMatch(lobby, verdict); // history, before the emit so it can't be lost
     await applyElo(lobby); // ranked only; before the emit so the reveal has it
+    // History, before the emit so it can't be lost, and after the rating so
+    // the row can say whether one actually moved.
+    await fileMatch(lobby, verdict);
     // Campaign: beating a bot at your frontier unlocks the next rung.
     if (lobby.campaign && lobby.bot && !lobby.tutorial) {
       const humanSide: Side = lobby.bot.side === 'FOR' ? 'AGAINST' : 'FOR';
@@ -821,14 +894,14 @@ export async function runJudge(io: Io, lobby: Lobby, requesterSocketId?: string)
     touch(lobby);
     emitVerdict(io, lobby, lobby.code);
     // Keep the lobby around briefly so a reconnecting client can re-fetch,
-    // then let it go. Transcripts die with the lobby — nothing is persisted.
-    setTimeout(() => {
-      destroyLobby(lobby.code);
-      io.socketsLeave(lobby.code);
-    }, 10 * 60 * 1000).unref();
+    // then let it go. The transcript dies with the lobby: the match store
+    // has the scores and the feedback, never the words. The timer is kept
+    // on the lobby so a rematch cancels it (index.ts resetForRematch).
+    scheduleCleanup(io, lobby);
   } catch (err) {
-    console.error(`[judge] lobby ${lobby.code} failed:`, err);
-    event('judge_failed', { code: lobby.code, err: String(err).slice(0, 200) });
+    llmFailed();
+    console.error(`[judge] lobby ${lobby.code} failed: ${errTag(err)}`);
+    event('judge_failed', { code: lobby.code, err: errTag(err) });
     lobby.judgeState = 'failed';
     const spent = lobby.judgeAttempts >= 3;
     io.to(lobby.code).emit('verdict:status', {
@@ -873,6 +946,7 @@ async function callDebrief(lobby: Lobby): Promise<{ praise: string; fix: string;
 
   const system = `You are the YapMaster, the warm and funny judge of YapStage, wrapping up your debate TUTORIAL. The student just practiced all four rounds (opening, rebuttal, defense, closing) against you on the practice motion "${motion}". This is a lesson, not a match: there is NO winner. Write your debrief. Be specific to what the STUDENT actually said, never generic. Encouraging but honest: the fix must be a real one. ${heard < 10 ? 'IMPORTANT: the transcript shows almost nothing from the student, which means their microphone likely never reached us. Say that plainly and kindly in the praise field (praise them for showing up), make the fix about checking their mic and trying the tutorial again, and still send them off warmly.' : ''} No markdown, no emojis. ${lang === 'ar' ? 'Write in Arabic.' : 'Write in English.'}`;
 
+  llmBudget();
   const response = await getClient().messages.create(
     {
       model: 'claude-opus-4-8',
@@ -907,7 +981,7 @@ export async function runTutorialDebrief(io: Io, lobby: Lobby): Promise<void> {
   try {
     debrief = await callDebrief(lobby);
   } catch (err) {
-    console.error(`[tutorial] ${lobby.code} debrief failed:`, err);
+    console.error(`[tutorial] ${lobby.code} debrief failed: ${errTag(err)}`);
     event('tutorial_debrief_failed', { code: lobby.code });
     debrief =
       lang === 'ar'
@@ -938,8 +1012,5 @@ export async function runTutorialDebrief(io: Io, lobby: Lobby): Promise<void> {
   // Finishing the lesson opens the ladder: level 1 is Nib. No win required —
   // the tutorial has no winner to require.
   await unlockLevel(io, lobby, 1);
-  setTimeout(() => {
-    destroyLobby(lobby.code);
-    io.socketsLeave(lobby.code);
-  }, 10 * 60 * 1000).unref();
+  scheduleCleanup(io, lobby);
 }

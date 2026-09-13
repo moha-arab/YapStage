@@ -9,6 +9,7 @@ import type {
   TopicText,
   Verdict,
 } from './protocol.js';
+import crypto from 'node:crypto';
 import { AVATAR_IDS } from './protocol.js';
 
 /** Everyone gets a mask the moment they take a seat; picking a different one
@@ -144,7 +145,33 @@ export interface Lobby {
       means the API is down, and the judge runs on the same API, so finishing
       would cost the human three minutes and produce no verdict. */
   botFailures: number;
-  coachAsks: number; // "ask the YapMaster" count this debate (cost/abuse cap)
+  /** "Ask the YapMaster" count this debate, PER SIDE (cost/abuse cap): one
+      debater using the coach must not spend the other's questions. */
+  coachAsks: Record<Side, number>;
+  /** The address that opened this room (friend rooms only), for the
+      per-IP cap on rooms waiting for somebody to join. */
+  hostIp?: string;
+  /** When the room last started waiting for a guest (made, or a guest left
+      the green room). A room nobody joins expires after WAITING_TTL_MS. */
+  waitingSince: number;
+  /** Audio bytes accepted from each side this debate (debate.ts caps it). */
+  audioBytes: Record<Side, number>;
+  /** When the fight-card reveal ends and step 0 starts, so a socket that
+      resumes during the card gets the same card (resendState). */
+  startsAt?: number;
+  /** Bot games: the steps where the bot's turn (or its failure) has been
+      sent. bot:done ends only those, so a client cannot skip a bot turn
+      the bot never got to speak. */
+  botSpoke: Set<number>;
+  /** The bot's last turn as it was sent, so a socket that resumes during the
+      bot's step gets it again (debate.ts resendState). */
+  lastBotTurn?: { stepIndex: number; text: string; mime?: string; audio?: Buffer; failed?: boolean };
+  /** The post-verdict destroy timer, kept so a rematch (or a destroy) can
+      cancel it: left running, it deleted the lobby ten minutes after the
+      FIRST verdict, in the middle of the rematch. */
+  cleanupTimer?: NodeJS.Timeout;
+  /** A ranked walk-out already cost the leaver their rating (index.ts). */
+  forfeitApplied?: boolean;
   /** Post-verdict exchange with the YapMaster, per side, so follow-ups and
       appeals build on each other instead of starting cold every time. */
   coachLog: { side: Side; role: 'user' | 'assistant'; content: string }[];
@@ -162,12 +189,14 @@ const lobbies = new Map<string, Lobby>();
 // No ambiguous chars (I/O/0/1)
 const ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 
+// A room code is a key to the room (and spectate:join lets the holder in),
+// so it comes from the CSPRNG, not Math.random.
 function generateCode(): string {
   let code = '';
   do {
     code = '';
     for (let i = 0; i < 6; i++) {
-      code += ALPHABET[Math.floor(Math.random() * ALPHABET.length)];
+      code += ALPHABET[crypto.randomInt(ALPHABET.length)];
     }
   } while (lobbies.has(code));
   return code;
@@ -213,8 +242,11 @@ export function createLobby(socketId: string, sessionId: string, name: string): 
     rematch: { host: false, guest: false },
     spectatorsAllowed: true,
     botFailures: 0,
-    coachAsks: 0,
+    coachAsks: { FOR: 0, AGAINST: 0 },
     coachLog: [],
+    waitingSince: now,
+    audioBytes: { FOR: 0, AGAINST: 0 },
+    botSpoke: new Set(),
     createdAt: now,
     touchedAt: now,
   };
@@ -235,6 +267,7 @@ export function destroyLobby(code: string): void {
   if (!lobby) return;
   if (lobby.phaseTimer) clearTimeout(lobby.phaseTimer);
   if (lobby.judgeTimer) clearTimeout(lobby.judgeTimer);
+  if (lobby.cleanupTimer) clearTimeout(lobby.cleanupTimer);
   if (lobby.host?.graceTimer) clearTimeout(lobby.host.graceTimer);
   if (lobby.guest?.graceTimer) clearTimeout(lobby.guest.graceTimer);
   lobbies.delete(code);
@@ -258,17 +291,33 @@ export function sideOf(lobby: Lobby, participant: Participant): Side | undefined
 }
 
 const TTL_MS = 30 * 60 * 1000;
+/** A room nobody has joined is gone after this long: an open invite is
+    worth ten minutes, and a pile of empty rooms is how the lobby cap and
+    the per-IP cap get eaten. */
+export const WAITING_TTL_MS = 10 * 60 * 1000;
+
+/** Waiting rooms (a friend room nobody has joined yet) opened from `ip`,
+    other than the one `exceptCode` names. */
+export function waitingRoomsFrom(ip: string, exceptCode?: string): number {
+  let n = 0;
+  for (const l of lobbies.values()) {
+    if (l.status === 'waiting' && l.hostIp === ip && l.code !== exceptCode) n += 1;
+  }
+  return n;
+}
 
 export function startSweep(onDestroy?: (code: string) => void): void {
   setInterval(() => {
-    const cutoff = Date.now() - TTL_MS;
+    const now = Date.now();
+    const cutoff = now - TTL_MS;
+    const waitCutoff = now - WAITING_TTL_MS;
     for (const [code, lobby] of lobbies) {
-      if (lobby.touchedAt < cutoff) {
+      if (lobby.touchedAt < cutoff || (lobby.status === 'waiting' && lobby.waitingSince < waitCutoff)) {
         destroyLobby(code);
         onDestroy?.(code);
       }
     }
-  }, 5 * 60 * 1000).unref();
+  }, 60 * 1000).unref();
 }
 
 export function lobbyCount(): number {

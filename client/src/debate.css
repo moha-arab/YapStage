@@ -105,7 +105,7 @@
   letter-spacing: 0.14em;
   text-transform: uppercase;
   color: var(--muted);
-  opacity: 0.6;
+  opacity: 0.85;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -191,9 +191,22 @@
   direction: inherit;
 }
 
+/* The last ten seconds: solid red that swells a touch on every beat. It used
+   to fade to 45% twice a second, which at the moment the clock matters most
+   made it nearly invisible. */
 .dv-clock.is-danger {
   color: var(--danger);
-  animation: dangerPulse 0.5s ease-in-out infinite;
+  animation: dvDanger 1s ease-in-out infinite;
+}
+
+@keyframes dvDanger {
+  0%,
+  100% {
+    transform: none;
+  }
+  50% {
+    transform: scale(1.06);
+  }
 }
 
 .dv-clock.is-failed {
@@ -234,6 +247,22 @@
 @supports (height: 100dvh) {
   .dv-tiles {
     width: min(100%, max(480px, min(1240px, calc((100dvh - 380px) * 3.2 + 20px))));
+  }
+}
+
+/* Once the pair hits the 1240px measure, a tall laptop (1440x900) had height
+   to spare and it pooled as a dead band between the status line and the
+   strip. The tiles take it instead: never shorter than 16:10, never squarer
+   than 5:4, and no taller than the same 380px budget allows. 100cqw is the
+   pair's own width, so each tile is (100cqw - gap) / 2 wide. */
+@media (min-width: 721px) {
+  .dv-tiles {
+    container-type: inline-size;
+  }
+
+  .dv-tiles .tile {
+    aspect-ratio: auto;
+    height: clamp(calc((100cqw - 20px) / 3.2), calc(100vh - 380px), calc((100cqw - 20px) * 0.4));
   }
 }
 
@@ -453,10 +482,19 @@
   background: #2a2a3d;
 }
 
-.btn.dv-pass:disabled {
+.btn.dv-pass:disabled,
+.btn.dv-pass[aria-disabled='true'],
+.btn.dv-pass[aria-disabled='true']:hover,
+.btn.dv-pass[aria-disabled='true']:active {
+  cursor: default;
   background: transparent;
   border-color: rgba(16, 16, 24, 0.3);
   color: var(--paper-dim);
+}
+
+/* The house focus ring is amber, 2.17:1 on paper. On the strip it is ink. */
+.dv-strip :focus-visible {
+  outline-color: #101018;
 }
 
 /* A spectator's way out, quieter than the way on. */
@@ -474,6 +512,52 @@
   display: flex;
   justify-content: center;
   margin-top: calc(var(--s3) * -1);
+}
+
+/* A real tap target: the link was 12px type with 4px of padding. */
+.dv-report .report-btn {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--ctl-md);
+  margin-top: 0;
+  padding: 0 var(--s3);
+}
+
+/* The same mic line on a dark surface (the daily rebuttal's card). */
+.dv-mic-dark {
+  color: var(--paper);
+  border-color: rgba(239, 232, 216, 0.16);
+  background: rgba(239, 232, 216, 0.04);
+}
+
+.dv-mic-dark .dv-bars i {
+  background: rgba(239, 232, 216, 0.16);
+}
+
+.dv-mic-dark .dv-bars i.on {
+  background: currentColor;
+}
+
+.dv-mic-dark.dv-mic-heard {
+  color: var(--live);
+  border-color: rgba(47, 211, 122, 0.4);
+  background: rgba(47, 211, 122, 0.08);
+}
+
+.dv-mic-dark.dv-mic-warn {
+  color: var(--amber);
+  border-color: rgba(240, 130, 30, 0.6);
+  background: rgba(240, 130, 30, 0.1);
+}
+
+.dv-mic-dark.dv-mic-off {
+  color: var(--muted);
+}
+
+.dv-mic-dark.dv-mic-error {
+  color: #ffb3b3;
+  border-color: rgba(255, 91, 91, 0.5);
+  background: rgba(255, 91, 91, 0.08);
 }
 
 /* --------------------------------------------------------------- phones */
@@ -580,11 +664,93 @@
   }
 }
 
-/* A phone held sideways: wider than a phone, a quarter of a laptop's height. */
+/* A phone held sideways: wider than a phone, a quarter of a laptop's height.
+   The round names go (the turn line says the round), the tiles cap at 42% of
+   the height, and the strip sticks to the bottom edge so the mic line and
+   Pass the mic never scroll away. */
 @media (orientation: landscape) and (max-height: 500px) {
+  .stage.debate {
+    gap: var(--s2);
+    padding-top: var(--s2);
+    padding-bottom: 0;
+  }
+
+  .dv-round-name {
+    display: none;
+  }
+
+  .dv-track {
+    grid-template-rows: auto auto;
+    row-gap: 6px;
+  }
+
+  .dv-clock {
+    font-size: 34px;
+  }
+
+  .dv-tiles,
+  .dv-status {
+    width: min(100%, calc(42vh * 3.2 + 20px));
+  }
+
   .dv-tiles .tile {
-    aspect-ratio: auto;
-    height: min(40vh, 200px);
+    aspect-ratio: 16 / 10;
+    height: auto;
+    max-height: 42vh;
+  }
+
+  .dv-stage {
+    gap: var(--s1);
+  }
+
+  .dv-status {
+    min-height: 0;
+  }
+
+  .dv-status b {
+    font-size: var(--t5);
+  }
+
+  .dv-status span {
+    font-size: var(--t2);
+  }
+
+  .dv-strip {
+    position: sticky;
+    bottom: 0;
+    z-index: 5;
+    flex-direction: row;
+    align-items: center;
+    gap: var(--s4);
+    padding: var(--s2) var(--s4);
+    border-radius: var(--r-md) var(--r-md) 0 0;
+    box-shadow: 0 -10px 24px rgba(10, 10, 20, 0.55);
+  }
+
+  .dv-kicker {
+    margin-bottom: 2px;
+    font-size: var(--t2);
+  }
+
+  .dv-motion {
+    font-size: 17px;
+  }
+
+  .dv-strip-act {
+    flex-wrap: nowrap;
+    gap: var(--s3);
+  }
+
+  .dv-mic {
+    flex: 0 1 auto;
+    max-width: 230px;
+    min-height: var(--ctl-sm);
+  }
+
+  .btn.dv-pass {
+    flex: none;
+    min-width: 140px;
+    min-height: var(--ctl-md);
   }
 }
 

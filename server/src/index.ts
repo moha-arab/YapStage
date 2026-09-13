@@ -7,6 +7,8 @@ import fastifyStatic from '@fastify/static';
 import { Server } from 'socket.io';
 import {
   AVATAR_IDS,
+  GUEST_AVATAR,
+  GUEST_NAME_RE,
   NAME_RE,
   PACES,
   foldName,
@@ -33,6 +35,7 @@ import {
   sideOf,
   startSweep,
   touch,
+  waitingRoomsFrom,
   type Lobby,
   type Participant,
 } from './lobby.js';
@@ -42,6 +45,7 @@ import {
   acceptChunk,
   advance,
   endTurnEarly,
+  MAX_SEGMENT_BYTES,
   resendState,
   scriptFor,
   setOnDebateStarted,
@@ -52,7 +56,7 @@ import {
 } from './debate.js';
 import { BOT_BY_ID, placementBot, publicBots } from './bots.js';
 import { sttConfigured } from './stt.js';
-import { namesOf, runJudge, scoreDrill, scoreTranscript } from './judge.js';
+import { applyForfeit, namesOf, runJudge, scoreDrill, scoreTranscript } from './judge.js';
 import { DRILL_SECONDS, PROMPT as DRILL_PROMPT, TIER_META, drillById, drillOfDay, today } from './drills.js';
 import { coachOnRecord, coachReply } from './coach.js';
 import { cardFrom, renderCard } from './share.js';
@@ -74,6 +78,8 @@ import {
   loadCheatFlags,
   loadMatch,
   loadReports,
+  playerIdOwned,
+  pruneRetention,
   recentRanked,
   recordDrill,
   recordShutdown,
@@ -84,13 +90,24 @@ import {
   SEED_RATING,
   storeReady,
   subForUsername,
-  prelaunchPrune,
+  launchReset,
 } from './store.js';
 import { TOPIC_BY_ID, TOPIC_CATEGORIES } from './topics.js';
-import { event, recentEvents, statsSnapshot } from './stats.js';
+import { errTag, event, recentEvents, statsSnapshot } from './stats.js';
 import { allow } from './ratelimit.js';
 import { googleConfigured, readSession, readSessionCookie, registerAuth } from './auth.js';
 import { rankedRefusal } from './gate.js';
+import {
+  SECURITY_HEADERS,
+  SITE_ORIGIN,
+  coachHistory,
+  guestIdShapeOk,
+  relayOnlySignal,
+  statsKeyOk,
+  trustOneHop,
+  typedSpeechAllowed,
+} from './security.js';
+import { llmDown, llmUsage } from './llm.js';
 
 // Deployed on Railway via Dockerfile (see railway.json). Fastify serves the
 // built client from client/dist and hosts the Socket.IO signaling server.
@@ -121,39 +138,106 @@ process.on('unhandledRejection', (err) => console.error('[fatal-rejection]', err
 await refreshIceServers();
 setInterval(() => void refreshIceServers(), REFRESH_MS).unref();
 
-// Optional: without a database, share links just stay self-contained.
+// Optional: without a database the app still runs and simply writes nothing.
 await initStore();
 
+// Retention: reports (the one place a transcript is kept) go after 90 days,
+// anti-cheat flags after 180. Once at boot, then daily.
+void pruneRetention();
+setInterval(() => void pruneRetention(), 24 * 60 * 60 * 1000).unref();
+
 // Exactly one proxy hop (Railway's edge) — trusting the whole XFF chain would
-// let clients spoof their own rate-limit identity.
+// let clients spoof their own rate-limit identity. A function, not the number
+// 1: fastify 5.12 no longer accepts a numeric trustProxy (the type check
+// fails, and at runtime it was ignored, so req.ip became Railway's edge and
+// req.protocol http). `hop < 1` trusts exactly the nearest proxy, which is
+// what `1` used to mean.
 // maxParamLength defaults to 100, which silently 404s every share card: the
 // whole verdict is encoded into the /v/:token param and runs ~500 chars in
 // English, ~700 in Arabic.
-const app = Fastify({ logger: false, trustProxy: 1, maxParamLength: 4200 });
+const app = Fastify({ logger: false, trustProxy: trustOneHop, routerOptions: { maxParamLength: 4200 } });
+
+// Security headers on every response Fastify sends (pages, API, static
+// files, 404s). security.ts has the CSP and why each source is in it.
+app.addHook('onSend', async (_req, reply, payload) => {
+  for (const [k, v] of Object.entries(SECURITY_HEADERS)) reply.header(k, v);
+  return payload;
+});
+
+// A 5xx says nothing about why: the reason goes to the log as a fixed tag
+// (never a message that could carry model output), the client gets a code.
+app.setErrorHandler((err, req, reply) => {
+  const e = (err ?? {}) as { statusCode?: unknown; code?: unknown };
+  const status = typeof e.statusCode === 'number' && e.statusCode >= 400 ? e.statusCode : 500;
+  if (status >= 500) {
+    console.error(`[http] ${req.method} ${req.routeOptions?.url ?? '?'} failed: ${errTag(err)}`);
+    return reply.code(status).send({ error: 'server_error' });
+  }
+  const code = typeof e.code === 'string' && /^[A-Z_]{1,60}$/.test(e.code) ? e.code : 'bad_request';
+  return reply.code(status).send({ error: code });
+});
 
 const clientDist = path.resolve(here, '../../client/dist');
 if (fs.existsSync(clientDist)) {
-  await app.register(fastifyStatic, { root: clientDist });
+  await app.register(fastifyStatic, {
+    root: clientDist,
+    // send() writes its own `public, max-age=0` AFTER setHeaders runs, and it
+    // would win, so it is switched off and every file gets its policy here.
+    cacheControl: false,
+    setHeaders(res, filePath) {
+      // Vite fingerprints everything under assets/: a changed file gets a new
+      // name, so an old name can be cached for good. Everything else keeps its
+      // name across deploys (index.html, sw.js, the manifest, icons, og.png),
+      // so it revalidates on every load (ETag, a 304 when unchanged) and a
+      // deploy reaches phones at once.
+      res.setHeader(
+        'Cache-Control',
+        filePath.includes(`${path.sep}assets${path.sep}`) ? 'public, max-age=31536000, immutable' : 'no-cache',
+      );
+    },
+  });
+  // The legal pages are client routes. A full page load of either has to
+  // boot the app, so both answer with index.html (no-cache, like every
+  // unhashed file above).
+  for (const page of ['/privacy', '/terms']) {
+    app.get(page, async (_req, reply) => reply.header('Cache-Control', 'no-cache').sendFile('index.html'));
+  }
 } else {
   console.warn(`[server] client build not found at ${clientDist} — API/socket only`);
 }
 
-// Shareable verdict card. The result is encoded in the path, so this route
-// reads nothing and stores nothing — it just renders what the link carries.
-// Registered before the static handler so /v/... never looks for a file.
+// Anything else nobody has: a person with a browser gets the 404 page
+// (client/public/404.html, self-contained), everything else a JSON 404.
+const notFoundPage = path.join(clientDist, '404.html');
+app.setNotFoundHandler((req, reply) => {
+  if (req.method === 'GET' && (req.headers.accept ?? '').includes('text/html') && fs.existsSync(notFoundPage)) {
+    return reply
+      .code(404)
+      .type('text/html; charset=utf-8')
+      .header('Cache-Control', 'no-cache')
+      .send(fs.createReadStream(notFoundPage));
+  }
+  return reply.code(404).send({ error: 'Not Found' });
+});
+
+// Shareable verdict card. The card is a stored row and the path carries only
+// its opaque id (store.ts saveCard, share.ts): the sharer's own best line and
+// the numbers, never the opponent's words. Registered as a route, so /v/...
+// never looks for a file.
 app.get<{ Params: { token: string } }>('/v/:token', async (req, reply) => {
-  const card = await loadCard(String(req.params.token ?? ''));
+  const id = String(req.params.token ?? '');
+  const card = await loadCard(id);
   if (!card) {
     return reply.code(404).type('text/html').send(
-      `<!doctype html><meta charset="utf-8"><title>YapStage</title>` +
-        `<body style="background:#151210;color:#f2e8d5;font-family:system-ui;text-align:center;padding:60px">` +
-        `<p>that link is not a verdict.</p><p><a style="color:#d4af37" href="/">go to YapStage</a></p>`,
+      `<!doctype html><meta charset="utf-8"><meta name="robots" content="noindex"><title>YapStage</title>` +
+        `<body style="background:#16172B;color:#EFE8D8;font-family:system-ui;text-align:center;padding:60px">` +
+        `<p>that link is not a verdict.</p><p><a style="color:#EFE8D8" href="/">go to YapStage</a></p>`,
     );
   }
-  const proto = (req.headers['x-forwarded-proto'] as string) || 'https';
-  const origin = `${proto}://${req.headers.host ?? 'www.yapstage.com'}`;
   event('share_view');
-  return reply.type('text/html').send(renderCard(card, origin));
+  // The public origin is a constant: a card's links and og:image must never
+  // follow a Host header somebody else chose.
+  return reply.type('text/html').send(renderCard(card, SITE_ORIGIN, id));
 });
 
 app.get('/healthz', async () => ({
@@ -164,14 +248,33 @@ app.get('/healthz', async () => ({
   tts: process.env.ELEVENLABS_API_KEY ? 'elevenlabs' : 'browser',
   share: storeReady() ? 'stored' : 'in-link',
   auth: googleConfigured() ? (storeReady() ? 'google' : 'google-no-store') : 'off',
+  // 'down' while the model breaker is open (llm.ts): new rated, bot and
+  // placement starts are refused with 'judge_down' until it recovers.
+  judge: llmDown() ? 'down' : 'ok',
   commit: process.env.RAILWAY_GIT_COMMIT_SHA?.slice(0, 7) ?? 'dev',
 }));
 
 registerAuth(app, {
   // A deleted account's open tabs and devices lose their seats and presence
   // now, not at their next reload. Runs at request time, long after `io`
-  // below exists.
-  onAccountDeleted: (sub) => {
+  // below exists. Its player id comes off every live seat first, so a
+  // debate that finishes after the deletion cannot file a match, move a
+  // rating or advance a campaign back into existence under it.
+  onAccountDeleted: (sub, playerId) => {
+    for (const l of allLobbies()) {
+      for (const seat of [l.host, l.guest]) {
+        if (seat?.playerId === playerId) seat.playerId = undefined;
+      }
+      if (l.campaign?.playerId === playerId) l.campaign = undefined;
+      if (l.placement?.playerId === playerId) l.placement = undefined;
+      if (l.ranked) {
+        if (l.ranked.host === playerId) l.ranked.host = '';
+        if (l.ranked.guest === playerId) l.ranked.guest = '';
+      }
+    }
+    for (let i = rankedQueue.length - 1; i >= 0; i--) {
+      if (rankedQueue[i].playerId === playerId) rankedQueue.splice(i, 1);
+    }
     io.in(`acct:${sub}`).disconnectSockets(true);
   },
 });
@@ -268,17 +371,31 @@ app.get('/live', async (): Promise<LiveList> => {
   };
 });
 
-/** The fresh start, on demand and NEVER automatic: deletes every account
-    except the named two, plus everything those accounts owned. Refuses unless
-    both names are found (see prelaunchPrune) — a typo deletes nothing. */
-app.post<{ Querystring: { key?: string } }>('/admin/prelaunch-prune', async (req, reply) => {
-  if (!process.env.STATS_KEY || req.query.key !== process.env.STATS_KEY) {
-    return reply.code(404).send({ error: 'Not Found' });
-  }
-  const result = await prelaunchPrune(['zorvint', 'goat']);
-  event('prelaunch_prune', { ok: result.ok });
-  return result;
-});
+/** Every keyed route (/stats*, /admin/*) asks this. The key travels in the
+    `x-stats-key` header ONLY (security.ts statsKeyOk: digest compare, ten
+    wrong guesses per IP per fifteen minutes); the old ?key= query parameter
+    is no longer read. With STATS_KEY unset, none of these routes exist. */
+const keyed = (req: { headers: Record<string, unknown>; ip: string }): boolean =>
+  statsKeyOk(req.headers['x-stats-key'], req.ip);
+
+/** The launch reset (his instruction, 2026-09-13): once the site is ready to
+    go public, delete EVERY account and everything any player owns (see
+    store.ts launchReset). Dry run by default: it only counts. Deleting needs
+    ?dry=0 AND the body {"confirm":"WIPE EVERYTHING"}. Never automatic. Runs
+    once at launch; remove this route afterwards. */
+app.post<{ Querystring: { dry?: string }; Body: { confirm?: string } }>(
+  '/admin/launch-reset',
+  async (req, reply) => {
+    if (!keyed(req)) return reply.code(404).send({ error: 'Not Found' });
+    const dry = req.query.dry !== '0';
+    if (!dry && req.body?.confirm !== 'WIPE EVERYTHING') {
+      return reply.code(400).send({ ok: false, error: 'confirm', hint: 'send {"confirm":"WIPE EVERYTHING"} with ?dry=0' });
+    }
+    const result = await launchReset(dry);
+    event('launch_reset', { ok: result.ok, dry });
+    return result;
+  },
+);
 
 // ---- match history (signed-in players only) ----
 // Every route here scopes to the caller's own player id from the session, so
@@ -361,7 +478,10 @@ app.post<{ Body: { text?: string; id?: string } }>(
   '/drill',
   { bodyLimit: 16_384 },
   async (req, reply) => {
-    if (!allow(`drill:${req.ip}`, 20, 10 * 60_000)) {
+    // Per person (the account, or the address for a guest), under a wider
+    // per-address ceiling so one campus NAT is not one person.
+    const drillWho = readSession(req)?.sub ?? req.ip;
+    if (!allow(`drill:${drillWho}`, 20, 10 * 60_000) || !allow(`drillip:${req.ip}`, 100, 10 * 60_000)) {
       return reply.code(429).send({ error: 'rate_limited' });
     }
     const answer = String(req.body?.text ?? '').trim().slice(0, 4000);
@@ -393,7 +513,7 @@ app.post<{ Body: { text?: string; id?: string } }>(
         daily: countsForStreak,
       };
     } catch (err) {
-      req.log.error({ err }, 'drill scoring failed');
+      console.error(`[drill] scoring failed: ${errTag(err)}`);
       return reply.code(503).send({ error: 'judge_down' });
     }
   },
@@ -413,7 +533,9 @@ app.get('/friends', async (req, reply) => {
   return {
     friends: rows.map(({ sub, playerId, ...safe }) => ({
       ...safe,
-      online: (io.sockets.adapter.rooms.get(`acct:${sub}`)?.size ?? 0) > 0,
+      // Presence is for friends. A pending request (either direction) is
+      // somebody who has not agreed to be watched coming and going.
+      online: !safe.pending && (io.sockets.adapter.rooms.get(`acct:${sub}`)?.size ?? 0) > 0,
     })),
   };
 });
@@ -475,54 +597,65 @@ app.get<{ Params: { id: string } }>('/matches/:id', async (req, reply) => {
 });
 
 /** Ask the YapMaster about a FINISHED match, days later. The live coach reads
-    a lobby that no longer exists, so this reads the stored transcript instead
-    — same voice, same refusal to move the score. */
+    a lobby that no longer exists, and the transcript is deleted after the
+    verdict, so this reads the saved verdict: scores, the judge's feedback
+    and your own best line (coach.ts coachOnRecord). Same voice, same refusal
+    to move the score. */
 app.post<{ Params: { id: string }; Body: { question?: string; history?: unknown } }>(
   '/matches/:id/coach',
+  { bodyLimit: 32_768 },
   async (req, reply) => {
     const s = readSession(req);
     if (!s) return reply.code(401).send({ error: 'signed_out' });
-    if (!allow(`coachrec:${req.ip}`, 30, 10 * 60_000)) {
+    const id = Number(req.params.id);
+    // Per address, per account, and per match: a re-opened debate gets the
+    // same eight questions a day that the live coach gets per side.
+    if (
+      !allow(`coachrec:${req.ip}`, 30, 10 * 60_000) ||
+      !allow(`coachrec-acct:${s.sub}`, 40, 60 * 60_000) ||
+      !allow(`coachrec-m:${s.sub}:${id}`, 8, 24 * 60 * 60_000)
+    ) {
       return reply.code(429).send({ error: 'rate_limited' });
     }
-    const id = Number(req.params.id);
     const question = String(req.body?.question ?? '').slice(0, 300).trim();
     if (!Number.isInteger(id) || !question) return reply.code(400).send({ error: 'bad_request' });
+    // At most eight turns reach the model, alternating, each a string of at
+    // most 1200 characters (security.ts coachHistory); anything else is
+    // refused whole rather than trimmed into shape.
+    const history = coachHistory(req.body?.history);
+    if (!history) return reply.code(400).send({ error: 'bad_history' });
     const match = await loadMatch(s.playerId, id);
     if (!match) return reply.code(404).send({ error: 'not_found' });
-    const history = Array.isArray(req.body?.history)
-      ? (req.body.history as { role: 'user' | 'assistant'; content: string }[]).slice(-8)
-      : [];
-    const text = await coachOnRecord({
-      question,
-      history,
-      side: String(match.my_side) as 'FOR' | 'AGAINST',
-      topic: String(match.topic),
-      verdict: match.verdict as never,
-      transcript: match.transcript as never,
-    });
-    return { text };
+    try {
+      const text = await coachOnRecord({
+        question,
+        history,
+        side: String(match.my_side) as 'FOR' | 'AGAINST',
+        topic: String(match.topic),
+        verdict: match.verdict as never,
+      });
+      return { text };
+    } catch (err) {
+      console.error(`[coach] record ${id} failed: ${errTag(err)}`);
+      event('coach_failed', { record: true });
+      return reply.code(503).send({ error: 'coach_down' });
+    }
   },
 );
 
-// Gate with STATS_KEY when set (404 so the endpoint doesn't advertise itself);
-// public when unset — zero-config for casual use, lockable in one env var.
-app.get<{ Querystring: { key?: string } }>('/stats', async (req, reply) => {
-  if (process.env.STATS_KEY && req.query.key !== process.env.STATS_KEY) {
-    return reply.code(404).send({ error: 'Not Found' });
-  }
-  return { ...statsSnapshot(), lobbies: lobbyCount() };
+// Counters. Keyed like everything under /stats: no key configured, no route.
+app.get('/stats', async (req, reply) => {
+  if (!keyed(req)) return reply.code(404).send({ error: 'Not Found' });
+  return { ...statsSnapshot(), lobbies: lobbyCount(), llm: llmUsage(), judge: llmDown() ? 'down' : 'ok' };
 });
 
 // The event trail behind the counters. `?code=ABC123` follows one debate end to
 // end, which is the question that actually gets asked when something breaks:
 // did their audio arrive, how big was it, and how many words came back.
-app.get<{ Querystring: { key?: string; code?: string; limit?: string } }>(
+app.get<{ Querystring: { code?: string; limit?: string } }>(
   '/stats/events',
   async (req, reply) => {
-    if (process.env.STATS_KEY && req.query.key !== process.env.STATS_KEY) {
-      return reply.code(404).send({ error: 'Not Found' });
-    }
+    if (!keyed(req)) return reply.code(404).send({ error: 'Not Found' });
     const limit = Math.min(400, Math.max(1, Number(req.query.limit) || 100));
     return {
       // How the PREVIOUS instance died. Present means the shutdown handler ran.
@@ -536,12 +669,10 @@ app.get<{ Querystring: { key?: string; code?: string; limit?: string } }>(
 // counters and may be public when STATS_KEY is unset, but this one serves
 // debate transcripts — the disclosed exception says "to the review team",
 // not "to the internet". No key configured means no route at all.
-app.get<{ Querystring: { key?: string; limit?: string } }>(
+app.get<{ Querystring: { limit?: string } }>(
   '/stats/reports',
   async (req, reply) => {
-    if (!process.env.STATS_KEY || req.query.key !== process.env.STATS_KEY) {
-      return reply.code(404).send({ error: 'Not Found' });
-    }
+    if (!keyed(req)) return reply.code(404).send({ error: 'Not Found' });
     return { reports: await loadReports(Number(req.query.limit) || 50) };
   },
 );
@@ -549,12 +680,10 @@ app.get<{ Querystring: { key?: string; limit?: string } }>(
 // The anti-cheat file. Same key, same fail-closed rule: without STATS_KEY set
 // this endpoint does not exist, because a public list of who we suspect would
 // be far worse than no list at all.
-app.get<{ Querystring: { key?: string; limit?: string } }>(
+app.get<{ Querystring: { limit?: string } }>(
   '/stats/cheat',
   async (req, reply) => {
-    if (!process.env.STATS_KEY || req.query.key !== process.env.STATS_KEY) {
-      return reply.code(404).send({ error: 'Not Found' });
-    }
+    if (!keyed(req)) return reply.code(404).send({ error: 'Not Found' });
     return { flags: await loadCheatFlags(Number(req.query.limit) || 50) };
   },
 );
@@ -613,10 +742,11 @@ await app.ready();
 
 const io: Io = new Server<ClientToServer, ServerToClient, Record<string, never>, SocketData>(
   app.server,
-  // maxHttpBufferSize must sit ABOVE the audio:turn app-level cap (3MB): the
-  // engine.io default of 1MB would hard-disconnect a speaker mid-upload
-  // instead of letting the handler reject the blob.
-  { serveClient: false, maxHttpBufferSize: 4_000_000 },
+  // 1 MB, the engine.io default, above everything a client legitimately
+  // sends: an audio segment is ~20 KB (5 s at 32 kbps) and the handler caps
+  // it at 512 KB (debate.ts MAX_SEGMENT_BYTES); an rtc:signal is capped at
+  // 16 KB. A packet over 1 MB closes that socket, which is the point.
+  { serveClient: false, maxHttpBufferSize: 1_000_000 },
 );
 
 // ---- ranked matchmaking queue ----
@@ -646,6 +776,24 @@ function broadcastQueue(): void {
   for (const q of rankedQueue) {
     io.to(q.socketId).emit('queue:update', { waiting: rankedQueue.length, rating: q.rating, pace: 'blitz' });
   }
+}
+
+/** What a seat wears, decided here and never by the client. Every room starts
+    masked (his call 2026-09-04): a camera is something you switch on in the
+    green room (pick:mask false), never something a stranger gets by default.
+
+    Signed out: the grey silhouette, whatever the client asked for (his call
+    2026-09-12: a guest is a silhouette "to encourage them to log in to get
+    skins"). Signed in: the mask you saved, or a random roster mask when there
+    is none yet (the locker is read just after connect) or the saved one has
+    since left the roster. The locker's mask_default is still stored and
+    still accepted, but no seat reads it any more: the room decides, not the
+    account. */
+function seatLookOf(data: SocketData): { avatarId: AvatarId; masked: boolean } {
+  if (!data.account) return { avatarId: GUEST_AVATAR, masked: true };
+  const saved = data.locker?.mask;
+  const onRoster = saved && (AVATAR_IDS as readonly string[]).includes(saved);
+  return { avatarId: onRoster ? (saved as AvatarId) : randomAvatar(), masked: true };
 }
 
 /** Pair the two longest-waiting players into a ranked green room. */
@@ -679,7 +827,10 @@ function tryMatch(): void {
     rankedQueue.splice(Math.min(ai, bi), 1);
     const lobby = createLobby(a.socketId, a.sessionId, a.name);
     lobby.host!.playerId = a.playerId;
-    lobby.guest = { socketId: b.socketId, sessionId: b.sessionId, name: b.name, avatarId: randomAvatar(), masked: false, playerId: b.playerId, rtcReady: false };
+    // The same look every other seat gets: the locker for an account, the
+    // silhouette for a guest (only reachable here where Google is off).
+    Object.assign(lobby.host!, seatLookOf(sa.data));
+    lobby.guest = { socketId: b.socketId, sessionId: b.sessionId, name: b.name, ...seatLookOf(sb.data), playerId: b.playerId, rtcReady: false };
     lobby.status = 'greenroom';
     lobby.topicMode = 'random'; // strangers never negotiate a topic
     // Ranked plays at blitz length for now (his call, 2026-09-13). The rating
@@ -731,10 +882,12 @@ function dropSpectator(socketId: string, code: string): void {
 function spectateStateFor(lobby: Lobby): import('./protocol.js').SpectateState {
   return {
     code: lobby.code,
-    status:
-      lobby.status === 'aborted'
-        ? 'verdict'
-        : (lobby.status as 'waiting' | 'greenroom' | 'in_debate' | 'judging' | 'verdict'),
+    // A called-off debate says so, with the reason, and a finished one
+    // carries its verdict: a watcher who opens either by code (or lands on
+    // it from the feed) has something true to look at.
+    status: lobby.status,
+    ...(lobby.status === 'verdict' && lobby.verdict ? { verdict: lobby.verdict } : {}),
+    ...(lobby.status === 'aborted' ? { abort: lobby.abortInfo ?? { reason: 'abortGone' } } : {}),
     topic: lobby.topic,
     names: lobby.sides ? namesOf(lobby) : undefined,
     bot: lobby.bot
@@ -826,8 +979,28 @@ function broadcastRematch(lobby: Lobby): void {
 function resetForRematch(lobby: Lobby): void {
   if (lobby.phaseTimer) clearTimeout(lobby.phaseTimer);
   if (lobby.judgeTimer) clearTimeout(lobby.judgeTimer);
+  // The first verdict's destroy timer: left running, it deleted the room ten
+  // minutes after that verdict, in the middle of the rematch.
+  if (lobby.cleanupTimer) clearTimeout(lobby.cleanupTimer);
   lobby.phaseTimer = undefined;
   lobby.judgeTimer = undefined;
+  lobby.cleanupTimer = undefined;
+  // Everything the last debate said or measured goes with it, or the
+  // rematch starts with the old debate's words, clock and verdict in it.
+  lobby.segmentText = [];
+  lobby.turnStarts = new Map();
+  lobby.blur = { FOR: { blurMs: 0, blurCount: 0 }, AGAINST: { blurMs: 0, blurCount: 0 } };
+  lobby.botFailures = 0;
+  lobby.botSpoke = new Set();
+  lobby.reportedBy = undefined;
+  lobby.lastPhase = undefined;
+  lobby.eloResult = undefined;
+  lobby.placementResult = undefined;
+  lobby.verdictAudio = undefined;
+  lobby.framing = undefined;
+  lobby.startsAt = undefined;
+  lobby.audioBytes = { FOR: 0, AGAINST: 0 };
+  lobby.forfeitApplied = undefined;
   lobby.status = 'greenroom';
   lobby.topic = undefined;
   lobby.sides = undefined;
@@ -843,7 +1016,7 @@ function resetForRematch(lobby: Lobby): void {
   lobby.stepStartedAt = 0;
   lobby.finishedAt = undefined;
   lobby.rematch = { host: false, guest: false };
-  lobby.coachAsks = 0;
+  lobby.coachAsks = { FOR: 0, AGAINST: 0 };
   lobby.coachLog = [];
   // Keep topicMode, categoryKey and hostSide (they land back on the same
   // setup). Clear the topic picks + confirms so they choose fresh.
@@ -867,14 +1040,29 @@ function ipOf(socket: { handshake: { headers: Record<string, unknown>; address: 
 
 // A socket that creates/joins a second lobby silently abandons its first one;
 // without this, the abandoned lobby survives until the 30-minute TTL sweep.
-function releasePreviousSeat(socket: { id: string; data: SocketData }): void {
-  const prev = socket.data.code ? getLobby(socket.data.code) : undefined;
+function releasePreviousSeat(socket: {
+  id: string;
+  data: SocketData;
+  leave: (room: string) => unknown;
+}): void {
+  const code = socket.data.code;
+  const prev = code ? getLobby(code) : undefined;
   if (prev && prev.status === 'waiting' && participantOf(prev, socket.id)) {
     destroyLobby(prev.code);
     io.socketsLeave(prev.code);
   }
+  // Always out of the old room's socket rooms, or its phases, verdicts and
+  // lobby:closed keep arriving on a socket that has moved on.
+  if (code) {
+    void socket.leave(code);
+    void socket.leave(`spec:${code}`);
+    dropSpectator(socket.id, code);
+  }
   socket.data.code = undefined;
 }
+
+/** At most this many rooms waiting for a guest per address. */
+const MAX_WAITING_PER_IP = 3;
 
 io.on('connection', (socket) => {
   // Bind the socket to its account BEFORE any handler runs. A yap name is only
@@ -910,40 +1098,87 @@ io.on('connection', (socket) => {
       if (l.username) socket.data.account.name = l.username;
     });
   }
-  /** The name this socket is allowed to use. An account with no claimed name
-      yet falls back to the payload, exactly as a signed-out socket does. */
+  /** The name this socket is allowed to use: a claimed yap name comes from
+      the account, never the payload. */
   const nameOf = (claimed: string): string => socket.data.account?.name || claimed;
-  /** The ladder identity this socket is allowed to use. */
-  const idOf = (claimed: string): string => socket.data.account?.playerId ?? claimed;
-  /** Seat defaults: the mask you saved (or a random one), WORN. Every room
-      starts masked (his call 2026-09-04): a camera is something you switch
-      on in the green room (pick:mask false), never something a stranger gets
-      by default. The locker's mask_default is still stored and still
-      accepted, but no seat reads it any more: the room decides, not the
-      account. A saved mask that has since left the roster is ignored rather
-      than worn as a blank. */
-  const seatLook = (): { avatarId: AvatarId; masked: boolean } => {
-    const saved = socket.data.locker?.mask;
-    const onRoster = saved && (AVATAR_IDS as readonly string[]).includes(saved);
-    return { avatarId: onRoster ? (saved as AvatarId) : randomAvatar(), masked: true };
+  /** Whether that name may be seated. Anything without a claimed yap name
+      (signed out, or an account that has not claimed one) is a guest, and a
+      guest carries exactly the name its device was given, GuestNNNN
+      (client/src/guest.ts). A guest who could type a name could type an
+      account's. */
+  const nameAllowed = (name: string): boolean =>
+    socket.data.account?.name ? NAME_RE.test(name) : GUEST_NAME_RE.test(name);
+  /** The ladder identity this socket may use. Signed in: the account's, from
+      the cookie. Signed out: the device id from the payload, unless it has
+      an account's shape (acct_) or an account already owns it (a device id
+      becomes an account's at that device's first sign-in). Then, and when
+      the store cannot say, the socket plays under no id at all: nothing is
+      filed, rated or advanced, and nothing is written into an account's
+      player row. '' means no id. */
+  const resolveId = async (claimed: unknown): Promise<string> => {
+    if (socket.data.account) return socket.data.account.playerId;
+    const id = String(claimed ?? '').slice(0, 64);
+    if (!id || !guestIdShapeOk(id)) return '';
+    const owned = await playerIdOwned(id);
+    if (owned === false) return id;
+    if (owned) event('guest_id_refused');
+    return '';
   };
-  socket.on('lobby:create', (p, cb) => {
+  /** Seated in a debate that is running (or being judged): starting anything
+      else from this socket would leave that one running on, spending bot
+      turns, a voice and a judge call, and filing a loss. */
+  const seatedLive = (): boolean => {
+    const l = socket.data.code ? getLobby(socket.data.code) : undefined;
+    if (!l || !participantOf(l, socket.id)) return false;
+    return l.status === 'in_debate' || (l.status === 'judging' && l.judgeState !== 'failed');
+  };
+  /** Also mid-way through starting something (across an await). */
+  const busy = (): boolean => Boolean(socket.data.starting) || seatedLive();
+  /** Rate-limit identity: the account, else the tab's session id. */
+  const who = (p: unknown): string => {
+    if (socket.data.account) return `a${socket.data.account.sub}`;
+    const sid = String((p as { sessionId?: unknown } | undefined)?.sessionId ?? '').slice(0, 40);
+    return `s${sid || socket.id}`;
+  };
+  /** A start bucket: `perWho` per person in five minutes, under a wider
+      `perIp` ceiling for the address (a campus NAT is many people; a script
+      rotating session ids is one address). Off in fast (test) mode. */
+  const gate = (bucket: string, p: unknown, perWho: number, perIp: number): boolean =>
+    FAST ||
+    (allow(`${bucket}:${who(p)}`, perWho, 5 * 60_000) && allow(`${bucket}-ip:${ipOf(socket)}`, perIp, 5 * 60_000));
+  /** Seat defaults for this socket (seatLookOf has the rule). */
+  const seatLook = () => seatLookOf(socket.data);
+  socket.on('lobby:create', async (p, cb) => {
     if (typeof cb !== 'function') return;
     // Friendly ceiling: two friends never hit this; a lobby-spam script does.
     // Its OWN bucket, separate from solo play. These used to share one, so an
     // evening of bot debates silently used up the budget for opening a room
     // and "call out a friend" then did nothing at all, with no message.
-    if (!FAST && !allow(`create:${ipOf(socket)}`, 20, 5 * 60_000)) {
+    if (!gate('create', p, 20, 100)) return cb({ ok: false, error: 'rate_limited' });
+    if (busy()) return cb({ ok: false, error: 'in_progress' });
+    const name = nameOf(String(p?.name ?? '').trim());
+    if (!nameAllowed(name)) return cb({ ok: false, error: 'bad_name' });
+    socket.data.starting = true;
+    let playerId = '';
+    try {
+      playerId = await resolveId(p?.playerId);
+    } finally {
+      socket.data.starting = false;
+    }
+    if (!socket.connected) return;
+    if (lobbyCount() >= MAX_LOBBIES) return cb({ ok: false, error: 'rate_limited' });
+    // Rooms nobody has joined yet, per address. The socket's own waiting
+    // room does not count: making a new one releases it.
+    const ip = ipOf(socket);
+    if (waitingRoomsFrom(ip, socket.data.code) >= MAX_WAITING_PER_IP) {
       return cb({ ok: false, error: 'rate_limited' });
     }
-    const name = nameOf(String(p?.name ?? '').trim());
-    if (!NAME_RE.test(name)) return cb({ ok: false, error: 'bad_name' });
-    if (lobbyCount() >= MAX_LOBBIES) return cb({ ok: false, error: 'rate_limited' });
     releasePreviousSeat(socket);
     const lobby = createLobby(socket.id, String(p.sessionId ?? '').slice(0, 64), name);
+    lobby.hostIp = ip;
     // The ladder identity, account or device (see Participant.playerId): a
     // guest's friend games are filed under the device id since 2026-09-12.
-    lobby.host!.playerId = idOf(String(p?.playerId ?? '').slice(0, 64)) || undefined;
+    lobby.host!.playerId = playerId || undefined;
     Object.assign(lobby.host!, seatLook());
     event('lobby_created', { code: lobby.code });
     socket.data.code = lobby.code;
@@ -952,16 +1187,26 @@ io.on('connection', (socket) => {
     cb({ ok: true, update: updateFor(lobby, lobby.host!) });
   });
 
-  socket.on('lobby:join', (p, cb) => {
+  socket.on('lobby:join', async (p, cb) => {
     if (typeof cb !== 'function') return;
     // Also throttles brute-forcing lobby codes (32^6 space, but still).
-    if (!FAST && !allow(`join:${ipOf(socket)}`, 30, 5 * 60_000)) {
-      return cb({ ok: false, error: 'rate_limited' });
-    }
+    if (!gate('join', p, 30, 150)) return cb({ ok: false, error: 'rate_limited' });
+    if (busy()) return cb({ ok: false, error: 'in_progress' });
     const name = nameOf(String(p?.name ?? '').trim());
-    if (!NAME_RE.test(name)) return cb({ ok: false, error: 'bad_name' });
+    if (!nameAllowed(name)) return cb({ ok: false, error: 'bad_name' });
+    socket.data.starting = true;
+    let playerId = '';
+    try {
+      playerId = await resolveId(p?.playerId);
+    } finally {
+      socket.data.starting = false;
+    }
+    if (!socket.connected) return;
     const lobby = getLobby(String(p.code ?? '').slice(0, 8));
     if (!lobby) return cb({ ok: false, error: 'not_found' });
+    // A ranked room is two strangers the queue paired, and its seats carry
+    // their ratings (lobby.ranked): no code walks anybody else into one.
+    if (lobby.ranked) return cb({ ok: false, error: 'not_found' });
     if (lobby.status !== 'waiting') {
       // greenroom = the seat is taken; anything later = it started without you.
       return cb({ ok: false, error: lobby.status === 'greenroom' ? 'full' : 'in_progress' });
@@ -982,7 +1227,7 @@ io.on('connection', (socket) => {
       sessionId: String(p.sessionId ?? '').slice(0, 64),
       name,
       ...seatLook(),
-      playerId: idOf(String(p?.playerId ?? '').slice(0, 64)) || undefined,
+      playerId: playerId || undefined,
       rtcReady: false,
     };
     lobby.status = 'greenroom';
@@ -997,6 +1242,7 @@ io.on('connection', (socket) => {
 
   socket.on('lobby:resume', (p, cb) => {
     if (typeof cb !== 'function') return;
+    if (!allow(`resume:${socket.id}`, 20, 60_000)) return cb({ ok: false });
     const lobby = getLobby(String(p?.code ?? ''));
     const sessionId = String(p?.sessionId ?? '');
     if (!lobby || !sessionId) return cb({ ok: false });
@@ -1096,6 +1342,9 @@ io.on('connection', (socket) => {
     if (!lobby || lobby.status !== 'waiting') return;
     const me = participantOf(lobby, socket.id);
     if (!me) return;
+    // A guest wears the silhouette, full stop: characters come with an
+    // account. And the silhouette is not on the roster, so nobody picks it.
+    if (!socket.data.account) return;
     if (!(AVATAR_IDS as readonly string[]).includes(String(id))) return;
     me.avatarId = String(id) as (typeof AVATAR_IDS)[number];
     touch(lobby);
@@ -1222,6 +1471,7 @@ io.on('connection', (socket) => {
   });
 
   socket.on('pick:confirm', () => {
+    if (!allow(`pick:${socket.id}`, 60, 10_000)) return;
     const lobby = socket.data.code ? getLobby(socket.data.code) : undefined;
     if (!lobby || lobby.status !== 'greenroom') return;
     const me = participantOf(lobby, socket.id);
@@ -1253,6 +1503,7 @@ io.on('connection', (socket) => {
   });
 
   socket.on('rtc:ready', () => {
+    if (!allow(`rtcready:${socket.id}`, 30, 60_000)) return;
     const lobby = socket.data.code ? getLobby(socket.data.code) : undefined;
     if (!lobby) return;
     const me = participantOf(lobby, socket.id);
@@ -1277,13 +1528,24 @@ io.on('connection', (socket) => {
     const lobby = socket.data.code ? getLobby(socket.data.code) : undefined;
     if (!lobby) return;
     const peer = peerOf(lobby, socket.id);
-    if (peer && !peer.disconnectedAt) io.to(peer.socketId).emit('rtc:signal', payload);
+    if (!peer || peer.disconnectedAt) return;
+    // Ranked calls are relay only: two strangers never learn each other's
+    // address (security.ts relayOnlySignal; the client asks for relay
+    // candidates alone too, webrtc.ts).
+    const out = lobby.ranked ? relayOnlySignal(payload) : payload;
+    if (out) io.to(peer.socketId).emit('rtc:signal', out);
   });
 
   socket.on('speech:chunk', (chunk) => {
+    // Chrome sends a final result every few seconds while you talk; this is
+    // many times that, and far under a flood.
+    if (!allow(`chunk:${socket.id}`, 60, 10_000)) return;
     if (!chunk || typeof chunk !== 'object') return;
     const lobby = socket.data.code ? getLobby(socket.data.code) : undefined;
     if (!lobby) return;
+    // Ranked is audio only wherever the server transcribes (production):
+    // a typed chunk there is somebody pasting an essay into the socket.
+    if (!typedSpeechAllowed(Boolean(lobby.ranked), sttConfigured())) return;
     const me = participantOf(lobby, socket.id);
     if (!me) return;
     acceptChunk(lobby, me, chunk);
@@ -1293,13 +1555,33 @@ io.on('connection', (socket) => {
   // exit at all: creating a lobby was a one-way door out of the app, and the
   // only escape was a refresh, which the unload warning argues with.
   socket.on('lobby:leave', () => {
+    if (!allow(`misc:${socket.id}`, 60, 60_000)) return;
     const lobby = socket.data.code ? getLobby(socket.data.code) : undefined;
     if (!lobby) return;
-    // Only before the debate. Mid-debate leaving is the disconnect path, which
-    // has grace timers and a peer to notify.
-    if (lobby.status !== 'waiting' && lobby.status !== 'greenroom') return;
     const me = participantOf(lobby, socket.id);
     if (!me) return;
+    // A bot game can be walked out of at any point before its verdict: it
+    // is practice with nobody on the other end. Without this, a player who
+    // left one mid-debate could start nothing else from this tab until it
+    // ran out (every start refuses a socket seated in a live debate).
+    // Nothing is filed, rated or unlocked, and no judge is called.
+    if (lobby.bot && lobby.status !== 'verdict') {
+      if (lobby.host) lobby.host.playerId = undefined;
+      lobby.campaign = undefined;
+      lobby.placement = undefined;
+      lobby.status = 'aborted'; // stops a bot turn or a judge already in flight
+      socket.to(lobby.code).emit('lobby:closed', { reason: 'closedPeerLeft' });
+      socket.emit('lobby:closed', { reason: '' });
+      destroyLobby(lobby.code);
+      io.socketsLeave(lobby.code);
+      io.socketsLeave(`spec:${lobby.code}`);
+      spectators.delete(lobby.code);
+      socket.data.code = undefined;
+      return;
+    }
+    // A human debate only before it starts. Mid-debate leaving is the
+    // disconnect path, which has grace timers and a peer to notify.
+    if (lobby.status !== 'waiting' && lobby.status !== 'greenroom') return;
     // The person who stayed gets told why the room vanished; the person who
     // pressed leave already knows, so they get no banner about their own click.
     socket.to(lobby.code).emit('lobby:closed', { reason: 'closedPeerLeft' });
@@ -1312,6 +1594,7 @@ io.on('connection', (socket) => {
   // Anti-cheat bookkeeping. Capped per turn so a spoofed flood cannot inflate
   // someone else's number, and only counted for the side whose turn it is.
   socket.on('turn:away', (p) => {
+    if (!allow(`away:${socket.id}`, 30, 60_000)) return;
     if (!p || typeof p !== 'object') return;
     const lobby = socket.data.code ? getLobby(socket.data.code) : undefined;
     if (!lobby?.ranked || !lobby.sides) return;
@@ -1336,9 +1619,8 @@ io.on('connection', (socket) => {
   });
 
   socket.on('audio:turn', (p) => {
-    // If STT were ever misconfigured in prod, every turn would vanish here
-    // without a trace. Cheap insurance against a silent, total outage.
-    if (!sttConfigured()) return void event('audio_rejected', { why: 'stt_not_configured' });
+    // A segment every five seconds while you speak; this is five times that.
+    if (!allow(`audio:${socket.id}`, 30, 30_000)) return;
     if (!p || typeof p !== 'object') return;
     const lobby = socket.data.code ? getLobby(socket.data.code) : undefined;
     if (!lobby) return;
@@ -1348,7 +1630,9 @@ io.on('connection', (socket) => {
     const buf = Buffer.isBuffer(raw) ? raw : raw instanceof ArrayBuffer ? Buffer.from(raw) : null;
     // Size rejections are the likeliest cause of a turn vanishing between the
     // browser and the judge, so they are logged rather than dropped in silence.
-    if (!buf || buf.length < 1000 || buf.length > 3_000_000) {
+    // 512 KB a segment (a real one is ~20 KB); the per-side budget for the
+    // whole debate is debate.ts's.
+    if (!buf || buf.length < 1000 || buf.length > MAX_SEGMENT_BYTES) {
       event('audio_rejected', {
         code: lobby.code,
         step: Number(p.stepIndex),
@@ -1357,6 +1641,9 @@ io.on('connection', (socket) => {
       });
       return;
     }
+    // If STT were ever misconfigured in prod, every turn would vanish here
+    // without a trace. Cheap insurance against a silent, total outage.
+    if (!sttConfigured()) return void event('audio_rejected', { why: 'stt_not_configured' });
     acceptAudioTurn(
       io,
       lobby,
@@ -1369,6 +1656,7 @@ io.on('connection', (socket) => {
   });
 
   socket.on('verdict:retry', () => {
+    if (!allow(`misc:${socket.id}`, 60, 60_000)) return;
     const lobby = socket.data.code ? getLobby(socket.data.code) : undefined;
     if (!lobby || lobby.tutorial) return; // tutorials debrief; they never judge
     if (!participantOf(lobby, socket.id)) return;
@@ -1378,6 +1666,7 @@ io.on('connection', (socket) => {
   });
 
   socket.on('rematch', () => {
+    if (!allow(`misc:${socket.id}`, 60, 60_000)) return;
     // Ranked never rematches: same-pair repeats are how a tiny population's
     // ratings turn into fiction. The queue is ranked's 'again'.
     { const l = socket.data.code ? getLobby(socket.data.code) : undefined; if (l?.ranked) return; }
@@ -1401,7 +1690,9 @@ io.on('connection', (socket) => {
   });
 
   // Ask the YapMaster about the debate you just finished. Answered from the
-  // in-memory verdict + transcript — no account, nothing stored.
+  // in-memory verdict and transcript; the exchange is never written down.
+  // Eight questions per SIDE: one debater using the coach must not spend
+  // the other's.
   socket.on('coach:ask', (p) => {
     if (!allow(`coach:${socket.id}`, 12, 60_000)) return;
     if (!p || typeof p !== 'object') return;
@@ -1414,11 +1705,11 @@ io.on('connection', (socket) => {
     const question = String(p.question ?? '').trim().slice(0, 300);
     if (!question) return;
     const sid = socket.id;
-    if (lobby.coachAsks >= 8) {
+    if (lobby.coachAsks[side] >= 8) {
       io.to(sid).emit('coach:reply', { text: '', done: true });
       return;
     }
-    lobby.coachAsks += 1;
+    lobby.coachAsks[side] += 1;
     touch(lobby);
     event('coach_ask', { code: lobby.code });
     // Only THIS side's exchange, and only the recent stretch of it: a follow-up
@@ -1434,22 +1725,25 @@ io.on('connection', (socket) => {
         io.to(sid).emit('coach:reply', { text });
       })
       .catch((err) => {
-        console.error(`[coach] lobby ${lobby.code} failed:`, err);
+        console.error(`[coach] lobby ${lobby.code} failed: ${errTag(err)}`);
         event('coach_failed', { code: lobby.code });
         lobby.coachLog.pop(); // no answer means that question never happened
         io.to(sid).emit('coach:reply', { text: '', error: true });
       });
   });
 
-  // Build a share link for the verdict you just received. The server signs it
-  // (when SHARE_SECRET is set) so a card rendering on our domain is one the
-  // judge really produced, then forgets it — the link carries the whole thing.
+  // Build a share link for the verdict you just received. The card is saved
+  // as a row and the link is its id. It is YOUR card: the scores, the ruling
+  // and your own best line. The opponent did not choose to publish anything,
+  // so none of their words go on it (share.ts cardFrom).
   socket.on('share:link', (cb) => {
     if (typeof cb !== 'function') return;
     if (!allow(`share:${socket.id}`, 20, 60_000)) return cb(null);
     const lobby = socket.data.code ? getLobby(socket.data.code) : undefined;
-    if (!lobby?.verdict || !participantOf(lobby, socket.id)) return cb(null);
-    const card = cardFrom(lobby.topic?.en ?? '', namesOf(lobby), lobby.verdict, lobby.framing?.said);
+    const me = lobby?.verdict ? participantOf(lobby, socket.id) : undefined;
+    const mySide = lobby && me ? sideOf(lobby, me) : undefined;
+    if (!lobby?.verdict || !mySide) return cb(null);
+    const card = cardFrom(lobby.topic?.en ?? '', namesOf(lobby), lobby.verdict, lobby.framing?.said, mySide);
     void saveCard(card).then((id) => {
       // No fallback: if the store is down, sharing is unavailable rather than
       // silently producing a link of a different shape.
@@ -1465,47 +1759,78 @@ io.on('connection', (socket) => {
   // same game as everyone else rather than a line nobody else is standing in.
   socket.on('queue:join', (p, cb) => {
     if (typeof cb !== 'function') return;
-    if (!FAST && !allow(`join:${ipOf(socket)}`, 30, 5 * 60_000)) {
-      return cb({ ok: false, error: 'rate_limited' });
-    }
+    if (!gate('join', p, 30, 150)) return cb({ ok: false, error: 'rate_limited' });
+    // A second tap while the first is still reading the rating: the first
+    // one is doing the work, and this one simply agrees.
+    if (socket.data.starting) return cb({ ok: true });
+    if (seatedLive()) return cb({ ok: false, error: 'in_progress' });
     // Ranked needs an account: there is a rating on the line and a stranger
     // counting on it. The client already says so before it asks; this is the
     // gate for anything that skips the client (gate.ts has the rule).
     const refused = rankedRefusal(Boolean(socket.data.account), googleConfigured());
     if (refused) return cb({ ok: false, error: refused });
+    // The model API is failing: a ranked match now would be minutes of
+    // debating towards a verdict that cannot come.
+    if (llmDown()) return cb({ ok: false, error: 'judge_down' });
     const name = nameOf(String(p?.name ?? '').trim());
-    if (!NAME_RE.test(name)) return cb({ ok: false, error: 'bad_name' });
-    const playerId = idOf(String(p?.playerId ?? '').slice(0, 64));
-    if (!playerId) return cb({ ok: false, error: 'bad_name' });
+    if (!nameAllowed(name)) return cb({ ok: false, error: 'bad_name' });
     if (rankedQueue.some((q) => q.socketId === socket.id)) return cb({ ok: true });
-    releasePreviousSeat(socket);
-    dropFromQueue(socket.id);
-    // One slot per PLAYER, not per socket. A second tab takes over the queue
-    // place instead of sitting beside itself, which is the other half of how
-    // one person met themselves.
-    for (let i = rankedQueue.length - 1; i >= 0; i--) {
-      if (rankedQueue[i].playerId === playerId) rankedQueue.splice(i, 1);
-    }
-    void getPlayer(playerId, name).then((row) => {
-      // The socket may have left the queue (or died) while we read the rating.
-      if (!io.sockets.sockets.get(socket.id)) return;
-      rankedQueue.push({
-        socketId: socket.id,
-        sessionId: String(p?.sessionId ?? '').slice(0, 64),
-        playerId,
-        name,
-        // SEED_RATING, not a hardcoded 1000: that was the seed before the
-        // rating_seed_700 migration, and it made a store blip queue a brand
-        // new player as if they were 300 points better than they are.
-        rating: row?.standard.rating ?? SEED_RATING,
-      });
-      event('queue_joined', { waiting: rankedQueue.length });
-      cb({ ok: true });
-      tryMatch();
-    });
+    socket.data.starting = true;
+    void (async () => {
+      try {
+        const playerId = await resolveId(p?.playerId);
+        if (!playerId) return cb({ ok: false, error: 'bad_name' });
+        if (!io.sockets.sockets.get(socket.id)) return;
+        // Ranked starts after the placement match (one game against the bot
+        // nearest 1400 sets the starting rating). Only knowable with the
+        // store up; with it down the queue stays open, as before.
+        if (storeReady()) {
+          const standing = await getRating(playerId);
+          if (!io.sockets.sockets.get(socket.id)) return;
+          if (!standing?.placed) return cb({ ok: false, error: 'unplaced' });
+        }
+        releasePreviousSeat(socket);
+        const row = await getPlayer(playerId, name);
+        // The socket may have left the queue (or died) while we read the rating.
+        if (!io.sockets.sockets.get(socket.id)) return;
+        // One slot per socket and per PLAYER. A second tab takes over the
+        // queue place instead of sitting beside itself (the other half of how
+        // one person met themselves), and the tab it replaced is told it is
+        // no longer searching instead of spinning forever.
+        for (let i = rankedQueue.length - 1; i >= 0; i--) {
+          const q = rankedQueue[i];
+          if (q.socketId !== socket.id && q.playerId !== playerId) continue;
+          rankedQueue.splice(i, 1);
+          if (q.socketId !== socket.id) {
+            io.to(q.socketId).emit('queue:update', {
+              waiting: rankedQueue.length,
+              rating: q.rating,
+              pace: 'blitz',
+              replaced: true,
+            });
+          }
+        }
+        rankedQueue.push({
+          socketId: socket.id,
+          sessionId: String(p?.sessionId ?? '').slice(0, 64),
+          playerId,
+          name,
+          // SEED_RATING, not a hardcoded 1000: that was the seed before the
+          // rating_seed_700 migration, and it made a store blip queue a brand
+          // new player as if they were 300 points better than they are.
+          rating: row?.standard.rating ?? SEED_RATING,
+        });
+        event('queue_joined', { waiting: rankedQueue.length });
+        cb({ ok: true });
+        tryMatch();
+      } finally {
+        socket.data.starting = false;
+      }
+    })();
   });
 
   socket.on('queue:leave', () => {
+    if (!allow(`misc:${socket.id}`, 60, 60_000)) return;
     dropFromQueue(socket.id);
     broadcastQueue();
   });
@@ -1559,15 +1884,35 @@ io.on('connection', (socket) => {
   // given it by someone in the room. Debaters always see the watcher count.
   socket.on('spectate:join', (p, cb) => {
     if (typeof cb !== 'function') return;
-    if (!FAST && !allow(`join:${ipOf(socket)}`, 30, 5 * 60_000)) {
+    // Its own bucket: hopping through the feed ("next") is many joins in a
+    // row, and must not use up the budget for joining a friend's room.
+    if (
+      !FAST &&
+      !(allow(`spec:${socket.data.account?.sub ?? socket.id}`, 40, 5 * 60_000) &&
+        allow(`spec-ip:${ipOf(socket)}`, 200, 5 * 60_000))
+    ) {
       return cb({ ok: false, error: 'rate_limited' });
     }
+    // A debater does not watch another debate from the seat of a live one.
+    if (busy()) return cb({ ok: false, error: 'not_found' });
     const lobby = getLobby(String(p?.code ?? '').slice(0, 8));
     if (!lobby) return cb({ ok: false, error: 'not_found' });
     if (participantOf(lobby, socket.id)) return cb({ ok: false, error: 'not_found' });
     // The host shut the door (custom only — ranked is always spectatable).
     if (!lobby.ranked && !lobby.spectatorsAllowed) return cb({ ok: false, error: 'not_found' });
     if (spectatorCount(lobby.code) >= SPECTATOR_CAP) return cb({ ok: false, error: 'full' });
+    // Moving on to another debate leaves the one being watched: its rooms
+    // (or its phases, verdict and lobby:closed keep arriving here) and its
+    // watcher count. A seat this socket holds elsewhere is left alone.
+    const prev = socket.data.code;
+    if (prev && prev !== lobby.code) {
+      const prevLobby = getLobby(prev);
+      if (!prevLobby || !participantOf(prevLobby, socket.id)) {
+        void socket.leave(prev);
+        void socket.leave(`spec:${prev}`);
+        dropSpectator(socket.id, prev);
+      }
+    }
     const set = spectators.get(lobby.code) ?? new Set<string>();
     set.add(socket.id);
     spectators.set(lobby.code, set);
@@ -1581,6 +1926,7 @@ io.on('connection', (socket) => {
   });
 
   socket.on('spectate:leave', () => {
+    if (!allow(`misc:${socket.id}`, 60, 60_000)) return;
     const code = socket.data.code;
     if (!code) return;
     void socket.leave(code);
@@ -1591,11 +1937,14 @@ io.on('connection', (socket) => {
 
   socket.on('bot:start', async (p, cb) => {
     if (typeof cb !== 'function') return;
-    if (!FAST && !allow(`solo:${ipOf(socket)}`, 20, 5 * 60_000)) {
-      return cb({ ok: false, error: 'rate_limited' });
-    }
+    if (!gate('solo', p, 20, 100)) return cb({ ok: false, error: 'rate_limited' });
+    // A double-tapped Go, or a second start while a debate is still running
+    // on this socket: one debate at a time, or the first one keeps spending
+    // bot turns, a voice and a judge call, and files a loss.
+    if (busy()) return cb({ ok: false, error: 'in_progress' });
+    if (llmDown()) return cb({ ok: false, error: 'judge_down' });
     const name = nameOf(String(p?.name ?? '').trim());
-    if (!NAME_RE.test(name)) return cb({ ok: false, error: 'bad_name' });
+    if (!nameAllowed(name)) return cb({ ok: false, error: 'bad_name' });
     // The placement match: the server picks the bot (whoever on the roster
     // is nearest 1400), and the client's botId is ignored so a stale roster
     // in an old tab cannot place someone against the wrong rung.
@@ -1604,12 +1953,17 @@ io.on('connection', (socket) => {
     if (!bot || bot.hidden) return cb({ ok: false, error: 'not_found' });
     if (lobbyCount() >= MAX_LOBBIES) return cb({ ok: false, error: 'rate_limited' });
 
+    // From here to the seat there are awaits (the id, the rating, the
+    // campaign): the flag holds the door shut across them.
+    socket.data.starting = true;
+    try {
     // Campaign gate: the ladder is levels now. No playerId (old client) or a
     // downed store fails OPEN — a dead database must never brick training.
     // DORMANT unless CAMPAIGN_LOCKS=on (his call 2026-08-09: unlock everything
     // for now, same parking pattern as DISPUTE_MODE). Progress still records
     // while dormant, so wins earned in the open period count when locks return.
-    const playerId = idOf(String(p?.playerId ?? '').slice(0, 64));
+    const playerId = await resolveId(p?.playerId);
+    if (!io.sockets.sockets.get(socket.id)) return;
     if (placement) {
       // Placement is ranked business, so the same account rule as the queue,
       // and the same identity: the ladder id, which for a signed-in player
@@ -1621,8 +1975,16 @@ io.on('connection', (socket) => {
       // tab) is refused here; a finished one is refused by the store, whose
       // `placed` flag is the truth. With the store down the game still runs
       // (a dead database never bricks a debate) and simply sets nothing.
+      // Only a placement that can still finish counts: one being debated, or
+      // being judged by a judge that has not failed, with its player still
+      // connected. A dead one (aborted, judge gave up, tab gone) must not
+      // block the retry for the minutes it takes to be swept.
       const running = allLobbies().some(
-        (l) => l.placement?.playerId === playerId && l.status !== 'verdict',
+        (l) =>
+          l.placement?.playerId === playerId &&
+          (l.status === 'in_debate' || (l.status === 'judging' && l.judgeState !== 'failed')) &&
+          Boolean(l.host) &&
+          !l.host?.disconnectedAt,
       );
       if (running) return cb({ ok: false, error: 'in_progress' });
       const standing = await getRating(playerId);
@@ -1698,8 +2060,12 @@ io.on('connection', (socket) => {
     socket.data.code = lobby.code;
     socket.data.role = 'host';
     void socket.join(lobby.code);
-    cb({ ok: true });
+    // The code rides back so a socket blip mid-game can lobby:resume it.
+    cb({ ok: true, code: lobby.code });
     startBotDebate(io, lobby, topic, humanSide);
+    } finally {
+      socket.data.starting = false;
+    }
   });
 
   socket.on('campaign:get', (p, cb) => {
@@ -1711,9 +2077,9 @@ io.on('connection', (socket) => {
     // SELECT keyed on a client-supplied id, and the pg pool is shared with
     // ELO and reports. Legit clients call it once per picker mount.
     if (!allow(`campget:${ipOf(socket)}`, 30, 60_000)) return cb({ level: null });
-    const playerId = idOf(String(p?.playerId ?? '').slice(0, 64));
-    if (!playerId) return cb({ level: null });
-    void getCampaign(playerId).then((level) => cb({ level }));
+    void resolveId(p?.playerId).then((playerId) =>
+      playerId ? getCampaign(playerId).then((level) => cb({ level })) : cb({ level: null }),
+    );
   });
 
   // Report a human opponent. One per reporter per debate; bots can't be
@@ -1750,22 +2116,29 @@ io.on('connection', (socket) => {
   // The tutorial: a bots-mode debate against the hidden YapMaster teacher.
   // Fixed shape on purpose — student is always AGAINST (so the tutor demos
   // every round first), light practice motion, no judge at the end.
-  socket.on('tutorial:start', (p, cb) => {
+  socket.on('tutorial:start', async (p, cb) => {
     if (typeof cb !== 'function') return;
-    if (!FAST && !allow(`solo:${ipOf(socket)}`, 20, 5 * 60_000)) {
-      return cb({ ok: false, error: 'rate_limited' });
-    }
+    if (!gate('solo', p, 20, 100)) return cb({ ok: false, error: 'rate_limited' });
+    if (busy()) return cb({ ok: false, error: 'in_progress' });
+    if (llmDown()) return cb({ ok: false, error: 'judge_down' });
     const name = nameOf(String(p?.name ?? '').trim());
-    if (!NAME_RE.test(name)) return cb({ ok: false, error: 'bad_name' });
+    if (!nameAllowed(name)) return cb({ ok: false, error: 'bad_name' });
     const tutor = BOT_BY_ID.get('tutor');
     if (!tutor) return cb({ ok: false, error: 'not_found' });
-    if (lobbyCount() >= MAX_LOBBIES) return cb({ ok: false, error: 'rate_limited' });
     const lang = p?.lang === 'ar' ? 'ar' : 'en';
     const topic = TUTORIAL_TOPICS[Math.floor(Math.random() * TUTORIAL_TOPICS.length)];
+    socket.data.starting = true;
+    let playerId = '';
+    try {
+      playerId = await resolveId(p?.playerId);
+    } finally {
+      socket.data.starting = false;
+    }
+    if (!socket.connected) return;
+    if (lobbyCount() >= MAX_LOBBIES) return cb({ ok: false, error: 'rate_limited' });
 
     releasePreviousSeat(socket);
     const lobby = createLobby(socket.id, String(p?.sessionId ?? '').slice(0, 64), name);
-    const playerId = idOf(String(p?.playerId ?? '').slice(0, 64));
     lobby.host!.playerId = playerId || undefined;
     Object.assign(lobby.host!, seatLook());
     lobby.tutorial = true;
@@ -1774,15 +2147,20 @@ io.on('connection', (socket) => {
     socket.data.code = lobby.code;
     socket.data.role = 'host';
     void socket.join(lobby.code);
-    cb({ ok: true });
+    cb({ ok: true, code: lobby.code });
     startBotDebate(io, lobby, topic, 'AGAINST');
   });
 
   socket.on('bot:done', (p) => {
+    if (!allow(`misc:${socket.id}`, 60, 60_000)) return;
     const lobby = socket.data.code ? getLobby(socket.data.code) : undefined;
     if (!lobby || !lobby.bot || lobby.status !== 'in_debate') return;
     if (participantOf(lobby, socket.id) !== lobby.host) return;
     const idx = Number(p?.stepIndex);
+    // Only a turn the bot has actually taken (its bot:turn, or its failure,
+    // has gone out). Before that, "the bot is done" is the human skipping
+    // the bot's turn, and on the placement match that farmed a rating.
+    if (!lobby.botSpoke.has(idx)) return;
     if (lobby.stepIndex === idx && scriptFor(lobby)[idx]?.speaker === lobby.bot.side) {
       if (lobby.phaseTimer) clearTimeout(lobby.phaseTimer);
       advance(io, lobby, idx);
@@ -1806,20 +2184,25 @@ io.on('connection', (socket) => {
     }
 
     if (lobby.status === 'greenroom') {
-      if (isHost) {
+      // The host always gets the grace; so does a RANKED guest, and a ranked
+      // room whose guest does not come back is closed rather than reopened.
+      // Reopening it left the host alone in a one-seat ranked room with a
+      // copyable code and a seat whose rating belongs to the player who left.
+      if (isHost || lobby.ranked) {
         // Same grace the debate gets: an accidental F5 or a network blip
         // shouldn't nuke the lobby for both players instantly.
         me.disconnectedAt = Date.now();
         me.graceTimer = setTimeout(() => {
           const l = getLobby(lobby.code);
           if (!l || !me.disconnectedAt) return;
-          io.to(l.code).emit('lobby:closed', { reason: 'closedHostLeft' });
+          io.to(l.code).emit('lobby:closed', { reason: isHost ? 'closedHostLeft' : 'closedPeerLeft' });
           destroyLobby(l.code);
           io.socketsLeave(l.code);
         }, GRACE_MS);
       } else {
         lobby.guest = undefined;
         lobby.status = 'waiting';
+        lobby.waitingSince = Date.now(); // the ten-minute wait starts again
         // clear the departed guest's picks and all confirmations
         lobby.pick.guestTopicId = null;
         lobby.pick.hostConfirmed = false;
@@ -1843,6 +2226,10 @@ io.on('connection', (socket) => {
       me.graceTimer = setTimeout(() => {
         // Still disconnected after the grace window → the debate can't continue.
         if (me.disconnectedAt && lobby.status === 'in_debate') {
+          // Ranked: the walk-out costs the leaver the game if the player who
+          // stayed had been heard (judge.ts applyForfeit has the rule; the
+          // launch coordinator's product call, 2026-09-12).
+          if (lobby.ranked) void applyForfeit(lobby, me);
           abort(io, lobby, 'abortWifi', { x: me.name });
         }
       }, GRACE_MS);
@@ -1894,7 +2281,11 @@ let shuttingDown = false;
 async function shutdown(signal: string): Promise<void> {
   if (shuttingDown) return;
   shuttingDown = true;
-  const live = allLobbies().filter((l) => l.status === 'in_debate' || l.status === 'greenroom');
+  // Everyone with something in flight: a debate, a verdict being written, a
+  // green room, or a room still waiting for its guest.
+  const live = allLobbies().filter(
+    (l) => l.status === 'in_debate' || l.status === 'greenroom' || l.status === 'judging' || l.status === 'waiting',
+  );
   // console.log directly as well as event(): the ring buffer dies with this
   // process, so Railway's log stream is the only durable record that the
   // handler ran at all.
@@ -1903,7 +2294,9 @@ async function shutdown(signal: string): Promise<void> {
   for (const lobby of live) {
     // Not abort(): that keeps the lobby around for a re-fetch that this process
     // will not be alive to serve. Say it plainly and let the client reset.
-    io.to(lobby.code).emit('debate:aborted', { reason: 'serverRestart' });
+    // A waiting room never started a debate, so it is closed, not aborted.
+    if (lobby.status === 'waiting') io.to(lobby.code).emit('lobby:closed', { reason: 'serverRestart' });
+    else io.to(lobby.code).emit('debate:aborted', { reason: 'serverRestart' });
   }
   // Durable proof this handler ran, readable after the restart.
   await recordShutdown(signal, live.length);

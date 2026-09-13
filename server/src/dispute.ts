@@ -15,7 +15,8 @@
 // and your first turn is where you actually state your case.
 import Anthropic from '@anthropic-ai/sdk';
 import type { Framing, Side } from './protocol.js';
-import { event } from './stats.js';
+import { errTag, event } from './stats.js';
+import { llmBudget } from './llm.js';
 
 let client: Anthropic | null = null;
 function getClient(): Anthropic {
@@ -82,7 +83,7 @@ export async function frameDispute(
     try {
       return await frameOnce(said, lang);
     } catch (err) {
-      console.error(`[dispute] framing attempt ${attempt + 1} failed:`, err);
+      console.error(`[dispute] framing attempt ${attempt + 1} failed: ${errTag(err)}`);
     }
   }
   event('dispute_framing_failed');
@@ -102,6 +103,7 @@ async function frameOnce(
     `</accounts>` +
     (lang === 'ar' ? '\n\nWrite the argument and both positions in Arabic.' : '');
 
+  llmBudget();
   const res = await getClient().messages.create(
     {
       model: 'claude-sonnet-5',

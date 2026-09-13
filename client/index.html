@@ -4,20 +4,30 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <title>YapStage · settle it out loud</title>
-    <meta name="description" content="1v1 video debates with an AI judge. Call out a friend, climb a ladder of six ranked bots, and let the YapMaster score every word." />
+    <meta name="description" content="1v1 spoken debates with an AI judge. Play a friend, take on strangers in ranked, or climb a ladder of eight bots." />
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="YapStage" />
     <meta property="og:title" content="YapStage · settle it out loud" />
-    <meta property="og:description" content="1v1 video debates with an AI judge. Call out a friend, take on a stranger, or climb the bot ladder." />
+    <meta property="og:description" content="1v1 spoken debates with an AI judge. Play a friend, take on strangers in ranked, or climb a ladder of eight bots." />
     <meta property="og:url" content="https://www.yapstage.com/" />
     <meta property="og:image" content="https://www.yapstage.com/og.png" />
     <meta property="og:image:width" content="1200" />
     <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="The YapStage mark, an amber and a turquoise quote mark facing each other, with the words settle it out loud." />
+    <meta property="og:locale" content="en_US" />
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content="YapStage · settle it out loud" />
-    <meta name="twitter:description" content="1v1 video debates with an AI judge. Call out a friend, take on a stranger, or climb the bot ladder." />
+    <meta name="twitter:description" content="1v1 spoken debates with an AI judge. Play a friend, take on strangers in ranked, or climb a ladder of eight bots." />
     <meta name="twitter:image" content="https://www.yapstage.com/og.png" />
+    <meta name="twitter:image:alt" content="The YapStage mark, an amber and a turquoise quote mark facing each other, with the words settle it out loud." />
+    <!-- Invite links (/?code=...) are the same page: one address for search. -->
+    <link rel="canonical" href="https://www.yapstage.com/" />
     <meta name="theme-color" content="#16172B" />
+    <!-- One dark house: native scrollbars and form controls should match it. -->
+    <meta name="color-scheme" content="dark" />
+    <!-- The .ico is for everything that asks for /favicon.ico by name or cannot
+         draw an SVG icon; browsers that can pick the SVG below. -->
+    <link rel="icon" href="/favicon.ico" sizes="32x32" />
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <!-- Safari pinned tabs render a single-colour silhouette, not the icon. -->
@@ -29,12 +39,20 @@
     <meta name="apple-mobile-web-app-title" content="YapStage" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <!-- Arabic is parked (i18n.tsx, ARABIC_ENABLED), so its three faces are not
+         requested. When it comes back, add to this URL:
+         &family=Lalezar&family=Tajawal:wght@400;500;700&family=Rakkas -->
     <link
-      href="https://fonts.googleapis.com/css2?family=Ultra&family=Libre+Franklin:wght@400;500;600;700&family=DM+Mono:wght@400;500&family=Lalezar&family=Tajawal:wght@400;500;700&family=Rakkas&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Ultra&family=Libre+Franklin:wght@400;500;600;700&family=DM+Mono:wght@400;500&display=swap"
       rel="stylesheet"
     />
   </head>
   <body>
+    <noscript>
+      <p style="font-family: system-ui, sans-serif; color: #efe8d8; text-align: center; padding: 48px 20px">
+        YapStage runs in the browser and needs JavaScript switched on.
+      </p>
+    </noscript>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

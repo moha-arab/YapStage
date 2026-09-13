@@ -8,13 +8,19 @@ import type {
 import { socket } from '../socket';
 import { useI18n } from '../i18n';
 import { formatClock, useCountdown } from '../useCountdown';
-import { enqueueSpectateAudio, stopSpectateAudio } from '../specaudio';
+import { enqueueSpectateAudio, spectateAudioElement, stopSpectateAudio } from '../specaudio';
+import { ScoreBars, capFirst, totalOf } from '../VerdictBlocks';
 import BotAvatar from '../BotAvatar';
 import Mask from '../Mask';
 import Brand from '../Brand';
 import { TileBust } from '../VideoTile';
 import { MatchTrack, MotionStrip, ROUND_KEY, SHAPE, debateLeftMs, turnSeconds, useSchedule } from '../MatchTrack';
 import '../debate.css';
+
+/** Abort reasons whose copy reads right to a watcher. abortGone ("while you
+    were away") and debateStopped ("You lost the connection") are written to
+    a debater, so a watcher gets the heading alone for those. */
+const SPECTATOR_REASONS = new Set(['abortWifi', 'botOutage', 'serverRestart', 'connDied', 'verdictLost']);
 
 interface Props {
   code: string;
@@ -42,7 +48,19 @@ export default function Spectate({ code, initial, onLeave, onNext }: Props) {
     names: Record<Side, string>;
   } | null>(null);
   const [judging, setJudging] = useState(false);
-  const [aborted, setAborted] = useState<string | null>(null);
+  const [aborted, setAborted] = useState<{ reason: string; vars?: Record<string, string> } | null>(null);
+  // The debaters' voices, on or off. The clips keep arriving and playing in
+  // order either way, so unmuting lands you live, not a minute behind.
+  const [muted, setMuted] = useState(false);
+  useEffect(() => {
+    spectateAudioElement().muted = muted;
+  }, [muted]);
+  useEffect(
+    () => () => {
+      spectateAudioElement().muted = false;
+    },
+    [],
+  );
   const msLeft = useCountdown(phase?.deadline, phase?.serverNow);
   const schedule = useSchedule(phase);
 
@@ -64,7 +82,7 @@ export default function Spectate({ code, initial, onLeave, onNext }: Props) {
       setJudging(false);
       setVerdict(p);
     };
-    const onAborted = (p: { reason: string }) => setAborted(p.reason);
+    const onAborted = (p: { reason: string; vars?: Record<string, string> }) => setAborted(p);
     socket.on('spectate:state', onState);
     socket.on('debate:phase', onPhase);
     socket.on('spectate:audio', onAudio);
@@ -90,48 +108,119 @@ export default function Spectate({ code, initial, onLeave, onNext }: Props) {
     onLeave();
   }
 
-  const names = verdict?.names ?? state?.names;
-  const total = (s: VerdictData['scores'][Side]) =>
-    s.argument + s.evidence + s.clash + s.delivery;
+  // A room can be over before you arrive: opened by code after the judge
+  // ruled, or after it was called off. The snapshot says so (status and its
+  // verdict or abort), and a live room says so with the same two events.
+  const ended =
+    verdict ??
+    (state?.status === 'verdict' && state.verdict && state.names
+      ? { verdict: state.verdict, names: state.names }
+      : null);
+  const abortInfo = aborted ?? (state?.status === 'aborted' ? (state.abort ?? { reason: 'abortGone' }) : null);
+  const names = ended?.names ?? state?.names;
 
-  const topbar = (
+  function next() {
+    socket.emit('spectate:leave');
+    stopSpectateAudio();
+    onNext?.();
+  }
+
+  // Live marks only while there is something live: a finished room has no
+  // audience count and no voices to mute.
+  const topbar = (live: boolean) => (
     <header className="topbar spec-topbar">
       <Brand />
-      <span className="tape spec-live-tape">{t('specLive')}</span>
-      <span className="spec-watchers">{t('specWatching', { n: watchers })}</span>
+      {live ? (
+        <>
+          {/* The debaters' own live mark. It was an amber block, and amber is FOR. */}
+          <span className="live-tag">
+            <i />
+            {t('liveNow')}
+          </span>
+          <span className="spec-watchers">{t('specWatching', { n: watchers })}</span>
+          <button className="btn btn-small ghost spec-mute" aria-pressed={muted} onClick={() => setMuted((m) => !m)}>
+            <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true">
+              <path d="M2 6h3l4-3v10l-4-3H2z" fill="currentColor" />
+              {muted ? (
+                <path d="M11 6l4 4M15 6l-4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+              ) : (
+                <path
+                  d="M11 5.5a3.5 3.5 0 0 1 0 5M12.8 3.5a6 6 0 0 1 0 9"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.5"
+                  strokeLinecap="round"
+                />
+              )}
+            </svg>
+            {muted ? t('specUnmute') : t('specMute')}
+          </button>
+        </>
+      ) : null}
     </header>
   );
 
-  // The end of the line: the debate died, or the judge has spoken.
-  if (aborted || verdict) {
-    return (
-      <div className="stage center-col spectate">
-        {topbar}
-        <p className="kicker">{state?.topic?.[lang] ?? code}</p>
-        {aborted ? (
-          <>
-            <h1 className="display">{t('specOver')}</h1>
-            <button className="btn" onClick={leave}>
-              {t('backHome')}
-            </button>
-          </>
-        ) : verdict ? (
-          <>
-            <div className={`stamp ${verdict.verdict.winner === 'FOR' ? 'for' : 'against'}`}>
-              <span className="stamp-label">{t('yapmaster')}</span>
-              <span className="stamp-name display">{verdict.names[verdict.verdict.winner]}</span>
-              <span className="stamp-side">{t(verdict.verdict.winner)}</span>
-            </div>
-            <p className="summary">{verdict.verdict.summary}</p>
-            <p className="spec-score">
-              {verdict.names.FOR} {total(verdict.verdict.scores.FOR)} · {' '}
-              {total(verdict.verdict.scores.AGAINST)} {verdict.names.AGAINST}
-            </p>
-            <button className="btn" onClick={leave}>
-              {t('backHome')}
-            </button>
-          </>
+  // The end of the line: the judge has spoken, or the debate died. Either
+  // way the one thing to do is the next debate (or leave), so the buttons
+  // sit right under the headline, above the detail.
+  if (ended || abortInfo) {
+    const topic = state?.topic?.[lang] ?? code;
+    const actions = (
+      <div className="spec-actions">
+        {onNext ? (
+          <button className="btn btn-primary" onClick={next}>
+            {t('feedNext')}
+          </button>
         ) : null}
+        <button className={`btn ${onNext ? '' : 'btn-primary'}`} onClick={leave}>
+          {t('specLeave')}
+        </button>
+      </div>
+    );
+
+    if (ended) {
+      // A compact result in the results screen's language: who won as a
+      // sentence (a watcher did not win, so no gold), both totals, the
+      // judge's line and the four categories.
+      const v = ended.verdict;
+      const n = ended.names;
+      const ruling = v.ruling;
+      const finalOf = (s: Side) => (ruling ? `${ruling.split[s]}%` : String(totalOf(v.scores[s])));
+      const reason = ruling?.decree || v.summary;
+      return (
+        <div className="stage center-col spectate spec-end">
+          {topbar(false)}
+          <p className="kicker vd-topic">{topic}</p>
+          <h1 className="display vd-word neutral">{t('vdWins', { x: n[v.winner] })}</h1>
+          <p className="spec-final">
+            <span className="is-for">{n.FOR}</span> <b className="num">{finalOf('FOR')}</b>
+            <span className="spec-final-sep" aria-hidden="true">
+              ·
+            </span>
+            <b className="num">{finalOf('AGAINST')}</b> <span className="is-against">{n.AGAINST}</span>
+          </p>
+          {actions}
+          <div className="spec-why">
+            {reason ? (
+              <div className="vd-reason">
+                <span className="vd-label">{t('vdJudge')}</span>
+                <p>{capFirst(reason)}</p>
+              </div>
+            ) : null}
+            {!ruling ? <ScoreBars scores={v.scores} order={['FOR', 'AGAINST']} nameOf={(s) => n[s]} /> : null}
+          </div>
+        </div>
+      );
+    }
+
+    const why = abortInfo && SPECTATOR_REASONS.has(abortInfo.reason) ? t(abortInfo.reason, abortInfo.vars) : null;
+    return (
+      <div className="stage center-col spectate spec-end">
+        {topbar(false)}
+        <p className="kicker vd-topic">{topic}</p>
+        <h1 className="display spec-end-word">{t('specEndedEarly')}</h1>
+        {why ? <p className="subtitle">{why}</p> : null}
+        {actions}
       </div>
     );
   }
@@ -173,7 +262,7 @@ export default function Spectate({ code, initial, onLeave, onNext }: Props) {
 
   return (
     <div className="stage debate spectate">
-      {topbar}
+      {topbar(true)}
 
       <MatchTrack
         schedule={schedule}
@@ -218,14 +307,7 @@ export default function Spectate({ code, initial, onLeave, onNext }: Props) {
 
       <MotionStrip kicker={t('theMotion')} motion={state?.topic?.[lang] ?? code}>
         {onNext ? (
-          <button
-            className="btn dv-pass"
-            onClick={() => {
-              socket.emit('spectate:leave');
-              stopSpectateAudio();
-              onNext();
-            }}
-          >
+          <button className="btn dv-pass" onClick={next}>
             {t('feedNext')}
           </button>
         ) : null}

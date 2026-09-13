@@ -186,7 +186,8 @@ if (process.argv.includes('--png')) {
     res.writeHead(200, { 'content-type': MIME[path.extname(file)] || 'application/octet-stream' });
     res.end(fs.readFileSync(file));
   });
-  const PORT = 3037;
+  // BRAND_PORT when 3037 is taken (or a shared machine hands out ports).
+  const PORT = Number(process.env.BRAND_PORT) || 3037;
   server.listen(PORT, async () => {
     const social = path.join(HERE, 'social');
     if (!fs.existsSync(social)) fs.mkdirSync(social);

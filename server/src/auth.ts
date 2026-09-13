@@ -3,11 +3,13 @@
 // a dependency in the path of every login.
 //
 // The identity we care about is Google's `sub` — stable forever, unlike email.
-// We never see or store a password, and we ask for the two non-sensitive scopes
-// (email, profile) precisely so the app never needs Google's verification review.
+// We never see or store a password. Since 2026-09-12 we ask for `openid` and
+// nothing else: the sub is all an account needs (the yap name is claimed in
+// the app), so the email, Google name and picture are neither requested nor
+// stored.
 import crypto from 'node:crypto';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
-import { event } from './stats.js';
+import { errTag, event } from './stats.js';
 import { AVATAR_IDS, foldName, nameProblem } from './protocol.js';
 import {
   claimUsername,
@@ -27,6 +29,12 @@ const TOKEN_URL = 'https://oauth2.googleapis.com/token';
 
 const SESSION_COOKIE = 'yap_session';
 const STATE_COOKIE = 'yap_oauth_state';
+/** The device's guest id (and drill streak), waiting out the Google round
+    trip. Signed, HttpOnly, ten minutes. It replaced `?claim=` on the sign-in
+    URL, which put the id in browser history, logs and Referer headers, and
+    let any link choose which guest's games an account would adopt. */
+const CLAIM_COOKIE = 'yap_claim';
+const CLAIM_TTL_SEC = 600;
 const SESSION_DAYS = 30;
 /** A yap name can change once in this many days. Slow on purpose: the name is
     the identity on every scoreboard, so it should not become a disguise. */
@@ -138,6 +146,47 @@ function clearCookie(reply: FastifyReply, name: string): void {
   setCookie(reply, name, '', 0);
 }
 
+/** The claim cookie's value: `body.mac`, the mac domain-separated from the
+    session's so neither can ever pass for the other. */
+function packClaim(claim: string, drill: string): string {
+  const body = b64url(JSON.stringify({ c: claim, d: drill, exp: Date.now() + CLAIM_TTL_SEC * 1000 }));
+  return `${body}.${sign(`claim.${body}`)}`;
+}
+
+/** Verify and unpack the claim cookie. Tampered, expired or absent reads as
+    nothing claimed, and then nothing is adopted. */
+function readClaim(raw: string | null): { claim: string; drill: string } | null {
+  if (!raw) return null;
+  const dot = raw.lastIndexOf('.');
+  if (dot < 1) return null;
+  const body = raw.slice(0, dot);
+  const mac = raw.slice(dot + 1);
+  const expected = sign(`claim.${body}`);
+  if (mac.length !== expected.length) return null;
+  if (!crypto.timingSafeEqual(Buffer.from(mac), Buffer.from(expected))) return null;
+  try {
+    const v = JSON.parse(Buffer.from(body, 'base64url').toString()) as { c?: unknown; d?: unknown; exp?: unknown };
+    if (typeof v.exp !== 'number' || v.exp < Date.now()) return null;
+    return {
+      claim: typeof v.c === 'string' ? v.c.slice(0, 64) : '',
+      drill: typeof v.d === 'string' ? v.d.slice(0, 24) : '',
+    };
+  } catch {
+    return null;
+  }
+}
+
+/** A request's Origin, when present, must be this site. */
+function sameOrigin(req: FastifyRequest): boolean {
+  const origin = req.headers.origin;
+  if (!origin) return true;
+  try {
+    return new URL(origin).host === req.headers.host;
+  } catch {
+    return false;
+  }
+}
+
 /** The guest's drill streak as the client sends it, `last|streak|best`
     (client/src/guest.ts). Anything malformed or outlandish reads as nothing
     carried. It is the one client-supplied number the server writes down
@@ -158,30 +207,53 @@ function redirectUri(req: FastifyRequest): string {
 }
 
 export interface AuthHooks {
-  /** An account was just deleted: close every socket it has open. Lives in
-      index.ts, which owns the socket server. */
-  onAccountDeleted?: (sub: string) => void;
+  /** An account was just deleted: close every socket it has open and take
+      its player id off any seat it holds. Lives in index.ts, which owns the
+      socket server and the lobbies. */
+  onAccountDeleted?: (sub: string, playerId: string) => void;
 }
 
 export function registerAuth(app: FastifyInstance, hooks: AuthHooks = {}): void {
+  /** Step one of signing in from a device that played as a guest: the page
+      posts its device id (and the drill streak it kept), and it comes back
+      as a signed HttpOnly cookie that waits out the Google round trip. Only
+      the callback reads it, and only a valid, unexpired one is adopted.
+      JSON only, same origin only: a cross-site form can send text/plain or
+      a urlencoded body but never application/json without a CORS preflight
+      this server never answers, so no other site can plant a claim. */
+  app.post<{ Body: { claim?: unknown; drill?: unknown } }>(
+    '/auth/claim',
+    { bodyLimit: 1024 },
+    async (req, reply) => {
+      if (!googleConfigured()) return reply.code(503).send({ ok: false, error: 'google_not_configured' });
+      const ct = String(req.headers['content-type'] ?? '').toLowerCase();
+      if (!ct.startsWith('application/json')) return reply.code(415).send({ ok: false, error: 'json_only' });
+      if (!sameOrigin(req)) return reply.code(403).send({ ok: false, error: 'origin' });
+      if (!allow(`claim:${req.ip}`, 20, 10 * 60_000)) return reply.code(429).send({ ok: false, error: 'rate_limited' });
+      const claim = typeof req.body?.claim === 'string' ? req.body.claim.slice(0, 64) : '';
+      const drill = typeof req.body?.drill === 'string' ? req.body.drill.slice(0, 24) : '';
+      if (claim && !/^[A-Za-z0-9_-]{1,64}$/.test(claim)) return reply.code(400).send({ ok: false, error: 'bad_claim' });
+      if (!claim && !drill) {
+        clearCookie(reply, CLAIM_COOKIE);
+        return { ok: true };
+      }
+      setCookie(reply, CLAIM_COOKIE, packClaim(claim, drill), CLAIM_TTL_SEC);
+      return { ok: true };
+    },
+  );
+
   // Start sign-in. `state` is a random value echoed back by Google and matched
   // against a cookie: without it, an attacker could complete a login FOR you.
+  // Nothing on this URL is read: the device id travels in the claim cookie.
   app.get('/auth/google', async (req, reply) => {
     if (!googleConfigured()) return reply.code(503).send({ error: 'google_not_configured' });
     const state = crypto.randomBytes(16).toString('base64url');
-    // The device's current playerId rides along so a first sign-in can adopt
-    // the progress already earned on this device, and so does the drill
-    // streak the device kept for a guest. Both wait out the Google round trip
-    // in the state cookie (neither can contain a colon).
-    const q = req.query as { claim?: string; drill?: string };
-    const claim = String(q?.claim ?? '').slice(0, 64);
-    const drill = String(q?.drill ?? '').slice(0, 24);
-    setCookie(reply, STATE_COOKIE, `${state}:${claim}:${drill}`, 600);
+    setCookie(reply, STATE_COOKIE, state, 600);
     const params = new URLSearchParams({
       client_id: process.env.GOOGLE_CLIENT_ID!,
       redirect_uri: redirectUri(req),
       response_type: 'code',
-      scope: 'openid email profile',
+      scope: 'openid',
       state,
       prompt: 'select_account',
     });
@@ -192,9 +264,12 @@ export function registerAuth(app: FastifyInstance, hooks: AuthHooks = {}): void 
     '/auth/google/callback',
     async (req, reply) => {
       if (!googleConfigured()) return reply.code(503).send({ error: 'google_not_configured' });
-      const cookie = readCookie(req, STATE_COOKIE) ?? '';
-      const [wantState, claim, drill] = cookie.split(':');
+      // A state cookie set before 2026-09-12 carried `state:claim:drill`;
+      // only the state part is read now, whatever follows it.
+      const [wantState] = (readCookie(req, STATE_COOKIE) ?? '').split(':');
+      const claimed = readClaim(readCookie(req, CLAIM_COOKIE));
       clearCookie(reply, STATE_COOKIE);
+      clearCookie(reply, CLAIM_COOKIE);
       if (req.query.error || !req.query.code) return reply.redirect('/?auth=cancelled');
       if (!wantState || req.query.state !== wantState) {
         event('auth_state_mismatch');
@@ -222,18 +297,17 @@ export function registerAuth(app: FastifyInstance, hooks: AuthHooks = {}): void 
         // the channel is the proof. (A token received any OTHER way would.)
         const claims = JSON.parse(
           Buffer.from(tok.id_token.split('.')[1], 'base64url').toString(),
-        ) as { sub?: string; email?: string; name?: string; picture?: string; aud?: string };
+        ) as { sub?: string; aud?: string };
         if (!claims.sub) throw new Error('no sub');
         if (claims.aud !== process.env.GOOGLE_CLIENT_ID) throw new Error('aud mismatch');
 
+        // The guest's games are adopted only with a valid claim cookie from
+        // this browser (POST /auth/claim just before the redirect).
         const account = await linkAccount({
           sub: claims.sub,
-          email: claims.email ?? '',
-          name: claims.name ?? '',
-          picture: claims.picture ?? '',
-          claimPlayerId: claim || null,
+          claimPlayerId: claimed?.claim || null,
           day: today(),
-          drill: parseCarriedDrill(drill),
+          drill: parseCarriedDrill(claimed?.drill),
         });
         if (!account) {
           // No database means no accounts. Say so rather than pretending.
@@ -250,8 +324,8 @@ export function registerAuth(app: FastifyInstance, hooks: AuthHooks = {}): void 
         event('auth_signed_in');
         return reply.redirect('/?auth=ok');
       } catch (err) {
-        console.error('[auth] callback failed:', err);
-        event('auth_failed', { err: String(err).slice(0, 120) });
+        console.error(`[auth] callback failed: ${errTag(err)}`);
+        event('auth_failed', { err: errTag(err) });
         return reply.redirect('/?auth=failed');
       }
     },
@@ -296,7 +370,9 @@ export function registerAuth(app: FastifyInstance, hooks: AuthHooks = {}): void 
     const s = readSession(req);
     if (!s) return reply.code(401).send({ ok: false, error: 'signed_out' });
     if (s.name) return reply.code(409).send({ ok: false, error: 'already' });
-    const name = String(req.body?.name ?? '').trim();
+    // NFKC, like /auth/rename: nameProblem() tests the NFKC form, so an
+    // un-normalized full-width name would pass and be stored wide.
+    const name = String(req.body?.name ?? '').normalize('NFKC').trim();
     const problem = nameProblem(name);
     if (problem) return reply.code(400).send({ ok: false, error: problem });
     const result = await claimUsername(s.sub, name);
@@ -363,7 +439,7 @@ export function registerAuth(app: FastifyInstance, hooks: AuthHooks = {}): void 
     if (result.status === 'ok' || result.status === 'missing') {
       // Either way there is no account behind this cookie any more.
       clearCookie(reply, SESSION_COOKIE);
-      hooks.onAccountDeleted?.(s.sub);
+      hooks.onAccountDeleted?.(s.sub, s.playerId);
     }
     switch (result.status) {
       case 'ok':

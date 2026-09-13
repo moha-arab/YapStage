@@ -1,5 +1,7 @@
-// Receipts: past debates, kept on THIS device only (localStorage). The server
-// keeps its privacy promise and stores nothing. Your laptop is the one gossiping.
+// Receipts: a short summary of recent debates, kept on THIS device only
+// (localStorage), for the pattern read-out below. The server keeps its own
+// match history for signed-in players and guests (scores and feedback, never
+// the transcript); these receipts are separate and never leave the device.
 
 import type { CategoryScores } from '../../server/src/protocol';
 

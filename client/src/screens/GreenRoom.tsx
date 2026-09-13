@@ -10,7 +10,9 @@ import { useAudioLevel } from '../useAudioLevel';
 import { useI18n } from '../i18n';
 import MicMeter from '../MicMeter';
 import VideoTile from '../VideoTile';
-import MatchSetup, { describeSetup, emitSetup, setupOf } from '../MatchSetup';
+import Brand from '../Brand';
+import MatchSetup, { emitSetup, setupComplete, setupOf } from '../MatchSetup';
+import { capFirst } from '../VerdictBlocks';
 
 interface Props {
   lobby: LobbyUpdate;
@@ -26,6 +28,11 @@ interface Props {
   notice?: { key: string; x?: string } | null;
 }
 
+/* THE GREEN ROOM (2026-09 pass). The start button used to sit below the fold
+   on every screen size, under two 16:10 tiles and the whole settings panel.
+   Now the tiles are capped, the host's settings fold to one line with a
+   Change button, and the consent line and the button ride along the bottom
+   of the panel, so the one thing to do is always in view. */
 export default function GreenRoom({
   lobby,
   localStream,
@@ -85,14 +92,17 @@ export default function GreenRoom({
 
   const isHost = lobby.role === 'host';
   const mode = lobby.topicMode;
-  // The guest's view of the settings, as sentences.
-  const described = describeSetup(lobby, peer, t, lang);
-  // The host names the topic and the server mirrors it to the guest, so there
-  // is nothing left to negotiate: one pick and the room is ready.
+  // The motion this room will play is the HOST's pick. The server copies it
+  // into the guest's seat when the host picks (pick:topic), but a guest who
+  // walks in after another one left gets an empty seat back (the disconnect
+  // path clears guestTopicId alone), so the guest used to see the topic named
+  // and "zorvint is choosing the topic" at once. Both seats read the host's
+  // pick, the one the server's pick:confirm checks.
+  const hostTopicId = isHost ? pick.yourTopicId : pick.peerTopicId;
   const bothDescribed = Boolean(pick.yourDispute && pick.peerDisputeReady);
   const ready =
     mode === 'agree'
-      ? pick.yourTopicId !== null
+      ? hostTopicId !== null
       : mode === 'category'
         ? lobby.categoryKey !== null
         : mode === 'dispute'
@@ -107,7 +117,7 @@ export default function GreenRoom({
         ? t('videoFailed')
         : t('connectingVideo')
       : mode === 'agree'
-        ? !pick.yourTopicId
+        ? !hostTopicId
           ? isHost
             ? t('pickTopic')
             : t('waitTopic', { x: peer })
@@ -124,6 +134,98 @@ export default function GreenRoom({
               : t('waitCategory', { x: peer })
             : t('startRandomDebate');
 
+  // The host's settings fold to one line. A room that still needs a pick
+  // (a category or a motion not chosen yet) opens with the panel out.
+  const [editing, setEditing] = useState(() => !setupComplete(setupOf(lobby)));
+
+  // The settings as words, for the host's one line and the guest's three.
+  const cat = lobby.categoryKey ? deck.find((c) => c.key === lobby.categoryKey) : undefined;
+  const catName = cat ? cat.label[lang].toLowerCase() : '';
+  const motion = hostTopicId ? deck.flatMap((c) => c.topics).find((x) => x.id === hostTopicId) : undefined;
+  const pace = t(`pace_${lobby.pace}`).toLowerCase();
+  const sideWord = (s: 'FOR' | 'AGAINST') => t(`setupSide_${s}`);
+
+  // "College is no longer worth it · coin flip for sides · blitz"
+  const summaryTopic =
+    mode === 'agree'
+      ? motion
+        ? capFirst(motion[lang])
+        : t('grSumNone')
+      : mode === 'category'
+        ? cat
+          ? t('grSumFrom', { x: catName })
+          : t('grSumNone')
+        : t('grSumRandom');
+  const summarySide =
+    lobby.hostSide === 'random' ? t('grSumCoin') : t('grSumSide', { s: sideWord(lobby.hostSide) });
+  const summary = `${summaryTopic} · ${summarySide} · ${pace}`;
+
+  // The guest's view, from the guest's chair: "Topic: ...", "Sides: ...".
+  const factTopic =
+    mode === 'agree'
+      ? motion
+        ? capFirst(motion[lang])
+        : t('grTopicChoosing', { x: peer })
+      : mode === 'category'
+        ? cat
+          ? t('grTopicFrom', { x: catName })
+          : t('grTopicChoosing', { x: peer })
+        : t('grTopicRandom');
+  const factSides =
+    lobby.hostSide === 'random'
+      ? t('grSidesCoin')
+      : t('grSidesSet', {
+          x: peer,
+          s: sideWord(lobby.hostSide),
+          o: sideWord(lobby.hostSide === 'FOR' ? 'AGAINST' : 'FOR'),
+        });
+
+  // What the judge reads and what is kept, right above the button, with the
+  // privacy policy's AI section one tap away from the words "The AI judge".
+  const consentText = t(lobby.ranked ? 'consentRanked' : 'consent');
+  const judgeWords = t('consentJudge');
+  const judgeAt = consentText.indexOf(judgeWords);
+  const consentLine = (
+    <p className="gr-consent">
+      {judgeAt < 0 ? (
+        consentText
+      ) : (
+        <>
+          {consentText.slice(0, judgeAt)}
+          <a className="gr-link" href="/privacy#ai" target="_blank" rel="noopener">
+            {judgeWords}
+          </a>
+          {consentText.slice(judgeAt + judgeWords.length)}
+        </>
+      )}
+    </p>
+  );
+
+  // Ranked: masks are the format, so this is purely "which mask". Custom:
+  // you also choose whether to show your face at all.
+  // No mask picker here (his call, 2026-09-13): you pick your mask in the
+  // lobby, and a room keeps the one you walked in with.
+  const faceControls = !lobby.ranked ? (
+    <div className="face-controls">
+      <div className="chip-row face-row">
+        <button
+          className={`cat-tab ${!masked ? 'cat-active' : ''}`}
+          aria-pressed={!masked}
+          onClick={() => socket.emit('pick:mask', false)}
+        >
+          {t('faceCamera')}
+        </button>
+        <button
+          className={`cat-tab ${masked ? 'cat-active' : ''}`}
+          aria-pressed={masked}
+          onClick={() => socket.emit('pick:mask', true)}
+        >
+          {t('faceMask')}
+        </button>
+      </div>
+    </div>
+  ) : null;
+
   const selfTile = (
     <div className={`tile-stack ${waiting ? 'tile-solo' : ''}`}>
       {waiting ? <span className="tape">{t('micCheck')}</span> : null}
@@ -139,41 +241,46 @@ export default function GreenRoom({
       />
       {localStream ? <MicMeter level={localLevel} label={t('yourMic')} warn={micSilent} /> : null}
       {localStream && micSilent ? <p className="meter-hint">{t('micHint')}</p> : null}
-
-      {/* Ranked: masks are the format, so this is purely "which mask". Custom:
-          you also choose whether to show your face at all. */}
-      <div className="face-controls">
-        {!lobby.ranked ? (
-          <div className="chip-row face-row">
-            <button
-              className={`cat-tab ${!masked ? 'cat-active' : ''}`}
-              onClick={() => socket.emit('pick:mask', false)}
-            >
-              {t('faceCamera')}
-            </button>
-            <button
-              className={`cat-tab ${masked ? 'cat-active' : ''}`}
-              onClick={() => socket.emit('pick:mask', true)}
-            >
-              {t('faceMask')}
-            </button>
-          </div>
-        ) : null}
-        {/* No mask picker here (his call, 2026-09-13): you pick your mask in
-            the lobby, and a room keeps the one you walked in with. */}
-      </div>
     </div>
+  );
+
+  // Above the panel, not under it: the panel's button is pinned to the
+  // bottom of the screen, and a warning under it would never be seen.
+  const banners = (
+    <>
+      {mediaError ? (
+        <div className="banner banner-error" role="alert">
+          {t(mediaError)}{' '}
+          <button className="btn btn-small" onClick={onRetryMedia}>
+            {t('retry')}
+          </button>
+        </div>
+      ) : null}
+
+      {!waiting && rtcState === 'failed' ? (
+        <div className="banner banner-error" role="alert">
+          {t('netFail')}
+        </div>
+      ) : null}
+
+      {!speechSupported && !lobby.sttAvailable ? (
+        <div className="banner banner-warn" role="alert">
+          {t('noSpeech')}
+        </div>
+      ) : null}
+    </>
   );
 
   return (
     <div className="stage green-room">
-      <header className="topbar">
+      <header className="topbar scr-bar">
+        <Brand />
+        <span className="scr-where">{t('greenRoom')}</span>
         {/* There was no way out of this screen except a page refresh, which
             the unload warning then argued with. */}
-        <button className="btn btn-small" onClick={() => socket.emit('lobby:leave')}>
+        <button className="scr-btn" onClick={() => socket.emit('lobby:leave')}>
           {t('leaveRoom')}
         </button>
-        <span className="pill">{t('greenRoom')}</span>
       </header>
 
       {notice ? <div className="banner">{t(notice.key, { x: notice.x ?? '' })}</div> : null}
@@ -181,7 +288,8 @@ export default function GreenRoom({
       {waiting ? (
         <>
           {/* The code again, in case they got here without copying it from
-              the lobby, and the link for the ones who will not type. */}
+              the lobby, and the link for the ones who will not type. The
+              only way to be alone in here is for the friend to have left. */}
           <div className="invite-block">
             <div className="ticket">
               <div className="ticket-main">
@@ -193,8 +301,11 @@ export default function GreenRoom({
             <button className="btn" onClick={copyLink}>
               {copied ? t('copied') : t('copyInvite')}
             </button>
+            <p className="gr-wait-line">{t('waitingForFriend')}</p>
           </div>
           {selfTile}
+          {faceControls}
+          {banners}
         </>
       ) : (
         <>
@@ -215,6 +326,8 @@ export default function GreenRoom({
               ) : null}
             </div>
           </div>
+          {faceControls}
+          {banners}
 
           <div className="picker card">
             {/* Settle-it arrivals should never face three debate-topic tabs
@@ -222,11 +335,9 @@ export default function GreenRoom({
                 one tape header, with a single quiet exit for the host. */}
             {lobby.ranked ? (
               // Ranked: strangers on fixed terms. Nothing to pick, nothing to
-              // negotiate, just consent and confirm.
-              <div className="mode-row mode-row-dispute">
-                <span className="tape">{t('rankedTape')}</span>
-                <span className="mode-hint">{t('rankedNote')}</span>
-              </div>
+              // negotiate, just consent and confirm. The pace is read off the
+              // room, not promised by a sentence.
+              <p className="gr-sum-line">{t('grRankedLine', { p: pace })}</p>
             ) : mode === 'dispute' ? (
               <div className="mode-row mode-row-dispute">
                 <span className="tape">{t('disputeHeader')}</span>
@@ -237,30 +348,99 @@ export default function GreenRoom({
                 ) : null}
               </div>
             ) : isHost ? (
-              // The same panel the host had on the stage, so nothing has to
-              // be set twice and the friend arriving changes nothing about
-              // what the host is looking at.
-              <MatchSetup deck={deck} value={setupOf(lobby)} onChange={(next) => emitSetup(setupOf(lobby), next)} />
+              // One line of what is set, and a labelled button that opens the
+              // same panel the host had on the stage, so nothing has to be set
+              // twice and the friend arriving changes nothing about it.
+              <div className="gr-setup">
+                <div className="gr-sum">
+                  <p className="gr-sum-line">{summary}</p>
+                  <button
+                    className="btn btn-small gr-change"
+                    aria-expanded={editing}
+                    onClick={() => setEditing((v) => !v)}
+                  >
+                    {editing ? t('grDone') : t('grChange')}
+                  </button>
+                </div>
+                {editing ? (
+                  <div className="gr-edit">
+                    <MatchSetup
+                      deck={deck}
+                      value={setupOf(lobby)}
+                      onChange={(next) => emitSetup(setupOf(lobby), next)}
+                    />
+
+                    {/* Pace sits with the other "how we play" facts,
+                        host-only like every other lobby setting. */}
+                    <div className="setup-row pace-row">
+                      <span className="setup-label">{t('paceLabel')}</span>
+                      <div className="chip-row">
+                        {(['standard', 'blitz', 'long'] as const).map((pc) => (
+                          <button
+                            key={pc}
+                            className={`cat-tab ${lobby.pace === pc ? 'cat-active' : ''}`}
+                            aria-pressed={lobby.pace === pc}
+                            onClick={() => socket.emit('pick:pace', pc)}
+                          >
+                            {t(`pace_${pc}`)}
+                          </button>
+                        ))}
+                      </div>
+                      <span className="pace-hint">{t(`paceHint_${lobby.pace}`)}</span>
+                    </div>
+
+                    {/* Who may watch. Host-only, custom-only: ranked is the
+                        public sport and is always spectatable (said so in the
+                        consent line). */}
+                    <div className="setup-row">
+                      <span className="setup-label">{t('watchersLabel')}</span>
+                      <div className="chip-row">
+                        <button
+                          className={`cat-tab ${lobby.spectatorsAllowed ? 'cat-active' : ''}`}
+                          aria-pressed={lobby.spectatorsAllowed}
+                          onClick={() => socket.emit('pick:spectators', true)}
+                        >
+                          {t('watchersOpen')}
+                        </button>
+                        <button
+                          className={`cat-tab ${!lobby.spectatorsAllowed ? 'cat-active' : ''}`}
+                          aria-pressed={!lobby.spectatorsAllowed}
+                          onClick={() => socket.emit('pick:spectators', false)}
+                        >
+                          {t('watchersShut')}
+                        </button>
+                      </div>
+                      <span className="pace-hint">
+                        {t(lobby.spectatorsAllowed ? 'watchersOpenHint' : 'watchersShutHint')}
+                      </span>
+                    </div>
+                  </div>
+                ) : null}
+              </div>
             ) : null}
 
-            {/* Guests see the host's choices as facts, in plain words, not as
-                rows of greyed buttons pretending to be options. */}
+            {/* Guests see the host's choices as facts, in plain sentences,
+                not as rows of greyed buttons pretending to be options. */}
             {!isHost && !lobby.ranked ? (
               <div className="host-choices">
                 {mode !== 'dispute' ? (
                   <>
-                    <span className="tape tape-static">{described.topic}</span>
-                    <span className="tape tape-static">{described.side}</span>
+                    <p className="gr-fact">
+                      <span>{t('grTopic')}:</span> {factTopic}
+                    </p>
+                    <p className="gr-fact">
+                      <span>{t('grSides')}:</span> {factSides}
+                    </p>
                   </>
                 ) : null}
-                <span className="tape tape-static">
-                  {t('paceLabel')}: {t(`pace_${lobby.pace}`)}
-                </span>
+                <p className="gr-fact">
+                  <span>{t('paceLabel')}:</span> {pace}
+                </p>
                 <p className="mode-hint">{t('modeHostControls', { x: peer })}</p>
               </div>
             ) : null}
 
-            {mode === 'agree' || mode === 'category' ? null : mode === 'dispute' ? (
+            {mode === 'dispute' ? (
               <>
                 {/* You describe the argument in your own words and never see
                     theirs first: reading their version would turn an honest
@@ -298,88 +478,24 @@ export default function GreenRoom({
                   </div>
                 ) : null}
               </>
-            ) : isHost ? (
-              <p className="mode-desc">{t('randomDesc')}</p>
             ) : null}
 
-            {/* Settle-it entry PARKED (see PRD): the dispute flow below this
-                point still works, it just has no doors. The server also gates
+            {/* Settle-it entry PARKED (see PRD): the dispute flow above still
+                works, it just has no doors. The server also gates
                 pick:mode('dispute') behind DISPUTE_MODE=on. */}
 
-            {/* Pace sits with the other "how we play" facts, just above the
-                point of commitment, host-only like every other lobby setting.
-                Ranked is fixed-format: no knobs for either stranger. */}
-            {isHost && !lobby.ranked ? (
-              <div className="setup-row pace-row">
-                <span className="setup-label">{t('paceLabel')}</span>
-                <div className="chip-row">
-                  {(['standard', 'blitz', 'long'] as const).map((pc) => (
-                    <button
-                      key={pc}
-                      className={`cat-tab ${lobby.pace === pc ? 'cat-active' : ''}`}
-                      onClick={() => socket.emit('pick:pace', pc)}
-                    >
-                      {t(`pace_${pc}`)}
-                    </button>
-                  ))}
-                </div>
-                <span className="pace-hint">{t(`paceHint_${lobby.pace}`)}</span>
-              </div>
-            ) : null}
-
-            {/* Who may watch. Host-only, custom-only: ranked is the public
-                sport and is always spectatable (said so in the consent line). */}
-            {isHost && !lobby.ranked ? (
-              <div className="setup-row">
-                <span className="setup-label">{t('watchersLabel')}</span>
-                <div className="chip-row">
-                  <button
-                    className={`cat-tab ${lobby.spectatorsAllowed ? 'cat-active' : ''}`}
-                    onClick={() => socket.emit('pick:spectators', true)}
-                  >
-                    {t('watchersOpen')}
-                  </button>
-                  <button
-                    className={`cat-tab ${!lobby.spectatorsAllowed ? 'cat-active' : ''}`}
-                    onClick={() => socket.emit('pick:spectators', false)}
-                  >
-                    {t('watchersShut')}
-                  </button>
-                </div>
-                <span className="pace-hint">
-                  {t(lobby.spectatorsAllowed ? 'watchersOpenHint' : 'watchersShutHint')}
-                </span>
-              </div>
-            ) : null}
-
             {/* The notice stays, the tick box does not (his call, 2026-09-13:
-                it blocked the start). What the judge reads and what is kept
-                is still said, right above the button. */}
-            <p className="consent-row">{t(lobby.ranked ? 'consentRanked' : 'consent')}</p>
-
-            <button className="btn btn-primary btn-wide" disabled={!canConfirm} onClick={confirm}>
-              {confirmLabel}
-            </button>
+                it blocked the start). It rides with the button, pinned to
+                the bottom of the panel, so the start is never below the fold. */}
+            <div className="gr-go">
+              {consentLine}
+              <button className="btn btn-primary btn-wide" disabled={!canConfirm} onClick={confirm}>
+                {confirmLabel}
+              </button>
+            </div>
           </div>
         </>
       )}
-
-      {mediaError ? (
-        <div className="banner banner-error">
-          {t(mediaError)}{' '}
-          <button className="btn btn-small" onClick={onRetryMedia}>
-            {t('retry')}
-          </button>
-        </div>
-      ) : null}
-
-      {!waiting && rtcState === 'failed' ? (
-        <div className="banner banner-error">{t('netFail')}</div>
-      ) : null}
-
-      {!speechSupported && !lobby.sttAvailable ? (
-        <div className="banner banner-warn">{t('noSpeech')}</div>
-      ) : null}
     </div>
   );
 }

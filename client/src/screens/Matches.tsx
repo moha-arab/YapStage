@@ -1,11 +1,13 @@
-// Your record. Every debate you've played, filterable, and every row OPENS —
-// the full verdict with scores, quotes, feedback, and the YapMaster still
-// available to argue with days later. This is the screen the old home page's
-// "your corner" box was pretending to be.
-import { useEffect, useState } from 'react';
-import type { CategoryScores, Side, Verdict as VerdictData } from '../../../server/src/protocol';
+// Your record. Every debate you've played, filterable, and every row opens:
+// the judge's reason, the scorecard and your two notes in the same blocks the
+// results screen draws (VerdictBlocks.tsx), and the YapMaster still there to
+// argue with days later. Transcripts are no longer kept, so there are none to
+// show: the API sends an empty list and this screen never asks for it.
+import { useEffect, useState, type CSSProperties } from 'react';
+import type { Side, Verdict as VerdictData } from '../../../server/src/protocol';
 import { useI18n } from '../i18n';
 import Brand from '../Brand';
+import { JudgeNotes, ScoreBars, capFirst } from '../VerdictBlocks';
 
 export interface MatchRow {
   id: number;
@@ -21,24 +23,33 @@ export interface MatchRow {
 
 interface FullMatch extends MatchRow {
   verdict: VerdictData;
-  transcript: { side: Side; stepIndex: number; text: string }[];
 }
 
 type Filter = 'all' | 'ranked' | 'custom' | 'bots';
 const FILTERS: Filter[] = ['all', 'ranked', 'custom', 'bots'];
 
-const CATS: { key: keyof CategoryScores; labelKey: string; max: number }[] = [
-  { key: 'argument', labelKey: 'catArgument', max: 30 },
-  { key: 'evidence', labelKey: 'catEvidence', max: 20 },
-  { key: 'clash', labelKey: 'catClash', max: 30 },
-  { key: 'delivery', labelKey: 'catDelivery', max: 20 },
-];
+type T = (key: string, vars?: Record<string, string | number>) => string;
+
+/** "3d ago", in the same words as the rest of the app (HomeFeed.tsx). */
+function ago(iso: string, t: T): string {
+  const ms = Date.now() - new Date(iso).getTime();
+  if (!Number.isFinite(ms)) return '';
+  const mins = Math.max(0, Math.round(ms / 60000));
+  if (mins < 1) return t('agoNow');
+  if (mins < 60) return t('agoMin', { n: mins });
+  const hrs = Math.round(mins / 60);
+  if (hrs < 24) return t('agoHour', { n: hrs });
+  return t('agoDay', { n: Math.round(hrs / 24) });
+}
 
 interface Props {
   onBack: () => void;
+  /** The empty record's one button. Without it the button goes back to the
+      lobby, where the bots are one tap away. */
+  onPlayBot?: () => void;
 }
 
-export default function Matches({ onBack }: Props) {
+export default function Matches({ onBack, onPlayBot }: Props) {
   const { t } = useI18n();
   const [filter, setFilter] = useState<Filter>('all');
   const [rows, setRows] = useState<MatchRow[] | null>(null);
@@ -59,12 +70,11 @@ export default function Matches({ onBack }: Props) {
 
   return (
     <div className="stage matches">
-      <header className="topbar">
-        <button className="btn btn-small" onClick={onBack}>
+      <header className="topbar scr-bar">
+        <Brand />
+        <button className="scr-btn" onClick={onBack}>
           {t('back')}
         </button>
-        <Brand />
-        <span className="pill">{t('matchesPill')}</span>
       </header>
 
       <h1 className="display page-title">{t('matchesTitle')}</h1>
@@ -72,11 +82,12 @@ export default function Matches({ onBack }: Props) {
         <p className="page-sub">{t('matchesRecord', { w: wins, l: rows.length - wins })}</p>
       ) : null}
 
-      <div className="chip-row filter-row">
+      <div className="mh-filters">
         {FILTERS.map((f) => (
           <button
             key={f}
-            className={`cat-tab ${filter === f ? 'cat-active' : ''}`}
+            className={`mh-chip ${filter === f ? 'mh-on' : ''}`}
+            aria-pressed={filter === f}
             onClick={() => setFilter(f)}
           >
             {t(`filter_${f}`)}
@@ -85,9 +96,27 @@ export default function Matches({ onBack }: Props) {
       </div>
 
       {rows === null ? (
-        <p className="page-sub">{t('loading')}</p>
+        // The shape of the list, not the word "Loading": the rows land where
+        // the eye is already looking.
+        <div className="match-list" role="status">
+          <span className="sr-only">{t('loading')}</span>
+          {[0, 1, 2].map((i) => (
+            <div key={i} className="match-row mh-skel" aria-hidden="true">
+              <span className="mh-skel-mark" />
+              <span className="match-main">
+                <span className="mh-skel-line" />
+                <span className="mh-skel-line mh-skel-short" />
+              </span>
+            </div>
+          ))}
+        </div>
       ) : rows.length === 0 ? (
-        <p className="page-sub empty-note">{t('matchesEmpty')}</p>
+        <div className="mh-empty">
+          <p className="page-sub">{t('matchesEmpty')}</p>
+          <button className="btn btn-primary" onClick={onPlayBot ?? onBack}>
+            {t('matchesPlayBot')}
+          </button>
+        </div>
       ) : (
         <div className="match-list">
           {rows.map((r) => (
@@ -100,20 +129,17 @@ export default function Matches({ onBack }: Props) {
                   .then((d) => d.match && setOpen({ ...r, ...d.match }));
               }}
             >
-              <span className={`match-mark ${r.won ? 'bout-w' : 'bout-l'}`}>
-                {r.won ? 'W' : 'L'}
-              </span>
+              <span className={`match-mark ${r.won ? 'bout-w' : 'bout-l'}`}>{r.won ? 'W' : 'L'}</span>
               <span className="match-main">
-                <span className="match-topic">{r.topic}</span>
+                <span className="match-topic">{capFirst(r.topic)}</span>
                 <span className="match-meta">
-                  {t(`filter_${r.mode}`)} · {t('vsName', { x: r.opponent })}
+                  {t(`filter_${r.mode}`)} · {t('vsName', { x: r.opponent })} · {ago(r.at, t)}
                 </span>
               </span>
-              <span className="match-score">
+              <span className="match-score num">
                 {r.my_total}
                 <em>–{r.their_total}</em>
               </span>
-              <span className="match-date">{new Date(r.at).toLocaleDateString('en-US')}</span>
             </button>
           ))}
         </div>
@@ -122,13 +148,14 @@ export default function Matches({ onBack }: Props) {
   );
 }
 
-/** One finished debate, re-opened: the scoreboard, what the judge said, and a
+/** One finished debate, re-opened: what the judge said, the scorecard, and a
     live line back to the YapMaster about it. */
 function MatchDetail({ match, onBack }: { match: FullMatch; onBack: () => void }) {
   const { t } = useI18n();
   const v = match.verdict;
   const mySide = match.my_side;
   const theirSide: Side = mySide === 'FOR' ? 'AGAINST' : 'FOR';
+  const gel = { '--gel': mySide === 'FOR' ? 'var(--amber)' : 'var(--turq)' } as CSSProperties;
   const [log, setLog] = useState<{ role: 'you' | 'coach'; text: string }[]>([]);
   const [input, setInput] = useState('');
   const [thinking, setThinking] = useState(false);
@@ -159,75 +186,38 @@ function MatchDetail({ match, onBack }: { match: FullMatch; onBack: () => void }
   }
 
   return (
-    <div className="stage matches">
-      <header className="topbar">
-        <button className="btn btn-small" onClick={onBack}>
+    <div className="stage matches mh-detail" style={gel}>
+      <header className="topbar scr-bar">
+        <Brand />
+        <button className="scr-btn" onClick={onBack}>
           {t('back')}
         </button>
-        <Brand />
-        <span className="pill">{t(`filter_${match.mode}`)}</span>
       </header>
 
-      <p className="kicker">{match.topic}</p>
-      <h1 className={`display page-title ${match.won ? 'won' : 'lost'}`}>
-        {match.won ? t('youWon') : t('youLost')}
-      </h1>
+      <p className="kicker mh-topic">{match.topic}</p>
+      <h1 className={`display vd-word ${match.won ? 'won' : ''}`}>{match.won ? t('youWon') : t('youLost')}</h1>
       <p className="page-sub">
-        {t('vsName', { x: match.opponent })} · {match.my_total}–{match.their_total}
+        {t('vsName', { x: match.opponent })} · <span className="num">{match.my_total}–{match.their_total}</span> ·{' '}
+        {t(`filter_${match.mode}`)} · {ago(match.at, t)}
       </p>
 
-      <div className="card detail-card">
-        <p className="summary">{v.summary}</p>
-
-        <div className="scoreboard">
-          <div className="score-head">
-            <span className="fighter for">
-              {match.my_side === 'FOR' ? 'you' : match.opponent} · {v.scores.FOR.argument + v.scores.FOR.evidence + v.scores.FOR.clash + v.scores.FOR.delivery}
-            </span>
-            <span className="vs">/100</span>
-            <span className="fighter against">
-              {match.my_side === 'AGAINST' ? 'you' : match.opponent} · {v.scores.AGAINST.argument + v.scores.AGAINST.evidence + v.scores.AGAINST.clash + v.scores.AGAINST.delivery}
-            </span>
-          </div>
-          {CATS.map((c) => (
-            <div className="score-row" key={c.key}>
-              <span className="score-num">{v.scores.FOR[c.key]}</span>
-              <div className="score-bars">
-                <div className="score-bar left">
-                  <div
-                    className="score-fill fill-for"
-                    style={{ width: `${(v.scores.FOR[c.key] / c.max) * 100}%` }}
-                  />
-                </div>
-                <span className="score-label">
-                  {t(c.labelKey)} <em>/{c.max}</em>
-                </span>
-                <div className="score-bar">
-                  <div
-                    className="score-fill fill-against"
-                    style={{ width: `${(v.scores.AGAINST[c.key] / c.max) * 100}%` }}
-                  />
-                </div>
-              </div>
-              <span className="score-num">{v.scores.AGAINST[c.key]}</span>
-            </div>
-          ))}
-        </div>
-
-        {v.feedback[mySide]?.length ? (
-          <div className="detail-feedback">
-            <span className="tape">{t('yourNotes')}</span>
-            <ul>
-              {v.feedback[mySide].map((f, i) => (
-                <li key={i}>{f}</li>
-              ))}
-            </ul>
+      <div className="mh-why">
+        {v.summary ? (
+          <div className="vd-reason">
+            <span className="vd-label">{t('vdJudge')}</span>
+            <p>{capFirst(v.summary)}</p>
           </div>
         ) : null}
-
+        <ScoreBars
+          scores={v.scores}
+          order={[mySide, theirSide]}
+          nameOf={(s) => (s === mySide ? t('you') : match.opponent)}
+        />
+        <JudgeNotes notes={v.feedback[mySide] ?? []} />
         {v.bestQuote[mySide] ? (
-          <blockquote className={`quote ${mySide === 'FOR' ? 'for' : 'against'}`}>
-            “{v.bestQuote[mySide]}”
+          <blockquote className="vd-quote">
+            <span className="vd-label">{t('vdBestLine')}</span>
+            <p>&ldquo;{v.bestQuote[mySide]}&rdquo;</p>
           </blockquote>
         ) : null}
       </div>
@@ -235,30 +225,27 @@ function MatchDetail({ match, onBack }: { match: FullMatch; onBack: () => void }
       <div className="card coach-card">
         <h3 className="coach-title">{t('coachTitle')}</h3>
         <p className="coach-note">{t('coachNoteLater')}</p>
-        {log.length > 0 || thinking ? (
-          <div className="coach-log">
-            {log.map((m, i) => (
-              <p key={i} className={`coach-msg ${m.role}`}>
-                {m.text}
-              </p>
-            ))}
-            {thinking ? <p className="coach-msg coach thinking">{t('coachThinking')}</p> : null}
-          </div>
-        ) : null}
+        <div className="coach-log" aria-live="polite">
+          {log.map((m, i) => (
+            <p key={i} className={`coach-msg ${m.role}`}>
+              {m.text}
+            </p>
+          ))}
+          {thinking ? <p className="coach-msg coach thinking">{t('coachThinking')}</p> : null}
+        </div>
         <div className="coach-presets">
-          {[match.won ? 'coachHowWon' : 'coachWhyLost', 'coachImprove', 'coachChallenge'].map(
-            (k) => (
-              <button key={k} className="btn btn-small" disabled={thinking} onClick={() => void ask(t(k))}>
-                {t(k)}
-              </button>
-            ),
-          )}
+          {[match.won ? 'coachHowWon' : 'coachWhyLost', 'coachImprove', 'coachChallenge'].map((k) => (
+            <button key={k} className="btn btn-small" disabled={thinking} onClick={() => void ask(t(k))}>
+              {t(k)}
+            </button>
+          ))}
         </div>
         <div className="coach-input-row">
           <input
             className="input"
             value={input}
             placeholder={t('coachPlaceholder')}
+            aria-label={t('coachPlaceholder')}
             maxLength={300}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => {

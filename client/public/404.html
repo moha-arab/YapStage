@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="robots" content="noindex" />
+    <meta name="theme-color" content="#16172B" />
+    <meta name="color-scheme" content="dark" />
+    <title>Nothing on this stage · YapStage</title>
+    <link rel="icon" href="/favicon.ico" sizes="32x32" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <style>
+      /* Served for any path the app does not have. Self-contained on purpose:
+         no webfonts, no bundle, so it still renders if the build is broken. */
+      * { box-sizing: border-box; }
+      html, body { margin: 0; min-height: 100%; }
+      body {
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        padding: 32px 20px;
+        background: #16172b;
+        color: #efe8d8;
+        font: 16px/1.55 system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+        text-align: center;
+      }
+      main { max-width: 420px; }
+      h1 { font-size: 28px; line-height: 1.2; margin: 18px 0 8px; text-wrap: balance; }
+      p { margin: 0 0 28px; color: #9a97b0; }
+      a {
+        display: inline-block;
+        padding: 14px 28px;
+        border-radius: 4px;
+        background: #f0821e;
+        color: #241203;
+        font-weight: 700;
+        text-decoration: none;
+      }
+      a:hover { background: #ff8f28; }
+      a:focus-visible { outline: 3px solid #efe8d8; outline-offset: 3px; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <svg viewBox="0 0 64 64" width="56" height="56" aria-hidden="true">
+        <path d="M8 14 h20 v20 q0 12 -14 16 v-8 q7 -3 7 -8 h-13 z" fill="#F0821E" />
+        <path d="M56 50 h-20 v-20 q0 -12 14 -16 v8 q-7 3 -7 8 h13 z" fill="#1FC2D4" />
+      </svg>
+      <h1>Nothing on this stage.</h1>
+      <p>That link is old, or a letter went missing on the way here.</p>
+      <a href="/">Go to the lobby</a>
+    </main>
+  </body>
+</html>

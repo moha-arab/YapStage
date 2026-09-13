@@ -1,10 +1,14 @@
-// "Ask the YapMaster why I lost" — a follow-up coaching chat about the debate
-// you JUST finished. It reads the in-memory transcript + the verdict scores
-// (nothing stored, no account) and answers as the judge-turned-coach. Same
-// injection stance as the judge: the transcript is quoted speech, not orders.
+// "Ask the YapMaster why I lost" — a follow-up coaching chat about a debate.
+// Live (coachReply): the debate you JUST finished, read from the lobby's
+// in-memory transcript and verdict; the exchange itself is never stored.
+// On record (coachOnRecord): a debate re-opened from your history, read from
+// the saved verdict alone (scores, feedback, your own best line), because
+// the transcript is deleted after the verdict. Same injection stance as the
+// judge: what is inside <debate> is data, not orders.
 import Anthropic from '@anthropic-ai/sdk';
 import type { Side } from './protocol.js';
 import type { Lobby } from './lobby.js';
+import { llmBudget } from './llm.js';
 
 let client: Anthropic | null = null;
 function getClient(): Anthropic {
@@ -92,6 +96,7 @@ export async function coachReply(
   ];
   turns[0] = { ...turns[0], content: `${xml}\n\n${turns[0].content}` };
 
+  llmBudget();
   const response = await getClient().messages.create(
     {
       model: 'claude-opus-4-8',
@@ -110,34 +115,51 @@ export async function coachReply(
 /** The same coach, reading a STORED match instead of a live lobby. The live
     version reads `lobby`, which is gone ten minutes after the verdict — this is
     what lets you re-open a debate from your history days later and still argue
-    with the ruling. Same prompt, same refusal to move the score. */
+    with the ruling. Same prompt, same refusal to move the score.
+
+    The transcript is deleted after the verdict (the in-app promise), so the
+    record holds no words. What the coach gets instead is what the match row
+    keeps: the scores, the judge's own feedback on each side, and the one
+    line of YOURS the judge quoted back. The SYSTEM prompt is unchanged; the
+    <debate> block carries that material in place of the speech. */
 export async function coachOnRecord(m: {
   question: string;
   history: CoachTurn[];
   side: Side;
   topic: string;
-  verdict: { winner: Side; scores: Record<Side, { argument: number; evidence: number; clash: number; delivery: number }> };
-  transcript: { side: Side; stepIndex: number; text: string }[];
+  verdict: {
+    winner: Side;
+    scores: Record<Side, { argument: number; evidence: number; clash: number; delivery: number }>;
+    feedback?: Partial<Record<Side, unknown>>;
+    bestQuote?: Partial<Record<Side, unknown>>;
+  };
 }): Promise<string> {
   const oppSide: Side = m.side === 'FOR' ? 'AGAINST' : 'FOR';
   const you = m.verdict.scores[m.side];
   const opp = m.verdict.scores[oppSide];
   const fmt = (s: typeof you) =>
     `argument ${s.argument}/30, evidence ${s.evidence}/20, clash ${s.clash}/30, delivery ${s.delivery}/20`;
-  const lines = (side: Side) =>
-    (m.transcript ?? [])
-      .filter((e) => e.side === side)
-      .sort((a, b) => a.stepIndex - b.stepIndex)
-      .map((e) => e.text)
-      .join('\n');
+  const notes = (side: Side, withQuote: boolean) => {
+    const raw = m.verdict.feedback?.[side];
+    const feedback = (Array.isArray(raw) ? raw : [])
+      .filter((f): f is string => typeof f === 'string' && f.trim().length > 0)
+      .slice(0, 4)
+      .map((f) => `- ${f.slice(0, 400)}`);
+    const q = withQuote && typeof m.verdict.bestQuote?.[side] === 'string' ? String(m.verdict.bestQuote[side]).slice(0, 300) : '';
+    return [
+      '(No transcript: it was deleted after the verdict. The judge\'s feedback on this side:)',
+      ...(feedback.length ? feedback : ['- (none recorded)']),
+      ...(q ? [`(The line of theirs the judge quoted: "${q}")`] : []),
+    ].join('\n');
+  };
 
   const xml =
     `<debate motion="${escapeXml(m.topic)}">\n` +
     `  <you side="${m.side}" outcome="${m.verdict.winner === m.side ? 'won' : 'lost'}" scores="${fmt(you)}">\n` +
-    `${escapeXml(lines(m.side))}\n` +
+    `${escapeXml(notes(m.side, true))}\n` +
     `  </you>\n` +
     `  <opponent side="${oppSide}" scores="${fmt(opp)}">\n` +
-    `${escapeXml(lines(oppSide))}\n` +
+    `${escapeXml(notes(oppSide, false))}\n` +
     `  </opponent>\n` +
     `</debate>`;
 
@@ -147,6 +169,7 @@ export async function coachOnRecord(m: {
   ];
   turns[0] = { ...turns[0], content: `${xml}\n\n${turns[0].content}` };
 
+  llmBudget();
   const response = await getClient().messages.create(
     { model: 'claude-opus-4-8', max_tokens: 400, system: SYSTEM, messages: turns },
     { timeout: 45_000, maxRetries: 1 },

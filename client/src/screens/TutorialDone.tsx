@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useI18n } from '../i18n';
 import { playBotTurn, stopBotVoice } from '../botvoice';
 import BotAvatar from '../BotAvatar';
+import { capFirst } from '../VerdictBlocks';
 
 export interface DebriefInfo {
   praise: string;
@@ -40,22 +41,24 @@ export default function TutorialDone({ debrief, onTrain, onHome, unlocked }: Pro
 
   return (
     <div className="stage center-col tutorial-done">
-      <BotAvatar botId="tutor" color="gold" size={120} />
+      <div className="bare-fig">
+        <BotAvatar botId="tutor" color="gold" size={120} bare />
+      </div>
       <p className="kicker">{t('debriefKicker')}</p>
       <h1 className="display">{t('debriefTitle')}</h1>
 
       <div className="card tutorial-notes">
         <div className="note-block">
           <span className="tape">{t('debriefPraise')}</span>
-          <p className="note-text">{debrief.praise}</p>
+          <p className="note-text">{capFirst(debrief.praise)}</p>
         </div>
         <div className="note-block">
           <span className="tape">{t('debriefFix')}</span>
-          <p className="note-text">{debrief.fix}</p>
+          <p className="note-text">{capFirst(debrief.fix)}</p>
         </div>
         <div className="note-block">
           <span className="tape tape-gold">{t('debriefNext')}</span>
-          <p className="note-text">{debrief.next}</p>
+          <p className="note-text">{capFirst(debrief.next)}</p>
         </div>
       </div>
 

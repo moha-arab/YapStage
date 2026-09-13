@@ -73,6 +73,12 @@
   color: var(--gold);
 }
 
+/* Focus is moved here when the result lands, for screen readers. A heading
+   is not a control, so it wears no ring. */
+.vd-word:focus {
+  outline: none;
+}
+
 /* "{name} wins": a sentence, not a verdict on you, so it sits smaller. */
 .vd-word.neutral {
   font-size: clamp(30px, 4.6vw, 54px);
@@ -375,6 +381,19 @@
   color: var(--muted);
 }
 
+/* "goat wants a rematch.": the news, set over the button that answers it. */
+.vd-action-lead {
+  margin: 0 0 2px;
+  font-size: var(--t4);
+  font-weight: 700;
+  color: var(--paper);
+}
+
+/* Every button on this screen gives a pixel under the finger. */
+.vd .btn:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
 .vd-save {
   display: flex;
   align-items: center;
@@ -658,6 +677,13 @@
 .vd-deciding {
   font-size: clamp(28px, 4.4vw, 50px);
   margin-top: var(--s2);
+}
+
+.vd-failed {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--s3);
 }
 
 /* Indeterminate on purpose: a light moving along a track says "working" and

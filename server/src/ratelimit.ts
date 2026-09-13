@@ -22,6 +22,14 @@ export function allow(rawKey: string, limit: number, windowMs: number): boolean 
   return w.count <= limit;
 }
 
+/** Whether `rawKey` has already used up `limit` in its live window, WITHOUT
+    counting this look. For "count failures, block once there are enough":
+    check this first, and call allow() only when an attempt fails. */
+export function exhausted(rawKey: string, limit: number): boolean {
+  const w = windows.get(rawKey.slice(0, 64));
+  return Boolean(w && Date.now() < w.resetAt && w.count >= limit);
+}
+
 setInterval(() => {
   const now = Date.now();
   for (const [key, w] of windows) {

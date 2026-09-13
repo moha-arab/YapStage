@@ -153,7 +153,14 @@ export const AVATAR_IDS = [
   'fuma',
   'crux',
 ] as const;
-export type AvatarId = (typeof AVATAR_IDS)[number];
+/** The grey silhouette every signed-out seat wears (his call 2026-09-12: "when
+    a guest logs on they should be a grey silhouette to encourage them to log
+    in to get skins"). Deliberately NOT in AVATAR_IDS: nobody picks it, a
+    locker never saves it, randomAvatar never deals it. Only the server puts
+    it on a seat (index.ts seatLookOf), so a guest cannot wear anything else
+    and an account cannot be seated in it. */
+export const GUEST_AVATAR = 'guest';
+export type AvatarId = (typeof AVATAR_IDS)[number] | typeof GUEST_AVATAR;
 
 export interface LobbyUpdate {
   code: string;
@@ -192,7 +199,11 @@ export interface LobbyUpdate {
 /** Everything a spectator needs to watch a debate they are not in. */
 export interface SpectateState {
   code: string;
-  status: 'waiting' | 'greenroom' | 'in_debate' | 'judging' | 'verdict';
+  /** 'aborted' is a debate that was called off (a dropped player, an outage):
+      `abort` says why. A finished one is 'verdict' and carries `verdict`. */
+  status: 'waiting' | 'greenroom' | 'in_debate' | 'judging' | 'verdict' | 'aborted';
+  verdict?: Verdict;
+  abort?: { reason: string; vars?: Record<string, string> };
   topic?: TopicText;
   names?: Record<Side, string>;
   /** Present when one side is a bot (spectating a training bout). */
@@ -318,7 +329,15 @@ export type JoinError =
       a signed-out socket wherever Google sign-in is configured. */
   | 'signed_out'
   /** The placement match is one shot, and this player has already played it. */
-  | 'placed';
+  | 'placed'
+  /** This socket is already seated in a debate that is running (or being
+      judged), or is halfway through starting one. */
+  | 'in_progress'
+  /** Ranked needs the placement match first (store up only). */
+  | 'unplaced'
+  /** The model API is failing (llm.ts breaker): new rated, bot and
+      placement starts are refused until it recovers. */
+  | 'judge_down';
 
 export type CreateResult =
   | { ok: true; update: LobbyUpdate }
@@ -403,8 +422,10 @@ export interface ClientToServer {
     p: Record<string, never>,
     cb: (res: { ok: boolean; online: string[] }) => void,
   ) => void;
-  /** Ask for a shareable link to this verdict. The whole card is encoded in
-      the returned URL — nothing is stored server-side. */
+  /** Ask for a shareable link to this verdict. The card is stored as a row
+      (store.ts saveCard) and the link is its opaque id. It carries the
+      scores, the ruling and the SHARER's own best line, never the
+      opponent's words. */
   'share:link': (cb: (res: { url: string } | null) => void) => void;
   /** Say anything to the YapMaster about YOUR debate. It coaches when asked and
       defends its ruling when challenged; the score never moves either way. */
@@ -437,6 +458,8 @@ export interface ClientToServer {
       /** Whether this debate will move your rating, decided before it starts. */
       rated?: boolean;
       reason?: 'account' | 'cap' | 'spar' | 'quiet';
+      /** The room the bot game runs in, so a socket blip can lobby:resume it. */
+      code?: string;
     }) => void,
   ) => void;
   /** Where this player's campaign stands: the highest bot rank they may face.
@@ -451,7 +474,7 @@ export interface ClientToServer {
       student tries it. No judge at the end — a debrief instead. */
   'tutorial:start': (
     p: { sessionId: string; name: string; lang?: 'en' | 'ar'; playerId?: string },
-    cb: (res: { ok: boolean; error?: JoinError }) => void,
+    cb: (res: { ok: boolean; error?: JoinError; code?: string }) => void,
   ) => void;
 }
 
@@ -500,7 +523,14 @@ export interface ServerToClient {
   'caption': (p: { stepIndex: number; text: string }) => void;
   /** Ranked queue heartbeat: how many are waiting, your rating, and the pace
       (always standard now; kept so older waiting screens still render). */
-  'queue:update': (p: { waiting: number; rating: number; pace: Pace }) => void;
+  'queue:update': (p: {
+    waiting: number;
+    rating: number;
+    pace: Pace;
+    /** This socket's place in the line was taken over by another tab of the
+        same player: it is no longer searching. */
+    replaced?: boolean;
+  }) => void;
   /** Paired: both players land in a ranked green room together. */
   'queue:matched': (p: { update: LobbyUpdate }) => void;
   /** Snapshot for a spectator (sent on join and on debate start). Live updates
@@ -552,6 +582,10 @@ export interface SocketData {
   account?: { sub: string; playerId: string; name: string };
   /** The account's saved mask preference, applied to every seat they take. */
   locker?: { mask: string | null; maskDefault: boolean };
+  /** Set while a start handler (bot, tutorial, room, queue) is between its
+      checks and its seat, across an await: a double-tap sees it and is
+      refused instead of opening a second debate. */
+  starting?: boolean;
 }
 
 // Unicode letters (Arabic mode means Arabic names), digits, underscore.
@@ -561,6 +595,12 @@ export interface SocketData {
 // bidirectional override characters unrepresentable — those can visually
 // REVERSE a name on a scoreboard, which no amount of folding fixes.
 export const NAME_RE = /^[A-Za-z0-9_]{3,16}$/;
+
+/** The only name a signed-out seat may carry: the one the device was given
+    (client/src/guest.ts makes exactly this). A guest who could type a name
+    could type an account's, so the server refuses anything else from a
+    socket without a claimed yap name. */
+export const GUEST_NAME_RE = /^Guest\d{4}$/;
 
 // ---- claimed yap names (accounts) ----
 // A guest name only has to be typeable. A CLAIMED name is an identity other
@@ -614,7 +654,7 @@ export function nameProblem(raw: string): NameProblem {
   if (RESERVED.has(fold)) return 'reserved';
   // "Guest4821" is what a signed-out device is called (client/src/guest.ts).
   // No account may claim that pattern, so a guest and a player are never
-  // mistaken for each other. Guests' own names are checked by NAME_RE only.
+  // mistaken for each other. A guest may carry nothing else (GUEST_NAME_RE).
   if (/^guest\d*$/.test(fold)) return 'reserved';
   // "___" is not a name; require something readable in there.
   if (!/[A-Za-z0-9]{2,}/.test(name)) return 'bad_name';

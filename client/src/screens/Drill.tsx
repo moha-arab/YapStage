@@ -3,7 +3,7 @@
 // come back tomorrow. The argument gets harder through the week, Sunday to
 // Saturday; the card says "Day 3 of 7" rather than the weekday because the
 // day rolls over on UTC and an evening player would otherwise see Tuesday's
-// drill labelled Monday.
+// argument labelled Monday.
 //
 // It is deliberately the cheapest thing in the app to start: no opponent, no
 // camera, no lobby, no account. Press one button and talk. That makes it the
@@ -13,7 +13,10 @@ import { useEffect, useRef, useState } from 'react';
 import { setSpeechSink, speechSupported, startTurn, stopTurn } from '../speech';
 import { useI18n } from '../i18n';
 import { localDrillState, recordLocalDrill } from '../guest';
+import { useAudioLevel } from '../useAudioLevel';
 import Brand from '../Brand';
+import MicCheck, { type MicTone } from '../MicCheck';
+import { JudgeNotes } from '../VerdictBlocks';
 
 interface DrillInfo {
   day: string;
@@ -36,6 +39,12 @@ interface Result {
 
 type Stage = 'ready' | 'speaking' | 'scoring' | 'done';
 
+/** Below this the mic counts as silent, and this long silent with no words
+    heard turns the mic line into a warning: the match's numbers (Debate.tsx),
+    so both screens mean the same by "flat". */
+const QUIET_LEVEL = 0.04;
+const SILENT_MS = 4000;
+
 interface Props {
   onBack: () => void;
 }
@@ -50,10 +59,26 @@ export default function Drill({ onBack }: Props) {
   const [streak, setStreak] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const textRef = useRef('');
+  const headlineRef = useRef<HTMLParagraphElement>(null);
 
-  // One drill a day and nothing else on offer (the skill picker went with the
-  // other drill types, 2026-09-12): the only way to get Saturday's argument is
-  // to come back on Saturday.
+  // The meter's own ears: a plain mic stream, analysed on this page and sent
+  // nowhere. The words still go through speech recognition as before; this
+  // only drives the five bars, the same meter the match shows.
+  const [mic, setMic] = useState<MediaStream | null>(null);
+  const micRef = useRef<MediaStream | null>(null);
+  const speakingRef = useRef(false);
+  const level = useAudioLevel(mic);
+  const loudAt = useRef(0);
+
+  function releaseMic() {
+    micRef.current?.getTracks().forEach((tr) => tr.stop());
+    micRef.current = null;
+    setMic(null);
+  }
+
+  // One argument a day and nothing else on offer (the skill picker went with
+  // the other drill types, 2026-09-12): the only way to get Saturday's
+  // argument is to come back on Saturday.
   function load() {
     stopTurn();
     setSpeechSink(null);
@@ -83,6 +108,9 @@ export default function Drill({ onBack }: Props) {
     () => () => {
       stopTurn();
       setSpeechSink(null);
+      speakingRef.current = false;
+      micRef.current?.getTracks().forEach((tr) => tr.stop());
+      micRef.current = null;
     },
     [],
   );
@@ -100,6 +128,21 @@ export default function Drill({ onBack }: Props) {
     startTurn(0);
     setStage('speaking');
     setLeft(info.seconds);
+    speakingRef.current = true;
+    loudAt.current = Date.now();
+    void navigator.mediaDevices
+      ?.getUserMedia({ audio: true })
+      .then((s) => {
+        // The answer may be over before the permission prompt is.
+        if (!speakingRef.current) {
+          s.getTracks().forEach((tr) => tr.stop());
+          return;
+        }
+        micRef.current?.getTracks().forEach((tr) => tr.stop());
+        micRef.current = s;
+        setMic(s);
+      })
+      .catch(() => {});
   }
 
   useEffect(() => {
@@ -113,7 +156,14 @@ export default function Drill({ onBack }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stage, left]);
 
+  // The result's headline takes focus when it lands, so it is read out.
+  useEffect(() => {
+    if (stage === 'done') headlineRef.current?.focus();
+  }, [stage]);
+
   function finish() {
+    speakingRef.current = false;
+    releaseMic();
     stopTurn();
     setStage('scoring');
     // Chrome delivers the last final result up to a couple of seconds after
@@ -138,7 +188,8 @@ export default function Drill({ onBack }: Props) {
           }
           setResult(d.result);
           // Signed out, the device keeps the streak, on the server's day and
-          // only for the day's own drill, the same two rules recordDrill uses.
+          // only for the day's own argument, the same two rules recordDrill
+          // uses.
           if (info && !info.signedIn && d.daily && d.day) setStreak(recordLocalDrill(d.day, d.result.score).streak);
           else setStreak(d.streak ?? 0);
           setStage('done');
@@ -152,14 +203,19 @@ export default function Drill({ onBack }: Props) {
 
   const band = (n: number) => (n >= 85 ? 'great' : n >= 65 ? 'good' : n >= 45 ? 'okay' : 'rough');
 
+  // The mic line: what the judge has, in the match's words.
+  if (level > QUIET_LEVEL) loudAt.current = Date.now();
+  const quiet = stage === 'speaking' && words === 0 && Date.now() - loudAt.current >= SILENT_MS;
+  const micTone: MicTone = words > 0 ? 'heard' : quiet ? 'warn' : 'live';
+  const micText = words > 0 ? t('micHeard') : quiet ? t('dvMicSilent') : t('micLive');
+
   return (
     <div className="stage drill">
-      <header className="topbar">
-        <button className="btn btn-small" onClick={onBack}>
+      <header className="topbar scr-bar">
+        <Brand />
+        <button className="scr-btn" onClick={onBack}>
           {t('back')}
         </button>
-        <Brand />
-        <span className="pill">{t('drillPill')}</span>
       </header>
 
       <h1 className="display page-title">{t('drillTitle')}</h1>
@@ -179,41 +235,54 @@ export default function Drill({ onBack }: Props) {
 
           {stage === 'ready' ? (
             <>
-              <button className="btn btn-primary btn-wide" onClick={begin}>
+              {/* Said on arrival, not after a tap that goes nowhere. */}
+              {!speechSupported ? <p className="drill-warn">{t('drillNeedsChrome')}</p> : null}
+              <button className="btn btn-primary btn-wide" disabled={!speechSupported} onClick={begin}>
                 {info.doneToday ? t('drillAgain') : t('drillStart')}
               </button>
             </>
           ) : stage === 'speaking' ? (
             <div className="drill-live">
-              <span className={`drill-clock clock ${left <= 5 ? 'drill-clock-low' : ''}`}>
+              <span className={`drill-clock ${left <= 5 ? 'drill-clock-low' : ''}`} role="timer">
                 0:{String(left).padStart(2, '0')}
               </span>
+              <MicCheck level={level} tone={micTone} text={micText} dark />
               <span className="drill-heard">{t('drillHeard', { n: words })}</span>
               <button className="btn btn-wide" onClick={finish}>
                 {t('drillDoneBtn')}
               </button>
             </div>
           ) : stage === 'scoring' ? (
-            <p className="drill-scoring">{t('drillScoring')}</p>
+            <p className="drill-scoring" role="status">
+              {t('drillScoring')}
+            </p>
           ) : result ? (
             <div className="drill-result">
-              <span className={`drill-score elo band-${band(result.score)}`}>{result.score}</span>
-              <p className="drill-headline">{result.headline}</p>
-              <p className="drill-line">
-                <strong>{t('drillKept')}</strong> {result.kept}
+              {/* A score, not a prize: paper, with the word that says what
+                  the number means. Turquoise is AGAINST, green is live, gold
+                  is a win, and this is none of them. */}
+              <div className="drill-score-block">
+                <span className="drill-score">{result.score}</span>
+                <span className="drill-band">{t(`drillBand_${band(result.score)}`)}</span>
+              </div>
+              <p className="drill-headline" ref={headlineRef} tabIndex={-1}>
+                {result.headline}
               </p>
-              <p className="drill-line">
-                <strong>{t('drillFix')}</strong> {result.fix}
-              </p>
-              <button
-                className="btn btn-wide"
-                onClick={() => {
-                  setResult(null);
-                  setStage('ready');
-                }}
-              >
-                {t('drillRetry')}
-              </button>
+              <JudgeNotes notes={[result.kept, result.fix]} />
+              <div className="drill-actions">
+                <button className="btn btn-primary btn-wide" onClick={onBack}>
+                  {t('backHome')}
+                </button>
+                <button
+                  className="btn btn-wide"
+                  onClick={() => {
+                    setResult(null);
+                    setStage('ready');
+                  }}
+                >
+                  {t('drillRetry')}
+                </button>
+              </div>
               {!info.signedIn ? <p className="drill-note">{t('drillSignInStreak')}</p> : null}
             </div>
           ) : null}

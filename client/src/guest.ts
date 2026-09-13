@@ -1,15 +1,17 @@
 // What a guest keeps on this device. Nothing but ranked needs an account
-// (his call 2026-09-12), so the name the device was given, the mask you picked and the
-// drill streak you are on all live in localStorage until you sign in. At
-// sign-in the streak rides the claim (player.ts signIn) into the account,
-// and the rest stops mattering: an account has a yap name and a locker of
-// its own. Signing out clears all of it along with the device id, so the
-// next person on a shared laptop starts as the stranger they are.
+// (his call 2026-09-12), so the name the device was given and the drill
+// streak you are on live in localStorage until you sign in. There is no
+// character to keep: a guest wears the grey silhouette, which the server
+// puts on every signed-out seat (index.ts seatLookOf), and characters come
+// with an account. At sign-in the streak rides the claim (player.ts signIn)
+// into the account, and the rest stops mattering: an account has a yap name
+// and a locker of its own. Signing out clears all of it along with the
+// device id, so the next person on a shared laptop starts as the stranger
+// they are.
 
-import { NAME_RE } from '../../server/src/protocol';
+import { GUEST_NAME_RE } from '../../server/src/protocol';
 
 const NAME_KEY = 'yapstage.guestName';
-const MASK_KEY = 'yapstage.guestMask';
 const DRILL_KEY = 'yapstage.drill';
 
 function read(key: string): string | null {
@@ -31,22 +33,15 @@ function write(key: string, value: string | null): void {
 
 /** What a guest is called. Guests don't pick a name (his call, 2026-09-13):
     each device is given one, made once and kept, until they sign in and claim
-    their own. A name typed before this (still valid) is kept; a half-typed
-    one left behind by the old name box is replaced. */
+    their own. The server refuses any other name from a signed-out socket
+    (GUEST_NAME_RE, 2026-09-12), so a name typed into the old name box, or
+    anything else that is not exactly GuestNNNN, is replaced here. */
 export function guestName(): string {
   const saved = read(NAME_KEY);
-  if (saved && NAME_RE.test(saved)) return saved;
+  if (saved && GUEST_NAME_RE.test(saved)) return saved;
   const made = `Guest${Math.floor(1000 + Math.random() * 9000)}`;
   write(NAME_KEY, made);
   return made;
-}
-
-export function guestMask(): string | null {
-  return read(MASK_KEY);
-}
-
-export function setGuestMask(id: string): void {
-  write(MASK_KEY, id);
 }
 
 /* ---- the drill streak, mirrored from store.ts recordDrill / drillState ---- */
@@ -97,8 +92,9 @@ export function recordLocalDrill(day: string, score: number): { streak: number; 
   return { streak, best, already: false };
 }
 
-/** The streak as the sign-in URL carries it (auth.ts parseCarriedDrill):
-    `last|streak|best`, or empty when there is nothing worth carrying. */
+/** The streak as the sign-in claim carries it (player.ts signIn, then
+    auth.ts /auth/claim and parseCarriedDrill): `last|streak|best`, or empty
+    when there is nothing worth carrying. */
 export function carriedDrill(): string {
   const d = readDrill();
   if (!d || d.streak < 1) return '';
@@ -108,6 +104,5 @@ export function carriedDrill(): string {
 /** Sign-out: leave the device as a stranger would find it. */
 export function clearGuest(): void {
   write(NAME_KEY, null);
-  write(MASK_KEY, null);
   write(DRILL_KEY, null);
 }

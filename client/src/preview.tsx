@@ -25,6 +25,7 @@ import Home from './screens/Home';
 import GreenRoom from './screens/GreenRoom';
 import Drill from './screens/Drill';
 import SettingsSheet from './screens/SettingsSheet';
+import Legal from './screens/Legal';
 import type { DebateStart, LobbyUpdate, Side, Verdict as VerdictData } from '../../server/src/protocol';
 import VideoTile from './VideoTile';
 import Mask, { MASK_IDS } from './Mask';
@@ -688,6 +689,17 @@ const SCREENS: Record<string, () => JSX.Element> = {
     });
     return <Home account={{ signedIn: true, google: true, name: 'zorvint', mask: 'bally' }} {...HOME_PROPS} />;
   },
+  /* A guest where Google sign-in exists: the silhouette, the sign-in nudge
+     under it, and (step1=click=.lb-picked) the locked roster with its button. */
+  homeGuest: () => {
+    fakeFetch({
+      '/rating': { rating: 700, placed: false, placementBot: 'Clover' },
+      '/bots': BOTS_FAKE,
+      '/live': { live: 0, watchable: 0, featured: null },
+      '/drill': { drill: { id: 'd', tier: 3 }, tier: 3, streak: 0, doneToday: false },
+    });
+    return <Home account={{ signedIn: false, google: true }} {...HOME_PROPS} />;
+  },
   /* Watch mode with a real bout on: two strangers on their real sides. Open
      with step1=click=.lb-dock button:nth-child(4). */
   watchLive: () => {
@@ -812,6 +824,13 @@ const SCREENS: Record<string, () => JSX.Element> = {
     />
   ),
   matches: () => <Matches onBack={noop} />,
+  /* The record while /matches is still on its way: the skeleton rows. */
+  matchesLoading: () => {
+    const real = window.fetch.bind(window);
+    window.fetch = (input, init) =>
+      String(input).startsWith('/matches') ? new Promise<Response>(() => {}) : real(input, init);
+    return <Matches onBack={noop} />;
+  },
   tutorialDone: () => (
     <TutorialDone
       debrief={{
@@ -936,12 +955,14 @@ const SCREENS: Record<string, () => JSX.Element> = {
        debateMask      your character (AGAINST) vs a masked human
        debateCam       you on camera (FOR) vs a masked human
        debatePeerCam   your character (AGAINST) vs a human on camera
-       debateDispute   settle-it: the sides are sentences */
+       debateDispute   settle-it: the sides are sentences
+       debateGuest     you as a guest (the grey silhouette) vs a character */
   debateBot: debateScene({ me: 'mask', opp: 'bot', mySide: 'FOR' }),
   debateMask: debateScene({ me: 'mask', opp: 'mask', mySide: 'AGAINST', myMask: 'fuma', oppMask: 'marisol' }),
   debateCam: debateScene({ me: 'cam', opp: 'mask', mySide: 'FOR', oppMask: 'corvin' }),
   debatePeerCam: debateScene({ me: 'mask', opp: 'cam', mySide: 'AGAINST', myMask: 'quip' }),
   debateDispute: debateScene({ me: 'mask', opp: 'mask', mySide: 'FOR', myMask: 'garn', oppMask: 'athena', dispute: true }),
+  debateGuest: debateScene({ me: 'mask', opp: 'mask', mySide: 'FOR', myMask: 'guest', oppMask: 'marisol' }),
   /* The fight card with you on camera against a character. */
   fightCam: function FightCam() {
     const [cam] = useState(fakeCam);
@@ -1101,6 +1122,39 @@ const SCREENS: Record<string, () => JSX.Element> = {
       onLeave={noop}
     />
   ),
+  /* A room opened by code after the judge ruled: the compact result. */
+  spectateDone: () => (
+    <Spectate
+      code="ABCDEF"
+      initial={{
+        code: 'ABCDEF',
+        status: 'verdict',
+        verdict: VERDICT,
+        topic: { id: 'demo', en: 'college is no longer worth it', ar: '' },
+        names,
+        watchers: 2,
+        avatars: { FOR: 'quip', AGAINST: 'corvin' },
+      }}
+      onLeave={noop}
+      onNext={noop}
+    />
+  ),
+  /* A room opened by code after it was called off (goat dropped). */
+  spectateAborted: () => (
+    <Spectate
+      code="ABCDEF"
+      initial={{
+        code: 'ABCDEF',
+        status: 'aborted',
+        abort: { reason: 'abortWifi', vars: { x: 'goat' } },
+        topic: { id: 'demo', en: 'college is no longer worth it', ar: '' },
+        names,
+        watchers: 1,
+      }}
+      onLeave={noop}
+      onNext={noop}
+    />
+  ),
   /* Watching a training bout: a character against a bot, the bot on the mic. */
   spectateBot: () => (
     <Spectate
@@ -1150,6 +1204,9 @@ const SCREENS: Record<string, () => JSX.Element> = {
   settingsOut: () => (
     <SettingsSheet account={{ signedIn: false, google: true }} onClose={noop} onRenamed={noop} />
   ),
+  /* The legal pages, as /privacy and /terms will render them. */
+  privacy: () => <Legal page="privacy" />,
+  terms: () => <Legal page="terms" />,
 };
 
 const which = new URLSearchParams(location.search).get('s') ?? 'verdict';

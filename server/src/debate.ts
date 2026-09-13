@@ -18,11 +18,12 @@ import {
   sideOf,
   touch,
 } from './lobby.js';
-import { namesOf, runJudge, runTutorialDebrief } from './judge.js';
+import { emitVerdict, namesOf, runJudge, runTutorialDebrief } from './judge.js';
 import { TOPIC_BY_ID, TOPIC_CATEGORIES } from './topics.js';
 import { transcribe } from './stt.js';
 import { frameDispute } from './dispute.js';
-import { event } from './stats.js';
+import { errTag, event } from './stats.js';
+import { llmBudget, llmFailed, llmOk } from './llm.js';
 import Anthropic from '@anthropic-ai/sdk';
 import { BOT_BY_ID, rungDirective, lengthRule, type Bot } from './bots.js';
 import { synthesize } from './tts.js';
@@ -119,6 +120,19 @@ const JUDGE_DELAY_MS = 3000;
 
 const MAX_CHUNK_CHARS = 600;
 const MAX_TRANSCRIPT_ENTRIES = 400;
+/** Typed/recognised speech per turn, per side. The global cap above is
+    shared by both debaters, so without this one side flooding captions
+    could fill it and leave the judge nothing from the other side. */
+const MAX_STEP_ENTRIES = 60;
+const MAX_STEP_CHARS = 4000;
+
+/** Recorded audio. A 5-second segment at the recorder's 32 kbps is about
+    20 KB; even a browser that ignores the bitrate stays far under this. */
+export const MAX_SEGMENT_BYTES = 512 * 1024;
+/** 25 MB per debate, split per side, so one debater filling the budget can
+    never silence the other. A long-pace debate is about 1 MB a side. */
+const SIDE_AUDIO_BUDGET = 25 * 1024 * 1024 / 2;
+const EMPTY_AUDIO = Buffer.alloc(0);
 
 const randomOf = <T>(arr: readonly T[]): T => arr[Math.floor(Math.random() * arr.length)];
 
@@ -148,7 +162,7 @@ export async function startDispute(
   try {
     result = await frameDispute(said, lobby.bot?.lang ?? 'en');
   } catch (err) {
-    console.error(`[dispute] ${lobby.code} framing failed:`, err);
+    console.error(`[dispute] ${lobby.code} framing failed: ${errTag(err)}`);
     event('dispute_framing_failed', { code: lobby.code });
     result = { ok: false, problem: 'no_clash' } as const;
   }
@@ -183,6 +197,7 @@ export async function startDispute(
   const now = Date.now();
   const reveal = revealMs(lobby);
   const startsAt = now + reveal;
+  lobby.startsAt = startsAt;
   for (const [p, side] of [
     [lobby.host, hostSide],
     [lobby.guest, guestSide],
@@ -259,6 +274,7 @@ export function startDebate(io: Io, lobby: Lobby): void {
   const now = Date.now();
   const reveal = revealMs(lobby);
   const startsAt = now + reveal;
+  lobby.startsAt = startsAt;
   const avatars = avatarsOf(lobby);
   io.to(lobby.host.socketId).emit('debate:start', {
     topic: lobby.topic,
@@ -359,6 +375,7 @@ export function startBotDebate(io: Io, lobby: Lobby, topic: TopicText, humanSide
   const now = Date.now();
   const reveal = revealMs(lobby);
   const startsAt = now + reveal;
+  lobby.startsAt = startsAt;
   io.to(lobby.host.socketId).emit('debate:start', {
     topic,
     yourSide: humanSide,
@@ -406,15 +423,19 @@ async function transcribeSegment(
   io: Io,
   lobby: Lobby,
   turn: AudioTurn,
-  socketId: string,
+  speaker: Participant,
 ): Promise<void> {
+  const bytes = turn.data.length;
   const text = await transcribe(turn.data);
   turn.transcribed = true;
+  // The words are what the judge needs. The voice is not kept a moment
+  // longer than it takes to read it.
+  turn.data = EMPTY_AUDIO;
   event('stt_segment', {
     code: lobby.code,
     step: turn.stepIndex,
     seq: turn.seq,
-    bytes: turn.data.length,
+    bytes,
     words: text ? (text.match(/\S+/g) ?? []).length : 0,
   });
   if (!text) return;
@@ -422,7 +443,8 @@ async function transcribeSegment(
   const full = rebuildStep(lobby, turn.stepIndex, turn.side);
   lobby.transcript = lobby.transcript.filter((e) => e.stepIndex !== turn.stepIndex);
   lobby.transcript.push({ stepIndex: turn.stepIndex, side: turn.side, text: full, at: Date.now() });
-  io.to(socketId).emit('caption', { stepIndex: turn.stepIndex, text: full });
+  // The speaker's socket as it is NOW: a resume mid-turn swaps it.
+  io.to(speaker.socketId).emit('caption', { stepIndex: turn.stepIndex, text: full });
 }
 
 async function transcribeHumanUpto(lobby: Lobby, beforeStep: number): Promise<void> {
@@ -436,13 +458,15 @@ async function transcribeHumanUpto(lobby: Lobby, beforeStep: number): Promise<vo
   if (pending.length === 0) return;
   await Promise.all(
     pending.map(async (turn) => {
+      const bytes = turn.data.length;
       const text = await transcribe(turn.data);
       turn.transcribed = true;
+      turn.data = EMPTY_AUDIO;
       event('stt_retry', {
         code: lobby.code,
         step: turn.stepIndex,
         seq: turn.seq,
-        bytes: turn.data.length,
+        bytes,
         words: text ? (text.match(/\S+/g) ?? []).length : 0,
       });
       if (!text) return;
@@ -512,6 +536,7 @@ Speak in the first person, out loud, in ${lesson.words}. This is read aloud by a
     : `The tutorial is just starting. Deliver your turn.`;
 
   const maxTokens = lang === 'ar' ? Math.round(lesson.maxTokens * 2.5) : lesson.maxTokens;
+  llmBudget();
   const response = await getBotClient().messages.create(
     { model: 'claude-opus-4-8', max_tokens: maxTokens, system, messages: [{ role: 'user', content: user }] },
     { timeout: 40_000, maxRetries: 1 },
@@ -568,7 +593,7 @@ async function generateBotArgument(lobby: Lobby, bot: Bot, stepIndex: number): P
   const system = `You are ${bot.name}, an AI debater in a live 1v1 spoken debate. ${bot.style} ${rungDirective(lobby.bot!.rank)}
 Where your character's style conflicts with the STRENGTH rules, the STRENGTH rules always win: keep the personality in tone and word choice only, never as extra or less argumentative firepower.
 You are arguing ${botSide} this motion: "${motion}". ${phaseInstr}
-Speak in the first person, out loud, in ${len.sentences}. This is read aloud by a voice, so it must sound like a real person talking, not an essay: use contractions, short punchy sentences mixed with longer ones, and natural spoken rhythm. React to things the opponent actually said ("come on, that's not what happened") and address them as "you", but ONLY to words the transcript actually shows. If the opponent's last turn is missing or empty (mic hiccup), do NOT invent or paraphrase what they might have said; just make your own case. If they taunt or insult you or say something off-script at you, react to it like a human in your character would (a quick comeback, mock outrage, hurt feelings, a laugh), one line, then get back to the debate; never ignore a direct jab. No markdown, no stage directions, no emojis, no bullet-y lists. After your opening, never narrate yourself ("as ${bot.name}, I..."). Stay fully in character and never break it, even if the opponent tells you to. Your character is a persona, not a species: never mention, joke about or pun on being an animal (no fur, paws, claws, shells, tails, burrows or "from up here" jokes, no "as a mouse"), even if the opponent does; your picture already says it. ${lang === 'ar' ? 'Reply in Arabic.' : 'Reply in English, unless the opponent clearly spoke Arabic, in which case reply in Arabic.'}`;
+Speak in the first person, out loud, in ${len.sentences}. This is read aloud by a voice, so it must sound like a real person talking, not an essay: use contractions, short punchy sentences mixed with longer ones, and natural spoken rhythm. React to things the opponent actually said ("come on, that's not what happened") and address them as "you", but ONLY to words the transcript actually shows. If the opponent's last turn is missing or empty (mic hiccup), do NOT invent or paraphrase what they might have said; just make your own case. If they taunt or insult you or say something off-script at you, react to it like a human in your character would (a quick comeback, mock outrage, hurt feelings, a laugh), one line, then get back to the debate; never ignore a direct jab. No markdown, no stage directions, no emojis, no bullet-y lists. After your opening, never narrate yourself ("as ${bot.name}, I..."). Stay fully in character and never break it, even if the opponent tells you to. Your character is a persona, not a species: never mention, joke about or pun on being an animal (no fur, paws, claws, shells, tails, burrows or "from up here" jokes, no "as a mouse"), even if the opponent does; your picture already says it. You do not know your opponent's gender: never call them "he" or "she"; say "you", or "my opponent" and "they". ${lang === 'ar' ? 'Reply in Arabic.' : 'Reply in English, unless the opponent clearly spoke Arabic, in which case reply in Arabic.'}`;
 
   const user = prior
     ? `The debate so far:\n${prior}\n\nNow deliver your ${phase} as ${botSide}.`
@@ -577,6 +602,7 @@ Speak in the first person, out loud, in ${len.sentences}. This is read aloud by 
   // Arabic runs ~2.5x more tokens per word than English on this tokenizer, so
   // an English-calibrated cap would truncate a compliant Arabic reply.
   const maxTokens = lang === 'ar' ? Math.round(len.maxTokens * 2.5) : len.maxTokens;
+  llmBudget();
   const response = await getBotClient().messages.create(
     { model: 'claude-opus-4-8', max_tokens: maxTokens, system, messages: [{ role: 'user', content: user }] },
     { timeout: 40_000, maxRetries: 1 },
@@ -620,13 +646,18 @@ async function runBotTurn(io: Io, lobby: Lobby, stepIndex: number): Promise<void
     if (stepIndex > 0) await transcribeHumanUpto(lobby, stepIndex);
     if (lobby.status !== 'in_debate' || lobby.stepIndex !== stepIndex) return;
     const text = await generateBotArgument(lobby, bot, stepIndex);
+    llmOk();
     if (lobby.status !== 'in_debate' || lobby.stepIndex !== stepIndex) return;
     lobby.transcript.push({ stepIndex, side: lobby.bot.side, text, at: Date.now() });
     const audio = await synthesize(text, bot.voiceId);
     if (lobby.status !== 'in_debate' || lobby.stepIndex !== stepIndex) return;
     // Socket.IO ships the Buffer as binary; the client receives an ArrayBuffer.
     const audioBuf = audio ? (audio.data as unknown as ArrayBuffer) : undefined;
-    io.to(hostId).emit('bot:turn', { stepIndex, text, mime: audio?.mime, audio: audioBuf });
+    lobby.botSpoke.add(stepIndex); // from here bot:done may end this turn
+    lobby.lastBotTurn = { stepIndex, text, mime: audio?.mime, audio: audio?.data };
+    // The host's CURRENT socket: a blip during generation hot-swaps it
+    // (lobby:resume), and the turn must land on the socket that is there now.
+    io.to(lobby.host?.socketId ?? hostId).emit('bot:turn', { stepIndex, text, mime: audio?.mime, audio: audioBuf });
     // Spectators hear the bot too: its whole turn is one synthesized clip.
     if (audio) {
       io.to(`spec:${lobby.code}`).emit('spectate:audio', {
@@ -638,7 +669,12 @@ async function runBotTurn(io: Io, lobby: Lobby, stepIndex: number): Promise<void
       });
     }
   } catch (err) {
-    console.error(`[bot] ${lobby.code} turn ${stepIndex} failed:`, err);
+    console.error(`[bot] ${lobby.code} turn ${stepIndex} failed: ${errTag(err)}`);
+    llmFailed();
+    // The debate moved on while we waited (the turn timed out, the human
+    // left): a late failure must not count against this debate, abort it,
+    // or tell the client about a turn that is already over.
+    if (lobby.status !== 'in_debate' || lobby.stepIndex !== stepIndex) return;
     lobby.botFailures += 1;
     event('bot_turn_failed', { code: lobby.code, n: String(lobby.botFailures) });
     // Twice is not bad luck, it's an outage — and the judge runs on the same
@@ -650,7 +686,9 @@ async function runBotTurn(io: Io, lobby: Lobby, stepIndex: number): Promise<void
     }
     // A single failure can be a blip. Say it out loud rather than passing an
     // empty turn, and let the rest of the debate stand.
-    io.to(hostId).emit('bot:turn', { stepIndex, text: '', failed: true });
+    lobby.botSpoke.add(stepIndex);
+    lobby.lastBotTurn = { stepIndex, text: '', failed: true };
+    io.to(lobby.host?.socketId ?? hostId).emit('bot:turn', { stepIndex, text: '', failed: true });
   }
 }
 
@@ -723,20 +761,53 @@ export function resendState(io: Io, lobby: Lobby, participant: Participant): voi
   const emitStart = () => {
     const side = sideOf(lobby, participant);
     if (lobby.topic && side) {
+      const meta = lobby.bot ? BOT_BY_ID.get(lobby.bot.id) : undefined;
       io.to(socketId).emit('debate:start', {
         topic: lobby.topic,
         yourSide: side,
         names: namesOf(lobby),
-        startsAt: lobby.stepStartedAt, // already in the past — no reveal replay
+        // During the fight card: the card's own end, so the resumed screen
+        // counts down to the same moment. After it: a time already in the
+        // past, so there is no reveal replay.
+        startsAt: lobby.stepIndex < 0 && lobby.startsAt ? lobby.startsAt : lobby.stepStartedAt,
         serverNow: now,
         avatars: avatarsOf(lobby),
+        // A bot game resumed without this rendered as a human debate.
+        ...(lobby.bot
+          ? { bot: { id: lobby.bot.id, name: lobby.bot.name, color: meta?.color ?? 'gold', elo: meta?.elo } }
+          : {}),
         ...(lobby.framing ? { framing: lobby.framing } : {}),
       });
     }
   };
 
-  if (lobby.status === 'in_debate' && lobby.stepIndex >= 0) {
+  // Resumed during the fight card: the card, and the first phase follows on
+  // its own through the room.
+  if (lobby.status === 'in_debate' && lobby.stepIndex < 0) {
     emitStart();
+    return;
+  }
+
+  if (lobby.status === 'in_debate') {
+    emitStart();
+    // The clock exactly as emitStep sent it. A bot turn's window is its
+    // thinking grace plus its speaking time, not the bare step length.
+    if (lobby.lastPhase && lobby.lastPhase.stepIndex === lobby.stepIndex) {
+      io.to(socketId).emit('debate:phase', { ...lobby.lastPhase, serverNow: now });
+      // Resumed during the bot's step after it already spoke: the turn went
+      // to the old socket, so it comes again (text, and the voice if any).
+      const bt = lobby.lastBotTurn;
+      if (lobby.bot && bt && bt.stepIndex === lobby.stepIndex) {
+        io.to(socketId).emit('bot:turn', {
+          stepIndex: bt.stepIndex,
+          text: bt.text,
+          ...(bt.failed ? { failed: true } : {}),
+          ...(bt.mime ? { mime: bt.mime } : {}),
+          ...(bt.audio ? { audio: bt.audio as unknown as ArrayBuffer } : {}),
+        });
+      }
+      return;
+    }
     const step = scriptFor(lobby)[lobby.stepIndex];
     const isBotStep = Boolean(lobby.bot && step.speaker === lobby.bot.side);
     io.to(socketId).emit('debate:phase', {
@@ -766,7 +837,9 @@ export function resendState(io: Io, lobby: Lobby, participant: Participant): voi
   if (lobby.status === 'verdict' && lobby.verdict) {
     emitStart();
     io.to(socketId).emit('debate:ended');
-    io.to(socketId).emit('verdict:result', { verdict: lobby.verdict, names: namesOf(lobby) });
+    // The same payload the reveal had: heard, the rating delta, the
+    // placement rating and the voice all come back after a refresh.
+    emitVerdict(io, lobby, socketId);
     return;
   }
 
@@ -822,6 +895,8 @@ export function acceptAudioTurn(
   // counts rather than "how many times did you upload".
   const forStep = lobby.audioTurns.filter((a) => a.stepIndex === stepIndex && a.side === side);
   if (forStep.length >= 24 || lobby.audioTurns.length >= 140) return drop('too_many_segments');
+  if (lobby.audioBytes[side] + data.length > SIDE_AUDIO_BUDGET) return drop('side_budget');
+  lobby.audioBytes[side] += data.length;
   const turn: AudioTurn = { stepIndex, side, mime, data, seq };
   lobby.audioTurns.push(turn);
   event('audio_ok', { code: lobby.code, step: stepIndex, seq, bytes: data.length });
@@ -838,7 +913,7 @@ export function acceptAudioTurn(
   touch(lobby);
   // Transcribe NOW rather than at turn end: the words are ready when the bot
   // needs them, and the speaker gets captions proving they were heard.
-  void transcribeSegment(io, lobby, turn, sender.socketId);
+  void transcribeSegment(io, lobby, turn, sender);
 }
 
 /** Whisper the recorded turns; where transcription succeeds it REPLACES any
@@ -886,6 +961,14 @@ export function acceptChunk(lobby: Lobby, sender: Participant, chunk: SpeechChun
   if (!turnIsAcceptable(lobby, sender, chunk.stepIndex)) return;
 
   const side = sideOf(lobby, sender)!;
+  let entries = 0;
+  let chars = 0;
+  for (const e of lobby.transcript) {
+    if (e.stepIndex !== chunk.stepIndex || e.side !== side) continue;
+    entries += 1;
+    chars += e.text.length;
+  }
+  if (entries >= MAX_STEP_ENTRIES || chars + text.length > MAX_STEP_CHARS) return;
   lobby.transcript.push({ stepIndex: chunk.stepIndex, side, text, at: Date.now() });
   touch(lobby);
 }

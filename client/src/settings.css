@@ -109,6 +109,27 @@
   flex: 1 1 220px;
 }
 
+/* ---- legal: two plain links ---- */
+
+.set-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 22px;
+}
+
+.set-link {
+  font-size: var(--t4);
+  font-weight: 600;
+  color: var(--paper);
+  text-decoration: underline;
+  text-decoration-color: var(--muted);
+  text-underline-offset: 3px;
+}
+
+.set-link:hover {
+  text-decoration-color: var(--paper);
+}
+
 /* ---- delete account ----
    Quiet until opened (a ghost button like any other choice). The red only
    arrives in the confirm step, and only on the one button that does it. */

@@ -229,7 +229,9 @@ export const MASKS: Record<string, string> = {
 };
 
 /** The set the picker offers, in display order. Mirrors AVATAR_IDS. Explicit,
-    not Object.keys: MASKS also holds candidates that are not on the roster. */
+    not Object.keys: MASKS also holds candidates that are not on the roster,
+    and the grey silhouette (cast.ts `guest`), which nobody picks: the server
+    alone seats a signed-out player in it. */
 export const MASK_IDS = ['napoleon', 'socrates', 'aristotle', 'diogenes', 'athena', 'lincoln', 'dracula', 'humpty', 'bally', 'shuten', 'marisol', 'quip', 'corvin', 'garn', 'fuma', 'crux'];
 
 interface Props {

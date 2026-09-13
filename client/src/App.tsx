@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { Suspense, lazy, useCallback, useEffect, useRef, useState } from 'react';
 import type {
   DebateStart,
   LobbyUpdate,
@@ -7,6 +7,7 @@ import type {
   SpectateState,
   Verdict as VerdictData,
 } from '../../server/src/protocol';
+import { GUEST_AVATAR } from '../../server/src/protocol';
 import { session, socket } from './socket';
 import {
   attemptIceRestart,
@@ -26,18 +27,24 @@ import { recordingSupported, setOnRecordingActive, startTurnRecording, stopTurnR
 import { saveReceipt } from './history';
 import { playerId, whoAmI, type Account } from './player';
 import { LangToggle, useI18n } from './i18n';
-import Home from './screens/Home';
-import GreenRoom from './screens/GreenRoom';
-import Debate from './screens/Debate';
-import VerdictScreen from './screens/Verdict';
-import BotSelect, { type BotStartConfig } from './screens/BotSelect';
-import Spectate from './screens/Spectate';
-import TutorialIntro from './screens/TutorialIntro';
-import TutorialDone, { type DebriefInfo } from './screens/TutorialDone';
-import ClaimName from './screens/ClaimName';
-import Matches from './screens/Matches';
-import Drill from './screens/Drill';
+import Home, { type LobbyMode } from './screens/Home';
+import type { BotStartConfig, StartResult } from './screens/BotSelect';
+import type { DebriefInfo } from './screens/TutorialDone';
 import Splash, { splashWanted } from './Splash';
+
+// The lobby is the first screen almost everyone sees, so it ships in the entry
+// chunk. Every other screen loads on demand (main.tsx warms them once the page
+// is idle, so a tap into a debate does not wait on the network).
+const GreenRoom = lazy(() => import('./screens/GreenRoom'));
+const Debate = lazy(() => import('./screens/Debate'));
+const VerdictScreen = lazy(() => import('./screens/Verdict'));
+const BotSelect = lazy(() => import('./screens/BotSelect'));
+const Spectate = lazy(() => import('./screens/Spectate'));
+const TutorialIntro = lazy(() => import('./screens/TutorialIntro'));
+const TutorialDone = lazy(() => import('./screens/TutorialDone'));
+const ClaimName = lazy(() => import('./screens/ClaimName'));
+const Matches = lazy(() => import('./screens/Matches'));
+const Drill = lazy(() => import('./screens/Drill'));
 import { MASK_IDS } from './Mask';
 import { playBotTurn, stopBotVoice, unlockBotVoice } from './botvoice';
 import { initAudio } from './sound';
@@ -65,13 +72,26 @@ interface AbortInfo {
 // (nothing live to hijack), so we remember just enough to fetch the verdict.
 const RESUME_KEY = 'yap.resume';
 
-function storeResume(code: string | undefined): void {
+// index.html's title, which the lobby keeps (it is the page people land on).
+const BASE_TITLE = document.title || 'YapStage';
+
+/** `ranked` rides along because a boot-resumed verdict has no LobbyUpdate to
+    say so, and a ranked verdict must not offer a rematch. */
+function storeResume(code: string | null | undefined, ranked = false): void {
   if (!code) return;
   try {
-    sessionStorage.setItem(RESUME_KEY, JSON.stringify({ code, sid: session.id }));
+    sessionStorage.setItem(RESUME_KEY, JSON.stringify({ code, sid: session.id, ranked }));
   } catch {
     // storage blocked — refresh recovery just won't happen
   }
+}
+
+/** Hand back the room this socket still holds on the server: a bot game, a
+    placement, the lesson, or a finished friend room. The server refuses a new
+    start from a socket that still sits in an old game, so every way out
+    says so first. Harmless when there is nothing to leave. */
+function leaveRoom(): void {
+  socket.emit('lobby:leave');
 }
 
 function clearResume(): void {
@@ -119,6 +139,10 @@ export default function App() {
   // this: its standing rule was one action, and a second door would have
   // broken it, so the lobby bar carries the quiet sign-in instead.
   const [debrief, setDebrief] = useState<DebriefInfo | null>(null);
+  // The lobby tab to open on next time it mounts (after the lesson: bots).
+  const [homeMode, setHomeMode] = useState<LobbyMode | undefined>(undefined);
+  // The verdict came back through the boot resume and it was a ranked one.
+  const [bootRanked, setBootRanked] = useState(false);
   // Campaign: a win at the frontier unlocked the next opponent.
   const [unlocked, setUnlocked] = useState<{ level: number; unlocked: string | null } | null>(null);
   // Spectating a lobby by code (state + the latest server snapshot for it).
@@ -184,6 +208,14 @@ export default function App() {
   // the finished lobby's room go silently ten minutes after the verdict.
   const lastBotRef = useRef<{ who: string; c: BotStartConfig } | null>(null);
   const replayRef = useRef(false);
+  // One bot or lesson start in flight at a time (a double tap is two
+  // debates otherwise). Cleared by a failed ack or by debate:start.
+  const startingRef = useRef(false);
+  // A bot game has no LobbyUpdate, so its room code comes back in the start
+  // ack and is kept here: a socket blip resumes it with lobby:resume.
+  const botCodeRef = useRef<string | null>(null);
+  // A bot game whose socket never comes back is called after a while.
+  const dropTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   const resetToHome = useCallback((message: string | null) => {
     releaseMedia();
@@ -191,6 +223,12 @@ export default function App() {
     stopBotVoice();
     clearResume();
     replayRef.current = false;
+    startingRef.current = false;
+    // A finished bot game's room would otherwise block the next start.
+    if (botCodeRef.current) leaveRoom();
+    botCodeRef.current = null;
+    clearTimeout(dropTimer.current);
+    setBootRanked(false);
     setLobby(null);
     setStart(null);
     setPhase(null);
@@ -239,6 +277,7 @@ export default function App() {
     socket.on('rtc:go', () => void beginOffer());
     socket.on('rtc:signal', (p) => void handleSignal(p));
     socket.on('debate:start', (p) => {
+      startingRef.current = false;
       // Play again from a bot verdict: the finished match clears in the same
       // render the new one arrives. The verdict released the mic, and start.bot
       // staying true would not re-run the media effect, so ask for it again.
@@ -287,7 +326,8 @@ export default function App() {
       } else {
         setMicEnabled(true); // friend mode: free chat while the judge deliberates
       }
-      storeResume(lobbyRef.current?.code); // a refresh may now safely resume
+      // A refresh may now safely resume (a bot game by its ack's code).
+      storeResume(lobbyRef.current?.code ?? botCodeRef.current, Boolean(lobbyRef.current?.ranked));
     });
     socket.on('bot:turn', (p) => {
       // Generation broke on our side. Say so on screen and move on after a beat
@@ -392,23 +432,44 @@ export default function App() {
     // without a shutdown signal, which was verified rather than assumed.
     socket.on('disconnect', () => {
       if (!startedRef.current || endedRef.current || settledRef.current) return;
-      // Bot debates live only in the old server's memory, so there is nothing
-      // to come back to. Friend debates get one reconnect attempt first, which
-      // the 'connect' handler below resolves.
+      // A bot debate is resumed by the room code its start ack carried (the
+      // 'connect' handler below), so a blip is not the end of it. Only a
+      // game with no code (an older server), or a connection that stays
+      // gone, is called. Friend debates are resumed the same way.
       if (startDataRef.current?.bot) {
         stopTurn();
         stopTurnRecording();
-        stopBotVoice();
-        setAbortInfo({ key: 'debateStopped' });
+        if (!botCodeRef.current) {
+          stopBotVoice();
+          setAbortInfo({ key: 'debateStopped' });
+          return;
+        }
+        clearTimeout(dropTimer.current);
+        dropTimer.current = setTimeout(() => {
+          if (socket.connected || settledRef.current) return;
+          stopBotVoice();
+          setAbortInfo({ key: 'debateStopped' });
+        }, 20_000);
       }
     });
     socket.on('connect', () => {
+      clearTimeout(dropTimer.current);
       // Transient reconnect at ANY stage: try to reclaim our seat. A refreshed
       // page has a new sessionId so this only fires for true network blips.
-      const code = lobbyRef.current?.code;
+      const botCode = lobbyRef.current ? null : botCodeRef.current;
+      const code = lobbyRef.current?.code ?? botCode;
       if (!code || settledRef.current) return;
       socket.emit('lobby:resume', { code, sessionId: session.id }, (res) => {
         if (res.ok) return;
+        if (botCode) {
+          // The bot game is gone (a deploy took the server's memory with it).
+          stopTurn();
+          stopTurnRecording();
+          stopBotVoice();
+          if (!startedRef.current) return resetToHome('debateStopped');
+          setAbortInfo({ key: endedRef.current ? 'verdictLost' : 'debateStopped' });
+          return;
+        }
         if (startedRef.current) {
           // Post-debate the honest story is "the server lost the verdict",
           // not "your connection died".
@@ -470,9 +531,10 @@ export default function App() {
     }
     if (!raw) return;
     try {
-      const { code, sid } = JSON.parse(raw) as { code?: string; sid?: string };
+      const { code, sid, ranked } = JSON.parse(raw) as { code?: string; sid?: string; ranked?: boolean };
       if (!code || !sid) return;
       session.id = sid;
+      if (ranked) setBootRanked(true);
       const attempt = () => {
         socket.emit('lobby:resume', { code, sessionId: sid }, () => {
           // On success the resent events drive the UI; on failure stay Home.
@@ -606,6 +668,18 @@ export default function App() {
     return () => window.removeEventListener('beforeunload', onBeforeUnload);
   }, []);
 
+  // Leaving the page after a game is settled (the verdict's "back to the
+  // lobby" reloads, or the tab closes): give the room back. Only once
+  // settled: a debate that ended but is still being judged must stay
+  // resumable for the refresh that comes back for its verdict.
+  useEffect(() => {
+    const onHide = () => {
+      if (settledRef.current && (botCodeRef.current || lobbyRef.current)) leaveRoom();
+    };
+    window.addEventListener('pagehide', onHide);
+    return () => window.removeEventListener('pagehide', onHide);
+  }, []);
+
   // Keep the screen awake from fight card through verdict — the call is live
   // the whole way, not just during turns. (Wake locks auto-release when the
   // page hides; re-acquire on return.)
@@ -677,7 +751,9 @@ export default function App() {
           setMediaError(null);
         }
       } catch {
-        if (!cancelled) setMediaError('mediaError'); // i18n key, rendered via t()
+        // i18n key, rendered via t(). Masked play never asked for a camera,
+        // so its error names the mic alone.
+        if (!cancelled) setMediaError(maskedRef.current ? 'micError' : 'mediaError');
       }
     })();
     return () => {
@@ -724,27 +800,56 @@ export default function App() {
     setTutoring(true);
   }, []);
 
-  const startTutorial = useCallback(() => {
+  const startTutorial = useCallback(async () => {
+    if (startingRef.current) return;
+    startingRef.current = true;
+    // The mic before the server call. Refused, the intro screen shows the
+    // fix and a Retry instead of starting a lesson nobody can speak in.
+    try {
+      const s = await ensureLocalStream();
+      setLocalStream(s);
+      setMediaError(null);
+    } catch {
+      startingRef.current = false;
+      setMediaError(maskedRef.current ? 'micError' : 'mediaError');
+      return;
+    }
+    if (botCodeRef.current) {
+      leaveRoom();
+      botCodeRef.current = null;
+    }
     socket.emit(
       'tutorial:start',
       { sessionId: session.id, name: botName, lang: langRef.current, playerId: playerId() },
       (res) => {
-        if (res.ok) return; // debate:start arrives next and renders the lesson
+        if (res.ok) {
+          botCodeRef.current = res.code ?? null;
+          return; // debate:start arrives next and renders the lesson
+        }
+        startingRef.current = false;
         const map: Record<string, string> = {
           rate_limited: 'errRateLimited',
           bad_name: 'errBadName',
           locked: 'errLocked',
+          judge_down: 'errJudgeDown',
+          in_progress: 'errBusy',
         };
         resetToHome(map[res.error ?? ''] ?? 'lostLobby');
       },
     );
   }, [botName, resetToHome]);
 
-  // "Go fight Nib": from the debrief straight into the training picker, same
-  // name, fresh camera (the media effect reacquires off botPicking).
+  // "Take on the bots": from the debrief to the lobby's bots tab, where the
+  // bots are picked now (the old BotSelect screen is not the way in). The
+  // mic goes off until the next go button asks for it.
   const trainAfterTutorial = useCallback(() => {
     stopBotVoice();
     clearResume();
+    releaseMedia();
+    setLocalStream(null);
+    // The lesson's room goes back, or the first bot start gets in_progress.
+    leaveRoom();
+    botCodeRef.current = null;
     setStart(null);
     setPhase(null);
     setEnded(false);
@@ -752,34 +857,70 @@ export default function App() {
     setJudgeStatus(null);
     setTutoring(false);
     setUnlocked(null);
-    setBotPicking(true);
+    setHomeMode('bot');
   }, []);
 
   /** Start a bot debate under an explicit name. The lobby picks the bot itself
       now, so it has the name in hand and does not need the two-step dance
       through botName state that the old BotSelect screen relied on. */
   const startBotAs = useCallback(
-    (who: string, c: BotStartConfig) => {
+    async (who: string, c: BotStartConfig): Promise<StartResult> => {
+      if (startingRef.current) return 'busy';
+      startingRef.current = true;
       setNotice(null);
+      // The mic before the server call: a refused mic must never become a
+      // debate with a silent seat. The lobby asked on the same tap, so this
+      // is instant from there; it matters for "play again" on a verdict.
+      try {
+        await ensureLocalStream();
+      } catch {
+        startingRef.current = false;
+        return 'mic';
+      }
+      // "Play again" from a verdict: the finished game's room is still this
+      // socket's until it is left, and the server refuses the new start.
+      if (botCodeRef.current) {
+        leaveRoom();
+        botCodeRef.current = null;
+      }
       setBotName(who);
       lastBotRef.current = { who, c };
-      socket.emit(
-        'bot:start',
-        { sessionId: session.id, name: who, lang: langRef.current, playerId: playerId(), ...c },
-        (res) => {
-          if (res.ok) return; // debate:start arrives next and renders the debate
-          const map: Record<string, string> = {
-            rate_limited: 'errRateLimited',
-            bad_name: 'errBadName',
-            locked: 'errLocked',
-            // The placement match is ranked business: same gates as the queue.
-            signed_out: 'signInRanked',
-            placed: 'errPlaced',
-            in_progress: 'errPlacing',
-          };
-          resetToHome(map[res.error ?? ''] ?? 'lostLobby');
-        },
-      );
+      return new Promise<StartResult>((resolve) => {
+        // An ack that never comes (the socket is down) must not leave every
+        // go button dead for good.
+        const stuck = setTimeout(() => {
+          if (!startedRef.current) startingRef.current = false;
+          resolve('failed');
+        }, 15_000);
+        socket.emit(
+          'bot:start',
+          { sessionId: session.id, name: who, lang: langRef.current, playerId: playerId(), ...c },
+          (res) => {
+            clearTimeout(stuck);
+            if (res.ok) {
+              botCodeRef.current = res.code ?? null;
+              resolve('ok'); // debate:start arrives next and renders the debate
+              return;
+            }
+            startingRef.current = false;
+            const map: Record<string, string> = {
+              rate_limited: 'errRateLimited',
+              bad_name: 'errBadName',
+              locked: 'errLocked',
+              // The placement match is ranked business: same gates as the queue.
+              signed_out: 'signInRanked',
+              placed: 'errPlaced',
+              // A debate still running on this socket, or (placement) the
+              // placement already running in another tab.
+              in_progress: c.placement ? 'errPlacing' : 'errBusy',
+              unplaced: 'errUnplaced',
+              judge_down: 'errJudgeDown',
+            };
+            resetToHome(map[res.error ?? ''] ?? 'lostLobby');
+            resolve('failed');
+          },
+        );
+      });
     },
     [resetToHome],
   );
@@ -797,8 +938,12 @@ export default function App() {
     unlockBotVoice();
     clearResume();
     replayRef.current = true;
-    startBotAs(last.who, last.c);
-  }, [startBotAs]);
+    void startBotAs(last.who, last.c).then((r) => {
+      if (r === 'mic') resetToHome('micError');
+      // No answer at all: a refused start already went home with its reason.
+      else if (r === 'failed' && replayRef.current) resetToHome('lostLobby');
+    });
+  }, [startBotAs, resetToHome]);
 
   // Dead local track with a live call: re-acquire and hot-swap (replaceTrack,
   // no renegotiation). Without a prior stream, fall back to the full retry
@@ -810,26 +955,50 @@ export default function App() {
           setLocalStream(s);
           setMediaError(null);
         })
-        .catch(() => setMediaError('mediaError'));
+        .catch(() => setMediaError(maskedRef.current ? 'micError' : 'mediaError'));
     } else {
       setMediaRetry((n) => n + 1);
     }
   }, []);
 
+  // Characters come with an account: a guest wears the grey silhouette on
+  // every screen, the same one the server seats them in.
+  const selfMask = account?.signedIn ? (account.mask ?? MASK_IDS[0]) : GUEST_AVATAR;
+
   let content;
+  // The tab's name for the screen on show ("Debate · YapStage"); null keeps
+  // index.html's title, which is the lobby's.
+  let titleKey: string | null = null;
+  // Home reads initialMode once, when it mounts; homeMode is spent then.
+  let showingHome = false;
   if (account?.signedIn && account.needsName) {
+    titleKey = 'titleClaim';
     content = (
       <ClaimName
         onClaimed={(name) => setAccount({ ...account, name, needsName: false })}
       />
     );
   } else if (viewingDrill) {
+    titleKey = 'drillPill';
     content = <Drill onBack={() => setViewingDrill(false)} />;
   } else if (viewingMatches) {
-    content = <Matches onBack={() => setViewingMatches(false)} />;
-  } else if (spectating) {
+    titleKey = 'myMatches';
     content = (
+      <Matches
+        onBack={() => setViewingMatches(false)}
+        onPlayBot={() => {
+          setHomeMode('bot');
+          setViewingMatches(false);
+        }}
+      />
+    );
+  } else if (spectating) {
+    titleKey = 'titleWatching';
+    content = (
+      // Keyed by the room: "next" is a different debate, so the screen
+      // mounts fresh instead of carrying the last one's state across.
       <Spectate
+        key={spectating}
         code={spectating}
         initial={specState}
         onLeave={() => {
@@ -868,25 +1037,37 @@ export default function App() {
       />
     );
   } else if (abortInfo) {
+    titleKey = 'cancelled';
     content = (
       <div className="stage center-col">
         <p className="kicker">{t('cancelled')}</p>
         <h1 className="display">{t(abortInfo.key, abortInfo.vars)}</h1>
-        <button className="btn btn-primary" onClick={() => window.location.assign('/')}>
+        <button
+          className="btn btn-primary"
+          onClick={() => {
+            leaveRoom();
+            window.location.assign('/');
+          }}
+        >
           {t('backHome')}
         </button>
       </div>
     );
   } else if (debrief) {
+    titleKey = 'tutorialPill';
     content = (
       <TutorialDone
         debrief={debrief}
         unlocked={unlocked}
         onTrain={trainAfterTutorial}
-        onHome={() => window.location.assign('/')}
+        onHome={() => {
+          leaveRoom();
+          window.location.assign('/');
+        }}
       />
     );
   } else if (ended || verdictInfo) {
+    titleKey = 'titleResults';
     content = (
       <VerdictScreen
         info={verdictInfo}
@@ -909,7 +1090,7 @@ export default function App() {
         rematch={rematch}
         onRematch={() => socket.emit('rematch')}
         botOpponent={start?.bot ?? null}
-        ranked={Boolean(lobby?.ranked)}
+        ranked={Boolean(lobby?.ranked) || bootRanked}
         unlocked={unlocked}
         avatars={start?.avatars ?? null}
         opponentRating={start?.bot?.elo}
@@ -919,6 +1100,7 @@ export default function App() {
       />
     );
   } else if (start) {
+    titleKey = 'titleDebate';
     content = (
       <Debate
         start={start}
@@ -944,12 +1126,13 @@ export default function App() {
       />
     );
   } else if (botPicking) {
+    titleKey = 'titleBots';
     content = (
       <BotSelect
         localStream={localStream}
         mediaError={mediaError}
         onRetryMedia={retryMedia}
-        selfMask={account?.mask ?? MASK_IDS[0]}
+        selfMask={selfMask}
         onStart={startBot}
         onTutorial={() => {
           setBotPicking(false);
@@ -963,12 +1146,13 @@ export default function App() {
       />
     );
   } else if (tutoring) {
+    titleKey = 'tutorialPill';
     content = (
       <TutorialIntro
         localStream={localStream}
         mediaError={mediaError}
         onRetryMedia={retryMedia}
-        selfMask={account?.mask ?? MASK_IDS[0]}
+        selfMask={selfMask}
         onStart={startTutorial}
         onBack={() => {
           setTutoring(false);
@@ -978,6 +1162,7 @@ export default function App() {
       />
     );
   } else if (lobby) {
+    titleKey = 'titleGreenRoom';
     content = (
       <GreenRoom
         lobby={lobby}
@@ -998,6 +1183,7 @@ export default function App() {
     // cold load the two are one image.
     content = <Splash hold />;
   } else {
+    showingHome = true;
     content = (
       <Home
         account={account}
@@ -1012,14 +1198,29 @@ export default function App() {
         onDrill={() => setViewingDrill(true)}
         onBotStart={startBotAs}
         onTutorial={onTutorial}
+        initialMode={homeMode}
       />
     );
   }
 
+  // Spent once the lobby has mounted with it (after the lesson or the empty
+  // record's "play a bot"): coming back later opens on the usual tab
+  // (ranked signed in, bots for a guest), never on a stale one.
+  useEffect(() => {
+    if (showingHome && homeMode) setHomeMode(undefined);
+  }, [showingHome, homeMode]);
+
+  useEffect(() => {
+    document.title = titleKey ? `${t(titleKey)} · YapStage` : BASE_TITLE;
+    // t is rebuilt every render; the language is what it depends on.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [titleKey, lang]);
+
   return (
     <>
       <LangToggle />
-      {content}
+      {/* A screen whose chunk has not arrived yet holds the boot lockup. */}
+      <Suspense fallback={<Splash hold />}>{content}</Suspense>
       {splash ? <Splash ready={Boolean(account)} onDone={endSplash} /> : null}
     </>
   );

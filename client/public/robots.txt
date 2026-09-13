@@ -1,0 +1,6 @@
+# YapStage. The front door is public; the sign-in round trip is not a page.
+User-agent: *
+Allow: /
+Disallow: /auth/
+
+Sitemap: https://www.yapstage.com/sitemap.xml

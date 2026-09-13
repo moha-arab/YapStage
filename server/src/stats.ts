@@ -25,6 +25,20 @@ export function event(name: string, meta?: Record<string, unknown>): void {
   if (recent.length > RING) recent.shift();
 }
 
+/** What a failure log may say about an error: its class, an HTTP status or
+    error code, and our OWN fixed messages. Never an arbitrary message: a
+    JSON.parse error quotes the model output it choked on, and a judge error
+    can carry verdict text, and neither belongs in a log line. */
+const SAFE_MESSAGE = /^(Judge|Dispute ruling|Drill judge|Debrief|coach|framing|llm_cap|token exchange|no id_token|no sub|aud mismatch)[\w\s/:,().-]*$/;
+export function errTag(err: unknown): string {
+  const e = (err ?? {}) as { name?: unknown; status?: unknown; code?: unknown; message?: unknown };
+  const parts = [typeof e.name === 'string' ? e.name.slice(0, 40) : 'Error'];
+  if (typeof e.status === 'number') parts.push(String(e.status));
+  if (typeof e.code === 'string' && /^[\w.-]{1,40}$/.test(e.code)) parts.push(e.code);
+  if (typeof e.message === 'string' && SAFE_MESSAGE.test(e.message)) parts.push(e.message.slice(0, 160));
+  return parts.join(' ');
+}
+
 /** The last N events, newest first. `code` narrows to one lobby, which is how
     you follow a single debate end to end. */
 export function recentEvents(limit = 100, code?: string): LoggedEvent[] {

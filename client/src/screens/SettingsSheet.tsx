@@ -1,6 +1,7 @@
 // Settings, in a sheet over the lobby (LobbySheet, so it reads as part of it).
 // Plain sections with every control in view: your yap name and its
-// once-a-month change, signing in or out, and deleting the account.
+// once-a-month change, signing in or out, the legal pages, and deleting the
+// account. "Yap name" is the one word for it here, as everywhere else.
 import { useEffect, useState } from 'react';
 import { foldName, nameProblem } from '../../../server/src/protocol';
 import { socket } from '../socket';
@@ -99,6 +100,20 @@ export default function SettingsSheet({ account, onClose, onRenamed }: Props) {
             <p className="set-note">{t('settingsNothing')}</p>
           </section>
         )}
+
+        <section className="set-sec" aria-labelledby="set-legal-h">
+          <h3 className="set-h" id="set-legal-h">
+            {t('settingsLegal')}
+          </h3>
+          <div className="set-links">
+            <a className="set-link" href="/privacy">
+              {t('settingsPrivacy')}
+            </a>
+            <a className="set-link" href="/terms">
+              {t('settingsTerms')}
+            </a>
+          </div>
+        </section>
 
         {signedIn && name ? <DeleteSection name={name} /> : null}
       </div>
@@ -268,7 +283,8 @@ function NameSection({
 }
 
 /** Quiet until asked: a plain button, then an inline step that says what goes
-    and asks for the username typed out before the red button wakes up. */
+    and asks for the yap name typed out before the red button wakes up. The
+    heading is "Danger zone", not "Delete account": the button says that. */
 function DeleteSection({ name }: { name: string }) {
   const { t } = useI18n();
   const [open, setOpen] = useState(false);
@@ -307,7 +323,7 @@ function DeleteSection({ name }: { name: string }) {
   return (
     <section className="set-sec" aria-labelledby="set-del-h">
       <h3 className="set-h" id="set-del-h">
-        {t('settingsDelete')}
+        {t('settingsDangerZone')}
       </h3>
       {open ? (
         <div className="set-del">

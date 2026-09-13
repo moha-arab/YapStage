@@ -15,7 +15,10 @@ const connect = () => io(URL, { forceNew: true, transports: ['websocket'] });
 // The masks a seat may wear, read from the build rather than copied here: the
 // copy went stale the night the roster became the sixteen-character cast, and
 // three fight-card checks failed on a list nothing else used any more.
-const { AVATAR_IDS: ROSTER } = await import('../server/dist/protocol.js');
+const { AVATAR_IDS: ROSTER, GUEST_AVATAR } = await import('../server/dist/protocol.js');
+// The suite runs with auth off, so every socket in it is a guest, and a guest
+// seat wears the grey silhouette (2026-09-12), never a roster mask. Checks
+// that used to ask for "a roster mask" ask for the silhouette.
 // The fight card is on screen from debate:start until startsAt. FAST is 3s and
 // long form 8s; anything outside that is a clock bug the card would expose.
 const revealOk = (start) => {
@@ -39,7 +42,7 @@ const a = connect();
 const b = connect();
 const c = connect();
 
-const created = await emitP(a, 'lobby:create', { sessionId: 'sess-a', name: 'pizzamaster' });
+const created = await emitP(a, 'lobby:create', { sessionId: 'sess-a', name: 'Guest1002' });
 check('create lobby', created.ok);
 const code = created.ok ? created.update.code : '';
 check('code is 6 chars', code.length === 6);
@@ -47,14 +50,14 @@ check('code is 6 chars', code.length === 6);
 const badName = await emitP(c, 'lobby:create', { sessionId: 'x', name: 'a b!' });
 check('bad name rejected', !badName.ok && badName.error === 'bad_name');
 
-const notFound = await emitP(c, 'lobby:join', { code: 'ZZZZZZ', sessionId: 'sess-c', name: 'intruder' });
+const notFound = await emitP(c, 'lobby:join', { code: 'ZZZZZZ', sessionId: 'sess-c', name: 'Guest1015' });
 check('unknown code rejected', !notFound.ok && notFound.error === 'not_found');
 
-const joined = await emitP(b, 'lobby:join', { code, sessionId: 'sess-b', name: 'yapqueen' });
+const joined = await emitP(b, 'lobby:join', { code, sessionId: 'sess-b', name: 'Guest1016' });
 check('join lobby', joined.ok);
-check('joiner sees peer name', joined.ok && joined.update.peerName === 'pizzamaster');
+check('joiner sees peer name', joined.ok && joined.update.peerName === 'Guest1002');
 
-const full = await emitP(c, 'lobby:join', { code, sessionId: 'sess-c', name: 'intruder' });
+const full = await emitP(c, 'lobby:join', { code, sessionId: 'sess-c', name: 'Guest1015' });
 check('third wheel rejected', !full.ok && (full.error === 'full' || full.error === 'in_progress'));
 
 // rtc handshake gating: both ready -> host (a) gets rtc:go
@@ -97,7 +100,7 @@ check('sides are dealt opposite', sa.yourSide !== sb.yourSide && ['FOR', 'AGAINS
 // fixed sides: the host's name goes wherever the host was dealt.
 check(
   'names carried on both sides',
-  sa.names[sa.yourSide] === 'pizzamaster' && sa.names[sb.yourSide] === 'yapqueen',
+  sa.names[sa.yourSide] === 'Guest1002' && sa.names[sb.yourSide] === 'Guest1016',
 );
 check('the reveal is a real window on both sides', revealOk(sa) && revealOk(sb));
 
@@ -209,9 +212,9 @@ console.log('\n=== Scenario 2: disconnect -> resume -> abort ===');
 const a2 = connect();
 const b2 = connect();
 
-const created2 = await emitP(a2, 'lobby:create', { sessionId: 'sess-a2', name: 'hostguy' });
+const created2 = await emitP(a2, 'lobby:create', { sessionId: 'sess-a2', name: 'Guest1026' });
 const code2 = created2.update.code;
-await emitP(b2, 'lobby:join', { code: code2, sessionId: 'sess-b2', name: 'guestgal' });
+await emitP(b2, 'lobby:join', { code: code2, sessionId: 'sess-b2', name: 'Guest1017' });
 
 const start2 = once(a2, 'debate:start');
 a2.emit('pick:mode', 'agree');
@@ -265,9 +268,9 @@ a2.disconnect();
 console.log('\n=== Scenario 3: hot-swap resume + judging-stage resume ===');
 const a3 = connect();
 const b3 = connect();
-const created3 = await emitP(a3, 'lobby:create', { sessionId: 'sess-a3', name: 'racer' });
+const created3 = await emitP(a3, 'lobby:create', { sessionId: 'sess-a3', name: 'Guest1042' });
 const code3 = created3.update.code;
-await emitP(b3, 'lobby:join', { code: code3, sessionId: 'sess-b3', name: 'blinker' });
+await emitP(b3, 'lobby:join', { code: code3, sessionId: 'sess-b3', name: 'Guest1027' });
 
 const start3 = once(a3, 'debate:start');
 a3.emit('pick:mode', 'agree');
@@ -321,9 +324,9 @@ console.log('\n=== Scenario 4: hardening ===');
 // (a) a payload-less speech:chunk must NOT crash the server — if it did, the
 // health check right after would fail to connect.
 const h = connect();
-const hLobby = await emitP(h, 'lobby:create', { sessionId: 'sess-h', name: 'crasher' });
+const hLobby = await emitP(h, 'lobby:create', { sessionId: 'sess-h', name: 'Guest1028' });
 const h2 = connect();
-await emitP(h2, 'lobby:join', { code: hLobby.update.code, sessionId: 'sess-h2', name: 'victim' });
+await emitP(h2, 'lobby:join', { code: hLobby.update.code, sessionId: 'sess-h2', name: 'Guest1034' });
 // drive to in_debate so acceptChunk's early guards pass and it reaches the deref
 h.emit('pick:mode', 'agree');
 h.emit('pick:topic', 'money-happiness');
@@ -357,10 +360,10 @@ ar.disconnect();
 
 // (c) joining a lobby whose debate already started says in_progress, not full
 const p1 = connect();
-const pRes = await emitP(p1, 'lobby:create', { sessionId: 'sess-p1', name: 'starter' });
+const pRes = await emitP(p1, 'lobby:create', { sessionId: 'sess-p1', name: 'Guest1029' });
 const pCode = pRes.update.code;
 const p2 = connect();
-await emitP(p2, 'lobby:join', { code: pCode, sessionId: 'sess-p2', name: 'joiner' });
+await emitP(p2, 'lobby:join', { code: pCode, sessionId: 'sess-p2', name: 'Guest1035' });
 p1.emit('pick:mode', 'agree');
 p1.emit('pick:topic', 'messi-ronaldo');
 p2.emit('pick:topic', 'messi-ronaldo');
@@ -372,7 +375,7 @@ p1.emit('pick:confirm');
 p2.emit('pick:confirm');
 await pStarted;
 const late = connect();
-const lateRes = await emitP(late, 'lobby:join', { code: pCode, sessionId: 'sess-late', name: 'latecomer' });
+const lateRes = await emitP(late, 'lobby:join', { code: pCode, sessionId: 'sess-late', name: 'Guest1004' });
 check('join after start says in_progress (not full)', !lateRes.ok && lateRes.error === 'in_progress');
 p1.disconnect();
 p2.disconnect();
@@ -380,12 +383,12 @@ late.disconnect();
 
 // (d) a second create on one socket releases the first lobby (no orphan)
 const orphanCheck = connect();
-const first = await emitP(orphanCheck, 'lobby:create', { sessionId: 'sess-o', name: 'doublecreator' });
-const second = await emitP(orphanCheck, 'lobby:create', { sessionId: 'sess-o', name: 'doublecreator' });
+const first = await emitP(orphanCheck, 'lobby:create', { sessionId: 'sess-o', name: 'Guest1001' });
+const second = await emitP(orphanCheck, 'lobby:create', { sessionId: 'sess-o', name: 'Guest1001' });
 const firstGone = await emitP(connect(), 'lobby:join', {
   code: first.update.code,
   sessionId: 'sess-probe',
-  name: 'prober',
+  name: 'Guest1036',
 });
 check('second create orphaned the first lobby', second.ok && !firstGone.ok && firstGone.error === 'not_found');
 orphanCheck.disconnect();
@@ -401,7 +404,7 @@ const MONEY_IDS = ['money-happiness', 'landlords', 'crypto-scam', 'no-billionair
 {
   const host = connect();
   const guest = connect();
-  const cr = await emitP(host, 'lobby:create', { sessionId: 'm-h', name: 'modehost' });
+  const cr = await emitP(host, 'lobby:create', { sessionId: 'm-h', name: 'Guest1018' });
   const code = cr.update.code;
   check('new lobby defaults to a random topic', cr.update.topicMode === 'random');
   check('new lobby defaults to the coin for sides', cr.update.hostSide === 'random');
@@ -413,7 +416,7 @@ const MONEY_IDS = ['money-happiness', 'landlords', 'crypto-scam', 'no-billionair
   check('stage: the host hears their own settings echoed while waiting', echo.participantCount === 1);
   await new Promise((r) => setTimeout(r, 150));
 
-  const jn = await emitP(guest, 'lobby:join', { code, sessionId: 'm-g', name: 'modeguest' });
+  const jn = await emitP(guest, 'lobby:join', { code, sessionId: 'm-g', name: 'Guest1005' });
   check(
     'stage settings ride in on the join ack (category and side)',
     jn.ok && jn.update.topicMode === 'category' && jn.update.categoryKey === 'money' && jn.update.hostSide === 'AGAINST',
@@ -468,7 +471,7 @@ const MONEY_IDS = ['money-happiness', 'landlords', 'crypto-scam', 'no-billionair
   const gds = await gStarted;
   check('category mode: topic comes from the (re-picked) category', SPORT_IDS.includes(ds.topic.id));
   check('the host argues the side they chose, the guest the other', ds.yourSide === 'AGAINST' && gds.yourSide === 'FOR');
-  check('names follow the chosen sides', ds.names.AGAINST === 'modehost' && ds.names.FOR === 'modeguest');
+  check('names follow the chosen sides', ds.names.AGAINST === 'Guest1018' && ds.names.FOR === 'Guest1005');
   host.disconnect();
   guest.disconnect();
 }
@@ -477,8 +480,8 @@ const MONEY_IDS = ['money-happiness', 'landlords', 'crypto-scam', 'no-billionair
 {
   const host = connect();
   const guest = connect();
-  const cr = await emitP(host, 'lobby:create', { sessionId: 'c-h', name: 'coinhost' });
-  await emitP(guest, 'lobby:join', { code: cr.update.code, sessionId: 'c-g', name: 'coinguest' });
+  const cr = await emitP(host, 'lobby:create', { sessionId: 'c-h', name: 'Guest1019' });
+  await emitP(guest, 'lobby:join', { code: cr.update.code, sessionId: 'c-g', name: 'Guest1006' });
   host.emit('pick:side', 'FOR');
   await new Promise((r) => setTimeout(r, 100));
   const back = once(guest, 'lobby:update', 4000);
@@ -502,9 +505,9 @@ const MONEY_IDS = ['money-happiness', 'landlords', 'crypto-scam', 'no-billionair
 {
   const host = connect();
   const guest = connect();
-  const cr = await emitP(host, 'lobby:create', { sessionId: 'r-h', name: 'randhost' });
+  const cr = await emitP(host, 'lobby:create', { sessionId: 'r-h', name: 'Guest1020' });
   const code = cr.update.code;
-  await emitP(guest, 'lobby:join', { code, sessionId: 'r-g', name: 'randguest' });
+  await emitP(guest, 'lobby:join', { code, sessionId: 'r-g', name: 'Guest1007' });
   check('lobby defaults to blitz pace', cr.update.pace === 'blitz');
   host.emit('pick:mode', 'random');
   await new Promise((r) => setTimeout(r, 200)); // let the mode propagate before confirming
@@ -561,7 +564,9 @@ console.log('\n=== Scenario 6: rematch ===');
 async function runToVerdict(a, b, aId, bId, name, topic) {
   const cr = await emitP(a, 'lobby:create', { sessionId: aId, name });
   const code = cr.update.code;
-  await emitP(b, 'lobby:join', { code, sessionId: bId, name: name + 'two' });
+  // Guests are GuestNNNN and nothing else (2026-09-12): the joiner is the
+  // host's number plus 500.
+  await emitP(b, 'lobby:join', { code, sessionId: bId, name: `Guest${Number(name.slice(5)) + 500}` });
   a.emit('pick:mode', 'agree');
   a.emit('pick:topic', topic);
   b.emit('pick:topic', topic);
@@ -579,7 +584,7 @@ async function runToVerdict(a, b, aId, bId, name, topic) {
 {
   const a = connect();
   const b = connect();
-  await runToVerdict(a, b, 'rm-a', 'rm-b', 'rematcher', 'money-happiness');
+  await runToVerdict(a, b, 'rm-a', 'rm-b', 'Guest1014', 'money-happiness');
 
   // ask the YapMaster about the debate we just finished (in-memory, no storage)
   const coachP = once(a, 'coach:reply', 60000);
@@ -629,7 +634,7 @@ async function runToVerdict(a, b, aId, bId, name, topic) {
 {
   const a = connect();
   const b = connect();
-  await runToVerdict(a, b, 'rl-a', 'rl-b', 'leaver', 'crypto-scam');
+  await runToVerdict(a, b, 'rl-a', 'rl-b', 'Guest1041', 'crypto-scam');
   a.emit('rematch');
   await once(a, 'rematch:update', 5000); // youWant
   const peerLeft = once(a, 'rematch:update', 8000);
@@ -644,9 +649,9 @@ console.log('\n=== Scenario 8: long pace ===');
 {
   const host = connect();
   const guest = connect();
-  const cr = await emitP(host, 'lobby:create', { sessionId: 'lg-h', name: 'longhost' });
+  const cr = await emitP(host, 'lobby:create', { sessionId: 'lg-h', name: 'Guest1021' });
   const code = cr.update.code;
-  await emitP(guest, 'lobby:join', { code, sessionId: 'lg-g', name: 'longguest' });
+  await emitP(guest, 'lobby:join', { code, sessionId: 'lg-g', name: 'Guest1008' });
   host.emit('pick:mode', 'random');
   await new Promise((r) => setTimeout(r, 200));
   const paceSet = once(guest, 'lobby:update', 4000);
@@ -680,7 +685,7 @@ console.log('\n=== Scenario 7: bots mode ===');
   };
   const res = await emitP(h, 'bot:start', {
     sessionId: 'bot-h',
-    name: 'botfighter',
+    name: 'Guest1003',
     botId: 'sloth',
     topicMode: 'agree',
     topicId: 'money-happiness',
@@ -701,8 +706,8 @@ console.log('\n=== Scenario 7: bots mode ===');
   // The fight card draws you from this. It was missing from bot starts for a
   // long time and the client fell back to the first mask on the roster.
   check(
-    'bot debate: the fight card gets your mask, and no entry for the bot',
-    ROSTER.includes(start.avatars?.FOR) && start.avatars.AGAINST === undefined,
+    'bot debate: the fight card gets your mask (the guest silhouette), and no entry for the bot',
+    start.avatars?.FOR === GUEST_AVATAR && start.avatars.AGAINST === undefined,
   );
   check('bot debate: the reveal is a real window', revealOk(start));
   let botTurns = 0;
@@ -746,14 +751,14 @@ console.log('\n=== Scenario 9: ranked + spectate ===');
   const m1 = once(r1, 'queue:matched', 15000);
   const m2 = once(r2, 'queue:matched', 15000);
   const hb = once(r1, 'queue:update', 4000);
-  const q1 = await emitP(r1, 'queue:join', { sessionId: 'rk-1', playerId: 'pid-rk-1', name: 'rankedone' });
+  const q1 = await emitP(r1, 'queue:join', { sessionId: 'rk-1', playerId: 'pid-rk-1', name: 'Guest1009' });
   check('queue: first join accepted', q1.ok === true);
   const beat = await hb;
   check(
     'queue: heartbeat carries waiting, rating and pace',
     beat.waiting === 1 && typeof beat.rating === 'number' && beat.pace === 'blitz',
   );
-  const q2 = await emitP(r2, 'queue:join', { sessionId: 'rk-2', playerId: 'pid-rk-2', name: 'rankedtwo' });
+  const q2 = await emitP(r2, 'queue:join', { sessionId: 'rk-2', playerId: 'pid-rk-2', name: 'Guest1010' });
   check('queue: second join accepted', q2.ok === true);
   const [u1, u2] = await Promise.all([m1, m2]);
   check('queue: both matched into the same lobby', u1.update.code === u2.update.code);
@@ -779,10 +784,11 @@ console.log('\n=== Scenario 9: ranked + spectate ===');
   r2.emit('pick:confirm');
   const st1 = await s1;
   check('ranked: debate starts straight from double-confirm', Boolean(st1.topic?.en));
-  // Ranked is masked by format, so the fight card has a mask for BOTH sides.
+  // Ranked is masked by format, so the fight card has a mask for BOTH sides:
+  // the silhouette here, since only guests queue where Google is off.
   check(
-    'ranked: the fight card gets a roster mask for both seats',
-    ROSTER.includes(st1.avatars?.FOR) && ROSTER.includes(st1.avatars?.AGAINST),
+    'ranked: the fight card gets a mask for both seats (guests: the silhouette)',
+    st1.avatars?.FOR === GUEST_AVATAR && st1.avatars?.AGAINST === GUEST_AVATAR,
   );
   check('ranked: the reveal is a real window', revealOk(st1));
 
@@ -837,8 +843,8 @@ console.log('\n=== Scenario 16: watch a match, browse and filter ===');
     const y = connect();
     const mx = once(x, 'queue:matched', 15000);
     const my = once(y, 'queue:matched', 15000);
-    await emitP(x, 'queue:join', { sessionId: `${tag}-x`, playerId: `pid-${tag}-x`, name: `${tag}for` });
-    await emitP(y, 'queue:join', { sessionId: `${tag}-y`, playerId: `pid-${tag}-y`, name: `${tag}against` });
+    await emitP(x, 'queue:join', { sessionId: `${tag}-x`, playerId: `pid-${tag}-x`, name: 'Guest3001' });
+    await emitP(y, 'queue:join', { sessionId: `${tag}-y`, playerId: `pid-${tag}-y`, name: 'Guest3002' });
     const [ux] = await Promise.all([mx, my]);
     const started = once(x, 'debate:start', 15000);
     x.emit('pick:confirm');
@@ -904,7 +910,7 @@ console.log('\n=== Scenario 16: watch a match, browse and filter ===');
 
   // A friend's room: by code only, and only while the host allows it.
   const host = connect();
-  const cr = await emitP(host, 'lobby:create', { sessionId: 'br-host', name: 'brhost' });
+  const cr = await emitP(host, 'lobby:create', { sessionId: 'br-host', name: 'Guest1037' });
   const custom = cr.update.code;
   host.emit('pick:spectators', false);
   await new Promise((s) => setTimeout(s, 200));
@@ -937,7 +943,7 @@ console.log('\n=== Scenario 10: tutorial ===');
   });
   const camp = await emitP(h, 'campaign:get', { playerId: 'pid-tut' });
   check('campaign: level is null (unknown) when the store is down', camp.level === null);
-  const res = await emitP(h, 'tutorial:start', { sessionId: 'tut-h', name: 'student', lang: 'en', playerId: 'pid-tut' });
+  const res = await emitP(h, 'tutorial:start', { sessionId: 'tut-h', name: 'Guest1030', lang: 'en', playerId: 'pid-tut' });
   check('tutorial:start accepted', res.ok === true);
   const start = await once(h, 'debate:start', 12000);
   check(
@@ -946,8 +952,8 @@ console.log('\n=== Scenario 10: tutorial ===');
   );
   check('tutorial: student is always AGAINST', start.yourSide === 'AGAINST');
   check(
-    'tutorial: the fight card gets the student mask, and no entry for the teacher',
-    ROSTER.includes(start.avatars?.AGAINST) && start.avatars.FOR === undefined,
+    'tutorial: the fight card gets the student mask (the guest silhouette), and no entry for the teacher',
+    start.avatars?.AGAINST === GUEST_AVATAR && start.avatars.FOR === undefined,
   );
   let tutorTurns = 0;
   h.on('debate:phase', (ph) => {
@@ -987,30 +993,30 @@ console.log('\n=== Scenario 11: no self-play ===');
   t2.on('queue:matched', () => {
     selfMatched = true;
   });
-  await emitP(t1, 'queue:join', { sessionId: 'sp-1', playerId: 'same-player', name: 'twotabs' });
-  await emitP(t2, 'queue:join', { sessionId: 'sp-2', playerId: 'same-player', name: 'twotabs' });
+  await emitP(t1, 'queue:join', { sessionId: 'sp-1', playerId: 'same-player', name: 'Guest1031' });
+  await emitP(t2, 'queue:join', { sessionId: 'sp-2', playerId: 'same-player', name: 'Guest1031' });
   await new Promise((r) => setTimeout(r, 1200));
   check('ranked: one player is never matched with themselves', selfMatched === false);
 
   // ...and the guard must not break real matchmaking.
   const t3 = connect();
   const gotReal = once(t3, 'queue:matched', 8000).then(() => true).catch(() => false);
-  await emitP(t3, 'queue:join', { sessionId: 'sp-3', playerId: 'other-player', name: 'realrival' });
+  await emitP(t3, 'queue:join', { sessionId: 'sp-3', playerId: 'other-player', name: 'Guest1011' });
   check('ranked: a real opponent still matches', (await gotReal) === true);
 
   const h = connect();
-  const made = await emitP(h, 'lobby:create', { sessionId: 'self-h', name: 'hostself' });
+  const made = await emitP(h, 'lobby:create', { sessionId: 'self-h', name: 'Guest1022' });
   const selfJoin = await emitP(h, 'lobby:join', {
     code: made.update.code,
     sessionId: 'self-h',
-    name: 'hostself',
+    name: 'Guest1022',
   });
   check('custom: cannot join your own lobby', selfJoin.ok === false && selfJoin.error === 'self');
   const g = connect();
   const realJoin = await emitP(g, 'lobby:join', {
     code: made.update.code,
     sessionId: 'self-g',
-    name: 'realguest',
+    name: 'Guest1012',
   });
   check('custom: a real guest still joins', realJoin.ok === true);
   [t1, t2, t3, h, g].forEach((s) => s.disconnect());
@@ -1028,10 +1034,10 @@ console.log('\n=== Scenario 12: ranked is one pace ===');
   const bzBeat = once(bz, 'queue:update', 4000);
   const mb = once(bz, 'queue:matched', 8000);
   const ml = once(lg, 'queue:matched', 8000);
-  await emitP(bz, 'queue:join', { sessionId: 'pc-1', playerId: 'pid-pc-1', name: 'blitzer', pace: 'blitz' });
+  await emitP(bz, 'queue:join', { sessionId: 'pc-1', playerId: 'pid-pc-1', name: 'Guest1032', pace: 'blitz' });
   const b0 = await bzBeat;
   check('one queue: the heartbeat says blitz whatever was asked for', b0.pace === 'blitz' && b0.waiting === 1);
-  await emitP(lg, 'queue:join', { sessionId: 'pc-2', playerId: 'pid-pc-2', name: 'longhaul', pace: 'long' });
+  await emitP(lg, 'queue:join', { sessionId: 'pc-2', playerId: 'pid-pc-2', name: 'Guest1023', pace: 'long' });
   const [b1, l1] = await Promise.all([mb, ml]);
   check('one queue: a blitz asker and a long asker meet each other', b1.update.code === l1.update.code);
   check(
@@ -1044,8 +1050,8 @@ console.log('\n=== Scenario 12: ranked is one pace ===');
   const s2 = connect();
   const ms1 = once(s1, 'queue:matched', 8000);
   const ms2 = once(s2, 'queue:matched', 8000);
-  await emitP(s1, 'queue:join', { sessionId: 'pc-5', playerId: 'pid-pc-5', name: 'stdone', pace: 'hyper' });
-  await emitP(s2, 'queue:join', { sessionId: 'pc-6', playerId: 'pid-pc-6', name: 'stdtwo' });
+  await emitP(s1, 'queue:join', { sessionId: 'pc-5', playerId: 'pid-pc-5', name: 'Guest1038', pace: 'hyper' });
+  await emitP(s2, 'queue:join', { sessionId: 'pc-6', playerId: 'pid-pc-6', name: 'Guest1039' });
   const [y1] = await Promise.all([ms1, ms2]);
   check('one queue: an unknown pace lands in the same blitz room', y1.update.pace === 'blitz');
 
@@ -1070,15 +1076,16 @@ console.log('\n=== Scenario 12: ranked is one pace ===');
 // ---------- Scenario 13: every room starts masked ----------
 // The camera is opt-in: a seat is masked the moment it is taken, and the green
 // room toggle (pick:mask false) is how a face comes on. The roster is the
-// fourteen-character cast; a vaulted id is refused, not worn.
+// sixteen-character cast; a vaulted id is refused, not worn. Both seats here
+// are guests (no auth in the suite), so the mask they wear is the silhouette.
 console.log('\n=== Scenario 13: rooms start masked ===');
 {
   const h = connect();
   const g = connect();
-  const made = await emitP(h, 'lobby:create', { sessionId: 'mk-h', name: 'maskhost' });
+  const made = await emitP(h, 'lobby:create', { sessionId: 'mk-h', name: 'Guest1024' });
   check('mask: a fresh room seats the host masked', made.ok && made.update.yourMasked === true);
-  check('mask: the seat wears a mask from the current roster', ROSTER.includes(made.update.yourAvatar));
-  const came = await emitP(g, 'lobby:join', { code: made.update.code, sessionId: 'mk-g', name: 'maskguest' });
+  check('mask: a guest seat wears the silhouette, not a roster mask', made.update.yourAvatar === GUEST_AVATAR);
+  const came = await emitP(g, 'lobby:join', { code: made.update.code, sessionId: 'mk-g', name: 'Guest1013' });
   check(
     'mask: the guest arrives masked and sees a masked host',
     came.ok && came.update.yourMasked === true && came.update.peerMasked === true,
@@ -1195,7 +1202,7 @@ console.log('\n=== Scenario 15: placement ===');
   // must not place someone against the wrong rung.
   const res = await emitP(h, 'bot:start', {
     sessionId: 'place-h',
-    name: 'newcomer',
+    name: 'Guest1025',
     playerId: 'pid-place-1',
     botId: 'mouse',
     topicMode: 'agree',
@@ -1212,7 +1219,7 @@ console.log('\n=== Scenario 15: placement ===');
   );
   const twice = await emitP(h2, 'bot:start', {
     sessionId: 'place-h2',
-    name: 'newcomer',
+    name: 'Guest1025',
     playerId: 'pid-place-1',
     botId: anchor.id,
     topicMode: 'random',
@@ -1240,7 +1247,7 @@ console.log('\n=== Scenario 15: placement ===');
     check('placement: /rating now says placed with that rating', rt.placed === true && rt.rating === r && rt.provisional === false);
     const again = await emitP(h2, 'bot:start', {
       sessionId: 'place-h2',
-      name: 'newcomer',
+      name: 'Guest1025',
       playerId: 'pid-place-1',
       botId: anchor.id,
       topicMode: 'random',
@@ -1275,14 +1282,36 @@ console.log('\n=== Scenario 17: guest play, ranked gated ===');
   const health = await fetch(`${URL}/healthz`).then((r) => r.json());
   const googleOn = health.auth !== 'off';
   const g = connect();
-  const room = await emitP(g, 'lobby:create', { sessionId: 'guest-1', name: 'walkin', playerId: 'pid-guest-1' });
+  const room = await emitP(g, 'lobby:create', { sessionId: 'guest-1', name: 'Guest1040', playerId: 'pid-guest-1' });
   check('guest: opens a friend room with no cookie', room.ok === true && room.update.code.length === 6);
+  // A guest wears the grey silhouette and nothing else: characters come with
+  // an account. The silhouette is off the roster, so nobody, signed in or
+  // not, can pick it; and a guest asking for a roster mask is refused too.
+  check('guest: the seat wears the silhouette', room.update.yourAvatar === GUEST_AVATAR);
+  check('guest: the silhouette is not on the pickable roster', GUEST_AVATAR === 'guest' && !ROSTER.includes(GUEST_AVATAR));
+  let guestPicks = 0;
+  const countPicks = () => { guestPicks += 1; };
+  g.on('lobby:update', countPicks);
+  g.emit('pick:avatar', ROSTER[0]);
+  g.emit('pick:avatar', GUEST_AVATAR);
+  await new Promise((r) => setTimeout(r, 400));
+  g.off('lobby:update', countPicks);
+  check('guest: pick:avatar is refused, for a roster mask and for the silhouette', guestPicks === 0);
+  // Its opponent sees the silhouette too, and so does the guest itself, after
+  // asking for a roster mask.
+  const g2 = connect();
+  const walk = await emitP(g2, 'lobby:join', { code: room.update.code, sessionId: 'guest-2', name: 'Guest1033' });
+  check(
+    'guest: a signed-out client that asked for a mask still wears the silhouette, to its opponent too',
+    walk.ok === true && walk.update.peerAvatar === GUEST_AVATAR && walk.update.yourAvatar === GUEST_AVATAR,
+  );
   g.emit('lobby:leave');
+  g2.disconnect();
 
-  const q = await emitP(g, 'queue:join', { sessionId: 'guest-1', playerId: 'pid-guest-1', name: 'walkin' });
+  const q = await emitP(g, 'queue:join', { sessionId: 'guest-1', playerId: 'pid-guest-1', name: 'Guest1040' });
   if (googleOn) {
     check('guest: ranked queue refuses a signed-out socket (Google on)', q.ok === false && q.error === 'signed_out');
-    const pl = await emitP(g, 'bot:start', { sessionId: 'guest-1', name: 'walkin', playerId: 'pid-guest-1', botId: 'rabbit', topicMode: 'random', placement: true });
+    const pl = await emitP(g, 'bot:start', { sessionId: 'guest-1', name: 'Guest1040', playerId: 'pid-guest-1', botId: 'rabbit', topicMode: 'random', placement: true });
     check('guest: the placement match refuses a signed-out socket (Google on)', pl.ok === false && pl.error === 'signed_out');
   } else {
     check('guest: ranked queue open where nobody can sign in (Google off)', q.ok === true);
@@ -1298,10 +1327,11 @@ console.log('\n=== Scenario 17: guest play, ranked gated ===');
 
   // Listen before asking: debate:start can land in the same tick as the ack.
   const gStart = once(g, 'debate:start', 12000);
-  const bs = await emitP(g, 'bot:start', { sessionId: 'guest-1', name: 'walkin', playerId: 'pid-guest-1', botId: 'mouse', topicMode: 'random', lang: 'en' });
+  const bs = await emitP(g, 'bot:start', { sessionId: 'guest-1', name: 'Guest1040', playerId: 'pid-guest-1', botId: 'mouse', topicMode: 'random', lang: 'en' });
   check('guest: a bot game starts with no cookie', bs.ok === true);
   const gs = await gStart;
-  check('guest: the guest is seated under the typed name', gs.names[gs.yourSide] === 'walkin');
+  check('guest: the guest is seated under the typed name', gs.names[gs.yourSide] === 'Guest1040');
+  check('guest: the fight card draws the guest as the silhouette', gs.avatars?.[gs.yourSide] === GUEST_AVATAR);
   g.on('debate:phase', (ph) => {
     if (ph.activeSpeaker === gs.yourSide) {
       g.emit('speech:chunk', { stepIndex: ph.stepIndex, text: 'the guest makes one plain point and holds it through every round of this debate' });
@@ -1313,6 +1343,128 @@ console.log('\n=== Scenario 17: guest play, ranked gated ===');
   check('guest: the verdict reaches a guest', ['FOR', 'AGAINST'].includes(gv.verdict.winner));
   check('guest: a bot game never moves a rating', gv.elo === undefined && gv.placement === undefined);
   g.disconnect();
+}
+
+// ---------- Scenario 18: pre-launch security and privacy (2026-09-12) ----------
+// The live half of the review's fixes; scripts/security-unit.mjs has the
+// rest (typed speech in ranked with server STT, coach history, filed matches
+// without a transcript, share cards, the model budget, trustProxy). Set
+// STATS_KEY to the server's to check the keyed routes and the event trail.
+console.log('\n=== Scenario 18: security headers, guest names, audio, room cap, relay-only ranked ===');
+{
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  const KEY = process.env.STATS_KEY ?? '';
+  const keyH = KEY ? { 'x-stats-key': KEY } : {};
+
+  for (const path of ['/', '/healthz']) {
+    const r = await fetch(`${URL}${path}`);
+    const h = (k) => r.headers.get(k) ?? '';
+    const csp = h('content-security-policy');
+    check(`headers ${path}: an enforcing CSP, scripts from this origin only`, /script-src 'self'(;|$)/.test(csp) && csp.includes("frame-ancestors 'none'"));
+    check(`headers ${path}: HSTS, no framing, nosniff`, h('strict-transport-security').includes('max-age=') && h('x-frame-options') === 'DENY' && h('x-content-type-options') === 'nosniff');
+    check(`headers ${path}: referrer and permissions policies`, h('referrer-policy') === 'strict-origin-when-cross-origin' && h('permissions-policy') === 'camera=(self), microphone=(self), geolocation=()');
+  }
+  for (const path of ['/privacy', '/terms']) {
+    const r = await fetch(`${URL}${path}`, { headers: { accept: 'text/html' } });
+    const body = await r.text();
+    check(`legal: ${path} boots the app (200, html)`, r.status === 200 && (r.headers.get('content-type') ?? '').includes('text/html') && body.includes('id="root"'));
+  }
+  const nf = await fetch(`${URL}/no-such-page-here`, { headers: { accept: 'text/html' } });
+  check('404: a browser gets the 404 page', nf.status === 404 && (nf.headers.get('content-type') ?? '').includes('text/html'));
+  const nfj = await fetch(`${URL}/no-such-page-here`);
+  check('404: anything else gets JSON', nfj.status === 404 && (nfj.headers.get('content-type') ?? '').includes('json'));
+
+  check('stats: no key, no route', (await fetch(`${URL}/stats`)).status === 404);
+  check('stats: the ?key= query is no longer read', (await fetch(`${URL}/stats?key=${encodeURIComponent(KEY || 'x')}`)).status === 404);
+  check('stats: /stats/reports and /stats/cheat need the key too', (await fetch(`${URL}/stats/reports`)).status === 404 && (await fetch(`${URL}/stats/cheat`)).status === 404);
+  if (KEY) check('stats: the x-stats-key header opens /stats', (await fetch(`${URL}/stats`, { headers: keyH })).status === 200);
+  else console.log('  info: STATS_KEY not set here; skipping the keyed success checks');
+  check('admin: /admin/prelaunch-prune is gone', (await fetch(`${URL}/admin/prelaunch-prune`, { method: 'POST', headers: keyH })).status === 404);
+
+  // Guest names: the device's GuestNNNN, nothing typed.
+  {
+    const g = connect();
+    const typed = await emitP(g, 'lobby:create', { sessionId: 'sec-g1', name: 'zorvint' });
+    check('guest: a typed name is refused', typed.ok === false && typed.error === 'bad_name');
+    const lower = await emitP(g, 'lobby:create', { sessionId: 'sec-g1', name: 'guest1234' });
+    check('guest: a near-miss of the pattern is refused', lower.ok === false && lower.error === 'bad_name');
+    const given = await emitP(g, 'lobby:create', { sessionId: 'sec-g1', name: 'Guest4321', playerId: 'acct_someone' });
+    check('guest: the device name is seated (an account-shaped id is simply not used)', given.ok === true && given.update.yourName === 'Guest4321');
+    g.emit('lobby:leave');
+    await sleep(150);
+    g.disconnect();
+  }
+
+  // At most three rooms waiting for a guest per address.
+  {
+    const hosts = [];
+    let refusedAt = -1;
+    let refusal = '';
+    for (let i = 0; i < 5; i++) {
+      const s = connect();
+      hosts.push(s);
+      const r = await emitP(s, 'lobby:create', { sessionId: `cap-${i}`, name: `Guest${5000 + i}` });
+      if (!r.ok) {
+        refusedAt = i;
+        refusal = r.error;
+        break;
+      }
+    }
+    check('cap: a fourth waiting room from one address is refused', refusedAt >= 0 && refusedAt <= 3, `refused at ${refusedAt}`);
+    check('cap: the refusal reads as rate_limited', refusal === 'rate_limited');
+    hosts[0].emit('lobby:leave');
+    await sleep(200);
+    const again = refusedAt >= 0 ? await emitP(hosts[refusedAt], 'lobby:create', { sessionId: 'cap-again', name: 'Guest5099' }) : { ok: false };
+    check('cap: closing one frees a place', again.ok === true);
+    for (const s of hosts) s.disconnect();
+  }
+
+  // Audio: 512 KB a segment; a packet over 1 MB closes the socket.
+  {
+    const au = connect();
+    const room = await emitP(au, 'lobby:create', { sessionId: 'sec-au', name: 'Guest5100' });
+    au.emit('audio:turn', { stepIndex: 0, mime: 'audio/webm', data: new Uint8Array(600 * 1024).buffer, seq: 0 });
+    await sleep(500);
+    check('audio: a 600 KB segment is refused and the socket stays up', au.connected === true);
+    if (KEY) {
+      const ev = (await fetch(`${URL}/stats/events?limit=400&code=${room.update.code}`, { headers: keyH }).then((r) => r.json())).events ?? [];
+      check('audio: the refusal is logged as too_big', ev.some((e) => e.evt === 'audio_rejected' && e.why === 'too_big' && e.bytes === 600 * 1024));
+    }
+    const gone = new Promise((res) => au.once('disconnect', (reason) => res(reason)));
+    au.emit('audio:turn', { stepIndex: 0, mime: 'audio/webm', data: new Uint8Array(1_500_000).buffer, seq: 1 });
+    const reason = await Promise.race([gone, sleep(4000).then(() => null)]);
+    check('audio: a packet over 1 MB closes the socket (maxHttpBufferSize)', reason !== null, `still connected`);
+    au.disconnect();
+  }
+
+  // Ranked calls are relay only, and ranked seats are not reachable by code.
+  {
+    const r1 = connect();
+    const r2 = connect();
+    const m1 = once(r1, 'queue:matched', 8000);
+    const m2 = once(r2, 'queue:matched', 8000);
+    await emitP(r1, 'queue:join', { sessionId: 'sec-r1', playerId: 'pid-sec-r1', name: 'Guest5201' });
+    await emitP(r2, 'queue:join', { sessionId: 'sec-r2', playerId: 'pid-sec-r2', name: 'Guest5202' });
+    const [u1] = await Promise.all([m1, m2]);
+    const got = [];
+    r2.on('rtc:signal', (s) => got.push(s));
+    r1.emit('rtc:signal', { candidate: { candidate: 'candidate:1 1 udp 2122260223 192.168.1.20 54400 typ host generation 0', sdpMid: '0', sdpMLineIndex: 0 } });
+    r1.emit('rtc:signal', { candidate: { candidate: 'candidate:2 1 udp 1686052607 81.2.69.160 54400 typ srflx raddr 192.168.1.20 rport 54400', sdpMid: '0', sdpMLineIndex: 0 } });
+    r1.emit('rtc:signal', { candidate: { candidate: 'candidate:3 1 udp 41885439 104.30.1.1 3478 typ relay raddr 81.2.69.160 rport 54400', sdpMid: '0', sdpMLineIndex: 0 } });
+    r1.emit('rtc:signal', { description: { type: 'offer', sdp: 'v=0\r\nc=IN IP4 81.2.69.160\r\na=candidate:1 1 udp 2122260223 192.168.1.20 54400 typ host\r\n' } });
+    await sleep(600);
+    const cands = got.filter((s) => s.candidate).map((s) => s.candidate.candidate);
+    check('ranked ice: host and srflx candidates never reach the stranger', !cands.some((c) => / typ (host|srflx)/.test(c)));
+    check('ranked ice: a relay candidate does', cands.some((c) => c.includes('typ relay')));
+    const desc = got.find((s) => s.description);
+    check('ranked sdp: host lines and the address are stripped', Boolean(desc) && !desc.description.sdp.includes('192.168.1.20') && !desc.description.sdp.includes('81.2.69.160'));
+    const z = connect();
+    const zj = await emitP(z, 'lobby:join', { code: u1.update.code, sessionId: 'sec-z', name: 'Guest5203' });
+    check('ranked: a stranger cannot take a ranked seat by code', zj.ok === false);
+    z.disconnect();
+    r1.disconnect();
+    r2.disconnect();
+  }
 }
 
 console.log(`\n${failures === 0 ? 'ALL CHECKS PASSED' : failures + ' CHECK(S) FAILED'}`);

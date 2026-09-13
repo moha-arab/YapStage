@@ -70,8 +70,11 @@ export default function FightCard({ start, localStream, remoteStream, revealMs }
   );
 
   return (
-    <div className={`stage fight-card ${leaving ? 'fc-leaving' : ''}`}>
-      <p className="kicker">{t('tonightsMotion')}</p>
+    // fc-stage, not fight-card: that name belongs to the home feed's card
+    // (HomeFeed.tsx), whose panel fill and hairline were framing this whole
+    // screen and changing the house colour for one beat.
+    <div className={`stage fc-stage ${leaving ? 'fc-leaving' : ''}`}>
+      <p className="fc-kicker">{t('theMotion')}</p>
       <h1 className="display fc-motion">{start.topic[lang]}</h1>
       {/* His note: "when you load into a game I should know what side I'm on
           immediately without being confused". A small "you" under one of two

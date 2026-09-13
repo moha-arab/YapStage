@@ -68,6 +68,26 @@ export function ensureLocalStream(): Promise<MediaStream> {
   return localStreamPromise;
 }
 
+/** Whether the room this socket sits in is RANKED, read off the same events
+    the screens get (queue:matched, lobby:update). Ranked calls are relay
+    only: two strangers must never learn each other's IP address, so the
+    browser gathers TURN relay candidates alone (and the server drops any
+    other kind it is sent in a ranked room). Friend rooms keep direct
+    connections, which are faster and cost no relay. */
+let rankedRoom = false;
+socket.on('queue:matched', (p) => {
+  rankedRoom = Boolean(p?.update?.ranked);
+});
+socket.on('lobby:update', (u) => {
+  rankedRoom = Boolean(u?.ranked);
+});
+socket.on('lobby:closed', () => {
+  rankedRoom = false;
+});
+
+const hasRelay = (servers: IceServer[]): boolean =>
+  servers.some((s) => (Array.isArray(s.urls) ? s.urls : [s.urls]).some((u) => /^turns?:/i.test(u)));
+
 export function setupPeer(
   iceServers: IceServer[],
   onRemoteStream: (s: MediaStream) => void,
@@ -76,7 +96,11 @@ export function setupPeer(
   teardownPeer();
   if (!localStream) throw new Error('local stream not ready');
   onRemote = onRemoteStream;
-  pc = new RTCPeerConnection({ iceServers: iceServers as RTCIceServer[] });
+  const relayOnly = rankedRoom && hasRelay(iceServers);
+  pc = new RTCPeerConnection({
+    iceServers: iceServers as RTCIceServer[],
+    ...(relayOnly ? { iceTransportPolicy: 'relay' as RTCIceTransportPolicy } : {}),
+  });
   for (const track of localStream.getTracks()) pc.addTrack(track, localStream);
   pc.onicecandidate = (e) => {
     if (e.candidate) socket.emit('rtc:signal', { candidate: e.candidate.toJSON() });

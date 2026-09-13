@@ -2,7 +2,7 @@
 // is set the bot speaks with a real voice; otherwise the client falls back to
 // the free browser voice. eleven_turbo_v2_5 is low-latency AND multilingual, so
 // Arabic bots work too. Returns null on any failure (caller degrades to browser).
-import { event } from './stats.js';
+import { errTag, event } from './stats.js';
 
 const MODEL = 'eleven_turbo_v2_5';
 // A voice confirmed available on the account. If a bot's assigned voice ever
@@ -43,14 +43,14 @@ async function tryVoice(text: string, voiceId: string): Promise<TtsAttempt> {
       },
     );
     if (!res.ok) {
-      console.error(`[tts] ElevenLabs ${res.status} (voice ${voiceId}): ${(await res.text()).slice(0, 160)}`);
+      console.error(`[tts] ElevenLabs ${res.status} (voice ${voiceId})`);
       event('tts_failed', { status: res.status });
       return { buf: null, transient: res.status === 429 || res.status >= 500 };
     }
     const buf = Buffer.from(await res.arrayBuffer());
     return { buf: buf.length < 200 ? null : buf, transient: false };
   } catch (err) {
-    console.error('[tts] failed:', err);
+    console.error(`[tts] failed: ${errTag(err)}`);
     event('tts_failed');
     return { buf: null, transient: true };
   } finally {

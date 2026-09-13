@@ -6,6 +6,7 @@ import { nameProblem } from '../../../server/src/protocol';
 import { socket } from '../socket';
 import { useI18n } from '../i18n';
 import Mask, { MASK_IDS } from '../Mask';
+import Brand from '../Brand';
 
 interface Props {
   onClaimed: (name: string) => void;
@@ -59,7 +60,14 @@ export default function ClaimName({ onClaimed }: Props) {
 
   return (
     <div className="stage center-col claim-name">
-      <Mask id={MASK_IDS[0]} size={96} />
+      {/* The house bar, mark only: there is nowhere to go back to yet. */}
+      <header className="topbar scr-bar">
+        <Brand />
+      </header>
+      {/* Standing on its own like everywhere else, not boxed in a frame. */}
+      <div className="bare-fig">
+        <Mask id={MASK_IDS[0]} size={104} bare />
+      </div>
       <p className="kicker">{t('claimKicker')}</p>
       <h1 className="display">{t('claimTitle')}</h1>
       <p className="subtitle">{t('claimSub')}</p>

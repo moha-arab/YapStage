@@ -22,6 +22,24 @@ export default defineConfig({
     __BUILD__: JSON.stringify(buildStamp()),
   },
   plugins: [react()],
+  build: {
+    rollupOptions: {
+      output: {
+        // Split what rarely changes from what changes on every deploy. The app
+        // ships several times a day; React, the socket client and the drawn
+        // casts (generated files) do not, so a returning phone keeps those
+        // cached and only fetches the app code that actually moved.
+        manualChunks(id) {
+          if (/node_modules[\\/](react|react-dom|scheduler)[\\/]/.test(id)) return 'react';
+          if (/node_modules[\\/](socket\.io-client|socket\.io-parser|engine\.io-client|engine\.io-parser|@socket\.io)[\\/]/.test(id)) {
+            return 'socket';
+          }
+          if (/[\\/]src[\\/](cast|botcast)\.ts$/.test(id)) return 'cast';
+          return undefined;
+        },
+      },
+    },
+  },
   server: {
     proxy: {
       '/socket.io': {

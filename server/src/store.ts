@@ -1,11 +1,13 @@
-// The first thing YapStage ever persists: shared verdict cards.
+// Everything YapStage persists: accounts and ratings, match history (scores
+// and the judge's feedback, never the transcript), shared verdict cards,
+// friends, reports (the one place a transcript is kept, and disclosed as
+// such) and the anti-cheat file.
 //
-// Deliberately optional. Without DATABASE_URL the app behaves exactly as it did
-// before — share links still work, they just carry the whole card in the URL
-// instead of an id. That means this can ship before the database exists, and
-// adding the database later is a config change with no migration and no
-// downtime. Every function here fails soft: a dead database costs you a short
-// link, never a debate.
+// Deliberately optional. Without DATABASE_URL the app still runs: debates,
+// bots and the judge work, and everything that would be written is simply
+// not. Every function here fails soft: a dead database costs you a rating
+// update or a share link, never a debate.
+import crypto from 'node:crypto';
 import pg from 'pg';
 import { sanitizeCard, type Card } from './share.js';
 import { event } from './stats.js';
@@ -20,10 +22,12 @@ const ALPHABET = 'abcdefghjkmnpqrstuvwxyz23456789';
 const ID_LEN = 8;
 export const ID_RE = new RegExp(`^[${ALPHABET}]{${ID_LEN}}$`);
 
+// A card id is the only thing between a stranger and a card, so it comes
+// from the CSPRNG.
 function newId(): string {
   let out = '';
   for (let i = 0; i < ID_LEN; i++) {
-    out += ALPHABET[Math.floor(Math.random() * ALPHABET.length)];
+    out += ALPHABET[crypto.randomInt(ALPHABET.length)];
   }
   return out;
 }
@@ -100,6 +104,12 @@ export async function initStore(): Promise<void> {
         at        timestamptz NOT NULL DEFAULT now()
       )
     `);
+    // A deleted account's flags stay as moderation records with no way back
+    // to anyone: the name becomes 'deleted' and the player id NULL.
+    await pool.query(`ALTER TABLE cheat_flags ALTER COLUMN player_id DROP NOT NULL`);
+    // Every signed-out socket asks "does an account own this device id?"
+    // (playerIdOwned) before it may play under it.
+    await pool.query(`CREATE INDEX IF NOT EXISTS accounts_player_id ON accounts (player_id)`);
     // One row per friendship, subs sorted so (a,b) and (b,a) cannot both exist.
     await pool.query(`
       CREATE TABLE IF NOT EXISTS friends (
@@ -179,12 +189,14 @@ export async function initStore(): Promise<void> {
     // everyone who had got there from being sent to the placement bot.
     await pool.query(`ALTER TABLE players ADD COLUMN IF NOT EXISTS placed boolean NOT NULL DEFAULT false`);
     // Match history: the account's own debates, so a verdict is re-openable
-    // and the coach can still read the transcript days later. Disclosed at
-    // sign-up; his call 2026-08-08 (save by default). Since 2026-09-12 a
-    // guest's bot and friend games are filed too, under the device id, with
-    // the line under the lobby's name box as the disclosure: that is what
-    // lets signing in later pick those games up (linkAccount) instead of
-    // losing them, which is the point of not needing an account to start.
+    // and the coach can talk about it days later. His call 2026-08-08 (save
+    // by default). Since 2026-09-12 a guest's bot and friend games are filed
+    // too, under the device id: that is what lets signing in later pick those
+    // games up (linkAccount) instead of losing them. A row holds the result,
+    // the scores and the judge's feedback, and the player's OWN best line;
+    // the `transcript` column is written empty (judge.ts matchRowsFor),
+    // because the in-app notice promises the transcript is deleted after the
+    // verdict.
     await pool.query(`
       CREATE TABLE IF NOT EXISTS matches (
         id         bigserial PRIMARY KEY,
@@ -565,12 +577,16 @@ export async function applyRankedResult(
     // A floor, not a kindness: it stops the pool leaking points out the bottom
     // when someone tilts through ten losses and never comes back.
     const after = { winner: rw + gain, loser: Math.max(RATING_FLOOR, rl - drop) };
+    // A rated human game places both players too. The queue refuses the
+    // unplaced (index.ts queue:join), so this only matters for rows from
+    // before the placement match existed, which would otherwise sit
+    // unplaced forever, off the leaderboard, however many games they play.
     await pool.query(
-      `UPDATE players SET ${c.rating} = $2, ${c.wins} = ${c.wins} + 1, updated_at = now() WHERE id = $1`,
+      `UPDATE players SET ${c.rating} = $2, ${c.wins} = ${c.wins} + 1, placed = true, updated_at = now() WHERE id = $1`,
       [winnerId, after.winner],
     );
     await pool.query(
-      `UPDATE players SET ${c.rating} = $2, ${c.losses} = ${c.losses} + 1, updated_at = now() WHERE id = $1`,
+      `UPDATE players SET ${c.rating} = $2, ${c.losses} = ${c.losses} + 1, placed = true, updated_at = now() WHERE id = $1`,
       [loserId, after.loser],
     );
     return {
@@ -661,48 +677,43 @@ export async function getLocker(sub: string): Promise<Locker> {
   }
 }
 
-/** The fresh start (2026-08-22, his explicit instruction): delete every
-    account except his two, and everything those deleted accounts owned —
-    players, ratings, friendships, match history. REFUSES to run unless BOTH
-    keep-names are found, so a misremembered username deletes nothing. Behind
-    the STATS_KEY admin route, never automatic. */
-export async function prelaunchPrune(
-  keep: string[],
-): Promise<
-  | { ok: true; kept: string[]; deleted: Record<string, number> }
-  | { ok: false; error: string; found: string[] }
-> {
-  if (!pool || !ready) return { ok: false, error: 'store_down', found: [] };
-  try {
-    const folds = keep.map((k) => k.toLowerCase());
-    const found = await pool.query(
-      `SELECT username, sub, player_id FROM accounts WHERE username_fold = ANY($1)`,
-      [folds],
-    );
-    if (found.rowCount !== keep.length) {
-      return {
-        ok: false,
-        error: `expected ${keep.length} keep-accounts, found ${found.rowCount}`,
-        found: found.rows.map((r: { username: string }) => r.username),
-      };
-    }
-    const keepSubs = found.rows.map((r: { sub: string }) => r.sub);
-    const keepPlayers = found.rows.map((r: { player_id: string }) => r.player_id);
+/** Every table that holds something a person did or owns. Deleting these is
+    the whole of "start fresh". Kept on purpose: `migrations` (bookkeeping for
+    one-time data changes; clearing it would re-run them, the -300 rating
+    shift included) and `shutdowns` (server restart log, no personal data). */
+const LAUNCH_RESET_TABLES = ['friends', 'matches', 'cards', 'reports', 'cheat_flags', 'accounts', 'players'] as const;
 
-    const deleted: Record<string, number> = {};
-    const run = async (label: string, sql: string, params: unknown[]) => {
-      const r = await pool!.query(sql, params);
-      deleted[label] = r.rowCount ?? 0;
-    };
-    await run('friends', `DELETE FROM friends WHERE NOT (lo_sub = ANY($1) AND hi_sub = ANY($1))`, [keepSubs]);
-    await run('matches', `DELETE FROM matches WHERE NOT (player_id = ANY($1))`, [keepPlayers]);
-    await run('players', `DELETE FROM players WHERE NOT (id = ANY($1))`, [keepPlayers]);
-    await run('accounts', `DELETE FROM accounts WHERE NOT (sub = ANY($1))`, [keepSubs]);
-    await run('cheat_flags', `DELETE FROM cheat_flags WHERE NOT (player_id = ANY($1))`, [keepPlayers]);
-    return { ok: true, kept: found.rows.map((r: { username: string }) => r.username), deleted };
+/** The launch reset (2026-09-13, his explicit instruction: "wipe out all
+    accounts and start fresh" once the site is ready to go public). Deletes
+    EVERY account, his own included, and everything any player owns, in one
+    transaction. A dry run counts what would go and deletes nothing. Behind
+    the STATS_KEY admin route with a typed confirm, never automatic. */
+export async function launchReset(
+  dryRun: boolean,
+): Promise<{ ok: true; dryRun: boolean; counts: Record<string, number> } | { ok: false; error: string }> {
+  if (!pool || !ready) return { ok: false, error: 'store_down' };
+  try {
+    const counts: Record<string, number> = {};
+    for (const t of LAUNCH_RESET_TABLES) {
+      const r = await pool.query(`SELECT count(*)::int AS n FROM ${t}`);
+      counts[t] = r.rows[0]?.n ?? 0;
+    }
+    if (dryRun) return { ok: true, dryRun, counts };
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      for (const t of LAUNCH_RESET_TABLES) await client.query(`DELETE FROM ${t}`);
+      await client.query('COMMIT');
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
+    }
+    return { ok: true, dryRun, counts };
   } catch (err) {
-    console.error('[store] prelaunchPrune failed:', err);
-    return { ok: false, error: String(err).slice(0, 200), found: [] };
+    console.error('[store] launchReset failed:', err);
+    return { ok: false, error: String(err).slice(0, 200) };
   }
 }
 
@@ -749,6 +760,22 @@ async function adoptable(claim: string | null): Promise<string | null> {
   return owned.rowCount ? null : claim;
 }
 
+/** Whether an account owns this player id, asked for every id a signed-out
+    socket wants to play under (index.ts). false: nobody owns it (or there is
+    no database, so nothing will be written under it anyway). true: an
+    account does, and a guest must never play, file or rate under it. null:
+    the question could not be answered, which the caller treats as owned. */
+export async function playerIdOwned(id: string): Promise<boolean | null> {
+  if (!pool || !ready) return false;
+  try {
+    const r = await pool.query(`SELECT 1 FROM accounts WHERE player_id = $1 LIMIT 1`, [id.slice(0, 64)]);
+    return (r.rowCount ?? 0) > 0;
+  } catch (err) {
+    console.error('[store] playerIdOwned failed');
+    return null;
+  }
+}
+
 /** A returning account on a device that played as a guest first: move what
     the guest id earned onto the account's own row, in one transaction. Bot
     and friend matches are re-keyed, the campaign takes the higher level, and
@@ -790,11 +817,13 @@ async function mergeGuest(
   }
 }
 
+/** Sign-in. Since 2026-09-12 an account row keeps Google's `sub` and
+    nothing else from Google: the email, the Google name and the picture
+    address are neither requested (auth.ts asks for `openid` only) nor
+    stored, and a returning account's old values are blanked here. The
+    columns stay (NOT NULL DEFAULT '') so no migration is needed. */
 export async function linkAccount(p: {
   sub: string;
-  email: string;
-  name: string;
-  picture: string;
   claimPlayerId: string | null;
   /** Today, for judging whether a carried streak is still alive. */
   day: string;
@@ -809,11 +838,12 @@ export async function linkAccount(p: {
       [p.sub],
     );
     if (existing.rowCount === 1) {
-      // Returning user: refresh the profile, keep the canonical player row.
+      // Returning user: keep the canonical player row, and blank any Google
+      // profile an older build stored.
       const mine = existing.rows[0].player_id as string;
       await pool.query(
-        `UPDATE accounts SET email = $2, name = $3, picture = $4, seen_at = now() WHERE sub = $1`,
-        [p.sub, p.email.slice(0, 200), p.name.slice(0, 64), p.picture.slice(0, 500)],
+        `UPDATE accounts SET email = '', name = '', picture = '', seen_at = now() WHERE sub = $1`,
+        [p.sub],
       );
       // Played here as a guest before signing in (a new laptop, a cleared
       // browser): that progress follows the account too, not only what was
@@ -827,35 +857,27 @@ export async function linkAccount(p: {
       return {
         sub: p.sub,
         playerId: mine,
-        name: (existing.rows[0].username as string) || (existing.rows[0].name as string) || p.name,
+        name: (existing.rows[0].username as string) || '',
         username: (existing.rows[0].username as string) || null,
       };
     }
     // First sign-in: adopt this device's progress rather than starting over.
     // The players row (campaign, and every match filed under it) is kept as
-    // is; the streak the device kept becomes the account's.
+    // is; the streak the device kept becomes the account's. A brand new row
+    // is called 'player' until the yap name is claimed.
     const playerId = claim || `acct_${p.sub}`;
     await pool.query(
-      `INSERT INTO players (id, name) VALUES ($1, $2) ON CONFLICT (id) DO NOTHING`,
-      [playerId, p.name.slice(0, 24) || 'player'],
+      `INSERT INTO players (id, name) VALUES ($1, 'player') ON CONFLICT (id) DO NOTHING`,
+      [playerId],
     );
     await pool.query(
-      `INSERT INTO accounts (sub, player_id, email, name, picture, drill_last, drill_streak, drill_best)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      `INSERT INTO accounts (sub, player_id, drill_last, drill_streak, drill_best)
+       VALUES ($1, $2, $3, $4, $5)
        ON CONFLICT (sub) DO NOTHING`,
-      [
-        p.sub,
-        playerId,
-        p.email.slice(0, 200),
-        p.name.slice(0, 64),
-        p.picture.slice(0, 500),
-        drill?.last ?? null,
-        drill?.streak ?? 0,
-        drill?.best ?? 0,
-      ],
+      [p.sub, playerId, drill?.last ?? null, drill?.streak ?? 0, drill?.best ?? 0],
     );
     event('account_created', { adopted: Boolean(claim), streak: drill?.streak ?? 0 });
-    return { sub: p.sub, playerId, name: p.name, username: null };
+    return { sub: p.sub, playerId, name: '', username: null };
   } catch (err) {
     console.error('[store] linkAccount failed:', err);
     return null;
@@ -977,10 +999,13 @@ export type DeleteOutcome =
                    is an account's; friend and bot rows are name-only text and
                    a guest may have typed the same name, so they are left.
       players      the canonical row (ratings, campaign, leaderboard entry)
-      cheat_flags  kept as moderation records, name scrubbed to 'deleted';
-                   what is left is ids, a score and speech-timing numbers
-    `reports` and `cards` hold names and quotes, never an id, so nothing here
-    can tie them to this account and they are left as they are. */
+      cheat_flags  kept as moderation records, name scrubbed to 'deleted' and
+                   the player id set to NULL; what is left is a room code, a
+                   score and speech-timing numbers
+      cards        every share card that names this username: the name becomes
+                   'deleted' and that side's quote (and settle-it account) goes
+    `reports` hold names and the reported debate's transcript, never an id;
+    they are kept for review and expire after 90 days (pruneRetention). */
 export async function deleteAccountData(sub: string, confirmFold: string): Promise<DeleteOutcome> {
   if (!pool || !ready) return { status: 'down' };
   let client: pg.PoolClient;
@@ -1028,7 +1053,11 @@ export async function deleteAccountData(sub: string, confirmFold: string): Promi
     await run('friends', `DELETE FROM friends WHERE lo_sub = $1 OR hi_sub = $1`, [sub]);
     if (ownsPlayer) {
       await run('matches', `DELETE FROM matches WHERE player_id = $1`, [pid]);
-      await run('cheat_flags_scrubbed', `UPDATE cheat_flags SET name = 'deleted' WHERE player_id = $1`, [pid]);
+      await run(
+        'cheat_flags_scrubbed',
+        `UPDATE cheat_flags SET name = 'deleted', player_id = NULL WHERE player_id = $1`,
+        [pid],
+      );
       await run('players', `DELETE FROM players WHERE id = $1`, [pid]);
     }
     // After this player's own rows are gone, so only other players' copies
@@ -1036,6 +1065,20 @@ export async function deleteAccountData(sub: string, confirmFold: string): Promi
     await run(
       'opponent_renamed',
       `UPDATE matches SET opponent = 'deleted' WHERE mode = 'ranked' AND opponent = $1`,
+      [row.username],
+    );
+    // Share cards carry names, not ids. A card's FOR side is `a` (quote qa,
+    // settle-it account rl.sa), its AGAINST side `b` (qb, rl.sb).
+    await run(
+      'cards_scrubbed_for',
+      `UPDATE cards SET payload = jsonb_set((payload - 'qa') #- '{rl,sa}', '{a}', '"deleted"')
+       WHERE payload->>'a' = $1`,
+      [row.username],
+    );
+    await run(
+      'cards_scrubbed_against',
+      `UPDATE cards SET payload = jsonb_set((payload - 'qb') #- '{rl,sb}', '{b}', '"deleted"')
+       WHERE payload->>'b' = $1`,
       [row.username],
     );
     await run('accounts', `DELETE FROM accounts WHERE sub = $1`, [sub]);
@@ -1391,8 +1434,8 @@ export async function advanceCampaign(
 }
 
 // ---- match history ----
-// A verdict you can re-open days later, with the transcript still attached so
-// the coach can read the actual debate rather than a summary of it.
+// A verdict you can re-open days later: the result, the scores, the judge's
+// feedback and your own best line. Never the transcript (see matches above).
 
 export interface MatchRow {
   playerId: string;
@@ -1408,7 +1451,6 @@ export interface MatchRow {
   /** The pace it was played at, which is also the ladder a rated one moved. */
   pace: Pace;
   verdict: unknown;
-  transcript: unknown;
 }
 
 export async function saveMatch(m: MatchRow): Promise<void> {
@@ -1430,7 +1472,8 @@ export async function saveMatch(m: MatchRow): Promise<void> {
         Boolean(m.rated),
         (PACES as readonly string[]).includes(m.pace) ? m.pace : 'standard',
         JSON.stringify(m.verdict),
-        JSON.stringify(m.transcript),
+        // The column predates the promise and is NOT NULL: always empty now.
+        '[]',
       ],
     );
   } catch (err) {
@@ -1506,7 +1549,9 @@ export async function listMatches(
   }
 }
 
-/** One match in full. Scoped to the owner: you can only re-open your own. */
+/** One match in full. Scoped to the owner: you can only re-open your own.
+    `transcript` is always an empty array (the words are not kept), and the
+    opponent's best line is blanked even on a row filed before that rule. */
 export async function loadMatch(
   playerId: string,
   id: number,
@@ -1514,11 +1559,18 @@ export async function loadMatch(
   if (!pool || !ready) return null;
   try {
     const res = await pool.query(
-      `SELECT id, mode, pace, topic, my_side, won, my_total, their_total, opponent, verdict, transcript, at
+      `SELECT id, mode, pace, topic, my_side, won, my_total, their_total, opponent, verdict, at
        FROM matches WHERE id = $1 AND player_id = $2`,
       [id, playerId.slice(0, 64)],
     );
-    return res.rowCount === 1 ? (res.rows[0] as Record<string, unknown>) : null;
+    if (res.rowCount !== 1) return null;
+    const row = res.rows[0] as Record<string, unknown>;
+    const verdict = (row.verdict ?? {}) as { bestQuote?: Record<string, unknown> };
+    const theirs = row.my_side === 'FOR' ? 'AGAINST' : 'FOR';
+    if (verdict.bestQuote && typeof verdict.bestQuote === 'object') {
+      verdict.bestQuote = { ...verdict.bestQuote, [theirs]: '' };
+    }
+    return { ...row, verdict, transcript: [] };
   } catch (err) {
     console.error('[store] loadMatch failed:', err);
     return null;
@@ -1550,6 +1602,23 @@ export async function saveReport(r: ReportRow): Promise<boolean> {
   } catch (err) {
     console.error('[store] saveReport failed:', err);
     return false;
+  }
+}
+
+/** Retention, run at boot and daily (index.ts): a report (the one place a
+    transcript is kept) lives 90 days, an anti-cheat flag 180. Returns what
+    went, or null when the store is down. */
+export async function pruneRetention(): Promise<{ reports: number; cheatFlags: number } | null> {
+  if (!pool || !ready) return null;
+  try {
+    const r = await pool.query(`DELETE FROM reports WHERE at < now() - interval '90 days'`);
+    const c = await pool.query(`DELETE FROM cheat_flags WHERE at < now() - interval '180 days'`);
+    const out = { reports: r.rowCount ?? 0, cheatFlags: c.rowCount ?? 0 };
+    event('retention_pruned', out);
+    return out;
+  } catch (err) {
+    console.error('[store] pruneRetention failed');
+    return null;
   }
 }
 

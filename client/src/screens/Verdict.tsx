@@ -17,7 +17,7 @@
 //   the judge's sentence, the four categories as paired bars, your two notes
 //   then the coach, their notes, share, report
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
-import type { CategoryScores, Framing, Side, TopicText, Verdict as VerdictData } from '../../../server/src/protocol';
+import type { Framing, Side, TopicText, Verdict as VerdictData } from '../../../server/src/protocol';
 import { isSoundMuted, playCrash, setSoundMuted, speak } from '../sound';
 import { socket } from '../socket';
 import { useI18n } from '../i18n';
@@ -28,6 +28,7 @@ import { playBotTurn, stopBotVoice } from '../botvoice';
 import BotAvatar from '../BotAvatar';
 import Mask from '../Mask';
 import Cone from '../Cone';
+import { JudgeNotes, ScoreBars, capFirst, sideCls, totalOf } from '../VerdictBlocks';
 import '../verdict.css';
 
 const COACH_LIMIT = 6;
@@ -79,24 +80,6 @@ interface Props {
   onPlayAgain?: () => void;
 }
 
-interface Category {
-  key: keyof CategoryScores;
-  labelKey: string;
-  descKey: string;
-  max: number;
-}
-
-const CATEGORIES: Category[] = [
-  { key: 'argument', labelKey: 'catArgument', descKey: 'catArgumentDesc', max: 30 },
-  { key: 'evidence', labelKey: 'catEvidence', descKey: 'catEvidenceDesc', max: 20 },
-  { key: 'clash', labelKey: 'catClash', descKey: 'catClashDesc', max: 30 },
-  { key: 'delivery', labelKey: 'catDelivery', descKey: 'catDeliveryDesc', max: 20 },
-];
-
-function total(s: CategoryScores): number {
-  return s.argument + s.evidence + s.clash + s.delivery;
-}
-
 /* The one bit of show left. The result itself never waits on this: it is on
    screen from the first frame, and only the numbers roll in under it. */
 const REVEAL_DELAY_MS = 250;
@@ -118,7 +101,6 @@ function withNum(template: string, n: number): ReactNode {
   );
 }
 
-const sideCls = (s: Side) => (s === 'FOR' ? 'is-for' : 'is-against');
 const delay = (s: number) => ({ '--d': `${s}s` }) as CSSProperties;
 
 export default function VerdictScreen({
@@ -152,6 +134,13 @@ export default function VerdictScreen({
   const [shareState, setShareState] = useState<'idle' | 'working' | 'copied' | 'failed'>('idle');
   const [starting, setStarting] = useState(false);
   const coachRef = useRef<HTMLDivElement>(null);
+  // Focus lands on the result when it arrives, so a screen reader starts at
+  // "Victory", not wherever focus happened to be during the wait.
+  const wordRef = useRef<HTMLHeadingElement>(null);
+  const hasInfo = Boolean(info);
+  useEffect(() => {
+    if (hasInfo) wordRef.current?.focus();
+  }, [hasInfo]);
   // Signed-out and just handed a real verdict: the one moment an account ask
   // is a gift rather than a toll.
   const [saveNudge, setSaveNudge] = useState(false);
@@ -329,7 +318,13 @@ export default function VerdictScreen({
         <span className="vd-name-text">{nameOf(side)}</span>
       </div>
       {callOn && side === them && !rtcConnected ? <span className="vd-left">{t('leftCall')}</span> : null}
-      {o.score !== undefined ? <div className="vd-total num">{o.score}</div> : null}
+      {/* It counts up from zero, so it is for the eye; the final totals are
+          read out once, from the line under the fighters. */}
+      {o.score !== undefined ? (
+        <div className="vd-total num" aria-hidden="true">
+          {o.score}
+        </div>
+      ) : null}
     </div>
   );
 
@@ -355,8 +350,10 @@ export default function VerdictScreen({
         <div className="vd-stage">{order.map((s) => fighter(s))}</div>
         {failed ? (
           <>
-            <h1 className="display vd-deciding">{t('judgeFailed')}</h1>
-            <p className="subtitle">{t(failed.message ?? 'judgeFailedSub')}</p>
+            <div className="vd-failed" role="alert">
+              <h1 className="display vd-deciding">{t('judgeFailed')}</h1>
+              <p className="subtitle">{t(failed.message ?? 'judgeFailedSub')}</p>
+            </div>
             <div className="vd-actions">
               {!failed.terminal ? (
                 <button className="btn btn-primary" onClick={onRetry}>
@@ -396,7 +393,8 @@ export default function VerdictScreen({
   const outcome = mySide === undefined || notHeard ? 'neutral' : youWon ? 'won' : 'lost';
   const e = ease(progress);
   const score = (s: Side) =>
-    ruling ? `${Math.round(ruling.split[s] * e)}%` : Math.round(total(verdict.scores[s]) * e);
+    ruling ? `${Math.round(ruling.split[s] * e)}%` : Math.round(totalOf(verdict.scores[s]) * e);
+  const finalScore = (s: Side) => (ruling ? `${ruling.split[s]}%` : String(totalOf(verdict.scores[s])));
 
   // What the match did to your rating, in one line.
   let rating: ReactNode = null;
@@ -449,12 +447,31 @@ export default function VerdictScreen({
       <button className="btn btn-primary" disabled>
         {t('rematchWaiting', { x: peerName })}
       </button>
+    ) : rematch?.peerWant ? (
+      // Their ask is news, so it gets a line of its own; the button answers it.
+      <>
+        <p className="vd-action-lead" role="status">
+          {t('rematchAsked', { x: peerName })}
+        </p>
+        <button className="btn btn-primary" onClick={onRematch}>
+          {t('rematchAccept')}
+        </button>
+      </>
     ) : (
       <button className="btn btn-primary" onClick={onRematch}>
-        {rematch?.peerWant ? t('rematchAccept', { x: peerName }) : t('rematch')}
+        {t('rematch')}
       </button>
     );
-  } else if (botOpponent && onPlayAgain && !info.placement) {
+  } else if (info.placement) {
+    // Placed: the ladder is the next thing to do, so it is the button. A fresh
+    // load of the lobby opens on its ranked tab (Home.tsx), which is where
+    // this lands.
+    again = (
+      <button className="btn btn-primary" onClick={home}>
+        {t('vdPlayRanked')}
+      </button>
+    );
+  } else if (botOpponent && onPlayAgain) {
     again = (
       <button
         className="btn btn-primary"
@@ -481,7 +498,7 @@ export default function VerdictScreen({
 
       <div className="vd-grid">
         <section className="vd-result">
-          <h1 className={`display vd-word vd-in ${outcome}`}>
+          <h1 ref={wordRef} tabIndex={-1} className={`display vd-word vd-in ${outcome}`}>
             {outcome === 'won' ? t('youWon') : outcome === 'lost' ? t('youLost') : t('vdWins', { x: names[winner] })}
           </h1>
 
@@ -495,6 +512,7 @@ export default function VerdictScreen({
               }),
             )}
           </div>
+          <p className="sr-only">{order.map((s) => `${nameOf(s)} ${finalScore(s)}`).join(', ')}</p>
 
           {notHeard ? (
             <div className="vd-notheard vd-in" style={delay(0.2)}>
@@ -516,7 +534,8 @@ export default function VerdictScreen({
               </button>
             )}
             <div className="vd-actions-row">
-              {again ? (
+              {/* Placement's button already goes to the lobby. */}
+              {again && !info.placement ? (
                 <button className="btn" onClick={home}>
                   {t('backHome')}
                 </button>
@@ -552,7 +571,7 @@ export default function VerdictScreen({
           {reason ? (
             <div className="vd-reason">
               <span className="vd-label">{t('vdJudge')}</span>
-              <p>{reason}</p>
+              <p>{capFirst(reason)}</p>
             </div>
           ) : null}
 
@@ -560,7 +579,7 @@ export default function VerdictScreen({
             <div className="vd-orders">
               <span className="vd-label">{t('theOrders')}</span>
               {ruling.orders.map((o, i) => (
-                <p key={i}>{o}</p>
+                <p key={i}>{capFirst(o)}</p>
               ))}
             </div>
           ) : null}
@@ -577,57 +596,16 @@ export default function VerdictScreen({
             </div>
           ) : null}
 
-          <div className="vd-score">
-            <div className="vd-legend">
-              {order.map((s) => (
-                <span key={s} className={`vd-key ${sideCls(s)}`}>
-                  <i aria-hidden="true" />
-                  {mySide !== undefined && s === me ? t('you') : names[s]}
-                </span>
-              ))}
-            </div>
-            {CATEGORIES.map((c) => (
-              <div className="vd-row" key={c.key}>
-                <div className="vd-row-head">
-                  <span className="vd-cat">
-                    {t(c.labelKey)}
-                    <span className="vd-cat-desc">{t(c.descKey)}</span>
-                  </span>
-                  <span className="vd-cat-max num">/{c.max}</span>
-                </div>
-                {order.map((s) => (
-                  <div className="vd-bar-row" key={s}>
-                    <div className="vd-bar">
-                      <i
-                        className={sideCls(s)}
-                        style={{ width: `${(verdict.scores[s][c.key] / c.max) * 100 * e}%` }}
-                      />
-                    </div>
-                    <span className={`vd-n num ${sideCls(s)}`}>{verdict.scores[s][c.key]}</span>
-                  </div>
-                ))}
-              </div>
-            ))}
-          </div>
+          <ScoreBars
+            scores={verdict.scores}
+            order={order}
+            nameOf={(s) => (mySide !== undefined && s === me ? t('you') : names[s])}
+            progress={e}
+          />
 
           {/* The judge writes two notes per debater: bullet one is the
               strongest thing they did, bullet two the thing that cost them. */}
-          {myNotes.length > 0 ? (
-            <div className="vd-notes">
-              {myNotes[0] ? (
-                <div className="vd-note">
-                  <span className="vd-label">{t('vdWorked')}</span>
-                  <p>{myNotes[0]}</p>
-                </div>
-              ) : null}
-              {myNotes[1] ? (
-                <div className="vd-note vd-note-fix">
-                  <span className="vd-label">{t('vdFix')}</span>
-                  <p>{myNotes[1]}</p>
-                </div>
-              ) : null}
-            </div>
-          ) : null}
+          <JudgeNotes notes={myNotes} />
 
           {myQuote ? (
             <blockquote className="vd-quote">
@@ -645,16 +623,15 @@ export default function VerdictScreen({
             {/* one chat, not two. the note is what tells you arguing with the
                 ruling is on the table at all, no mode switch needed. */}
             <p className="coach-note">{t('coachNote')}</p>
-            {coachLog.length > 0 || coachThinking ? (
-              <div className="coach-log">
-                {coachLog.map((m, i) => (
-                  <p key={i} className={`coach-msg ${m.role}`}>
-                    {m.error ? t('coachError') : m.text}
-                  </p>
-                ))}
-                {coachThinking ? <p className="coach-msg coach thinking">{t('coachThinking')}</p> : null}
-              </div>
-            ) : null}
+            {/* Always in the page, so the first answer is announced. */}
+            <div className="coach-log" aria-live="polite">
+              {coachLog.map((m, i) => (
+                <p key={i} className={`coach-msg ${m.role}`}>
+                  {m.error ? t('coachError') : m.text}
+                </p>
+              ))}
+              {coachThinking ? <p className="coach-msg coach thinking">{t('coachThinking')}</p> : null}
+            </div>
 
             {coachAsks < COACH_LIMIT ? (
               <>
@@ -675,6 +652,7 @@ export default function VerdictScreen({
                     className="input"
                     value={coachInput}
                     placeholder={t('coachPlaceholder')}
+                    aria-label={t('coachPlaceholder')}
                     maxLength={300}
                     onChange={(ev) => setCoachInput(ev.target.value)}
                     onKeyDown={(ev) => {
@@ -703,7 +681,7 @@ export default function VerdictScreen({
               {verdict.bestQuote[s] ? <p className="vd-theirs-quote">&ldquo;{verdict.bestQuote[s]}&rdquo;</p> : null}
               <ul>
                 {(verdict.feedback[s] ?? []).map((f, i) => (
-                  <li key={i}>{f}</li>
+                  <li key={i}>{capFirst(f)}</li>
                 ))}
               </ul>
             </div>
@@ -716,14 +694,18 @@ export default function VerdictScreen({
           <button className="btn btn-small" disabled={shareState === 'working'} onClick={share}>
             {shareState === 'copied' ? t('shareCopied') : t('shareBtn')}
           </button>
-          <button className="btn btn-small ghost" onClick={toggleMute}>
+          <button className="btn btn-small ghost" aria-pressed={muted} onClick={toggleMute}>
             {muted ? t('unmuteStage') : t('muteStage')}
           </button>
         </div>
-        <p className="vd-util-note">{shareState === 'failed' ? t('shareFailed') : t('shareNote')}</p>
+        {/* What is and is not kept, said once, beside the one button that
+            sends anything anywhere. */}
+        <p className="vd-util-note" aria-live="polite">
+          {shareState === 'failed' ? t('shareFailed') : `${t('shareNote')} ${t('vdNotKept')}`}
+          {shareState === 'copied' ? <span className="sr-only"> {t('shareCopied')}</span> : null}
+        </p>
 
         {!botOpponent ? <ReportFlag /> : null}
-        <p className="footnote">{t('condolences', { x: names[winner === 'FOR' ? 'AGAINST' : 'FOR'] })}</p>
       </section>
     </div>
   );

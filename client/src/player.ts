@@ -120,9 +120,15 @@ export async function deleteAccount(confirm: string): Promise<{ ok: true } | { o
   }
 }
 
-/** Send the browser to Google, carrying this device's id so a first sign-in
-    adopts progress already earned here instead of starting from zero, and
-    the drill streak a guest kept on the device (guest.ts) for the same reason.
+/** Send the browser to Google. This device's id goes along so a first
+    sign-in adopts progress already earned here instead of starting from
+    zero, and so does the drill streak a guest kept on the device (guest.ts).
+    Neither rides on the URL (2026-09-12): they are posted to /auth/claim
+    first, which hands them back as a short-lived, signed, HttpOnly cookie
+    that only the sign-in callback reads. On the URL the id sat in browser
+    history, server logs and every Referer, and any link could pick whose
+    guest games an account adopted. If the post fails, sign-in still goes
+    ahead; the guest games just stay on the device id.
 
     An invite code in the URL is stashed first: the OAuth round trip lands back
     on a bare `/?auth=ok`, and without this the person a friend called out
@@ -136,10 +142,15 @@ export function signIn(): void {
   } catch {
     // storage blocked: they sign in and type the code by hand, which works
   }
-  const q = new URLSearchParams({ claim: playerId() });
   const drill = carriedDrill();
-  if (drill) q.set('drill', drill);
-  window.location.assign(`/auth/google?${q.toString()}`);
+  void fetch('/auth/claim', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    credentials: 'same-origin',
+    body: JSON.stringify({ claim: playerId(), ...(drill ? { drill } : {}) }),
+  })
+    .catch(() => undefined)
+    .finally(() => window.location.assign('/auth/google'));
 }
 
 /** Sign out, and leave the device as a stranger would find it. The account's
