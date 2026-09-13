@@ -163,7 +163,10 @@ if (want('e7')) {
         `refused with "${r2.error}" (client shows errPlacing "already running in another tab"); the dead lobby blocks it for 60s, and a judge-failed one until the 30 min sweep`,
       );
       h2.disconnect();
-      // A watcher who opens the dead debate by code.
+      // A watcher who opens the dead debate by code. The code comes from the
+      // keyed event trail; without it E12 used to vanish from the run without
+      // a word, which made pass counts disagree between runs. Say so instead.
+      if (!code) check('E12 watching a debate that was called off says so', false, 'no room code for the aborted placement in /stats/events (is STATS_KEY set on both sides?), so E12 could not run');
       if (code) {
         const w = connect();
         const stP = maybe(once(w, 'spectate:state', 3000));

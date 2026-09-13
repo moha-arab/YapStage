@@ -2,11 +2,16 @@
 // the whole thing is two redirects and one POST, and a dependency here would be
 // a dependency in the path of every login.
 //
-// The identity we care about is Google's `sub` — stable forever, unlike email.
-// We never see or store a password. Since 2026-09-12 we ask for `openid` and
-// nothing else: the sub is all an account needs (the yap name is claimed in
-// the app), so the email, Google name and picture are neither requested nor
-// stored.
+// The identity is Google's `sub`, stable forever. An email address can be
+// changed or handed on, so it is never the identity and never the key to
+// anything. Since 2026-09-13 we ask for `openid email` (not `profile`): the
+// sub is the account, and the email is kept only when Google says it is
+// verified (verifiedEmail below), refreshed on every sign-in because people
+// change addresses. It exists so we can reach the person about their account
+// and match a privacy request to it. Only its owner ever gets it back
+// (/auth/me for Settings, /auth/export); no socket payload, public route or
+// share card carries it. The Google name and picture are not requested, and
+// we never see or store a password.
 import crypto from 'node:crypto';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { errTag, event } from './stats.js';
@@ -14,6 +19,7 @@ import { AVATAR_IDS, foldName, nameProblem } from './protocol.js';
 import {
   claimUsername,
   deleteAccountData,
+  exportAccountData,
   getLocker,
   linkAccount,
   renameUsername,
@@ -200,6 +206,19 @@ function parseCarriedDrill(raw: string | undefined): CarriedDrill | null {
   return { last: m[1], streak, best };
 }
 
+/** The email to keep from an ID token's claims, or '' for none. Kept only
+    when Google says the address is verified (`email_verified` true; a few
+    token paths still send the string "true"), so an address someone merely
+    typed into a Google account never lands on ours. Trimmed, shaped like an
+    address, at most 254 characters (the SMTP limit). */
+export function verifiedEmail(claims: { email?: unknown; email_verified?: unknown }): string {
+  const verified = claims.email_verified === true || claims.email_verified === 'true';
+  if (!verified || typeof claims.email !== 'string') return '';
+  const email = claims.email.trim();
+  if (email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return '';
+  return email;
+}
+
 function redirectUri(req: FastifyRequest): string {
   // req.protocol honours x-forwarded-proto behind Railway's edge (trustProxy)
   // and stays http on localhost, which Google allows only for localhost.
@@ -253,7 +272,8 @@ export function registerAuth(app: FastifyInstance, hooks: AuthHooks = {}): void 
       client_id: process.env.GOOGLE_CLIENT_ID!,
       redirect_uri: redirectUri(req),
       response_type: 'code',
-      scope: 'openid',
+      // `email` and nothing more: never `profile` (name, picture).
+      scope: 'openid email',
       state,
       prompt: 'select_account',
     });
@@ -297,17 +317,20 @@ export function registerAuth(app: FastifyInstance, hooks: AuthHooks = {}): void 
         // the channel is the proof. (A token received any OTHER way would.)
         const claims = JSON.parse(
           Buffer.from(tok.id_token.split('.')[1], 'base64url').toString(),
-        ) as { sub?: string; aud?: string };
+        ) as { sub?: string; aud?: string; email?: unknown; email_verified?: unknown };
         if (!claims.sub) throw new Error('no sub');
         if (claims.aud !== process.env.GOOGLE_CLIENT_ID) throw new Error('aud mismatch');
 
         // The guest's games are adopted only with a valid claim cookie from
-        // this browser (POST /auth/claim just before the redirect).
+        // this browser (POST /auth/claim just before the redirect). The email
+        // is written on every sign-in, verified or blank: the row holds what
+        // Google vouches for today, never a stale or unconfirmed address.
         const account = await linkAccount({
           sub: claims.sub,
           claimPlayerId: claimed?.claim || null,
           day: today(),
           drill: parseCarriedDrill(claimed?.drill),
+          email: verifiedEmail(claims),
         });
         if (!account) {
           // No database means no accounts. Say so rather than pretending.
@@ -361,7 +384,37 @@ export function registerAuth(app: FastifyInstance, hooks: AuthHooks = {}): void 
       mask: locker.mask,
       maskDefault: locker.maskDefault,
       nextNameChange: nextNameChange(locker.nameChangedAt),
+      // Owner only, and this is the only place it is read back: the session
+      // above is this person's own, so Settings can say "Signed in as".
+      email: locker.email ?? null,
     };
+  });
+
+  /** Download my data: everything filed under this account as one JSON
+      file (store.ts exportAccountData says what is in it and what is left
+      out). The session is the only key, so it can only ever be your own.
+      Three an hour per account: a person needs one, and the file carries
+      every transcript, which makes it the heaviest read we serve. */
+  app.get('/auth/export', async (req, reply) => {
+    const s = readSession(req);
+    if (!s) return reply.code(401).send({ ok: false, error: 'signed_out' });
+    if (!allow(`export:${s.sub}`, 3, 60 * 60_000) || !allow(`export-ip:${req.ip}`, 10, 60 * 60_000)) {
+      return reply.code(429).send({ ok: false, error: 'rate_limited' });
+    }
+    const data = await exportAccountData(s.sub);
+    if (data === 'missing') {
+      // Deleted from another device: this cookie is a leftover.
+      clearCookie(reply, SESSION_COOKIE);
+      return reply.code(401).send({ ok: false, error: 'signed_out' });
+    }
+    if (!data) return reply.code(503).send({ ok: false, error: 'down' });
+    event('data_exported');
+    const day = new Date().toISOString().slice(0, 10);
+    return reply
+      .header('content-type', 'application/json; charset=utf-8')
+      .header('content-disposition', `attachment; filename="yapstage-data-${day}.json"`)
+      .header('cache-control', 'no-store')
+      .send(JSON.stringify(data, null, 2));
   });
 
   /** Claim the yap name, once. Re-issues the session so every later socket

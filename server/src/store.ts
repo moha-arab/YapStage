@@ -1,7 +1,7 @@
-// Everything YapStage persists: accounts and ratings, match history (scores
-// and the judge's feedback, never the transcript), shared verdict cards,
-// friends, reports (the one place a transcript is kept, and disclosed as
-// such) and the anti-cheat file.
+// Everything YapStage persists: accounts and ratings, match history (the
+// verdict, the scores and the debate's transcript, kept for as long as the
+// account is), shared verdict cards, friends, reports (with the reported
+// debate's transcript, 90 days) and the anti-cheat file (180 days).
 //
 // Deliberately optional. Without DATABASE_URL the app still runs: debates,
 // bots and the judge work, and everything that would be written is simply
@@ -132,6 +132,12 @@ export async function initStore(): Promise<void> {
     // When the yap name last changed. Null means never: the first claim is a
     // pick, not a change. A name changes once per 30 days (auth.ts /auth/rename).
     await pool.query(`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS username_changed_at timestamptz`);
+    // The Google email, verified addresses only (auth.ts verifiedEmail),
+    // refreshed on every sign-in. The first accounts table already had this
+    // column (blanked 2026-09-12 to 09-13, when only `openid` was asked for),
+    // so this is a no-op there and a real add on any table that lacks it.
+    // Owner-only: /auth/me and /auth/export read it, nothing public does.
+    await pool.query(`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS email text NOT NULL DEFAULT ''`);
     // BACKFILL, and the reason this exists is worth keeping.
     // `username_fold` arrived in a later deploy than `username`, so every
     // account that claimed a name in between has username set and fold NULL.
@@ -193,10 +199,11 @@ export async function initStore(): Promise<void> {
     // by default). Since 2026-09-12 a guest's bot and friend games are filed
     // too, under the device id: that is what lets signing in later pick those
     // games up (linkAccount) instead of losing them. A row holds the result,
-    // the scores and the judge's feedback, and the player's OWN best line;
-    // the `transcript` column is written empty (judge.ts matchRowsFor),
-    // because the in-app notice promises the transcript is deleted after the
-    // verdict.
+    // the scores, the judge's feedback, the player's OWN best line and the
+    // whole transcript (judge.ts matchRowsFor), which is what coaching on a
+    // past match reads. No retention prune: a row lives as long as the
+    // account, and deleteAccountData removes the player's own rows. Rows
+    // filed 2026-09-12 to 2026-09-13 have an empty transcript.
     await pool.query(`
       CREATE TABLE IF NOT EXISTS matches (
         id         bigserial PRIMARY KEY,
@@ -306,8 +313,8 @@ export async function initStore(): Promise<void> {
     await runOnce('drop_waitlist', async () => {
       await pool!.query(`DROP TABLE IF EXISTS waitlist`);
     });
-    // Reports keep the debate's words as evidence — the one deliberate
-    // exception to "transcripts die with the lobby", disclosed in the UI.
+    // Reports keep the debate's words as evidence for the review team,
+    // disclosed in the UI, for 90 days (pruneRetention).
     await pool.query(`
       CREATE TABLE IF NOT EXISTS reports (
         id            bigserial PRIMARY KEY,
@@ -650,6 +657,10 @@ export interface Locker {
   /** The store answered and there is no such account: it was deleted, and
       whatever cookie asked is a leftover. Never set when the store is down. */
   missing?: boolean;
+  /** The verified Google email, or null. OWNER ONLY: /auth/me hands it to
+      its own session for Settings. The socket bind in index.ts copies the
+      mask fields by name and must never spread this object. */
+  email?: string | null;
 }
 
 /** The locker: your chosen mask, and whether you want it INSTEAD of a camera
@@ -661,7 +672,7 @@ export async function getLocker(sub: string): Promise<Locker> {
   if (!pool || !ready) return { mask: null, maskDefault: false };
   try {
     const r = await pool.query(
-      `SELECT mask, mask_default, username, username_changed_at FROM accounts WHERE sub = $1`,
+      `SELECT mask, mask_default, username, username_changed_at, email FROM accounts WHERE sub = $1`,
       [sub],
     );
     if (r.rowCount !== 1) return { mask: null, maskDefault: false, missing: true };
@@ -671,6 +682,7 @@ export async function getLocker(sub: string): Promise<Locker> {
       maskDefault: Boolean(row.mask_default),
       username: (row.username as string) || null,
       nameChangedAt: row.username_changed_at ? new Date(row.username_changed_at as string | Date) : null,
+      email: (row.email as string) || null,
     };
   } catch {
     return { mask: null, maskDefault: false };
@@ -817,19 +829,24 @@ async function mergeGuest(
   }
 }
 
-/** Sign-in. Since 2026-09-12 an account row keeps Google's `sub` and
-    nothing else from Google: the email, the Google name and the picture
-    address are neither requested (auth.ts asks for `openid` only) nor
-    stored, and a returning account's old values are blanked here. The
-    columns stay (NOT NULL DEFAULT '') so no migration is needed. */
+/** Sign-in. An account row keeps two things from Google: the `sub`, which
+    IS the account, and the email, only when Google says it is verified
+    (auth.ts verifiedEmail; '' otherwise). The email is rewritten on every
+    sign-in, so a changed address follows and an unverified one never
+    lingers. The Google name and picture are not requested (no `profile`
+    scope since 2026-09-12), and whatever an older build stored in those
+    columns is blanked here. */
 export async function linkAccount(p: {
   sub: string;
   claimPlayerId: string | null;
   /** Today, for judging whether a carried streak is still alive. */
   day: string;
   drill: CarriedDrill | null;
+  /** The verified email, or '' for none. */
+  email: string;
 }): Promise<AccountRow | null> {
   if (!pool || !ready) return null;
+  const email = p.email.slice(0, 254);
   try {
     const claim = await adoptable(p.claimPlayerId);
     const drill = aliveDrill(p.drill, p.day);
@@ -838,12 +855,12 @@ export async function linkAccount(p: {
       [p.sub],
     );
     if (existing.rowCount === 1) {
-      // Returning user: keep the canonical player row, and blank any Google
-      // profile an older build stored.
+      // Returning user: keep the canonical player row, refresh the email,
+      // and blank any Google name or picture an older build stored.
       const mine = existing.rows[0].player_id as string;
       await pool.query(
-        `UPDATE accounts SET email = '', name = '', picture = '', seen_at = now() WHERE sub = $1`,
-        [p.sub],
+        `UPDATE accounts SET email = $2, name = '', picture = '', seen_at = now() WHERE sub = $1`,
+        [p.sub, email],
       );
       // Played here as a guest before signing in (a new laptop, a cleared
       // browser): that progress follows the account too, not only what was
@@ -871,10 +888,10 @@ export async function linkAccount(p: {
       [playerId],
     );
     await pool.query(
-      `INSERT INTO accounts (sub, player_id, drill_last, drill_streak, drill_best)
-       VALUES ($1, $2, $3, $4, $5)
+      `INSERT INTO accounts (sub, player_id, email, drill_last, drill_streak, drill_best)
+       VALUES ($1, $2, $3, $4, $5, $6)
        ON CONFLICT (sub) DO NOTHING`,
-      [p.sub, playerId, drill?.last ?? null, drill?.streak ?? 0, drill?.best ?? 0],
+      [p.sub, playerId, email, drill?.last ?? null, drill?.streak ?? 0, drill?.best ?? 0],
     );
     event('account_created', { adopted: Boolean(claim), streak: drill?.streak ?? 0 });
     return { sub: p.sub, playerId, name: '', username: null };
@@ -991,9 +1008,12 @@ export type DeleteOutcome =
 /** Delete an account and everything filed under it, in one transaction, after
     checking the typed confirmation against the name (by fold, so case and
     lookalike letters do not matter). What goes and what stays:
-      accounts     the row (Google profile, yap name, drill streak, locker)
+      accounts     the row (Google account id, verified email, yap name, drill
+                   streak, locker); launchReset deletes every row, email too
       friends      every row with this sub on either side
-      matches      this player's own copies; in OTHER players' ranked rows the
+      matches      this player's own copies, transcripts included; OTHER
+                   players' copies of the same debates are theirs and stay,
+                   with the transcript. In other players' ranked rows the
                    opponent name becomes 'deleted' (reserved, so nobody can
                    hold it). Ranked is account-only, so a ranked opponent name
                    is an account's; friend and bot rows are name-only text and
@@ -1091,6 +1111,170 @@ export async function deleteAccountData(sub: string, confirmFold: string): Promi
     return { status: 'down' };
   } finally {
     client.release();
+  }
+}
+
+/** One friend as the export shows them: their yap name and where the
+    request stands. Never their sub or player id. */
+export interface ExportFriend {
+  username: string;
+  status: 'friends' | 'request_sent' | 'request_received';
+}
+
+export interface AccountExport {
+  exportedAt: string;
+  about: string;
+  account: {
+    googleAccountId: string;
+    playerId: string;
+    username: string | null;
+    usernameChangedAt: string | null;
+    email: string | null;
+    createdAt: string | null;
+    lastSignInAt: string | null;
+    mask: string | null;
+    maskDefault: boolean;
+    drill: { lastDay: string | null; streak: number; best: number };
+  };
+  ladder: {
+    name: string;
+    placed: boolean;
+    botLadderLevel: number;
+    ratings: Record<Pace, PaceRating>;
+    updatedAt: string | null;
+  } | null;
+  matches: Record<string, unknown>[];
+  friends: ExportFriend[];
+}
+
+/** A timestamp column as ISO, whatever shape pg handed back. */
+function isoOf(v: unknown): string | null {
+  if (v instanceof Date) return v.toISOString();
+  return typeof v === 'string' && v ? v : null;
+}
+
+/** A `date` column as YYYY-MM-DD. No type parser is set, so pg returns a
+    Date at LOCAL midnight; reading it back in local parts gives the day
+    that was stored. */
+function dayOf(v: unknown): string | null {
+  if (v instanceof Date) {
+    const p = (n: number) => String(n).padStart(2, '0');
+    return `${v.getFullYear()}-${p(v.getMonth() + 1)}-${p(v.getDate())}`;
+  }
+  return typeof v === 'string' && v ? v.slice(0, 10) : null;
+}
+
+/** Download my data (auth.ts /auth/export): everything filed under one
+    account, read fresh. Keyed by the session's sub; the player id comes from
+    the account row, never from the wire.
+      IN   the account row (Google account id, player id, yap name and when
+           it changed, the verified email, created and last sign-in times,
+           mask, drill streak and best), the ladder row (every pace, the
+           placement flag, the bot ladder level), every match copy that is
+           theirs with its verdict and FULL transcript, and friends as the
+           other person's yap name plus the state of the request.
+      OUT  anyone else's sub or player id (friends are names; a match names
+           its opponent as text), username_fold (a lookup key derived from
+           the name), the name and picture columns (blank since 2026-09-12),
+           reports and cheat flags (they are keyed by name, not account, and
+           the privacy page says to email for them), and share cards (public
+           pages, keyed by name).
+    The opponent's best line is blanked in each verdict, as loadMatch does.
+    'missing': the store answered and there is no such account. null: the
+    store is down. */
+export async function exportAccountData(sub: string): Promise<AccountExport | 'missing' | null> {
+  if (!pool || !ready) return null;
+  try {
+    const a = await pool.query(
+      `SELECT sub, player_id, email, username, username_changed_at, created_at, seen_at, mask, mask_default, drill_last, drill_streak, drill_best FROM accounts WHERE sub = $1`,
+      [sub],
+    );
+    if (a.rowCount !== 1) return 'missing';
+    const acct = a.rows[0] as Record<string, unknown>;
+    const pid = String(acct.player_id);
+
+    const p = await pool.query(`SELECT name, campaign, ${LADDER_COLS}, updated_at FROM players WHERE id = $1`, [pid]);
+    const prow = p.rows[0] as Record<string, unknown> | undefined;
+    let ladder: AccountExport['ladder'] = null;
+    if (prow) {
+      const { placed, ...ratings } = ladderOf(prow);
+      ladder = {
+        name: String(prow.name ?? ''),
+        placed,
+        botLadderLevel: Number(prow.campaign ?? 0),
+        ratings: ratings as Record<Pace, PaceRating>,
+        updatedAt: isoOf(prow.updated_at),
+      };
+    }
+
+    const m = await pool.query(
+      `SELECT id, mode, pace, topic, my_side, won, my_total, their_total, opponent, rated, verdict, transcript, at FROM matches WHERE player_id = $1 ORDER BY at ASC`,
+      [pid],
+    );
+    const matches = (m.rows as Record<string, unknown>[]).map((r) => {
+      const verdict = (r.verdict ?? {}) as { bestQuote?: Record<string, unknown> };
+      const theirs = r.my_side === 'FOR' ? 'AGAINST' : 'FOR';
+      if (verdict.bestQuote && typeof verdict.bestQuote === 'object') {
+        verdict.bestQuote = { ...verdict.bestQuote, [theirs]: '' };
+      }
+      return {
+        id: r.id,
+        playedAt: isoOf(r.at),
+        mode: r.mode,
+        pace: r.pace,
+        motion: r.topic,
+        yourSide: r.my_side,
+        won: r.won,
+        yourScore: r.my_total,
+        theirScore: r.their_total,
+        opponent: r.opponent,
+        rated: r.rated,
+        verdict,
+        transcript: Array.isArray(r.transcript) ? r.transcript : [],
+      };
+    });
+
+    // asked_by is compared here and never leaves: it is somebody's sub.
+    const f = await pool.query(
+      `SELECT f.status, f.asked_by, a.username
+       FROM friends f
+       JOIN accounts a ON a.sub = CASE WHEN f.lo_sub = $1 THEN f.hi_sub ELSE f.lo_sub END
+       WHERE (f.lo_sub = $1 OR f.hi_sub = $1) AND a.username IS NOT NULL
+       ORDER BY a.username ASC`,
+      [sub],
+    );
+    const friends: ExportFriend[] = (f.rows as { status: string; asked_by: string; username: string }[]).map((r) => ({
+      username: r.username,
+      status: r.status === 'accepted' ? 'friends' : r.asked_by === sub ? 'request_sent' : 'request_received',
+    }));
+
+    return {
+      exportedAt: new Date().toISOString(),
+      about:
+        'Everything YapStage keeps under your account. Reports and fair-play records are not included; email the address on the privacy page for those.',
+      account: {
+        googleAccountId: String(acct.sub),
+        playerId: pid,
+        username: (acct.username as string) || null,
+        usernameChangedAt: isoOf(acct.username_changed_at),
+        email: (acct.email as string) || null,
+        createdAt: isoOf(acct.created_at),
+        lastSignInAt: isoOf(acct.seen_at),
+        mask: (acct.mask as string) || null,
+        maskDefault: Boolean(acct.mask_default),
+        drill: {
+          lastDay: dayOf(acct.drill_last),
+          streak: Number(acct.drill_streak ?? 0),
+          best: Number(acct.drill_best ?? 0),
+        },
+      },
+      ladder,
+      matches,
+      friends,
+    };
+  } catch (err) {
+    console.error('[store] exportAccountData failed:', err);
+    return null;
   }
 }
 
@@ -1435,7 +1619,8 @@ export async function advanceCampaign(
 
 // ---- match history ----
 // A verdict you can re-open days later: the result, the scores, the judge's
-// feedback and your own best line. Never the transcript (see matches above).
+// feedback, your own best line, and the transcript so the coach can read the
+// actual debate rather than a summary of it (see matches above).
 
 export interface MatchRow {
   playerId: string;
@@ -1451,6 +1636,8 @@ export interface MatchRow {
   /** The pace it was played at, which is also the ladder a rated one moved. */
   pace: Pace;
   verdict: unknown;
+  /** The whole debate, both sides: { stepIndex, side, text }[]. */
+  transcript: unknown;
 }
 
 export async function saveMatch(m: MatchRow): Promise<void> {
@@ -1472,8 +1659,7 @@ export async function saveMatch(m: MatchRow): Promise<void> {
         Boolean(m.rated),
         (PACES as readonly string[]).includes(m.pace) ? m.pace : 'standard',
         JSON.stringify(m.verdict),
-        // The column predates the promise and is NOT NULL: always empty now.
-        '[]',
+        JSON.stringify(Array.isArray(m.transcript) ? m.transcript : []),
       ],
     );
   } catch (err) {
@@ -1549,9 +1735,9 @@ export async function listMatches(
   }
 }
 
-/** One match in full. Scoped to the owner: you can only re-open your own.
-    `transcript` is always an empty array (the words are not kept), and the
-    opponent's best line is blanked even on a row filed before that rule. */
+/** One match in full, transcript included. Scoped to the owner: you can only
+    re-open your own. The opponent's best line is blanked even on a row filed
+    before that rule. */
 export async function loadMatch(
   playerId: string,
   id: number,
@@ -1559,7 +1745,7 @@ export async function loadMatch(
   if (!pool || !ready) return null;
   try {
     const res = await pool.query(
-      `SELECT id, mode, pace, topic, my_side, won, my_total, their_total, opponent, verdict, at
+      `SELECT id, mode, pace, topic, my_side, won, my_total, their_total, opponent, verdict, transcript, at
        FROM matches WHERE id = $1 AND player_id = $2`,
       [id, playerId.slice(0, 64)],
     );
@@ -1570,7 +1756,7 @@ export async function loadMatch(
     if (verdict.bestQuote && typeof verdict.bestQuote === 'object') {
       verdict.bestQuote = { ...verdict.bestQuote, [theirs]: '' };
     }
-    return { ...row, verdict, transcript: [] };
+    return { ...row, verdict, transcript: Array.isArray(row.transcript) ? row.transcript : [] };
   } catch (err) {
     console.error('[store] loadMatch failed:', err);
     return null;
@@ -1605,9 +1791,10 @@ export async function saveReport(r: ReportRow): Promise<boolean> {
   }
 }
 
-/** Retention, run at boot and daily (index.ts): a report (the one place a
-    transcript is kept) lives 90 days, an anti-cheat flag 180. Returns what
-    went, or null when the store is down. */
+/** Retention, run at boot and daily (index.ts): a report (with the reported
+    debate's transcript) lives 90 days, an anti-cheat flag 180. Match history
+    is not pruned: it lives as long as the account (deleteAccountData).
+    Returns what went, or null when the store is down. */
 export async function pruneRetention(): Promise<{ reports: number; cheatFlags: number } | null> {
   if (!pool || !ready) return null;
   try {

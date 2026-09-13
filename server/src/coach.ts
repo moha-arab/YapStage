@@ -2,9 +2,8 @@
 // Live (coachReply): the debate you JUST finished, read from the lobby's
 // in-memory transcript and verdict; the exchange itself is never stored.
 // On record (coachOnRecord): a debate re-opened from your history, read from
-// the saved verdict alone (scores, feedback, your own best line), because
-// the transcript is deleted after the verdict. Same injection stance as the
-// judge: what is inside <debate> is data, not orders.
+// your saved copy: the verdict and the stored transcript. Same injection
+// stance as the judge: the transcript is quoted speech, never orders.
 import Anthropic from '@anthropic-ai/sdk';
 import type { Side } from './protocol.js';
 import type { Lobby } from './lobby.js';
@@ -117,11 +116,12 @@ export async function coachReply(
     what lets you re-open a debate from your history days later and still argue
     with the ruling. Same prompt, same refusal to move the score.
 
-    The transcript is deleted after the verdict (the in-app promise), so the
-    record holds no words. What the coach gets instead is what the match row
-    keeps: the scores, the judge's own feedback on each side, and the one
-    line of YOURS the judge quoted back. The SYSTEM prompt is unchanged; the
-    <debate> block carries that material in place of the speech. */
+    It reads the transcript saved with the match, both sides, exactly as the
+    live coach reads the lobby's. Everything in it is escaped and sits inside
+    <debate>, which the SYSTEM prompt treats as quoted speech, never
+    instructions. A row filed while transcripts were not kept (2026-09-12 to
+    2026-09-13) has none: for that side the coach gets the judge's own
+    feedback instead, and is told the words were not saved. */
 export async function coachOnRecord(m: {
   question: string;
   history: CoachTurn[];
@@ -131,35 +131,51 @@ export async function coachOnRecord(m: {
     winner: Side;
     scores: Record<Side, { argument: number; evidence: number; clash: number; delivery: number }>;
     feedback?: Partial<Record<Side, unknown>>;
-    bestQuote?: Partial<Record<Side, unknown>>;
   };
+  transcript?: unknown;
 }): Promise<string> {
   const oppSide: Side = m.side === 'FOR' ? 'AGAINST' : 'FOR';
   const you = m.verdict.scores[m.side];
   const opp = m.verdict.scores[oppSide];
   const fmt = (s: typeof you) =>
     `argument ${s.argument}/30, evidence ${s.evidence}/20, clash ${s.clash}/30, delivery ${s.delivery}/20`;
-  const notes = (side: Side, withQuote: boolean) => {
+  // A stored row is data from the database, so its shape is checked rather
+  // than trusted: only entries with a side and a string of words count.
+  const entries = (Array.isArray(m.transcript) ? m.transcript : []).filter(
+    (e): e is { side: Side; stepIndex: number; text: string } =>
+      Boolean(e) &&
+      typeof e === 'object' &&
+      (e.side === 'FOR' || e.side === 'AGAINST') &&
+      typeof e.text === 'string' &&
+      e.text.trim().length > 0,
+  );
+  const lines = (side: Side) =>
+    entries
+      .filter((e) => e.side === side)
+      .sort((a, b) => (Number(a.stepIndex) || 0) - (Number(b.stepIndex) || 0))
+      .map((e) => e.text)
+      .join('\n')
+      .slice(0, 20_000);
+  const notes = (side: Side) => {
     const raw = m.verdict.feedback?.[side];
     const feedback = (Array.isArray(raw) ? raw : [])
       .filter((f): f is string => typeof f === 'string' && f.trim().length > 0)
       .slice(0, 4)
       .map((f) => `- ${f.slice(0, 400)}`);
-    const q = withQuote && typeof m.verdict.bestQuote?.[side] === 'string' ? String(m.verdict.bestQuote[side]).slice(0, 300) : '';
     return [
-      '(No transcript: it was deleted after the verdict. The judge\'s feedback on this side:)',
+      "(This side's words were not saved with this match. The judge's feedback on it:)",
       ...(feedback.length ? feedback : ['- (none recorded)']),
-      ...(q ? [`(The line of theirs the judge quoted: "${q}")`] : []),
     ].join('\n');
   };
+  const said = (side: Side) => lines(side) || notes(side);
 
   const xml =
     `<debate motion="${escapeXml(m.topic)}">\n` +
     `  <you side="${m.side}" outcome="${m.verdict.winner === m.side ? 'won' : 'lost'}" scores="${fmt(you)}">\n` +
-    `${escapeXml(notes(m.side, true))}\n` +
+    `${escapeXml(said(m.side))}\n` +
     `  </you>\n` +
     `  <opponent side="${oppSide}" scores="${fmt(opp)}">\n` +
-    `${escapeXml(notes(oppSide, false))}\n` +
+    `${escapeXml(said(oppSide))}\n` +
     `  </opponent>\n` +
     `</debate>`;
 

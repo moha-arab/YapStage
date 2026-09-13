@@ -1348,7 +1348,8 @@ console.log('\n=== Scenario 17: guest play, ranked gated ===');
 // ---------- Scenario 18: pre-launch security and privacy (2026-09-12) ----------
 // The live half of the review's fixes; scripts/security-unit.mjs has the
 // rest (typed speech in ranked with server STT, coach history, filed matches
-// without a transcript, share cards, the model budget, trustProxy). Set
+// keeping the transcript for the owner only, share cards, the model budget,
+// trustProxy). Set
 // STATS_KEY to the server's to check the keyed routes and the event trail.
 console.log('\n=== Scenario 18: security headers, guest names, audio, room cap, relay-only ranked ===');
 {
@@ -1380,6 +1381,13 @@ console.log('\n=== Scenario 18: security headers, guest names, audio, room cap, 
   if (KEY) check('stats: the x-stats-key header opens /stats', (await fetch(`${URL}/stats`, { headers: keyH })).status === 200);
   else console.log('  info: STATS_KEY not set here; skipping the keyed success checks');
   check('admin: /admin/prelaunch-prune is gone', (await fetch(`${URL}/admin/prelaunch-prune`, { method: 'POST', headers: keyH })).status === 404);
+  // Download my data is the account's own file, so no session means nothing.
+  // (security-unit.mjs runs the signed-in half against a stand-in database.)
+  check('export: /auth/export without a session is 401', (await fetch(`${URL}/auth/export`)).status === 401);
+  check(
+    'export: a forged session cookie is 401 too',
+    (await fetch(`${URL}/auth/export`, { headers: { cookie: 'yap_session=eyJzdWIiOiJ4In0.forged' } })).status === 401,
+  );
 
   // Guest names: the device's GuestNNNN, nothing typed.
   {

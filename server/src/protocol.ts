@@ -466,8 +466,9 @@ export interface ClientToServer {
       level 0 = only the tutorial; null = the store is down (client fails open). */
   'campaign:get': (p: { playerId: string }, cb: (res: { level: number | null }) => void) => void;
   /** Report your human opponent (custom or ranked; bots can't be reported).
-      Stores the debate's transcript for review — the one deliberate exception
-      to "transcripts die with the lobby". ok:false = not recorded, be honest. */
+      Stores the debate's transcript for the review team, kept 90 days
+      (separate from each player's own match history). ok:false = not
+      recorded, be honest. */
   'report': (p: { reason: string }, cb: (res: { ok: boolean }) => void) => void;
   'bot:done': (p: { stepIndex: number }) => void; // the bot finished speaking its turn
   /** Start the interactive tutorial: the YapMaster demos each round, then the

@@ -1,12 +1,13 @@
 // Settings, in a sheet over the lobby (LobbySheet, so it reads as part of it).
 // Plain sections with every control in view: your yap name and its
-// once-a-month change, signing in or out, the legal pages, and deleting the
-// account. "Yap name" is the one word for it here, as everywhere else.
+// once-a-month change, signing in or out (with the email you signed in as),
+// the legal pages, downloading your data, and deleting the account. "Yap
+// name" is the one word for it here, as everywhere else.
 import { useEffect, useState } from 'react';
 import { foldName, nameProblem } from '../../../server/src/protocol';
 import { socket } from '../socket';
 import { useI18n, type Lang } from '../i18n';
-import { deleteAccount, renameAccount, signIn, signOut, type Account } from '../player';
+import { deleteAccount, downloadMyData, renameAccount, signIn, signOut, type Account } from '../player';
 import LobbySheet from './LobbySheet';
 import '../settings.css';
 
@@ -72,16 +73,19 @@ export default function SettingsSheet({ account, onClose, onRenamed }: Props) {
             <h3 className="set-h" id="set-acct-h">
               {t('settingsAccount')}
             </h3>
-            <button
-              className="btn"
-              disabled={leaving}
-              onClick={() => {
-                setLeaving(true);
-                void signOut();
-              }}
-            >
-              {leaving ? t('settingsSigningOut') : t('settingsSignOut')}
-            </button>
+            <div className="set-acct">
+              {account?.email ? <p className="set-note">{t('settingsSignedInAs', { email: account.email })}</p> : null}
+              <button
+                className="btn"
+                disabled={leaving}
+                onClick={() => {
+                  setLeaving(true);
+                  void signOut();
+                }}
+              >
+                {leaving ? t('settingsSigningOut') : t('settingsSignOut')}
+              </button>
+            </div>
           </section>
         ) : account?.google ? (
           <section className="set-sec" aria-labelledby="set-acct-h">
@@ -115,9 +119,54 @@ export default function SettingsSheet({ account, onClose, onRenamed }: Props) {
           </div>
         </section>
 
+        {signedIn ? <DataSection /> : null}
         {signedIn && name ? <DeleteSection name={name} /> : null}
       </div>
     </LobbySheet>
+  );
+}
+
+/** Download my data: one visible button, beside the note that says what the
+    file holds. The server decides everything (auth.ts /auth/export); a
+    refusal comes back here as a line under the button. */
+function DataSection() {
+  const { t } = useI18n();
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function download() {
+    if (busy) return;
+    setBusy(true);
+    setError(null);
+    const out = await downloadMyData();
+    setBusy(false);
+    if (out.ok) return;
+    setError(
+      out.error === 'rate_limited'
+        ? t('settingsDataLimit')
+        : out.error === 'signed_out'
+          ? t('settingsSignedOut')
+          : t('settingsDataFailed'),
+    );
+  }
+
+  return (
+    <section className="set-sec" aria-labelledby="set-data-h">
+      <h3 className="set-h" id="set-data-h">
+        {t('settingsData')}
+      </h3>
+      <div className="set-acct">
+        <p className="set-note">{t('settingsDataSub')}</p>
+        <button className="btn" disabled={busy} onClick={() => void download()}>
+          {busy ? t('settingsDataBusy') : t('settingsDataGo')}
+        </button>
+      </div>
+      {error ? (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      ) : null}
+    </section>
   );
 }
 

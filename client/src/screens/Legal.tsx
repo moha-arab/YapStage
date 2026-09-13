@@ -1,21 +1,25 @@
 /* The Privacy Policy and the Terms of Use, one component, picked by `page`.
  *
  * DRAFT FOR REVIEW. First written 2026-09-12 from a read of the code, and
- * revised the same day for the product change that stopped keeping debate
- * words: match history without transcripts (judge.ts matchRowsFor, store.ts
- * saveMatch/loadMatch), 90 and 180 day retention (store.ts pruneRetention),
- * relay-only ranked calls (webrtc.ts, security.ts relayOnlySignal), the
- * sharer-only share card (share.ts cardFrom), openid-only sign-in with no
- * email, name or picture (auth.ts, store.ts linkAccount) and the signed
- * yap_claim cookie. It is not legal advice. The owner must have it reviewed
- * before the public launch and before the App Store submission. Nothing on
- * the page itself says draft.
+ * revised twice on 2026-09-13: when match history went back to keeping the
+ * transcript (judge.ts matchRowsFor, store.ts saveMatch/loadMatch, coach.ts
+ * coachOnRecord), kept until the account is deleted; and when sign-in began
+ * asking Google for the email (auth.ts `openid email`, kept only if
+ * verified, refreshed on every sign-in, owner-only; store.ts linkAccount)
+ * and Settings gained Download my data (auth.ts /auth/export, store.ts
+ * exportAccountData, which leaves out reports and cheat flags). Also from
+ * the code: 90 and 180 day retention for reports and cheat flags (store.ts
+ * pruneRetention), relay-only ranked calls (webrtc.ts, security.ts
+ * relayOnlySignal), the sharer-only share card (share.ts cardFrom), no
+ * Google name or picture, and the signed yap_claim cookie. It is not legal
+ * advice. The owner must have it reviewed before the public launch and
+ * before the App Store submission. Nothing on the page itself says draft.
  *
- * Placeholders the owner must fill before this ships:
- *   CONTACT_EMAIL   the inbox below does not exist yet. Create it or change it.
+ * Placeholder the owner must fill before this ships:
  *   Terms s.11      the CAD $100 liability cap is a common default, not advice.
- *   Privacy s.11    how we confirm who is asking, now that no email is kept,
- *                   is a process the owner has to decide and run.
+ *
+ * CONTACT_EMAIL below is the only place the contact address is written.
+ * Every mailto on both pages reads it, so changing it is one line.
  *
  * This page makes promises about what the code does, and it must agree with
  * the in-app notice (i18n `consent` / `consentRanked`). When the code changes
@@ -30,8 +34,9 @@ export type LegalPage = 'privacy' | 'terms';
 
 const UPDATED = '2026-09-13';
 const UPDATED_LABEL = 'September 13, 2026';
-/* PLACEHOLDER: create this inbox (or swap in the real one) before launch. */
-const CONTACT_EMAIL = 'privacy@yapstage.com';
+/* The one place the contact address lives. Swap it here and every mailto on
+   the privacy page and the terms follows. */
+const CONTACT_EMAIL = 'zorvintt@gmail.com';
 
 interface Part {
   id: string;
@@ -64,13 +69,14 @@ const STORAGE: [keys: string[], what: string, howLong: string][] = [
 /* ------------------------------------------------------------------ */
 
 const PRIVACY_SHORT = [
-  'You can play without an account. Ranked, friends and characters need a Google sign-in, and all we get from Google is an account ID number.',
+  'You can play without an account. Ranked, friends and characters need a Google sign-in. From Google we get an account ID number and your verified email address, and no other player ever sees your email.',
   'In a debate your voice goes to your opponent and to anyone watching. Each turn is recorded in short clips and sent to Cloudflare to be turned into text, and the audio is thrown away as soon as that is done.',
   'The text of the debate goes to Anthropic, whose AI (Claude) judges it and plays the bots.',
-  "Your voice and the transcript are not kept after the verdict, unless someone reports the debate for review. Your match history keeps the result, the judge's notes and one line of your own, never your opponent's words.",
+  "Your voice recording is never kept. The transcript of each debate is saved in both players' match history, so you can go back over it and get coaching, until you delete your account. Your opponent keeps their own copy, the way both players keep a chess game.",
   'Video is never recorded. Ranked and bot matches never turn on your camera.',
   'Ranked debates are public: anyone can listen live, and your yap name, rating and results can appear on public lists. Ranked calls go through a relay, so strangers never see your IP address.',
   'No ads. We do not sell your information. No third-party analytics.',
+  'Signed in, you can download a copy of your data or delete your account yourself, in Settings.',
 ];
 
 const PRIVACY: Part[] = [
@@ -81,9 +87,17 @@ const PRIVACY: Part[] = [
       <>
         <h3>If you sign in with Google</h3>
         <p>
-          We ask Google for one thing: your Google account ID, a number that identifies your Google account and never
-          changes. We use it to recognize you when you sign in. We do not ask for, and do not store, your email address,
-          your Google name or your profile picture. We never see your Google password.
+          We ask Google for two things: your Google account ID, a number that identifies your Google account and never
+          changes, and your email address. We use the ID to recognize you when you sign in. We keep the email address
+          only if Google has verified it. We do not ask for your Google name or your profile picture, and we never see
+          your Google password.
+        </p>
+        <h3>Your email address</h3>
+        <p>
+          We use it to contact you about your account and to confirm requests about your data (section 11). It is never
+          shown to other players: it is not on your profile, the leaderboard, a share card or anywhere else in the game.
+          We update it each time you sign in, in case you changed it, and it is deleted when you delete your account. We
+          do not sell it, and we do not send marketing email.
         </p>
         <h3>Your yap name</h3>
         <p>
@@ -174,19 +188,20 @@ const PRIVACY: Part[] = [
         <h3>The transcript</h3>
         <p>
           The text of every turn from both sides, plus the bot's lines if you play a bot, is the transcript. It goes to
-          Anthropic to be judged (section 3). We do not save it. It is held in our server's memory only while the room is
-          open, so you can ask the YapMaster about the debate right after the verdict, and it is deleted when the room
-          closes: ten minutes after the verdict, or sooner if you start a rematch. The one exception is a reported
-          debate, whose transcript is kept for review for 90 days (section 1).
+          Anthropic to be judged (section 3). When the verdict comes back, we save it in each player's match history
+          (below), so you can read the debate again and ask the YapMaster about it later. A debate that ends without a
+          verdict is not saved: its transcript is held in our server's memory only, and deleted when the room closes. If
+          someone reports a debate, a separate copy of its transcript goes to our review team and is kept for 90 days
+          (section 1).
         </p>
         <h3>Your match history</h3>
         <p>
           When the verdict comes back, we save a record of the debate for each human player: the motion, which side you
-          were on, who won, the scores, your opponent's name, the judge's written verdict and notes for both sides, and
-          the one line of yours the judge quoted back to you. It does not contain the transcript. It does not contain
-          your opponent's words: their quoted line is removed from your copy, and yours from theirs. The judge's notes
-          can describe what each side argued. If you are signed in, the record is saved to your account. As a guest, it
-          is saved under your device's random ID. This applies to ranked, friend and bot matches.
+          were on, who won, the scores, your opponent's name, the judge's written verdict and notes for both sides, the
+          one line of yours the judge quoted back to you, and the transcript of the whole debate, both sides. Your
+          opponent gets their own copy of the same debate in their match history, the way both players keep a chess
+          game. Only you can open your copy. If you are signed in, the record is saved to your account. As a guest, it is
+          saved under your device's random ID. This applies to ranked, friend and bot matches.
         </p>
         <h3>Video</h3>
         <p>
@@ -213,7 +228,7 @@ const PRIVACY: Part[] = [
           <p>
             YapStage is built on AI from other companies. The judge is the game, so there is no way to debate without
             sending the debate to them. Here is exactly what each one gets and why. None of them gets your Google
-            account ID.
+            account ID or your email address.
           </p>
         </div>
         <h3>Anthropic (Claude)</h3>
@@ -221,7 +236,7 @@ const PRIVACY: Part[] = [
           <li>The transcript and the motion, so the AI judge can pick a winner, score both sides and write notes. The judge sees the two sides labelled by letter, not by your names.</li>
           <li>The transcript so far, so a bot can write its next line.</li>
           <li>The transcript, the verdict and the questions you type, when you ask the YapMaster about a debate you just finished.</li>
-          <li>The verdict, your own quoted line and your questions, when you ask about a saved match later. The transcript is gone by then, so it is not sent.</li>
+          <li>The saved transcript, the verdict and the questions you type, when you ask about a saved match later.</li>
           <li>Your drill answer, so it can be scored.</li>
         </ul>
         <h3>Cloudflare</h3>
@@ -254,7 +269,8 @@ const PRIVACY: Part[] = [
         <h3>Your opponent</h3>
         <p>
           Your voice, your yap name, your character (or the guest silhouette), your camera if you turn it on in a friend
-          room, and everything you say. In a friend room with a direct connection, your opponent's browser also gets
+          room, and everything you say. They keep the transcript of the debate in their own match history, the same
+          way you keep theirs (section 2). In a friend room with a direct connection, your opponent's browser also gets
           your IP address, which can show roughly where you are. In ranked, it never does.
         </p>
         <h3>People watching</h3>
@@ -268,7 +284,7 @@ const PRIVACY: Part[] = [
         <p>
           Public lists can show yap names with ratings, wins and losses (the leaderboard), recent ranked results (who won,
           who lost, the motion and the scores), and the ranked debates live right now (names, characters and the motion).
-          Share cards can be seen by anyone with the link.
+          Share cards can be seen by anyone with the link. Your email address never appears on any of them.
         </p>
         <h3>The companies that run things for us</h3>
         <p>
@@ -339,15 +355,18 @@ const PRIVACY: Part[] = [
             <b>Your voice:</b> each clip is thrown away the moment it has been turned into text. It is never saved.
           </li>
           <li>
-            <b>The transcript and your chat with the YapMaster:</b> in memory only, and deleted when the room closes,
-            ten minutes after the verdict at the latest. A room that goes quiet before a verdict is closed within 30
-            minutes, and everything in memory is gone whenever our server restarts.
+            <b>Your chat with the YapMaster, and a debate that never reaches a verdict:</b> never saved. They are held in
+            memory only and deleted when the room closes, ten minutes after the verdict at the latest. A room that goes
+            quiet before a verdict is closed within 30 minutes, and everything in memory is gone whenever our server
+            restarts.
           </li>
           <li>
-            <b>Your account, yap name, record, friends and streak:</b> until you delete your account.
+            <b>Your account, yap name, email address, record, friends and streak:</b> until you delete your account.
+            Your email address is replaced with the current one each time you sign in.
           </li>
           <li>
-            <b>Your match history</b> (no transcript, as section 2 explains): until you delete your account.
+            <b>Your match history, including the transcript of each debate:</b> until you delete your account. Your
+            opponent's copy of a debate is theirs, and stays until they delete their account.
           </li>
           <li>
             <b>Guest match history:</b> on our server under your device's random ID. If you sign in on that device, it
@@ -385,9 +404,9 @@ const PRIVACY: Part[] = [
         </p>
         <h3>What gets deleted</h3>
         <ul>
-          <li>Your account: your Google account ID, yap name, character and drill streak.</li>
+          <li>Your account: your Google account ID, email address, yap name, character and drill streak.</li>
           <li>Your rating, record, bot ladder progress and your place on the leaderboard.</li>
-          <li>Your match history.</li>
+          <li>Your match history, including the transcripts of your debates.</li>
           <li>Your friends and friend requests.</li>
         </ul>
         <h3>What changes elsewhere</h3>
@@ -399,9 +418,9 @@ const PRIVACY: Part[] = [
         <h3>What stays</h3>
         <ul>
           <li>
-            Your opponents' own records of debates you played. They hold the result, the judge's notes and your
-            opponent's own quoted line, not your words. In friend room records your yap name stays as it was, and the
-            judge's written verdict may still use it.
+            Your opponents' own copies of debates you played, in their match history. Like a chess game, both players
+            keep the record, so their copy still has the transcript, including what you said. In friend room records
+            your yap name stays as it was, and the judge's written verdict may still use it.
           </li>
           <li>Reports you made or that were made about you, until they are deleted after 90 days. They store yap names, not account IDs, so we cannot find them from your account.</li>
           <li>If you played as a guest on another device before you signed in, a leftover guest record there (a random ID, the guest name and bot ladder progress).</li>
@@ -413,8 +432,9 @@ const PRIVACY: Part[] = [
         </p>
         <h3>If you never made an account</h3>
         <p>
-          Signing out or clearing your browser wipes what is kept on your device. To ask us to delete guest games from
-          our server, email us. Without an account we may not be able to tell which games are yours, but we will try.
+          Guest data is tied to a random ID on the device, not to a person, and there is no email address to match it
+          to. Signing out or clearing your browser wipes what is kept on your device. To ask us to delete guest games
+          from our server, email us. We may not be able to tell which games are yours, but we will try.
         </p>
       </>
     ),
@@ -433,6 +453,11 @@ const PRIVACY: Part[] = [
           <li>
             <b>To keep it fair and safe:</b> spam limits, anti-cheat, reports and bans. The legal reason is our legitimate
             interest, and yours, in a fair game without abuse.
+          </li>
+          <li>
+            <b>To reach you:</b> your email address, to contact you about your account and to confirm requests about your
+            data. Never for marketing. The legal reason is that we need it to run your account and to answer those
+            requests.
           </li>
           <li>
             <b>To fix bugs and keep it running:</b> error reports and logs. The legal reason is our legitimate interest in
@@ -470,7 +495,9 @@ const PRIVACY: Part[] = [
       <p>
         Connections to YapStage are encrypted, and so are calls. The sign-in cookies cannot be read by scripts on the
         page. Reports and anti-cheat records sit behind a private key that only we hold. Keeping less is part of keeping
-        it safe: we do not store your email, your voice or your debate transcripts. No system is perfect. If a breach
+        it safe: we never store your voice, and from Google we keep only your account ID and your verified email
+        address. Your match history, transcripts included, can only be opened by you, and Download my data only ever
+        gives you your own account. No system is perfect. If a breach
         puts you at real risk, we will tell you and the Privacy Commissioner of Canada, as the law requires.
       </p>
     ),
@@ -487,10 +514,24 @@ const PRIVACY: Part[] = [
           <li>delete it,</li>
           <li>stop using it for a particular purpose.</li>
         </ul>
+        <h3>Doing it yourself</h3>
         <p>
-          You can change your yap name and delete your account yourself in Settings. For anything else, email{' '}
-          <Mail />. We answer within 30 days. Because we do not keep your email address, we may need to check that the
-          account is really yours before we act, and we will tell you how.
+          If you are signed in, Settings has the tools. You can change your yap name there. Download my data gives you a
+          copy of what we keep under your account as a file: your account details, your ratings and placement, your
+          match history with the full transcripts, and your friends list. Delete account deletes your account (section
+          7).
+        </p>
+        <h3>Asking us</h3>
+        <p>
+          For anything else, email <Mail /> from the email address on your account, so we can match your request to it.
+          We answer within 30 days. The download does not include reports or anti-cheat (fair-play) records. Email us for
+          those.
+        </p>
+        <h3>If you play as a guest</h3>
+        <p>
+          Guest data is tied to a random ID on your device, not to you as a person, so we cannot look it up by name or
+          email. Email us anyway, tell us what you can (your guest name and roughly when you played), and we will do what
+          we reasonably can.
         </p>
         <p>
           If you are not happy with our answer, you can complain to the Office of the Privacy Commissioner of Canada
@@ -664,9 +705,9 @@ const TERMS: Part[] = [
       <>
         <p>
           You own what you say on YapStage. You give us permission to use it to run the service: to carry it to your
-          opponent and anyone watching, turn it into text, send it to our AI providers, judge it, keep the one line of
-          yours the judge quotes in your own match history, show that line on a share card if you share the verdict, and
-          keep a reported debate for review. This permission lasts as long as we keep that content under the{' '}
+          opponent and anyone watching, turn it into text, send it to our AI providers, judge it, keep the transcript in
+          both players' match history, show the one line of yours the judge quotes on a share card if you share the
+          verdict, and keep a reported debate for review. This permission lasts as long as we keep that content under the{' '}
           <a href="/privacy">Privacy Policy</a>.
         </p>
         <p>

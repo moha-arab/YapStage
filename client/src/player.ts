@@ -49,6 +49,38 @@ export interface Account {
   /** When the yap name may next change (ISO). Null or absent: it can change
       now. Names change once every 30 days (server auth.ts /auth/rename). */
   nextNameChange?: string | null;
+  /** The verified Google email on the account, for "Signed in as" in
+      Settings. Only /auth/me for this session carries it; null when Google
+      did not vouch for one. */
+  email?: string | null;
+}
+
+/** Download my data (server auth.ts /auth/export). Fetched rather than
+    followed as a plain link so a refusal (too many tries, signed out) shows
+    up as words in Settings instead of a saved file with an error inside. */
+export async function downloadMyData(): Promise<{ ok: true } | { ok: false; error: string }> {
+  try {
+    const res = await fetch('/auth/export', { credentials: 'same-origin' });
+    if (!res.ok) {
+      const d = (await res.json().catch(() => ({}))) as { error?: string };
+      return { ok: false, error: d.error || 'failed' };
+    }
+    const blob = await res.blob();
+    const name =
+      /filename="([^"]+)"/.exec(res.headers.get('content-disposition') ?? '')?.[1] ??
+      `yapstage-data-${new Date().toISOString().slice(0, 10)}.json`;
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = name;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 10_000);
+    return { ok: true };
+  } catch {
+    return { ok: false, error: 'failed' };
+  }
 }
 
 export type RenameResult =

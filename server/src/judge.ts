@@ -719,12 +719,14 @@ async function unlockLevel(io: Io, lobby: Lobby, target: number): Promise<void> 
     gone. Guests file under the device id (since 2026-09-12), which is what
     an account adopts at sign-in.
 
-    NO TRANSCRIPT, and only this player's OWN best line. The in-app notice
-    promises "the transcript is deleted after the verdict unless someone
-    reports the debate", so the words never reach the match store: the row
-    keeps the scores, the ruling and the judge's feedback, and the one line
-    of theirs the judge quoted back to them. The opponent's quote is their
-    words, not this player's, and is blanked. Exported for the smoke suite. */
+    WITH THE TRANSCRIPT (his call 2026-09-13, reversing the 2026-09-12
+    "no transcript" option): coaching on a past match is the product, so
+    each player's row keeps the whole debate, both sides and any bot lines,
+    the way a chess site keeps every game. The in-app notice says so. The
+    row is this player's own and goes when their account is deleted; the
+    opponent's copy is theirs. The opponent's best-line field is still
+    blanked, as before: the screen only shows your own, and their words are
+    in the transcript anyway. Exported for the smoke suite. */
 export function matchRowsFor(lobby: Lobby, verdict: Verdict): MatchRow[] {
   if (!lobby.sides) return [];
   const names = namesOf(lobby);
@@ -754,6 +756,11 @@ export function matchRowsFor(lobby: Lobby, verdict: Verdict): MatchRow[] {
         ...verdict,
         bestQuote: { [side]: verdict.bestQuote?.[side] ?? '', [other]: '' } as Record<Side, string>,
       },
+      // The whole debate, in speaking order: what the coach reads and the
+      // match screen shows when the row is re-opened.
+      transcript: [...lobby.transcript]
+        .sort((a, b) => a.stepIndex - b.stepIndex || a.at - b.at)
+        .map((e) => ({ stepIndex: e.stepIndex, side: e.side, text: e.text })),
     });
   }
   return rows;
@@ -894,9 +901,10 @@ export async function runJudge(io: Io, lobby: Lobby, requesterSocketId?: string)
     touch(lobby);
     emitVerdict(io, lobby, lobby.code);
     // Keep the lobby around briefly so a reconnecting client can re-fetch,
-    // then let it go. The transcript dies with the lobby: the match store
-    // has the scores and the feedback, never the words. The timer is kept
-    // on the lobby so a rematch cancels it (index.ts resetForRematch).
+    // then let it go. The live copy of the transcript goes with the lobby;
+    // the players' own copies are already in their match history
+    // (fileMatch). The timer is kept on the lobby so a rematch cancels it
+    // (index.ts resetForRematch).
     scheduleCleanup(io, lobby);
   } catch (err) {
     llmFailed();

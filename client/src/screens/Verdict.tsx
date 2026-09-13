@@ -701,7 +701,7 @@ export default function VerdictScreen({
         {/* What is and is not kept, said once, beside the one button that
             sends anything anywhere. */}
         <p className="vd-util-note" aria-live="polite">
-          {shareState === 'failed' ? t('shareFailed') : `${t('shareNote')} ${t('vdNotKept')}`}
+          {shareState === 'failed' ? t('shareFailed') : `${t('shareNote')} ${t('vdKeptNote')}`}
           {shareState === 'copied' ? <span className="sr-only"> {t('shareCopied')}</span> : null}
         </p>
 

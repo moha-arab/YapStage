@@ -4359,6 +4359,15 @@ html[dir='rtl'] .meter-hint {
   text-align: start;
 }
 
+/* The saved debate, turn by turn: each name in its side's colour. */
+.mh-said .vd-said-who {
+  color: var(--c);
+}
+
+.mh-said .vd-said-one + .vd-said-one {
+  margin-top: 12px;
+}
+
 /* The home stage centers its own column now that it no longer borrows
    .center-col (which also vertically centered and fought the top bar). */
 .stage.home {

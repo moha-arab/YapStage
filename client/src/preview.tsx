@@ -773,7 +773,17 @@ const SCREENS: Record<string, () => JSX.Element> = {
       at: '2026-09-1' + id + 'T20:00:00Z',
     });
     fakeFetch({
-      '/matches/': { match: { verdict: VERDICT, transcript: [] } },
+      '/matches/': {
+        match: {
+          verdict: VERDICT,
+          transcript: [
+            { stepIndex: 0, side: 'FOR', text: 'four years and sixty grand for a piece of paper most jobs stopped asking for' },
+            { stepIndex: 1, side: 'AGAINST', text: 'the people who stopped asking are hiring from the same schools anyway' },
+            { stepIndex: 2, side: 'FOR', text: 'then the degree is a filter, not an education, and a filter should not cost that much' },
+            { stepIndex: 3, side: 'AGAINST', text: 'a filter that still pays off over a career is worth it, that is the whole motion' },
+          ],
+        },
+      },
       '/matches': {
         matches: [
           row(1, 'ranked', 'college is no longer worth it', true, 'goat'),
@@ -1184,7 +1194,7 @@ const SCREENS: Record<string, () => JSX.Element> = {
      this month's change already spent (settingsSoon), signed out (settingsOut). */
   settings: () => (
     <SettingsSheet
-      account={{ signedIn: true, google: true, name: 'zorvint', nextNameChange: null }}
+      account={{ signedIn: true, google: true, name: 'zorvint', nextNameChange: null, email: 'zorvint@example.com' }}
       onClose={noop}
       onRenamed={noop}
     />

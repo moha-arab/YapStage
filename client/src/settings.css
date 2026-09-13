@@ -107,6 +107,8 @@
 .set-acct .set-note {
   margin: 0;
   flex: 1 1 220px;
+  /* "Signed in as" carries an email address, which has no spaces to break at. */
+  overflow-wrap: anywhere;
 }
 
 /* ---- legal: two plain links ---- */

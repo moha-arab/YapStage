@@ -1,13 +1,13 @@
 // Your record. Every debate you've played, filterable, and every row opens:
 // the judge's reason, the scorecard and your two notes in the same blocks the
 // results screen draws (VerdictBlocks.tsx), and the YapMaster still there to
-// argue with days later. Transcripts are no longer kept, so there are none to
-// show: the API sends an empty list and this screen never asks for it.
+// argue with days later. Below the verdict, the debate itself: the saved
+// transcript, both sides, turn by turn, which is what the coach reads too.
 import { useEffect, useState, type CSSProperties } from 'react';
 import type { Side, Verdict as VerdictData } from '../../../server/src/protocol';
 import { useI18n } from '../i18n';
 import Brand from '../Brand';
-import { JudgeNotes, ScoreBars, capFirst } from '../VerdictBlocks';
+import { JudgeNotes, ScoreBars, capFirst, sideCls } from '../VerdictBlocks';
 
 export interface MatchRow {
   id: number;
@@ -21,8 +21,31 @@ export interface MatchRow {
   at: string;
 }
 
+interface Line {
+  side: Side;
+  stepIndex: number;
+  text: string;
+}
+
 interface FullMatch extends MatchRow {
   verdict: VerdictData;
+  /** Empty on a row filed while transcripts were not kept (2026-09-12). */
+  transcript?: Line[];
+}
+
+/** The saved lines as turns: in step order, and the chunks of one turn
+    (browser speech arrives a sentence at a time) joined back into one. */
+function turnsOf(transcript: Line[] | undefined): Line[] {
+  const sorted = (Array.isArray(transcript) ? transcript : [])
+    .filter((e) => e && (e.side === 'FOR' || e.side === 'AGAINST') && typeof e.text === 'string' && e.text.trim())
+    .sort((a, b) => a.stepIndex - b.stepIndex);
+  const out: Line[] = [];
+  for (const e of sorted) {
+    const last = out[out.length - 1];
+    if (last && last.stepIndex === e.stepIndex && last.side === e.side) last.text = `${last.text} ${e.text.trim()}`;
+    else out.push({ side: e.side, stepIndex: e.stepIndex, text: e.text.trim() });
+  }
+  return out;
 }
 
 type Filter = 'all' | 'ranked' | 'custom' | 'bots';
@@ -156,6 +179,7 @@ function MatchDetail({ match, onBack }: { match: FullMatch; onBack: () => void }
   const mySide = match.my_side;
   const theirSide: Side = mySide === 'FOR' ? 'AGAINST' : 'FOR';
   const gel = { '--gel': mySide === 'FOR' ? 'var(--amber)' : 'var(--turq)' } as CSSProperties;
+  const turns = turnsOf(match.transcript);
   const [log, setLog] = useState<{ role: 'you' | 'coach'; text: string }[]>([]);
   const [input, setInput] = useState('');
   const [thinking, setThinking] = useState(false);
@@ -219,6 +243,19 @@ function MatchDetail({ match, onBack }: { match: FullMatch; onBack: () => void }
             <span className="vd-label">{t('vdBestLine')}</span>
             <p>&ldquo;{v.bestQuote[mySide]}&rdquo;</p>
           </blockquote>
+        ) : null}
+        {turns.length > 0 ? (
+          <div className="vd-said mh-said">
+            <span className="vd-label">{t('vdSaid')}</span>
+            {turns.map((e, i) => (
+              <div className="vd-said-one" key={i}>
+                <span className={`vd-said-who ${sideCls(e.side)}`}>
+                  {e.side === mySide ? t('you') : match.opponent}
+                </span>
+                <p>{capFirst(e.text)}</p>
+              </div>
+            ))}
+          </div>
         ) : null}
       </div>
 

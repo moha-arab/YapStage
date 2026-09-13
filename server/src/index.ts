@@ -141,8 +141,9 @@ setInterval(() => void refreshIceServers(), REFRESH_MS).unref();
 // Optional: without a database the app still runs and simply writes nothing.
 await initStore();
 
-// Retention: reports (the one place a transcript is kept) go after 90 days,
-// anti-cheat flags after 180. Once at boot, then daily.
+// Retention: reports (with the reported debate's transcript) go after 90
+// days, anti-cheat flags after 180. Match history is kept for as long as the
+// account. Once at boot, then daily.
 void pruneRetention();
 setInterval(() => void pruneRetention(), 24 * 60 * 60 * 1000).unref();
 
@@ -597,10 +598,9 @@ app.get<{ Params: { id: string } }>('/matches/:id', async (req, reply) => {
 });
 
 /** Ask the YapMaster about a FINISHED match, days later. The live coach reads
-    a lobby that no longer exists, and the transcript is deleted after the
-    verdict, so this reads the saved verdict: scores, the judge's feedback
-    and your own best line (coach.ts coachOnRecord). Same voice, same refusal
-    to move the score. */
+    a lobby that no longer exists, so this reads your saved copy instead: the
+    verdict and the transcript (coach.ts coachOnRecord). Same voice, same
+    refusal to move the score. */
 app.post<{ Params: { id: string }; Body: { question?: string; history?: unknown } }>(
   '/matches/:id/coach',
   { bodyLimit: 32_768 },
@@ -633,6 +633,7 @@ app.post<{ Params: { id: string }; Body: { question?: string; history?: unknown 
         side: String(match.my_side) as 'FOR' | 'AGAINST',
         topic: String(match.topic),
         verdict: match.verdict as never,
+        transcript: match.transcript,
       });
       return { text };
     } catch (err) {
