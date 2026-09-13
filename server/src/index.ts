@@ -644,7 +644,7 @@ function dropFromQueue(socketId: string): void {
 
 function broadcastQueue(): void {
   for (const q of rankedQueue) {
-    io.to(q.socketId).emit('queue:update', { waiting: rankedQueue.length, rating: q.rating, pace: 'standard' });
+    io.to(q.socketId).emit('queue:update', { waiting: rankedQueue.length, rating: q.rating, pace: 'blitz' });
   }
 }
 
@@ -682,7 +682,9 @@ function tryMatch(): void {
     lobby.guest = { socketId: b.socketId, sessionId: b.sessionId, name: b.name, avatarId: randomAvatar(), masked: false, playerId: b.playerId, rtcReady: false };
     lobby.status = 'greenroom';
     lobby.topicMode = 'random'; // strangers never negotiate a topic
-    lobby.pace = 'standard'; // ranked is standard only; pick:pace is refused in a ranked room
+    // Ranked plays at blitz length for now (his call, 2026-09-13). The rating
+    // it moves is still the one ladder everybody has (judge.ts names it).
+    lobby.pace = 'blitz'; // pick:pace is refused in a ranked room
     lobby.ranked = { host: a.playerId, guest: b.playerId };
     // Ranked is faceless by format: both strangers are behind masks.
     lobby.host!.masked = true;
@@ -1088,7 +1090,10 @@ io.on('connection', (socket) => {
   socket.on('pick:avatar', (id) => {
     if (!allow(`pick:${socket.id}`, 60, 10_000)) return;
     const lobby = socket.data.code ? getLobby(socket.data.code) : undefined;
-    if (!lobby || (lobby.status !== 'greenroom' && lobby.status !== 'waiting')) return;
+    // Masks are picked in the lobby. Once your friend is in, the room keeps
+    // the mask you walked in with (his call, 2026-09-13: no changing your
+    // mask mid custom game). The green room no longer shows a picker.
+    if (!lobby || lobby.status !== 'waiting') return;
     const me = participantOf(lobby, socket.id);
     if (!me) return;
     if (!(AVATAR_IDS as readonly string[]).includes(String(id))) return;
@@ -1455,9 +1460,9 @@ io.on('connection', (socket) => {
 
   // Ranked: enter the queue. The rating is looked up (or created at the
   // seed) so the waiting screen can show it; pairing is first-come-first-
-  // served. Whatever pace the payload carries is ignored: ranked is standard
-  // only, and an older client asking for blitz gets the same game as
-  // everyone else rather than a line nobody else is standing in.
+  // served. Whatever pace the payload carries is ignored: ranked is one
+  // pace (blitz since 2026-09-13), and a client asking for another gets the
+  // same game as everyone else rather than a line nobody else is standing in.
   socket.on('queue:join', (p, cb) => {
     if (typeof cb !== 'function') return;
     if (!FAST && !allow(`join:${ipOf(socket)}`, 30, 5 * 60_000)) {
@@ -1638,7 +1643,8 @@ io.on('connection', (socket) => {
     const topicMode =
       !placement && (p?.topicMode === 'agree' || p?.topicMode === 'category') ? p.topicMode : 'random';
     const lang = p?.lang === 'ar' ? 'ar' : 'en';
-    const pace = !placement && (p?.pace === 'blitz' || p?.pace === 'long') ? p.pace : 'standard';
+    // Placement is played on ranked terms, so at ranked's length.
+    const pace = placement ? 'blitz' : p?.pace === 'blitz' || p?.pace === 'long' ? p.pace : 'standard';
 
     // Resolve the motion.
     let topic;

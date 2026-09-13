@@ -636,8 +636,10 @@ async function applyElo(lobby: Lobby): Promise<void> {
   const winnerIsHost = lobby.sides.host === lobby.verdict.winner;
   const winnerId = winnerIsHost ? lobby.ranked.host : lobby.ranked.guest;
   const loserId = winnerIsHost ? lobby.ranked.guest : lobby.ranked.host;
-  // Ranked is standard only, so lobby.pace is always 'standard' here.
-  const moved = await applyRankedResult(winnerId, loserId, lobby.pace);
+  // One ladder. Ranked plays at blitz length for now (2026-09-13) but moves
+  // the one rating everybody already has, so the ladder is named here rather
+  // than taken from the room's pace.
+  const moved = await applyRankedResult(winnerId, loserId, 'standard');
   if (!moved) return;
   const loserSide: Side = lobby.verdict.winner === 'FOR' ? 'AGAINST' : 'FOR';
   lobby.eloResult = {
@@ -697,7 +699,9 @@ async function fileMatch(lobby: Lobby, verdict: Verdict): Promise<void> {
       // Ranked human matches move a rating, and so does the one placement
       // match; every other bot game is sparring. The row remembers which.
       rated: mode === 'ranked' || Boolean(lobby.placement),
-      pace: lobby.pace,
+      // The ladder a rated game moved: ranked and placement both move the one
+      // standard ladder, even while ranked plays at blitz length.
+      pace: mode === 'ranked' || lobby.placement ? 'standard' : lobby.pace,
       verdict,
       transcript: lobby.transcript,
     });

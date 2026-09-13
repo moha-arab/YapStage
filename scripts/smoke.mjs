@@ -750,7 +750,7 @@ console.log('\n=== Scenario 9: ranked + spectate ===');
   const beat = await hb;
   check(
     'queue: heartbeat carries waiting, rating and pace',
-    beat.waiting === 1 && typeof beat.rating === 'number' && beat.pace === 'standard',
+    beat.waiting === 1 && typeof beat.rating === 'number' && beat.pace === 'blitz',
   );
   const q2 = await emitP(r2, 'queue:join', { sessionId: 'rk-2', playerId: 'pid-rk-2', name: 'rankedtwo' });
   check('queue: second join accepted', q2.ok === true);
@@ -758,7 +758,7 @@ console.log('\n=== Scenario 9: ranked + spectate ===');
   check('queue: both matched into the same lobby', u1.update.code === u2.update.code);
   check('queue: lobby is flagged ranked', u1.update.ranked === true && u2.update.ranked === true);
   check('queue: ranked topic mode is random', u1.update.topicMode === 'random');
-  check('queue: no pace asked means standard', u1.update.pace === 'standard');
+  check('queue: ranked runs at blitz', u1.update.pace === 'blitz');
   check('queue: ranked seats are masked', u1.update.yourMasked === true && u1.update.peerMasked === true);
   const code9 = u1.update.code;
 
@@ -1015,12 +1015,12 @@ console.log('\n=== Scenario 11: no self-play ===');
   [t1, t2, t3, h, g].forEach((s) => s.disconnect());
 }
 
-// ---------- Scenario 12: ranked is standard only ----------
+// ---------- Scenario 12: ranked is one pace (blitz since 2026-09-13) ----------
 // One queue. There was a queue per pace for a week; he took it out so every
-// player who wants a ranked game is in the same line. A client still asking
-// for blitz or long (or a pace that never existed) is queued with everyone
-// else and lands in a standard room.
-console.log('\n=== Scenario 12: ranked is standard only ===');
+// player who wants a ranked game is in the same line. A client asking for any
+// pace (or one that never existed) is queued with everyone else and lands in
+// the one ranked room, which runs at blitz.
+console.log('\n=== Scenario 12: ranked is one pace ===');
 {
   const bz = connect();
   const lg = connect();
@@ -1029,13 +1029,13 @@ console.log('\n=== Scenario 12: ranked is standard only ===');
   const ml = once(lg, 'queue:matched', 8000);
   await emitP(bz, 'queue:join', { sessionId: 'pc-1', playerId: 'pid-pc-1', name: 'blitzer', pace: 'blitz' });
   const b0 = await bzBeat;
-  check('one queue: the heartbeat says standard whatever was asked for', b0.pace === 'standard' && b0.waiting === 1);
+  check('one queue: the heartbeat says blitz whatever was asked for', b0.pace === 'blitz' && b0.waiting === 1);
   await emitP(lg, 'queue:join', { sessionId: 'pc-2', playerId: 'pid-pc-2', name: 'longhaul', pace: 'long' });
   const [b1, l1] = await Promise.all([mb, ml]);
   check('one queue: a blitz asker and a long asker meet each other', b1.update.code === l1.update.code);
   check(
-    'one queue: the ranked room runs at standard',
-    b1.update.pace === 'standard' && l1.update.pace === 'standard' && b1.update.ranked === true,
+    'one queue: the ranked room runs at blitz',
+    b1.update.pace === 'blitz' && l1.update.pace === 'blitz' && b1.update.ranked === true,
   );
 
   // A pace that never existed, and none at all (old clients): the same room.
@@ -1046,7 +1046,7 @@ console.log('\n=== Scenario 12: ranked is standard only ===');
   await emitP(s1, 'queue:join', { sessionId: 'pc-5', playerId: 'pid-pc-5', name: 'stdone', pace: 'hyper' });
   await emitP(s2, 'queue:join', { sessionId: 'pc-6', playerId: 'pid-pc-6', name: 'stdtwo' });
   const [y1] = await Promise.all([ms1, ms2]);
-  check('one queue: an unknown pace falls back to standard', y1.update.pace === 'standard');
+  check('one queue: an unknown pace lands in the same blitz room', y1.update.pace === 'blitz');
 
   // The rating endpoint. No DATABASE_URL locally, so a fresh id is at the
   // seed with nothing played, and whether they are placed is unknown (null):
@@ -1087,12 +1087,14 @@ console.log('\n=== Scenario 13: rooms start masked ===');
   const track = (u) => { last = u; };
   g.on('lobby:update', track);
   h.emit('pick:mask', false); // the host turns their camera on
-  h.emit('pick:avatar', 'ninja'); // vaulted: must be refused
-  h.emit('pick:avatar', 'napoleon'); // on the roster: worn
+  // Once the friend is in, the room keeps the mask the host walked in with
+  // (2026-09-13): a different roster mask is refused.
+  const otherMask = ROSTER.find((id) => id !== made.update.yourAvatar);
+  h.emit('pick:avatar', otherMask);
   await new Promise((r) => setTimeout(r, 500));
   g.off('lobby:update', track);
   check('mask: the toggle is how a camera comes on', last?.peerMasked === false && last?.yourMasked === true);
-  check('mask: a vaulted id is refused, a roster id is worn', last?.peerAvatar === 'napoleon');
+  check('mask: no changing masks once the friend is in', last?.peerAvatar === made.update.yourAvatar);
   h.disconnect();
   g.disconnect();
 }

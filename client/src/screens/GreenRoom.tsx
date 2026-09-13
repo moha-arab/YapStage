@@ -10,7 +10,6 @@ import { useAudioLevel } from '../useAudioLevel';
 import { useI18n } from '../i18n';
 import MicMeter from '../MicMeter';
 import VideoTile from '../VideoTile';
-import MaskPicker from '../MaskPicker';
 import MatchSetup, { describeSetup, emitSetup, setupOf } from '../MatchSetup';
 
 interface Props {
@@ -38,7 +37,6 @@ export default function GreenRoom({
   notice,
 }: Props) {
   const { lang, t } = useI18n();
-  const [consent, setConsent] = useState(false);
   const [copied, setCopied] = useState(false);
   function copyLink() {
     const link = `${window.location.origin}/?code=${lobby.code}`;
@@ -100,7 +98,7 @@ export default function GreenRoom({
         : mode === 'dispute'
           ? bothDescribed
           : true;
-  const canConfirm = consent && !!localStream && connected && ready && !pick.youConfirmed;
+  const canConfirm = !!localStream && connected && ready && !pick.youConfirmed;
 
   const confirmLabel = pick.youConfirmed
     ? t('confirmedWaiting', { x: peer })
@@ -161,16 +159,8 @@ export default function GreenRoom({
             </button>
           </div>
         ) : null}
-        {/* Ranked used to explain itself here ("ranked is masked. nobody sees
-            your face...") — but the mask IS on screen in the mirror tile, so
-            the sentence was narrating the obvious. His rule: text that tells
-            you what you are already looking at goes. */}
-        {masked ? (
-          <MaskPicker
-            value={lobby.yourAvatar}
-            onPick={(id) => socket.emit('pick:avatar', id)}
-          />
-        ) : null}
+        {/* No mask picker here (his call, 2026-09-13): you pick your mask in
+            the lobby, and a room keeps the one you walked in with. */}
       </div>
     </div>
   );
@@ -362,14 +352,10 @@ export default function GreenRoom({
               </div>
             ) : null}
 
-            <label className="consent-row">
-              <input
-                type="checkbox"
-                checked={consent}
-                onChange={(e) => setConsent(e.target.checked)}
-              />
-              <span>{t(lobby.ranked ? 'consentRanked' : 'consent')}</span>
-            </label>
+            {/* The notice stays, the tick box does not (his call, 2026-09-13:
+                it blocked the start). What the judge reads and what is kept
+                is still said, right above the button. */}
+            <p className="consent-row">{t(lobby.ranked ? 'consentRanked' : 'consent')}</p>
 
             <button className="btn btn-primary btn-wide" disabled={!canConfirm} onClick={confirm}>
               {confirmLabel}

@@ -168,7 +168,7 @@ const en: Dict = {
   lbWatchSub: 'A real ranked debate, right now',
   lbWatchEmptySub: 'Check back in a bit',
 
-  lbCap_ranked: 'A stranger, a random topic, five minutes. A coin picks your side, the judge picks the winner. <b>This one moves your rating.</b>',
+  lbCap_ranked: 'A stranger, a random topic, three minutes. A coin picks your side, the judge picks the winner. <b>This one moves your rating.</b>',
   lbCap_friend: "Send the code or the link to one friend and <b>they walk straight in.</b> You set the topic and the sides, or leave both to chance. Nobody's rating moves.",
   lbCapFriendPicked: "<b>{x}</b> gets a knock on the door and lands in your room. You set the topic and the sides, and <b>nobody's rating moves.</b>",
   lbCap_bot: 'Eight bots, easiest to hardest, each with a <b>fixed rating</b>. None of them moves yours.',
