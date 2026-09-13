@@ -689,46 +689,6 @@ export async function getLocker(sub: string): Promise<Locker> {
   }
 }
 
-/** Every table that holds something a person did or owns. Deleting these is
-    the whole of "start fresh". Kept on purpose: `migrations` (bookkeeping for
-    one-time data changes; clearing it would re-run them, the -300 rating
-    shift included) and `shutdowns` (server restart log, no personal data). */
-const LAUNCH_RESET_TABLES = ['friends', 'matches', 'cards', 'reports', 'cheat_flags', 'accounts', 'players'] as const;
-
-/** The launch reset (2026-09-13, his explicit instruction: "wipe out all
-    accounts and start fresh" once the site is ready to go public). Deletes
-    EVERY account, his own included, and everything any player owns, in one
-    transaction. A dry run counts what would go and deletes nothing. Behind
-    the STATS_KEY admin route with a typed confirm, never automatic. */
-export async function launchReset(
-  dryRun: boolean,
-): Promise<{ ok: true; dryRun: boolean; counts: Record<string, number> } | { ok: false; error: string }> {
-  if (!pool || !ready) return { ok: false, error: 'store_down' };
-  try {
-    const counts: Record<string, number> = {};
-    for (const t of LAUNCH_RESET_TABLES) {
-      const r = await pool.query(`SELECT count(*)::int AS n FROM ${t}`);
-      counts[t] = r.rows[0]?.n ?? 0;
-    }
-    if (dryRun) return { ok: true, dryRun, counts };
-    const client = await pool.connect();
-    try {
-      await client.query('BEGIN');
-      for (const t of LAUNCH_RESET_TABLES) await client.query(`DELETE FROM ${t}`);
-      await client.query('COMMIT');
-    } catch (err) {
-      await client.query('ROLLBACK');
-      throw err;
-    } finally {
-      client.release();
-    }
-    return { ok: true, dryRun, counts };
-  } catch (err) {
-    console.error('[store] launchReset failed:', err);
-    return { ok: false, error: String(err).slice(0, 200) };
-  }
-}
-
 export async function setLocker(sub: string, mask: string, maskDefault: boolean): Promise<boolean> {
   if (!pool || !ready) return false;
   try {
@@ -1009,7 +969,7 @@ export type DeleteOutcome =
     checking the typed confirmation against the name (by fold, so case and
     lookalike letters do not matter). What goes and what stays:
       accounts     the row (Google account id, verified email, yap name, drill
-                   streak, locker); launchReset deletes every row, email too
+                   streak, locker)
       friends      every row with this sub on either side
       matches      this player's own copies, transcripts included; OTHER
                    players' copies of the same debates are theirs and stay,

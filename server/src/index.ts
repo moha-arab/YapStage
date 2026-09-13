@@ -90,7 +90,6 @@ import {
   SEED_RATING,
   storeReady,
   subForUsername,
-  launchReset,
 } from './store.js';
 import { TOPIC_BY_ID, TOPIC_CATEGORIES } from './topics.js';
 import { errTag, event, recentEvents, statsSnapshot } from './stats.js';
@@ -378,25 +377,6 @@ app.get('/live', async (): Promise<LiveList> => {
     is no longer read. With STATS_KEY unset, none of these routes exist. */
 const keyed = (req: { headers: Record<string, unknown>; ip: string }): boolean =>
   statsKeyOk(req.headers['x-stats-key'], req.ip);
-
-/** The launch reset (his instruction, 2026-09-13): once the site is ready to
-    go public, delete EVERY account and everything any player owns (see
-    store.ts launchReset). Dry run by default: it only counts. Deleting needs
-    ?dry=0 AND the body {"confirm":"WIPE EVERYTHING"}. Never automatic. Runs
-    once at launch; remove this route afterwards. */
-app.post<{ Querystring: { dry?: string }; Body: { confirm?: string } }>(
-  '/admin/launch-reset',
-  async (req, reply) => {
-    if (!keyed(req)) return reply.code(404).send({ error: 'Not Found' });
-    const dry = req.query.dry !== '0';
-    if (!dry && req.body?.confirm !== 'WIPE EVERYTHING') {
-      return reply.code(400).send({ ok: false, error: 'confirm', hint: 'send {"confirm":"WIPE EVERYTHING"} with ?dry=0' });
-    }
-    const result = await launchReset(dry);
-    event('launch_reset', { ok: result.ok, dry });
-    return result;
-  },
-);
 
 // ---- match history (signed-in players only) ----
 // Every route here scopes to the caller's own player id from the session, so
