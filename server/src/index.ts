@@ -765,7 +765,12 @@ const io: Io = new Server<ClientToServer, ServerToClient, Record<string, never>,
   // sends: an audio segment is ~20 KB (5 s at 32 kbps) and the handler caps
   // it at 512 KB (debate.ts MAX_SEGMENT_BYTES); an rtc:signal is capped at
   // 16 KB. A packet over 1 MB closes that socket, which is the point.
-  { serveClient: false, maxHttpBufferSize: 1_000_000 },
+  // Ping every 10 s, drop after 15 s without a pong: a silently stalled
+  // network is noticed in about 25 s instead of the default ~45 s, which left
+  // a frozen turn on screen with a mic line still saying the judge could hear
+  // (2026-09-13 retest). The grace windows (GRACE_MS, HOST_AWAY_MS) absorb a
+  // phone that pauses a backgrounded tab.
+  { serveClient: false, maxHttpBufferSize: 1_000_000, pingInterval: 10_000, pingTimeout: 15_000 },
 );
 
 // ---- ranked matchmaking queue ----
@@ -2403,16 +2408,26 @@ io.on('connection', (socket) => {
       // Reopening it left the host alone in a one-seat ranked room with a
       // copyable code and a seat whose rating belongs to the player who left.
       if (isHost || lobby.ranked) {
-        // Same grace the debate gets: an accidental F5 or a network blip
-        // shouldn't nuke the lobby for both players instantly.
+        // A friend-room HOST gets the same window as a host who was already
+        // away when the friend walked in (lobby:join, HOST_AWAY_MS): a phone
+        // that backgrounded the tab to send the code often drops only after
+        // the friend has arrived, and 15 s threw that friend out (2026-09-13
+        // retest). The friend is told and shown the countdown. Ranked keeps
+        // the short grace: a stranger should not wait two minutes.
+        const windowMs = isHost && !lobby.ranked ? HOST_AWAY_MS : GRACE_MS;
         me.disconnectedAt = Date.now();
+        if (me.graceTimer) clearTimeout(me.graceTimer);
+        const peer = peerOf(lobby, socket.id);
+        if (peer && !peer.disconnectedAt) {
+          io.to(peer.socketId).emit('peer:connection', { state: 'lost', graceDeadline: Date.now() + windowMs });
+        }
         me.graceTimer = setTimeout(() => {
           const l = getLobby(lobby.code);
-          if (!l || !me.disconnectedAt) return;
+          if (l !== lobby || !me.disconnectedAt || l.status !== 'greenroom') return;
           io.to(l.code).emit('lobby:closed', { reason: isHost ? 'closedHostLeft' : 'closedPeerLeft' });
           destroyLobby(l.code);
           io.socketsLeave(l.code);
-        }, GRACE_MS);
+        }, windowMs);
       } else {
         // Back to waiting, same code, and the host is told (the same path as
         // the guest pressing Leave).

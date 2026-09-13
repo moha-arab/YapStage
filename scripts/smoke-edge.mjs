@@ -152,7 +152,13 @@ if (want('e7')) {
     info(`placement refused up front (${r.error}); Google must be on. Skipping E7.`);
   } else {
     await st;
-    const code = (await events()).find((e) => e.evt === 'bot_debate_started' && e.t >= since)?.code;
+    // Ask the event trail a few times: a single look right after debate:start
+    // came back empty on one run (2026-09-13) and silently skipped E12.
+    let code;
+    for (let i = 0; i < 6 && !code; i++) {
+      code = (await events()).find((e) => e.evt === 'bot_debate_started' && e.t >= since)?.code;
+      if (!code) await new Promise((res) => setTimeout(res, 300));
+    }
     h.disconnect(); // wifi drops, or the tab is closed
     defer(Date.now() + 17500, async () => {
       const h2 = connect();
