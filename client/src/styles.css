@@ -2102,10 +2102,17 @@ html[dir='rtl'] .meter-hint {
 .green-room .tiles,
 .green-room .picker,
 .green-room .face-controls,
-.green-room > .banner {
+.green-room > .banner,
+.gr-call > .banner {
   width: 100%;
   max-width: 760px;
   margin-inline: auto;
+}
+
+/* The call's own box (GreenRoom.tsx): no box at all, except sideways on a
+   phone (below). */
+.gr-call {
+  display: contents;
 }
 
 .green-room .tiles .tile,
@@ -2118,7 +2125,8 @@ html[dir='rtl'] .meter-hint {
   max-width: 460px;
 }
 
-.green-room > .banner {
+.green-room > .banner,
+.gr-call > .banner {
   margin-top: var(--s3);
 }
 
@@ -2257,6 +2265,73 @@ html[dir='rtl'] .meter-hint {
   .gr-go {
     margin: 0 calc(var(--s4) * -1) calc(var(--s4) * -1);
     padding: var(--s3) var(--s4) var(--s4);
+  }
+}
+
+/* ---- a phone held sideways (844x390) ----
+   The two 240px tiles filled the screen and "Lock it in" sat below the fold
+   with nothing to say it was there. Sideways there is width to spare and no
+   height, so the room goes into two columns: the call on the left, the
+   settings and the start on the right, all in one screen. */
+@media (orientation: landscape) and (max-height: 500px) {
+  .stage.green-room {
+    padding-top: 10px;
+    padding-bottom: 16px;
+  }
+
+  .green-room .scr-bar {
+    margin-bottom: 10px;
+  }
+
+  .green-room:has(> .picker) {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    column-gap: 18px;
+    align-items: start;
+  }
+
+  /* The bar (and anything else) across both columns. */
+  .green-room:has(> .picker) > :not(.gr-call, .picker) {
+    grid-column: 1 / -1;
+  }
+
+  .green-room .gr-call {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+  }
+
+  .green-room:has(> .picker) > .picker {
+    margin-top: 0;
+    padding: 14px 16px;
+    gap: 10px;
+  }
+
+  .green-room .tiles {
+    gap: 10px;
+  }
+
+  .green-room .tiles .tile {
+    height: min(34vh, 132px);
+  }
+
+  .green-room .tile-solo .tile {
+    height: min(40vh, 160px);
+  }
+
+  .green-room .face-controls {
+    margin-top: 8px;
+  }
+
+  .green-room .gr-go {
+    margin: 0 -16px -14px;
+    padding: 10px 16px 14px;
+    gap: 8px;
+  }
+
+  .green-room .gr-consent {
+    font-size: 12px;
+    line-height: 1.4;
   }
 }
 

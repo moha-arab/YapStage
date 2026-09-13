@@ -2982,6 +2982,12 @@
     font-size: 12px;
   }
 
+  /* A line under the codes (your own code, a dead one) pushed the go button
+     under the footer's caption. The art gives that height back. */
+  .lb .lb-select:has(> .lb-err) {
+    --art: clamp(40px, 11vh, 64px);
+  }
+
   .lb .lb-go {
     font-size: 16px;
     padding: 8px 26px;

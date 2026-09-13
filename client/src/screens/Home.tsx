@@ -71,7 +71,7 @@ import MatchSetup, {
   setupOf,
   type MatchSetupValue,
 } from '../MatchSetup';
-import { session, socket } from '../socket';
+import { forgetRoom, recallRoom, rememberRoom, session, socket } from '../socket';
 import { ensureLocalStream, releaseMedia } from '../webrtc';
 import { recordingSupported } from '../recorder';
 import { playerId, saveLocker, signIn, type Account } from '../player';
@@ -417,6 +417,7 @@ export default function Home({
           // ok: lobby:update follows with the room as it is (onUpdate below).
           if (res.ok || roomRef.current?.code !== r.code) return;
           roomNote.current = 'roomCodeChanged';
+          forgetRoom();
           setRoom(null);
         });
       }
@@ -535,6 +536,10 @@ export default function Home({
   const [joinCode, setJoinCode] = useState(arrival);
   const [copied, setCopied] = useState(false);
   const opening = useRef(false);
+  // The code of the room this tab is taking back (openRoom). lobby:resume
+  // answers with a bare ok and the room follows as a lobby:update (index.ts
+  // lobby:resume), which the listener below takes for this code.
+  const resuming = useRef<string | null>(null);
   // A walk-in in flight. Nothing opens a room of yours meanwhile: the auto
   // open used to fire in the same millisecond as the join and seat you in
   // their room AND a new one of your own (QA 2026-09-13).
@@ -549,14 +554,38 @@ export default function Home({
       if (opening.current || joining.current || !validName) return;
       opening.current = true;
       if (manual) setError(null);
-      socket.emit('lobby:create', { sessionId: session.id, name: effName, playerId: playerId() }, (res) => {
+      const create = () =>
+        socket.emit('lobby:create', { sessionId: session.id, name: effName, playerId: playerId() }, (res) => {
+          opening.current = false;
+          if (!res.ok) return setError(errorKey(res.error));
+          rememberRoom(res.update.code);
+          setRoom(res.update);
+          if (roomNote.current) {
+            setError(roomNote.current);
+            roomNote.current = null;
+          }
+        });
+      // The room this tab opened before a reload (or before the lobby went
+      // away for the drill) is still the server's for its waiting TTL, under
+      // the session id it was opened with. Take that id back and the SAME
+      // code comes with it, so the one already sent still works. Only a room
+      // that is gone opens a new one, under that same id, which also clears
+      // any leftover of it on the server (index.ts lobby:create). The go
+      // button (manual) never resumes: it only shows when no room came back.
+      const saved = manual ? null : recallRoom();
+      if (!saved) {
+        forgetRoom();
+        return create();
+      }
+      session.id = saved.sid;
+      resuming.current = saved.code;
+      socket.emit('lobby:resume', { code: saved.code, sessionId: saved.sid }, (res) => {
         opening.current = false;
-        if (!res.ok) return setError(errorKey(res.error));
-        setRoom(res.update);
-        if (roomNote.current) {
-          setError(roomNote.current);
-          roomNote.current = null;
-        }
+        if (res.ok) return; // the room lands as a lobby:update right behind this ack
+        resuming.current = null;
+        forgetRoom();
+        opening.current = true;
+        create();
       });
     },
     [effName, validName],
@@ -570,11 +599,22 @@ export default function Home({
 
   useEffect(() => {
     // The server closed it (idle timeout) while we sat here holding the code.
-    const onClosed = () => setRoom(null);
+    const onClosed = () => {
+      forgetRoom();
+      setRoom(null);
+    };
     // Every setting the host picks comes back as an update for this room.
     // App ignores these while the room has one seat (see its listener), so
-    // the host stays on the stage until the friend actually walks in.
-    const onUpdate = (u: LobbyUpdate) => setRoom((cur) => (cur && cur.code === u.code ? u : cur));
+    // the host stays on the stage until the friend actually walks in. The
+    // first update of a room taken back after a reload is the room itself.
+    const onUpdate = (u: LobbyUpdate) => {
+      if (resuming.current === u.code) {
+        resuming.current = null;
+        setRoom(u);
+        return;
+      }
+      setRoom((cur) => (cur && cur.code === u.code ? u : cur));
+    };
     socket.on('lobby:closed', onClosed);
     socket.on('lobby:update', onUpdate);
     return () => {
@@ -601,6 +641,7 @@ export default function Home({
   function leaveRoom() {
     if (!room) return;
     socket.emit('lobby:leave');
+    forgetRoom();
     setRoom(null);
   }
 
@@ -616,9 +657,11 @@ export default function Home({
       .catch(() => {});
   }
 
-  function join(code: string = joinCode) {
+  function join(code?: unknown) {
     if (busy || joining.current || !requireName()) return;
-    const c = code.trim().toUpperCase();
+    // Anything but a string (a click event handed straight through) means
+    // the code box's own value.
+    const c = (typeof code === 'string' ? code : joinCode).trim().toUpperCase();
     if (c.length !== 6) return setError('errCodeLen');
     // Your own code has nothing to walk into. Said here, before the server
     // has to (it says 'self' too, for your code in another tab).
@@ -1203,7 +1246,9 @@ export default function Home({
             if (e.key === 'Enter') submit();
           }}
         />
-        <button className="btn btn-small" disabled={off || value.trim().length !== 6} onClick={submit}>
+        {/* Never onClick={submit}: the click event would arrive as join()'s
+            code argument (the Walk in button did nothing, QA 2026-09-13). */}
+        <button className="btn btn-small" disabled={off || value.trim().length !== 6} onClick={() => submit()}>
           {cta}
         </button>
       </div>

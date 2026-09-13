@@ -331,6 +331,10 @@ export default function GreenRoom({
         </>
       ) : (
         <>
+          {/* The call. A plain pass-through box everywhere but a phone held
+              sideways, where it is the left column and the panel the right
+              (styles.css). */}
+          <div className="gr-call">
           <div className="tiles">
             {selfTile}
             <div className="tile-stack">
@@ -350,6 +354,7 @@ export default function GreenRoom({
           </div>
           {faceControls}
           {banners}
+          </div>
 
           <div className="picker card">
             {/* Settle-it arrivals should never face three debate-topic tabs

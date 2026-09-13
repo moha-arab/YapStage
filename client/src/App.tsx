@@ -8,7 +8,7 @@ import type {
   Verdict as VerdictData,
 } from '../../server/src/protocol';
 import { GUEST_AVATAR } from '../../server/src/protocol';
-import { session, socket } from './socket';
+import { forgetRoom, session, socket } from './socket';
 import {
   attemptIceRestart,
   beginOffer,
@@ -573,14 +573,21 @@ export default function App() {
     socket.on('rematch:update', (p) => setRematch(p));
     socket.on('rematch:go', () => {
       // Both agreed: drop the finished-debate state and fall back to the green
-      // room. Keep the camera/connection — the server kept the same lobby.
-      // Unless this side pressed "Leave the call" on the verdict: the mic is
-      // off and the connection gone, and nothing about the room changes to
-      // bring them back (the green room sat on "Connecting..." for good). The
-      // bump re-runs both the media and the peer effects; the other side's
-      // old connection starts over when our fresh one's offer or its own
-      // rtc:go arrives (webrtc.ts rebuildPc).
-      if (!localStreamRef.current) setMediaRetry((n) => n + 1);
+      // room. The call starts over on BOTH sides. The server clears both
+      // rtc:ready marks for the rematch (index.ts resetForRematch) and sends
+      // the host rtc:go only once each side has said rtc:ready again, so each
+      // side closes whatever connection it had (a live one, one left 'failed'
+      // by the other pressing "Leave the call", or none) and the bump re-runs
+      // the media effect (the mic comes back if this side left the call) and
+      // the peer effect, whose setupPeer says rtc:ready on a fresh connection.
+      // Only the side that had left used to say it again; the other kept its
+      // dead connection, no offer was ever made, and both green rooms sat on
+      // "Connecting..." for good (QA 2026-09-13).
+      teardownPeer();
+      setRemoteStream(null);
+      setRemoteVideoDead(false);
+      setRtcState(null);
+      setMediaRetry((n) => n + 1);
       startedRef.current = false;
       startDataRef.current = null;
       setStart(null);
@@ -811,6 +818,62 @@ export default function App() {
     window.addEventListener('pagehide', stampLive);
     return () => window.removeEventListener('pagehide', stampLive);
   }, []);
+
+  // The lobby's waiting room (socket.ts yap.room) is done with once this
+  // page holds a room of its own: the friend walked in, or it is another
+  // room altogether. From here yap.live brings a reload back instead, and a
+  // stale record must never take this session back into a finished game.
+  const inRoom = Boolean(lobby);
+  useEffect(() => {
+    if (inRoom) forgetRoom();
+  }, [inRoom]);
+
+  // A connection that goes quiet without closing (wifi that stops passing
+  // packets) only reaches the socket's disconnect once the server's ping and
+  // its timeout have both run out (index.ts: 10 s and 15 s). The server pings
+  // every ten seconds, so a live debate that has heard nothing at all for a
+  // ping and a few seconds more shows the reconnecting state early. Anything
+  // from the server clears it; a real disconnect takes over from there.
+  const [stalled, setStalled] = useState(false);
+  const liveDebate = Boolean(start) && !ended && !verdictInfo && !abortInfo && !debrief;
+  useEffect(() => {
+    if (!liveDebate) return;
+    // The interval the server announced in its handshake (a private field,
+    // hence the fallback to the library default).
+    const engine = socket.io.engine as unknown as { _pingInterval?: number } | undefined;
+    const every = engine?._pingInterval && engine._pingInterval > 0 ? engine._pingInterval : 25_000;
+    const limit = Math.max(12_000, every + 4_000);
+    let last = Date.now();
+    let flagged = false;
+    const heard = () => {
+      last = Date.now();
+      if (flagged) {
+        flagged = false;
+        setStalled(false);
+      }
+    };
+    // A phone that slept heard nothing through no fault of the line: the
+    // count starts again when the page comes back.
+    const onVis = () => {
+      if (document.visibilityState === 'visible') last = Date.now();
+    };
+    socket.io.on('ping', heard);
+    socket.io.on('packet', heard);
+    document.addEventListener('visibilitychange', onVis);
+    const timer = setInterval(() => {
+      if (!flagged && socket.connected && Date.now() - last > limit) {
+        flagged = true;
+        setStalled(true);
+      }
+    }, 1000);
+    return () => {
+      clearInterval(timer);
+      socket.io.off('ping', heard);
+      socket.io.off('packet', heard);
+      document.removeEventListener('visibilitychange', onVis);
+      setStalled(false);
+    };
+  }, [liveDebate]);
 
   // "We heard you" indicator: transcript chunk (browser STT) or captured
   // audio data (server STT) both count as proof of life.
@@ -1288,8 +1351,9 @@ export default function App() {
     if (!s || s.bot) {
       // A bot game (the lesson and the placement too) can be walked out of
       // any time before its verdict: the server calls it off and files
-      // nothing (index.ts lobby:leave). resetToHome hands the room back.
-      resetToHome(null);
+      // nothing (index.ts lobby:leave). resetToHome hands the room back, and
+      // the lobby says so in the same words a friend or ranked game does.
+      resetToHome('leftDebate');
       return;
     }
     // A human debate has no mid-debate lobby:leave on the server: walking
@@ -1460,7 +1524,7 @@ export default function App() {
         watchers={watchers}
         onPassMic={(stepIndex) => socket.emit('turn:done', { stepIndex })}
         ranked={Boolean(lobby?.ranked)}
-        offline={offline}
+        offline={offline || stalled}
         onLeave={leaveDebate}
       />
     );

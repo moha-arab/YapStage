@@ -62,8 +62,8 @@ const STORAGE: [keys: string[], what: string, howLong: string][] = [
   [['yapstage.receipts'], 'Your last ten results, for the stats shown on this device.', 'Until you clear your browser'],
   [['yapstage.lang'], 'Your language choice.', 'Until you clear your browser'],
   [
-    ['yap.live', 'yap.resume', 'yap.lobby', 'yap.splash', 'yap.chunkReload', 'yapstage.pendingCode'],
-    'Put you back in your debate or green room if the page reloads, recover a verdict after a refresh, reopen the lobby on the tab you were on, skip the intro you already saw, stop the page reloading in a loop while an update rolls out, and keep an invite code through sign-in.',
+    ['yap.live', 'yap.resume', 'yap.lobby', 'yap.room', 'yap.splash', 'yap.chunkReload', 'yapstage.pendingCode'],
+    'Put you back in your debate or green room if the page reloads, keep your friend room and its code through a reload, recover a verdict after a refresh, reopen the lobby on the tab you were on, skip the intro you already saw, stop the page reloading in a loop while an update rolls out, and keep an invite code through sign-in.',
     'Until you close the tab',
   ],
 ];
