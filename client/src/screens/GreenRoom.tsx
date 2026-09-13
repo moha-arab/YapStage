@@ -117,7 +117,9 @@ export default function GreenRoom({
         : mode === 'dispute'
           ? bothDescribed
           : true;
-  const canConfirm = !!localStream && connected && ready && !pick.youConfirmed;
+  // Not while the other player is away (their connection dropped and the
+  // countdown banner is up): locking in with nobody there did nothing useful.
+  const canConfirm = !!localStream && connected && ready && !pick.youConfirmed && !peerLostUntil;
 
   // Both wearing characters, the link is a voice call, not a video.
   const onCamera = !masked || !peerMasked;

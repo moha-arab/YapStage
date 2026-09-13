@@ -327,7 +327,7 @@ export default function App() {
   // events reach this socket too and the handlers below must ignore them.
   const spectatingRef = useRef<string | null>(null);
 
-  const resetToHome = useCallback((message: string | null) => {
+  const resetToHome = useCallback((message: string | null, opts?: { keepNotice?: boolean }) => {
     releaseMedia();
     stopTurn();
     stopBotVoice();
@@ -370,7 +370,7 @@ export default function App() {
     setSpectating(null);
     setSpecState(null);
     setSpecFeed(null);
-    setNotice(message);
+    if (!opts?.keepNotice) setNotice(message);
   }, []);
 
   useEffect(() => {
@@ -407,6 +407,11 @@ export default function App() {
       if (spectatingRef.current) {
         return resetToHome(reason === 'closedWatchersOff' ? 'closedWatchersOff' : 'specRoomClosed');
       }
+      // An empty reason is the server confirming a leave this player just
+      // made (a bot game's "End it" included). The screen already says why
+      // ("You left the debate."), so keep that line instead of blanking it
+      // a few milliseconds later (2026-09-13 retest).
+      if (!reason) return resetToHome(null, { keepNotice: true });
       // The server tells whoever stayed 'closedPeerLeft' whichever seat left
       // (index.ts lobby:leave). To a friend room's guest the one who left is
       // the host, and the host line says what to do next.
