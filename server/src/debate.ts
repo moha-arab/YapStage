@@ -23,10 +23,11 @@ import { TOPIC_BY_ID, TOPIC_CATEGORIES } from './topics.js';
 import { transcribe } from './stt.js';
 import { frameDispute } from './dispute.js';
 import { errTag, event } from './stats.js';
-import { llmBudget, llmFailed, llmOk } from './llm.js';
+import { countsAsOutage, llmBudget, llmFailed, llmOk } from './llm.js';
 import Anthropic from '@anthropic-ai/sdk';
-import { BOT_BY_ID, rungDirective, lengthRule, type Bot } from './bots.js';
+import { BOT_BY_ID, fitToClock, rungDirective, lengthRule, type Bot } from './bots.js';
 import { synthesize } from './tts.js';
+import { cleanLine } from './security.js';
 
 /** Set by index.ts: refresh spectators' snapshot when a debate starts, since
     debate:start goes to participant sockets, not rooms. */
@@ -645,9 +646,20 @@ async function runBotTurn(io: Io, lobby: Lobby, stepIndex: number): Promise<void
     }
     if (stepIndex > 0) await transcribeHumanUpto(lobby, stepIndex);
     if (lobby.status !== 'in_debate' || lobby.stepIndex !== stepIndex) return;
-    const text = await generateBotArgument(lobby, bot, stepIndex);
+    const said = await generateBotArgument(lobby, bot, stepIndex);
     llmOk();
     if (lobby.status !== 'in_debate' || lobby.stepIndex !== stepIndex) return;
+    // Only what the voice can say before the shot clock takes the mic
+    // (bots.ts fitToClock), so the judge scores exactly what the listener
+    // heard. The pace's real clock even in FAST test mode, so the calibration
+    // harness judges what a live player would hear.
+    const clock =
+      (lobby.tutorial ? TUTORIAL_SCRIPT : SCRIPTS[lobby.pace] ?? SCRIPTS.standard)[stepIndex]?.seconds ?? 45;
+    const text = fitToClock(said, clock);
+    if (text !== said) {
+      const words = (s: string) => (s.match(/\S+/g) ?? []).length;
+      event('bot_trimmed', { code: lobby.code, stepIndex, from: words(said), to: words(text) });
+    }
     lobby.transcript.push({ stepIndex, side: lobby.bot.side, text, at: Date.now() });
     const audio = await synthesize(text, bot.voiceId);
     if (lobby.status !== 'in_debate' || lobby.stepIndex !== stepIndex) return;
@@ -670,7 +682,9 @@ async function runBotTurn(io: Io, lobby: Lobby, stepIndex: number): Promise<void
     }
   } catch (err) {
     console.error(`[bot] ${lobby.code} turn ${stepIndex} failed: ${errTag(err)}`);
-    llmFailed();
+    // Only an API outage feeds the breaker (llm.ts countsAsOutage): one odd
+    // generation must not refuse every new start for five minutes.
+    if (countsAsOutage(err)) llmFailed();
     // The debate moved on while we waited (the turn timed out, the human
     // left): a late failure must not count against this debate, abort it,
     // or tell the client about a turn that is already over.
@@ -956,7 +970,10 @@ export function acceptChunk(lobby: Lobby, sender: Participant, chunk: SpeechChun
   if (!lobby.debateCompleted && lobby.status !== 'in_debate') return;
   if (lobby.transcript.length >= MAX_TRANSCRIPT_ENTRIES) return;
 
-  const text = String(chunk.text ?? '').trim().slice(0, MAX_CHUNK_CHARS);
+  // One line of plain text: control characters (a NUL here used to cost the
+  // whole match row, since Postgres refuses it), line breaks and bidi
+  // overrides out, then capped (security.ts cleanLine).
+  const text = cleanLine(chunk.text, MAX_CHUNK_CHARS);
   if (!text) return;
   if (!turnIsAcceptable(lobby, sender, chunk.stepIndex)) return;
 

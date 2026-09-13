@@ -261,6 +261,44 @@ export function rungDirective(rank: number): string {
   }
 }
 
+/** How fast the ElevenLabs voices on this roster speak, measured on the live
+    site: about 2.1 words a second (Vesper ran 39.3 seconds of audio in a 35
+    second defense and 42.9 in a 25 second closing). */
+export const VOICE_WORDS_PER_SEC = 2.1;
+
+/** Cut a bot turn back, at a sentence end, to what its voice can say before
+    the shot clock takes the mic (the client cuts the audio at `seconds`).
+    The judge used to read the whole generated text while the listener heard
+    it cut off mid-sentence, so the bot was scored on words nobody heard.
+    Now the transcript, the caption and the voice all carry the same words.
+    The budget keeps 8 percent and a second of margin for the clip's lead-in
+    and the time the browser takes to start playing it. Nothing in the bot
+    prompts changes: this trims after generation. */
+export function fitToClock(text: string, seconds: number): string {
+  const clean = text.trim();
+  const budget = Math.max(8, Math.floor((seconds * 0.92 - 1) * VOICE_WORDS_PER_SEC));
+  const count = (s: string) => (s.match(/\S+/g) ?? []).length;
+  if (count(clean) <= budget) return clean;
+  // A sentence ends at . ! ? (or the Arabic marks) followed by a space or
+  // the end, so "3.5 percent" stays one piece.
+  const sentences = clean.match(/.+?(?:[.!?؟۔]+["'”’)\]]*(?=\s|$)|$)\s*/gs) ?? [clean];
+  let out = '';
+  let used = 0;
+  for (const s of sentences) {
+    const n = count(s);
+    if (used + n > budget) break;
+    out += s;
+    used += n;
+  }
+  if (out.trim()) return out.trim();
+  // The first sentence alone overruns the clock: stop it at the last clause
+  // break that fits, else the last whole word, and close it.
+  const first = (sentences[0] ?? clean).trim().split(/\s+/).slice(0, budget).join(' ');
+  const clause = Math.max(first.lastIndexOf(','), first.lastIndexOf(';'), first.lastIndexOf(':'));
+  const kept = clause > first.length * 0.5 ? first.slice(0, clause) : first;
+  return `${kept.replace(/[\s,;:]+$/, '')}.`;
+}
+
 /** Per-rung length shaping. Words are strength when a judge reads a
     transcript, so length is part of the rung, not a cosmetic: the floor is
     short because it has one thing to say, and each rung above it earns a

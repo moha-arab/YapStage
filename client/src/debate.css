@@ -764,3 +764,31 @@
     transition: none;
   }
 }
+
+/* ---- the way out (QA 2026-09-13) ----
+   A debate had no exit but the browser's own Back, reload or close. The
+   Leave button sits at the right end of the bar, where every screen around
+   a match keeps its one way out (.scr-btn), and the confirm is a plain line
+   under the bar that says what leaving costs, with the two answers beside it. */
+.dv-leave {
+  margin-inline-start: auto;
+}
+
+.dv-leave-confirm {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: var(--s2) var(--s3);
+}
+
+.dv-leave-confirm p {
+  margin: 0;
+  color: var(--paper);
+  font-weight: 600;
+}
+
+.dv-leave-actions {
+  display: flex;
+  gap: var(--s2);
+}

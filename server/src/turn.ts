@@ -53,6 +53,16 @@ export function turnMode(): 'cloudflare' | 'static' | 'stun-only' {
   return current.length > 1 ? 'static' : 'stun-only';
 }
 
+/** Whether a relay (TURN) server is being handed out right now. Ranked
+    signalling is relay only (security.ts relayOnlySignal strips every other
+    candidate), so without one two ranked players can never connect, and the
+    queue refuses rather than matching them (index.ts queue:join). */
+export function relayAvailable(): boolean {
+  return getIceServers().some((s) =>
+    (Array.isArray(s.urls) ? s.urls : [s.urls]).some((u) => /^turns?:/i.test(String(u)) && Boolean(s.username)),
+  );
+}
+
 export function cloudflareConfigured(): boolean {
   return Boolean(process.env.CF_TURN_KEY_ID && process.env.CF_TURN_API_TOKEN);
 }

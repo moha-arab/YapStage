@@ -13,8 +13,20 @@ import { sanitizeCard, type Card } from './share.js';
 import { event } from './stats.js';
 import { PACES, foldName, type Pace } from './protocol.js';
 import { PLACEMENT_ANCHOR } from './bots.js';
+import { stripControl } from './security.js';
 
 let pool: pg.Pool | null = null;
+
+/** Text for a text column: no control characters, no broken surrogate halves
+    (security.ts stripControl), then capped. Postgres refuses a NUL outright,
+    and one in a debater's words used to fail the whole INSERT. */
+const dbText = (s: unknown, max: number): string => stripControl(s).slice(0, max).replace(/[\uD800-\uDBFF]$/, '');
+
+/** JSON for a jsonb column, every string in it cleaned the same way. jsonb
+    refuses the NUL escape and half a surrogate pair, and the transcript and
+    verdict are words people (and a model quoting them) wrote. */
+const dbJson = (v: unknown): string =>
+  JSON.stringify(v, (_k, val: unknown) => (typeof val === 'string' ? stripControl(val) : val)) ?? 'null';
 let ready = false;
 
 /** Short, unambiguous ids: no I/O/0/1, same alphabet as lobby codes. */
@@ -363,7 +375,7 @@ export async function saveCard(card: Card): Promise<string | null> {
     try {
       const res = await pool.query(
         'INSERT INTO cards (id, payload) VALUES ($1, $2) ON CONFLICT (id) DO NOTHING RETURNING id',
-        [id, JSON.stringify(card)],
+        [id, dbJson(card)],
       );
       if (res.rowCount === 1) return id;
     } catch (err) {
@@ -465,7 +477,7 @@ export async function getPlayer(id: string, name: string): Promise<PlayerRow | n
       `INSERT INTO players (id, name) VALUES ($1, $2)
        ON CONFLICT (id) DO UPDATE SET name = $2, updated_at = now()
        RETURNING ${LADDER_COLS}`,
-      [id.slice(0, 64), name.slice(0, 24)],
+      [id.slice(0, 64), dbText(name, 24)],
     );
     return ladderOf(res.rows[0] as Record<string, unknown>);
   } catch (err) {
@@ -565,11 +577,21 @@ export async function applyRankedResult(
   pace: Pace = 'standard',
 ): Promise<{ winner: { before: number; after: number }; loser: { before: number; after: number } } | null> {
   if (!pool || !ready) return null;
+  // Read-compute-write in ONE transaction with both rows locked. Two results
+  // landing together for the same player (two matches finishing in the same
+  // second, a forfeit racing a verdict) used to read the same starting
+  // rating and write over each other, so one game's points simply vanished.
+  // FOR UPDATE makes the second wait for the first to commit and then read
+  // what it wrote. The rows are locked in id order, so two transactions
+  // locking the same pair from opposite ends cannot deadlock.
+  let client: pg.PoolClient | null = null;
   try {
+    client = await pool.connect();
     const c = paceCols(pace);
-    const res = await pool.query(
+    await client.query('BEGIN');
+    const res = await client.query(
       `SELECT id, ${c.rating} AS rating, ${c.wins} AS wins, ${c.losses} AS losses
-       FROM players WHERE id = ANY($1)`,
+       FROM players WHERE id = ANY($1) ORDER BY id FOR UPDATE`,
       [[winnerId, loserId]],
     );
     type R = { id: string; rating: number; wins: number; losses: number };
@@ -588,21 +610,25 @@ export async function applyRankedResult(
     // unplaced (index.ts queue:join), so this only matters for rows from
     // before the placement match existed, which would otherwise sit
     // unplaced forever, off the leaderboard, however many games they play.
-    await pool.query(
+    await client.query(
       `UPDATE players SET ${c.rating} = $2, ${c.wins} = ${c.wins} + 1, placed = true, updated_at = now() WHERE id = $1`,
       [winnerId, after.winner],
     );
-    await pool.query(
+    await client.query(
       `UPDATE players SET ${c.rating} = $2, ${c.losses} = ${c.losses} + 1, placed = true, updated_at = now() WHERE id = $1`,
       [loserId, after.loser],
     );
+    await client.query('COMMIT');
     return {
       winner: { before: rw, after: after.winner },
       loser: { before: rl, after: after.loser },
     };
   } catch (err) {
+    await client?.query('ROLLBACK').catch(() => {});
     console.error('[store] applyRankedResult failed:', err);
     return null;
+  } finally {
+    client?.release();
   }
 }
 
@@ -622,7 +648,7 @@ export async function placePlayer(id: string, name: string, margin: number): Pro
        ON CONFLICT (id) DO UPDATE SET rating = $3, placed = true, name = $2, updated_at = now()
        WHERE players.placed = false
        RETURNING rating`,
-      [id.slice(0, 64), name.slice(0, 24), rating],
+      [id.slice(0, 64), dbText(name, 24), rating],
     );
     return res.rowCount === 1 ? Number(res.rows[0].rating) : null;
   } catch (err) {
@@ -1319,7 +1345,7 @@ export async function saveCheatFlag(f: {
   try {
     await pool.query(
       `INSERT INTO cheat_flags (code, player_id, name, score, signals) VALUES ($1,$2,$3,$4,$5)`,
-      [f.code.slice(0, 12), f.playerId.slice(0, 64), f.name.slice(0, 24), f.score, JSON.stringify(f.signals)],
+      [f.code.slice(0, 12), f.playerId.slice(0, 64), dbText(f.name, 24), f.score, dbJson(f.signals)],
     );
   } catch (err) {
     console.error('[store] saveCheatFlag failed:', err);
@@ -1610,16 +1636,17 @@ export async function saveMatch(m: MatchRow): Promise<void> {
       [
         m.playerId.slice(0, 64),
         m.mode,
-        m.topic.slice(0, 300),
+        // A settle-it motion is player-written (debate.ts startDispute).
+        dbText(m.topic, 300),
         m.mySide,
         m.won,
         m.myTotal,
         m.theirTotal,
-        m.opponent.slice(0, 24),
+        dbText(m.opponent, 24),
         Boolean(m.rated),
         (PACES as readonly string[]).includes(m.pace) ? m.pace : 'standard',
-        JSON.stringify(m.verdict),
-        JSON.stringify(Array.isArray(m.transcript) ? m.transcript : []),
+        dbJson(m.verdict),
+        dbJson(Array.isArray(m.transcript) ? m.transcript : []),
       ],
     );
   } catch (err) {
@@ -1742,7 +1769,14 @@ export async function saveReport(r: ReportRow): Promise<boolean> {
     await pool.query(
       `INSERT INTO reports (code, mode, reporter_name, reported_name, reason, transcript)
        VALUES ($1, $2, $3, $4, $5, $6)`,
-      [r.code, r.mode, r.reporterName.slice(0, 24), r.reportedName.slice(0, 24), r.reason.slice(0, 24), JSON.stringify(r.transcript)],
+      [
+        r.code,
+        r.mode,
+        dbText(r.reporterName, 24),
+        dbText(r.reportedName, 24),
+        dbText(r.reason, 24),
+        dbJson(r.transcript),
+      ],
     );
     return true;
   } catch (err) {

@@ -19,6 +19,7 @@
 // Its own counter rather than ratelimit.ts: that map fails closed when it
 // is flooded with keys, and a key flood must not be able to switch off every
 // judge on the box.
+import Anthropic from '@anthropic-ai/sdk';
 import { event } from './stats.js';
 
 const DEFAULT_CAP = 600;
@@ -76,7 +77,51 @@ export function llmOk(): void {
   openedAt = 0;
 }
 
-/** A judge or bot call failed. */
+/** Whether a thrown error says the model API itself is unreachable or
+    refusing us, the only thing the breaker exists for. Network and timeout
+    failures, 408, 429, every 5xx (529 is "overloaded"), a revoked key
+    (401/403) and an empty credit balance (a 400 that says so) count.
+    Everything else is one odd call, not an outage: our own throws on bad
+    output (winner/total mismatch, truncation at max_tokens, JSON that will
+    not parse, a 50/50 ruling) and LlmCapError, which is our budget talking.
+    Counting those let one strange debate refuse every ranked and bot start
+    for five minutes. */
+export function countsAsOutage(err: unknown): boolean {
+  if (err instanceof LlmCapError) return false;
+  if (err instanceof Anthropic.APIUserAbortError) return false;
+  if (err instanceof Anthropic.APIConnectionError) return true; // includes the timeout subclass
+  if (err instanceof Anthropic.APIError) {
+    const status = typeof err.status === 'number' ? err.status : 0;
+    if (status === 408 || status === 429 || status >= 500) return true;
+    if (status === 401 || status === 403) return true;
+    // The SDK folds the response body into the message; read both anyway.
+    const said = `${String(err.message ?? '')} ${JSON.stringify(err.error ?? '')}`;
+    return status === 400 && /credit balance/i.test(said);
+  }
+  // A fetch-level failure that never became an SDK error.
+  const name = (err as { name?: unknown } | null)?.name;
+  return name === 'AbortError' || name === 'TimeoutError';
+}
+
+/** Shorten model text to at most `max` characters without cutting a word:
+    at the last sentence end that fits, else at the last word boundary with
+    an ellipsis. The hard slices this replaces put "workplace-pay ar" and
+    "proof of y" on the verdict screen. */
+export function clipText(s: string, max: number): string {
+  const text = s.trim();
+  if (text.length <= max) return text;
+  let cut = -1;
+  const ends = /[.!?؟۔]+["'”’)\]]*(?=\s|$)/g;
+  for (let m = ends.exec(text); m && m.index + m[0].length <= max; m = ends.exec(text)) {
+    cut = m.index + m[0].length;
+  }
+  if (cut >= max * 0.4) return text.slice(0, cut).trim();
+  const head = text.slice(0, max - 1);
+  const space = head.lastIndexOf(' ');
+  return `${(space > max * 0.4 ? head.slice(0, space) : head).replace(/[\s,;:]+$/, '')}…`;
+}
+
+/** A judge or bot call failed. Callers pass only outages (countsAsOutage). */
 export function llmFailed(): void {
   consecutiveFailures += 1;
   if (consecutiveFailures >= BREAKER_AFTER && !openedAt) {

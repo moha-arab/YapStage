@@ -4,16 +4,12 @@
 // that starts watching — iOS grants playback per ELEMENT, the lesson the bot
 // voice taught us the hard way.
 
+import { SILENT_WAV } from './botvoice';
+
 let el: HTMLAudioElement | null = null;
 let unlocked = false;
 const queue: string[] = [];
 let playing = false;
-
-const SILENT_MP3 =
-  'data:audio/mpeg;base64,//uQxAAAAAAAAAAAAAAAAAAAAAAAWGluZwAAAA8AAAACAAACcQCA' +
-  'gICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgP////////' +
-  '////////////////////////////////8AAAA5TEFNRTMuMTAwAc0AAAAAAAAAABSAJAJAQgAA' +
-  'gAAAAnGDVYEBAAAAAAAAAAAAAAAAAAAA';
 
 function element(): HTMLAudioElement {
   if (!el) {
@@ -32,17 +28,23 @@ export function spectateAudioElement(): HTMLAudioElement {
 /** Call inside the click that starts spectating. */
 export function unlockSpectateAudio(): void {
   if (unlocked) return;
+  // A clip owns the element: swapping in the silence would cut it off.
+  if (playing) return;
   try {
     const a = element();
-    a.src = SILENT_MP3;
+    // A finished clip's handlers must not fire for the silence (they would
+    // advance a queue that is not playing).
+    a.onended = null;
+    a.onerror = null;
+    a.src = SILENT_WAV;
     a.volume = 0;
     const p = a.play();
     if (p && typeof p.then === 'function') {
       void p
         .then(() => {
-          a.pause();
-          a.volume = 1;
           unlocked = true;
+          if (!playing) a.pause(); // a clip may have taken the element since
+          a.volume = 1;
         })
         .catch(() => {
           a.volume = 1;

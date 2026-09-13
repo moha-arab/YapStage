@@ -47,8 +47,8 @@ interface Part {
 const Mail = () => <a href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</a>;
 
 /* Every cookie and storage key the client sets, from auth.ts (the three
-   cookies), player.ts, guest.ts, history.ts, i18n.tsx, App.tsx and
-   Splash.tsx. A new key means a new row here. */
+   cookies), player.ts, guest.ts, history.ts, i18n.tsx, App.tsx, Home.tsx,
+   main.tsx and Splash.tsx. A new key means a new row here. */
 const STORAGE: [keys: string[], what: string, howLong: string][] = [
   [['yap_session'], 'Keeps you signed in. Scripts on the page cannot read it.', '30 days, or until you sign out'],
   [['yap_oauth_state'], 'Stops someone from hijacking the Google sign-in step.', '10 minutes'],
@@ -61,7 +61,11 @@ const STORAGE: [keys: string[], what: string, howLong: string][] = [
   [['yapstage.guestName', 'yapstage.drill'], 'Your guest name and your guest drill streak.', 'Until you sign out or clear your browser'],
   [['yapstage.receipts'], 'Your last ten results, for the stats shown on this device.', 'Until you clear your browser'],
   [['yapstage.lang'], 'Your language choice.', 'Until you clear your browser'],
-  [['yap.resume', 'yap.splash', 'yapstage.pendingCode'], 'Rejoin a debate after a refresh, skip the intro you already saw, and keep an invite code through sign-in.', 'Until you close the tab'],
+  [
+    ['yap.live', 'yap.resume', 'yap.lobby', 'yap.splash', 'yap.chunkReload', 'yapstage.pendingCode'],
+    'Put you back in your debate or green room if the page reloads, recover a verdict after a refresh, reopen the lobby on the tab you were on, skip the intro you already saw, stop the page reloading in a loop while an update rolls out, and keep an invite code through sign-in.',
+    'Until you close the tab',
+  ],
 ];
 
 /* ------------------------------------------------------------------ */
@@ -69,7 +73,7 @@ const STORAGE: [keys: string[], what: string, howLong: string][] = [
 /* ------------------------------------------------------------------ */
 
 const PRIVACY_SHORT = [
-  'You can play without an account. Ranked, friends and characters need a Google sign-in. From Google we get an account ID number and your verified email address, and no other player ever sees your email.',
+  'You can play without an account, and a room code is all a friend needs to play you. Ranked and characters need a Google sign-in. From Google we get an account ID number and your verified email address, and no other player ever sees your email.',
   'In a debate your voice goes to your opponent and to anyone watching. Each turn is recorded in short clips and sent to Cloudflare to be turned into text, and the audio is thrown away as soon as that is done.',
   'The text of the debate goes to Anthropic, whose AI (Claude) judges it and plays the bots.',
   "Your voice recording is never kept. The transcript of each debate is saved in both players' match history, so you can go back over it and get coaching, until you delete your account. Your opponent keeps their own copy, the way both players keep a chess game.",
@@ -111,8 +115,10 @@ const PRIVACY: Part[] = [
         </p>
         <h3>Friends</h3>
         <p>
-          Who you added, who added you, and which requests are still waiting. Your friends can see your yap name,
-          character, rating and whether you are online right now.
+          YapStage does not show a friends list at the moment: to play a friend, you send them a room code. If you
+          added friends in an earlier version, we still keep who you added, who added you, and which requests are still
+          waiting, until you delete your account, and they are in Download my data. Wherever the app shows friends, your
+          friends can see your yap name, character, rating and whether you are online right now.
         </p>
         <h3>If you play as a guest</h3>
         <p>
@@ -165,7 +171,7 @@ const PRIVACY: Part[] = [
         <p>
           Ranked calls always pass through a relay run by Cloudflare, so two strangers never learn each other's IP
           address. In friend rooms your microphone audio usually goes straight from your browser to your opponent's
-          (a peer to peer connection), and through the Cloudflare relay only when a direct connection is not possible.
+          (a peer-to-peer connection), and through the Cloudflare relay only when a direct connection is not possible.
           Either way the call is encrypted, so the relay cannot listen to it.
         </p>
         <h3>Turning your speech into text</h3>
@@ -174,7 +180,7 @@ const PRIVACY: Part[] = [
           <li>
             <b>On our server.</b> This is how every ranked debate works, and how the others usually work. The app records
             your turn in clips of about five seconds and uploads them to our server. We send each clip to Cloudflare
-            Workers AI, which runs a speech to text model (Whisper) and sends back the text. The audio of each clip is
+            Workers AI, which runs a speech-to-text model (Whisper) and sends back the text. The audio of each clip is
             thrown away as soon as it has been turned into text, and it is never saved. The same clips are played, a few
             seconds behind, to anyone watching the debate.
           </li>
@@ -212,8 +218,8 @@ const PRIVACY: Part[] = [
         </p>
         <h3>Share cards</h3>
         <p>
-          If you tap share after a verdict, we save a card with the motion, both yap names, the scores, the judge's one
-          line ruling and your own best line, and make a link to it. A card never carries your opponent's words. Anyone
+          If you tap share after a verdict, we save a card with the motion, both yap names, the scores, the judge's one-line
+          ruling and your own best line, and make a link to it. A card never carries your opponent's words. Anyone
           with the link can see it.
         </p>
       </>
@@ -233,7 +239,7 @@ const PRIVACY: Part[] = [
         </div>
         <h3>Anthropic (Claude)</h3>
         <ul>
-          <li>The transcript and the motion, so the AI judge can pick a winner, score both sides and write notes. The judge sees the two sides labelled by letter, not by your names.</li>
+          <li>The transcript and the motion, so the AI judge can pick a winner, score both sides and write notes. The judge sees the two sides labeled by letter, not by your names.</li>
           <li>The transcript so far, so a bot can write its next line.</li>
           <li>The transcript, the verdict and the questions you type, when you ask the YapMaster about a debate you just finished.</li>
           <li>The saved transcript, the verdict and the questions you type, when you ask about a saved match later.</li>
@@ -607,7 +613,7 @@ const TERMS: Part[] = [
     body: (
       <>
         <ul>
-          <li>Ranked, friends and characters need a Google sign-in. Keep your Google account secure. You are responsible for what happens on your YapStage account.</li>
+          <li>Ranked and characters need a Google sign-in. Playing a friend with a room code does not. Keep your Google account secure. You are responsible for what happens on your YapStage account.</li>
           <li>One person per account. Do not share, sell or trade accounts, and do not make extra accounts to dodge a ban or move ratings.</li>
           <li>
             Your yap name must not pretend to be someone else, and must not contain slurs, hate, sexual content or
@@ -673,7 +679,7 @@ const TERMS: Part[] = [
         <ul>
           <li>Verdicts, scores, notes and rating changes are made automatically by an AI model (Claude, made by Anthropic). No person checks each one.</li>
           <li>
-            The judge can be wrong. Speech to text can drop or mishear your words, and the judge can miss a good point
+            The judge can be wrong. Speech-to-text can drop or mishear your words, and the judge can miss a good point
             or score unfairly. It does not look anything up, so it does not check whether facts are true.
           </li>
           <li>

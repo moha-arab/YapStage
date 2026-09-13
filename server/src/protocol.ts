@@ -194,6 +194,10 @@ export interface LobbyUpdate {
   peerMasked?: boolean;
   /** Custom only, host-controlled: whether the code admits watchers. */
   spectatorsAllowed: boolean;
+  /** How many people are watching this room right now (debaters always
+      know they have an audience). spectate:count keeps it live after this;
+      shutting the door ('Just us') sends every watcher out and it drops to 0. */
+  watchers?: number;
 }
 
 /** Everything a spectator needs to watch a debate they are not in. */
@@ -337,7 +341,14 @@ export type JoinError =
   | 'unplaced'
   /** The model API is failing (llm.ts breaker): new rated, bot and
       placement starts are refused until it recovers. */
-  | 'judge_down';
+  | 'judge_down'
+  /** This player (same device id, or same account) already holds a live seat
+      through another tab or device: a green room, a debate, a verdict being
+      written, or a place in the ranked queue. One player, one live seat. */
+  | 'busy_elsewhere'
+  /** Ranked only: the server has no relay (TURN) credentials right now, and
+      ranked calls are relay only, so two players could never connect. */
+  | 'no_relay';
 
 export type CreateResult =
   | { ok: true; update: LobbyUpdate }
@@ -486,6 +497,11 @@ export interface ServerToClient {
   /** A friend called you out: their room is open and waiting for you. */
   'friend:invited': (p: { from: string; code: string }) => void;
   'lobby:closed': (p: { reason: string; vars?: Record<string, string> }) => void;
+  /** Something happened to your room that you did not do, and the room is
+      still open. `reason` is an i18n KEY like lobby:closed's. Today:
+      'noticeGuestLeft' (vars.x = the guest's name) to the host when the guest
+      leaves the green room, which goes back to waiting under the same code. */
+  'lobby:notice': (p: { reason: string; vars?: Record<string, string> }) => void;
   'rtc:go': () => void; // sent to HOST only when both peers are rtc-ready
   'rtc:signal': (p: SignalPayload) => void;
   'debate:start': (p: DebateStart) => void;

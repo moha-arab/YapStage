@@ -95,7 +95,9 @@ const en: Dict = {
   /* watch mode: the browse list under the stage */
   lbWatchStarting: 'Starting',
   lbWatchElapsed: '{t} in',
-  lbWatchRow: 'Watch {a} vs {b}',
+  // The row's whole accessible name (aria-label replaces its text), so the
+  // motion rides in it: "Watch kip vs dune. Social media does more harm than good".
+  lbWatchRow: 'Watch {a} vs {b}. {m}',
 
   /* The match settings panel (MatchSetup), on the stage and in the green
      room. Two facts and their chips, then the guest's read-only sentences. */
@@ -499,7 +501,9 @@ const en: Dict = {
   startDebate: 'Start a debate',
   joinOne: 'Join one',
   errBadName: 'Yap names are 3 to 16 characters: letters, numbers, underscores.',
-  errNotFound: 'No room with that code. Rooms close after 30 idle minutes.',
+  // True to the server's clocks (lobby.ts): a room nobody joins goes after
+  // WAITING_TTL_MS (10 minutes), a room in use after 30 idle minutes.
+  errNotFound: 'No room with that code. Rooms close if nobody joins within 10 minutes.',
   errFull: 'That room is full.',
   errInProgress: 'That debate already started. Ask for a new code.',
   errRateLimited: 'Too many attempts. Wait a minute and try again.',
@@ -520,7 +524,9 @@ const en: Dict = {
   patternWeak: 'Across your last {n} debates, "{cat}" is what keeps costing you. Averaging {avg} out of {max}.',
   patternStrong: '"{cat}" is your strong suit. Lean on it less and fix the other one.',
   greenRoom: 'Green room',
-  waitingForFriend: 'Only the friend you called out can walk in.',
+  // Anyone holding the code can take the seat (index.ts lobby:join checks
+  // nothing else), so the line says that rather than promise otherwise.
+  waitingForFriend: 'Anyone with the code can walk in, so send it only to your friend.',
   // The green room's settings as words: one line for the host, three facts
   // for the guest.
   grChange: 'Change',
@@ -653,7 +659,8 @@ const en: Dict = {
   connectingVideo: 'Connecting video...',
   videoFailed: 'Video link failed',
   bothMark: 'Both ✓',
-  netFail: 'Could not connect your video. Try a phone hotspot, then open a new room.',
+  // A call with nobody on camera is still a call: "the call" is true either way.
+  netFail: 'Could not connect the call. Try a phone hotspot, then open a new room.',
   noSpeech: 'This browser cannot transcribe speech, so the judge cannot score you. Use Chrome on a laptop.',
   retry: 'Retry',
   mediaError: 'The judge needs your camera and mic. Allow them in the address bar, then retry.',
@@ -788,8 +795,12 @@ const en: Dict = {
   lostLobby: 'Lost the room. Rejoin with the same code or open a new one.',
   closedHostLeft: 'The host left. Ask them for a new code.',
   closedPeerLeft: 'They left the room.',
-  closedExpired: 'Your room closed after 30 idle minutes.',
+  // Sent for both of the server's clocks (lobby.ts startSweep): ten minutes
+  // with nobody walking in, or thirty idle minutes in use.
+  closedExpired: 'Your room closed because nobody used it for a while.',
+  matchOpenFailed: "Couldn't open that match. Try again.",
   abortWifi: '{x} lost their connection.',
+  abortLeft: '{x} left the debate.',
   abortGone: 'The debate was cancelled while you were away.',
   serverRestart: 'YapStage updated mid-debate. Nothing was scored.',
   debateStopped: 'You lost the connection. Nothing was scored.',
@@ -800,6 +811,59 @@ const en: Dict = {
   judgeCooldown: 'Wait a few seconds, then try again.',
   trackDied: 'Your camera or mic cut out. Reconnect it, then retry.',
   tapToPlay: 'Tap anywhere to start the video',
+
+  /* ---- QA pass, 2026-09-13 ---- */
+  // The tab's name on the drill and the lesson ("Daily rebuttal · YapStage").
+  drillPill: 'Daily rebuttal',
+  tutorialPill: 'Lesson',
+  // queue:join refused: the server has no relay for a ranked call (no_relay).
+  errNoRelay: "Ranked is paused: voice calls can't connect right now. Try a friend room or a bot.",
+  // Any start refused because this player holds a live seat in another tab
+  // or device (busy_elsewhere).
+  errBusyElsewhere: "You're already in a debate in another tab. Finish or leave it first.",
+  errGeneric: 'That did not work. Try again in a moment.',
+  // To the host when the guest walks out of the green room: the room waits
+  // again under the same code (lobby:notice).
+  noticeGuestLeft: '{x} left. Your code still works.',
+  // To watchers sent out when the host shuts the door ("Just us").
+  closedWatchersOff: 'The debaters made this room just the two of them.',
+  // The green room while the other player's connection is out (a host who
+  // dropped before the friend walked in gets two minutes).
+  grPeerAway: 'Waiting for {x} to come back, {n}s.',
+  grPeerAwaySr: 'Waiting for {x} to come back.',
+  // The go button while an invite link walks you into a friend's room.
+  lbGoWalkingIn: 'walking in...',
+  roomCodeChanged: 'Your connection dropped and the old room closed, so this is a new code. Send it again.',
+  // The green room's start button while the call connects, when nobody is on
+  // camera (connectingVideo is for a camera call).
+  connectingCall: 'Connecting...',
+  callFailed: 'Could not connect',
+  netFailRanked: 'Could not connect the call. Leave, then find an opponent again. A phone hotspot can help.',
+  // A reload mid-game that could not get the seat back.
+  reloadEnded: 'That debate ended when the page reloaded.',
+  reloadRoomClosed: 'That room closed when the page reloaded.',
+  // The way out of a live debate, and what it costs, said before it happens.
+  dvLeave: 'Leave',
+  dvLeaveBot: "End this debate? It won't count.",
+  dvLeaveFriend: 'Leave the debate? It ends for both of you.',
+  dvLeaveRanked: 'Leave? It counts as a loss.',
+  dvLeaveYes: 'Leave',
+  dvLeaveEnd: 'End it',
+  dvLeaveNo: 'Stay',
+  leftDebate: 'You left the debate.',
+  // Your own connection, in every mode (the opponent's has its own banner).
+  dvOffline: 'Your connection dropped. Reconnecting...',
+  dvMicOffline: "Reconnecting. The judge can't hear you until you're back.",
+  // Ranked with nobody else in the line.
+  queueQuiet: 'Nobody else is searching right now. At quiet times it can take a while.',
+  queuePlayBot: 'play a bot instead',
+  // Watching: the room closed, and a room that has not started yet.
+  specRoomClosed: 'That room closed.',
+  specRoomWaiting: 'waiting for the debate to start',
+  specRoomWaitingSub: 'The players are still setting up. This page switches to the debate the moment it starts.',
+  // The score categories, worded for a watcher (the debaters get "your side").
+  catArgumentDescWatch: 'Clear reasons for their side',
+  catClashDescWatch: "Answered the other side's points",
 };
 
 const ar: Dict = {
@@ -1308,6 +1372,7 @@ const ar: Dict = {
   closedPeerLeft: 'غادر الغرفة.',
   closedExpired: 'انتهت صلاحية الغرفة. نصف ساعة من الصمت كفيلة بذلك.',
   abortWifi: 'انقطع اتصال {x}. أُلغيت المناظرة.',
+  abortLeft: 'غادر {x} المناظرة.',
   abortGone: 'أُلغيت المناظرة أثناء غيابك.',
   serverRestart: 'تم تحديث ياب ستيج وتوقفت مناظرتك معه. لم تُحتسب أي نتيجة. ابدأ واحدة جديدة.',
   debateStopped: 'انقطع الاتصال وتوقفت المناظرة معه. لم تُحتسب أي نتيجة. ابدأ واحدة جديدة.',

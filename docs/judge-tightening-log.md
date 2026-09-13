@@ -1292,3 +1292,30 @@ points, inside the per-case noise of about 8.
 Every flip was on bal-1, bal-2 or bal-3, with margins of 5 or less. The
 tightening result holds: the residual label effect is about 1.5 to 3 points
 on a speech and it never decides a case with a real margin.
+
+## 2026-09-13 launch QA: English only, two named notes, no letters
+
+Why: a paid QA run on the live site found one friend-room verdict written
+entirely in Arabic (rule 10 let the model pick "the winner's language" and
+motion_ar was always sent), notes cut mid-word by a hard 300-character slice,
+the internal A/B letters in player notes ("B's whole case"), and a weakness
+sitting in the "What worked" slot.
+
+Changes: English motion only unless a lobby explicitly carries Arabic; rule 10
+says write in English; rule 7's two bullets became schema fields `worked` and
+`fix` (mapped back to the stored two-item array), each one or two sentences
+under 40 words; new rule 11 forbids naming a debater by a letter in player
+text (plus a narrow "Debater X" / "X's" safety net); every hard slice replaced
+by a sentence- or word-boundary clip. The rubric and the winner rules are
+untouched. Coach and drill scorer also write English.
+
+Results on the real judge (31 calls plus 6 probe calls, about 1.50 dollars):
+
+| suite | result |
+| --- | --- |
+| original 18 | accuracy 15/15, ideological neutrality 5/5, blind reader 16/16, FOR 9 / AGAINST 9, mean decisive margin 56.2; bal-1/2/3 at -4 / -2 / +3 |
+| hard 10 (mirrored) | accuracy 10/10, injection flag exactly right 6/6 |
+| fabricated probe x3 | A_fake_study FOR margin -5, +17, +3 (history +6, +8, +6, +10: the -5 is single-run noise on a deliberately close case); B and C won by FOR every run, C (fake called out) lands at evidence 7-8 |
+
+Notes in the probe output are English, in the right slots, and name no
+letters. Judge passed; ship.

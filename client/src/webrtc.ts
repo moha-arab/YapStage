@@ -88,6 +88,18 @@ socket.on('lobby:closed', () => {
 const hasRelay = (servers: IceServer[]): boolean =>
   servers.some((s) => (Array.isArray(s.urls) ? s.urls : [s.urls]).some((u) => /^turns?:/i.test(u)));
 
+/** A page that comes back from a reload has no lobby:update to read the room
+    off (App restores the room it saved), so it says so itself. */
+export function setRankedRoom(on: boolean): void {
+  rankedRoom = on;
+}
+
+/** What the last setupPeer was given, so the connection can be rebuilt in
+    place when the other side comes back as a fresh page (a reload, or a
+    rematch after one of you left the call). The old connection's keys belong
+    to a page that no longer exists, and no renegotiation reaches it. */
+let lastSetup: { iceServers: IceServer[]; onConnectionState?: (s: RTCPeerConnectionState) => void } | null = null;
+
 export function setupPeer(
   iceServers: IceServer[],
   onRemoteStream: (s: MediaStream) => void,
@@ -96,6 +108,25 @@ export function setupPeer(
   teardownPeer();
   if (!localStream) throw new Error('local stream not ready');
   onRemote = onRemoteStream;
+  lastSetup = { iceServers, onConnectionState };
+  createPc();
+  // Tells the server this side's tracks + handlers exist. When both sides
+  // have said it, the server sends rtc:go to the host, which offers.
+  socket.emit('rtc:ready');
+}
+
+/** A fresh connection on the same settings, WITHOUT a new rtc:ready (that
+    would start another offer round). False when there is nothing to rebuild. */
+function rebuildPc(): boolean {
+  if (!lastSetup || !localStream) return false;
+  teardownPeer();
+  createPc();
+  return true;
+}
+
+function createPc(): void {
+  if (!localStream || !lastSetup) throw new Error('local stream not ready');
+  const { iceServers, onConnectionState } = lastSetup;
   const relayOnly = rankedRoom && hasRelay(iceServers);
   pc = new RTCPeerConnection({
     iceServers: iceServers as RTCIceServer[],
@@ -121,12 +152,14 @@ export function setupPeer(
     if (pc) onConnectionState?.(pc.connectionState);
   };
   onConnectionState?.('connecting');
-  // Tells the server this side's tracks + handlers exist. When both sides
-  // have said it, the server sends rtc:go to the host, which offers.
-  socket.emit('rtc:ready');
 }
 
 export async function beginOffer(): Promise<void> {
+  if (!pc) return;
+  // rtc:go comes once per rtc:ready from a pair that is already ready. On a
+  // connection that has finished a negotiation it means the other side
+  // started over with a fresh page, so this side starts over too.
+  if (pc.remoteDescription && !rebuildPc()) return;
   if (!pc) return;
   const offer = await pc.createOffer();
   await pc.setLocalDescription(offer);
@@ -137,7 +170,17 @@ export async function handleSignal(p: SignalPayload): Promise<void> {
   if (!pc) return;
   if ('description' in p) {
     const desc = p.description as RTCSessionDescriptionInit;
-    await pc.setRemoteDescription(desc);
+    try {
+      await pc.setRemoteDescription(desc);
+    } catch (err) {
+      // An offer from a brand new connection on the other side (they
+      // reloaded, or left the call and came back for a rematch) can carry
+      // keys this one refuses. Start over with a fresh connection and take
+      // the offer there. Anything else is a real failure.
+      if (desc.type !== 'offer' || !rebuildPc() || !pc) throw err;
+      pending = [];
+      await pc.setRemoteDescription(desc);
+    }
     if (desc.type === 'offer') {
       const answer = await pc.createAnswer();
       await pc.setLocalDescription(answer);

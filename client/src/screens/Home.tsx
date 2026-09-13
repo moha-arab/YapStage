@@ -84,7 +84,15 @@ import Mask, { MASK_IDS } from '../Mask';
 import BotAvatar from '../BotAvatar';
 import Cone from '../Cone';
 
+// Keyed by every JoinError. Looked up through errorKey() below, so a code a
+// newer server sends before this client knows it reads as errGeneric, never
+// as nothing at all.
 const ERROR_KEYS: Record<JoinError, string> = {
+  // One player, one live seat: a green room, a debate or the queue in
+  // another tab or device.
+  busy_elsewhere: 'errBusyElsewhere',
+  // queue:join with no relay to carry a ranked call (ranked is relay only).
+  no_relay: 'errNoRelay',
   not_found: 'errNotFound',
   full: 'errFull',
   // Opening a room or joining the queue while this socket still sits in a
@@ -104,10 +112,55 @@ const ERROR_KEYS: Record<JoinError, string> = {
   judge_down: 'errJudgeDown',
 };
 
+/** The line for a refusal, with a fallback for a code this build does not
+    know yet. */
+function errorKey(code: string | undefined): string {
+  return (code && (ERROR_KEYS as Record<string, string | undefined>)[code]) || 'errGeneric';
+}
+
 export type LobbyMode = 'ranked' | 'bot' | 'friend' | 'watch' | 'drill';
 type Mode = LobbyMode;
 // His order (2026-09-04): online, bots, a friend, watch, drill.
 const MODES: Mode[] = ['ranked', 'bot', 'friend', 'watch', 'drill'];
+
+/* The tab you were on and the bot you picked, for this browser tab only.
+   Every way back to the lobby lands there: a match's "back to the lobby"
+   (which reloads the page), the drill's, the record's and the watching
+   screen's. Not the lesson's own bot, which is a one-off. */
+const LOBBY_KEY = 'yap.lobby';
+
+function recallLobby(): { mode: Mode; bot: string | null } | null {
+  try {
+    const raw = sessionStorage.getItem(LOBBY_KEY);
+    if (!raw) return null;
+    const d = JSON.parse(raw) as { mode?: unknown; bot?: unknown };
+    if (!MODES.includes(d.mode as Mode)) return null;
+    return { mode: d.mode as Mode, bot: typeof d.bot === 'string' && d.bot !== 'tutor' ? d.bot : null };
+  } catch {
+    return null;
+  }
+}
+
+function rememberLobby(mode: Mode, bot: string | null): void {
+  try {
+    sessionStorage.setItem(LOBBY_KEY, JSON.stringify({ mode, bot: mode === 'bot' ? bot : null }));
+  } catch {
+    // storage blocked: the lobby opens on its usual tab
+  }
+}
+
+/** The invite's code has done its job (walked in, or failed to): off the
+    address, so a reload does not try the same code again. */
+function stripCode(): void {
+  try {
+    const url = new URL(window.location.href);
+    if (!url.searchParams.has('code')) return;
+    url.searchParams.delete('code');
+    window.history.replaceState(window.history.state, '', url.toString());
+  } catch {
+    // ignore
+  }
+}
 
 interface Bot {
   id: string;
@@ -169,8 +222,10 @@ export default function Home({
   const { t } = useI18n();
 
   // A code in the URL (or stashed by signIn() across the Google round trip)
-  // means a friend sent a link: open on the friend mode with it typed in.
-  const [arrival] = useState(() => {
+  // means a friend sent a link: open on the friend mode and walk straight in
+  // (the caption promises it). State, not a constant: a dead code is let go
+  // once its walk-in fails, so the stage opens your own room as usual.
+  const [arrival, setArrival] = useState(() => {
     const fromUrl = new URLSearchParams(window.location.search).get('code');
     let stashed: string | null = null;
     try {
@@ -179,17 +234,29 @@ export default function Home({
     } catch {
       // storage blocked: the URL path still works
     }
-    return (fromUrl ?? stashed ?? '').toUpperCase().slice(0, 6);
+    return (fromUrl ?? stashed ?? '').trim().toUpperCase().slice(0, 12);
   });
 
   const needAccount = account.google && !account.signedIn;
 
+  // Where you were before a match, the drill or the watching screen, so
+  // "back to the lobby" comes back to that tab with the same bot picked
+  // (QA 2026-09-13: it always landed on play online, bot cleared). Kept for
+  // this tab only (sessionStorage), because the verdict's way back reloads.
+  const [recalled] = useState(recallLobby);
+
   // A guest lands on the bots, which they can play this second, never on
   // the one stage that asks them to sign in first.
-  const [mode, setMode] = useState<Mode>(
-    arrival ? 'friend' : (initialMode ?? (needAccount ? 'bot' : 'ranked')),
+  const [mode, setMode] = useState<Mode>(() => {
+    if (arrival) return 'friend';
+    if (initialMode) return initialMode;
+    if (recalled && !(recalled.mode === 'ranked' && needAccount)) return recalled.mode;
+    return needAccount ? 'bot' : 'ranked';
+  });
+  const [pickedBot, setPickedBot] = useState<string | null>(() =>
+    !arrival && !initialMode && recalled?.mode === 'bot' ? recalled.bot : null,
   );
-  const [pickedBot, setPickedBot] = useState<string | null>(null);
+  useEffect(() => rememberLobby(mode, pickedBot), [mode, pickedBot]);
   const [roster, setRoster] = useState(false);
   const [maskRoster, setMaskRoster] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -200,6 +267,10 @@ export default function Home({
 
   const [queueing, setQueueing] = useState(false);
   const [queueInfo, setQueueInfo] = useState<{ waiting: number } | null>(null);
+  // When this search began, for the clock under "looking for someone" and
+  // the honest line after twenty seconds alone (QA 2026-09-13: the screen
+  // said nothing else, forever).
+  const [queueSince, setQueueSince] = useState<number | null>(null);
   const queueingRef = useRef(false);
   queueingRef.current = queueing;
   // What the last queue:join sent, so a reconnect can send it again.
@@ -309,6 +380,7 @@ export default function Home({
       if (p.replaced) {
         setQueueing(false);
         setQueueInfo(null);
+        setQueueSince(null);
         releaseMedia();
         setError('queueReplaced');
         return;
@@ -317,6 +389,7 @@ export default function Home({
     };
     const onMatched = (p: { update: LobbyUpdate }) => {
       setQueueing(false);
+      setQueueSince(null);
       onEntered(p.update);
     };
     socket.on('queue:update', onUpdate);
@@ -333,15 +406,30 @@ export default function Home({
   // again on the new connection, with what was sent the first time.
   useEffect(() => {
     const onConnect = () => {
+      // The room on the stage, nobody in it yet. The server keeps a waiting
+      // room through its host's drop (switching apps to send the code is the
+      // likeliest cause), and the same session takes it back here. Gone
+      // (the server restarted, or it timed out meanwhile): a new room opens
+      // on its own and says the code changed, since the old one was sent.
+      const r = roomRef.current;
+      if (r) {
+        socket.emit('lobby:resume', { code: r.code, sessionId: session.id }, (res) => {
+          // ok: lobby:update follows with the room as it is (onUpdate below).
+          if (res.ok || roomRef.current?.code !== r.code) return;
+          roomNote.current = 'roomCodeChanged';
+          setRoom(null);
+        });
+      }
       const payload = queuePayload.current;
       if (!queueingRef.current || !payload) return;
       socket.emit('queue:join', payload, (res) => {
         if (res.ok) return;
         setQueueing(false);
         setQueueInfo(null);
+        setQueueSince(null);
         releaseMedia();
         if (res.error === 'unplaced') loadRank(true);
-        setError(ERROR_KEYS[res.error ?? 'rate_limited']);
+        setError(errorKey(res.error));
       });
     };
     const onStart = () => {
@@ -442,25 +530,43 @@ export default function Home({
   // picks here are server state, and the server's echo is what the panel
   // shows, so the stage and the green room can never disagree.
   const [room, setRoom] = useState<LobbyUpdate | null>(initialRoom ?? null);
+  const roomRef = useRef(room);
+  roomRef.current = room;
   const [joinCode, setJoinCode] = useState(arrival);
   const [copied, setCopied] = useState(false);
   const opening = useRef(false);
+  // A walk-in in flight. Nothing opens a room of yours meanwhile: the auto
+  // open used to fire in the same millisecond as the join and seat you in
+  // their room AND a new one of your own (QA 2026-09-13).
+  const joining = useRef(false);
+  // Said once the next room opens: the old code died with the connection.
+  const roomNote = useRef<string | null>(null);
 
-  const openRoom = useCallback(() => {
-    if (opening.current || !validName) return;
-    opening.current = true;
-    setError(null);
-    socket.emit('lobby:create', { sessionId: session.id, name: effName, playerId: playerId() }, (res) => {
-      opening.current = false;
-      if (!res.ok) return setError(ERROR_KEYS[res.error]);
-      setRoom(res.update);
-    });
-  }, [effName, validName]);
+  /** `manual`: the go button, which clears an old error first. The stage's
+      own opening leaves an error from a failed walk-in on screen. */
+  const openRoom = useCallback(
+    (manual = false) => {
+      if (opening.current || joining.current || !validName) return;
+      opening.current = true;
+      if (manual) setError(null);
+      socket.emit('lobby:create', { sessionId: session.id, name: effName, playerId: playerId() }, (res) => {
+        opening.current = false;
+        if (!res.ok) return setError(errorKey(res.error));
+        setRoom(res.update);
+        if (roomNote.current) {
+          setError(roomNote.current);
+          roomNote.current = null;
+        }
+      });
+    },
+    [effName, validName],
+  );
 
   useEffect(() => {
-    // Arriving on a link, you are the one walking in, not the one opening.
-    if (mode === 'friend' && !room && !arrival) openRoom();
-  }, [mode, room, arrival, openRoom]);
+    // Arriving on a link, you are the one walking in, not the one opening;
+    // and never while a walk-in is on its way.
+    if (mode === 'friend' && !room && !arrival && !busy) openRoom();
+  }, [mode, room, arrival, busy, openRoom]);
 
   useEffect(() => {
     // The server closed it (idle timeout) while we sat here holding the code.
@@ -510,23 +616,60 @@ export default function Home({
       .catch(() => {});
   }
 
-  function join() {
-    if (busy || !requireName()) return;
-    if (joinCode.trim().length !== 6) return setError('errCodeLen');
+  function join(code: string = joinCode) {
+    if (busy || joining.current || !requireName()) return;
+    const c = code.trim().toUpperCase();
+    if (c.length !== 6) return setError('errCodeLen');
+    // Your own code has nothing to walk into. Said here, before the server
+    // has to (it says 'self' too, for your code in another tab).
+    if (room && c === room.code) return setError('errSelf');
+    setError(null);
     setBusy(true);
-    // Walking into someone else's room means giving up your own.
-    leaveRoom();
-    socket.emit(
-      'lobby:join',
-      { code: joinCode.trim().toUpperCase(), sessionId: session.id, name: effName, playerId: playerId() },
-      (res) => {
-        setBusy(false);
-        if (res.ok) return onEntered(res.update);
-        // On a join, in_progress almost always means their debate started.
-        setError(res.error === 'in_progress' ? 'errInProgress' : ERROR_KEYS[res.error]);
-      },
-    );
+    joining.current = true;
+    // Your own room stays open until the walk-in WORKS. The server gives it
+    // up itself when it seats you (index.ts releasePreviousSeat); leaving it
+    // first meant every bogus, full, dead or own code threw away the code
+    // you had already sent, and a new room opened under you mid-join.
+    socket.emit('lobby:join', { code: c, sessionId: session.id, name: effName, playerId: playerId() }, (res) => {
+      joining.current = false;
+      setBusy(false);
+      if (res.ok) {
+        stripCode();
+        return onEntered(res.update);
+      }
+      // On a join, in_progress almost always means their debate started.
+      setError(res.error === 'in_progress' ? 'errInProgress' : errorKey(res.error));
+      // A dead invite is let go: off the address (a reload must not try it
+      // again) and out of the way, so your own room opens as usual.
+      if (arrival) {
+        setArrival('');
+        stripCode();
+      }
+    });
   }
+
+  // An invite link walks you straight in, as the caption promises. Once:
+  // the ref survives StrictMode's second run of the effect.
+  const autoJoined = useRef(false);
+  useEffect(() => {
+    if (autoJoined.current) return;
+    autoJoined.current = true;
+    if (!arrival) {
+      // "/?code=" with nothing after it: nothing to try, but tidy the address.
+      stripCode();
+      return;
+    }
+    if (arrival.length !== 6) {
+      // "/?code=abc": say what a code looks like now, not after a tap.
+      setError('errCodeLen');
+      setArrival('');
+      stripCode();
+      return;
+    }
+    join(arrival);
+    // Runs once, on the arrival read at mount.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   /* ---- the things the go button can do ---- */
 
@@ -545,10 +688,13 @@ export default function Home({
     queuePayload.current = payload;
     socket.emit('queue:join', payload, (res) => {
       startingRef.current = false;
-      if (res.ok) return setQueueing(true);
+      if (res.ok) {
+        setQueueSince(Date.now());
+        return setQueueing(true);
+      }
       releaseMedia();
       if (res.error === 'unplaced') loadRank(true);
-      setError(ERROR_KEYS[res.error ?? 'rate_limited']);
+      setError(errorKey(res.error));
     });
   }
 
@@ -556,6 +702,7 @@ export default function Home({
     socket.emit('queue:leave');
     setQueueing(false);
     setQueueInfo(null);
+    setQueueSince(null);
     // Nobody to talk to: the mic light goes out with the search.
     releaseMedia();
   }
@@ -764,6 +911,19 @@ export default function Home({
     </>
   );
 
+  // The search clock, a tick a second while in the line.
+  const [, setQueueTick] = useState(0);
+  useEffect(() => {
+    if (!queueing) return;
+    const id = setInterval(() => setQueueTick((n) => n + 1), 1000);
+    return () => clearInterval(id);
+  }, [queueing]);
+  const queueSecs = queueing && queueSince ? Math.max(0, Math.floor((Date.now() - queueSince) / 1000)) : 0;
+  const queueClock = `${Math.floor(queueSecs / 60)}:${String(queueSecs % 60).padStart(2, '0')}`;
+  const queueOthers = queueing && queueInfo && queueInfo.waiting > 1 ? queueInfo.waiting - 1 : 0;
+  // Twenty seconds with nobody else in the line: say so, and offer a bot.
+  const queueAlone = queueing && queueSecs >= 20 && queueOthers === 0;
+
   const me = (
     <>
       <button
@@ -781,11 +941,14 @@ export default function Home({
           2026-09-12). Unplaced: say so. Unknown (the store is down, so
           /rating is the seed for everyone): say nothing, since "700" under a
           2400 player is a lie the chip would be telling. */}
-      {mode === 'ranked' && rank?.placed === true ? (
+      {/* Not for a guest: their ranked stage asks for an account, and "not
+          placed yet" right above "Ranked needs an account" read as a
+          contradiction (QA 2026-09-13). */}
+      {mode === 'ranked' && !needAccount && rank?.placed === true ? (
         <span className="lb-tier">
           <span className="lb-elo">{rank.rating}</span>
         </span>
-      ) : mode === 'ranked' && rank?.placed === false ? (
+      ) : mode === 'ranked' && !needAccount && rank?.placed === false ? (
         <span className="lb-tier lb-tier-provisional">{t('lbUnplaced')}</span>
       ) : (
         chipSlot
@@ -818,11 +981,17 @@ export default function Home({
         <span className="lb-empty-q">?</span>
       </div>,
       <span className="lb-fname-soft">{queueing ? t('lbSearching') : t('lbYourOpponent')}</span>,
-      // Others besides you. "0 others" says nothing, so the line only appears
-      // once somebody else is in the queue.
-      queueing && queueInfo && queueInfo.waiting > 1 ? (
+      // How long you have been in the line, and the others in it besides you
+      // ("0 others" says nothing, so that half appears once somebody is).
+      // The clock is for the eye: a screen reader would hear every second.
+      queueing ? (
         <span className="lb-queue-n">
-          {queueInfo.waiting === 2 ? t('queueWaitingOne') : t('queueWaiting', { n: queueInfo.waiting - 1 })}
+          {queueOthers > 0
+            ? `${queueOthers === 1 ? t('queueWaitingOne') : t('queueWaiting', { n: queueOthers })} · `
+            : ''}
+          <span className="lb-queue-t" aria-hidden="true">
+            {queueClock}
+          </span>
         </span>
       ) : null,
     );
@@ -861,8 +1030,10 @@ export default function Home({
       </>
     ) : (
       stand(
-        <button className="lb-empty lb-empty-btn" onClick={() => setRoster(true)}>
-          <span className="lb-empty-pick" dangerouslySetInnerHTML={{ __html: t('lbPickBot') }} />
+        // The drawn label breaks over two lines with a <br>, which a screen
+        // reader ran together as "pick abot": the name is said plainly.
+        <button className="lb-empty lb-empty-btn" aria-label={t('lbGoPickBot')} onClick={() => setRoster(true)}>
+          <span className="lb-empty-pick" aria-hidden="true" dangerouslySetInnerHTML={{ __html: t('lbPickBot') }} />
         </button>,
         null,
         null,
@@ -924,15 +1095,22 @@ export default function Home({
       </button>
     );
   } else if (mode === 'friend') {
-    go = room ? (
-      <button className="lb-go" onClick={() => setSheet('setup')}>
-        {t('lbGoSetMatch')}
-      </button>
-    ) : (
-      <button className="lb-go" disabled={busy} onClick={openRoom}>
-        {t('lbGoRoom')}
-      </button>
-    );
+    go =
+      !room && (busy || arrival) ? (
+        // An invite link walking you in: the big button says so, instead of
+        // offering to open a room of your own mid-walk-in.
+        <button className="lb-go lb-go-wait" disabled>
+          {t('lbGoWalkingIn')}
+        </button>
+      ) : room ? (
+        <button className="lb-go" onClick={() => setSheet('setup')}>
+          {t('lbGoSetMatch')}
+        </button>
+      ) : (
+        <button className="lb-go" disabled={busy} onClick={() => openRoom(true)}>
+          {t('lbGoRoom')}
+        </button>
+      );
   } else if (mode === 'bot') {
     go = pickedBot === 'tutor' ? (
       <button className="lb-go" onClick={startBot}>
@@ -1207,7 +1385,22 @@ export default function Home({
             </p>
           ) : null}
 
+          {/* Ranked alone in the line: the honest line above the button. */}
+          {mode === 'ranked' && queueAlone ? (
+            <p className="lb-stage-note lb-queue-quiet" role="status">
+              {t('queueQuiet')}
+            </p>
+          ) : null}
+
           {go}
+
+          {/* The second way out, when ranked is slow or cannot run: a bot,
+              right now. pick() leaves the queue on the way. */}
+          {mode === 'ranked' && (queueAlone || error === 'errNoRelay') ? (
+            <button className="lb-go-alt" onClick={() => pick('bot')}>
+              {t('queuePlayBot')}
+            </button>
+          ) : null}
 
           {/* The terms, where the account is asked for. */}
           {mode === 'ranked' && needAccount ? (
@@ -1286,12 +1479,17 @@ export default function Home({
             <div className="lb-watch-list lb-sheet-list">
               {shown.map((m) => {
                 const at = elapsedOf(m);
+                const when =
+                  m.phase && at ? `${t(PHASE_WORD[m.phase] ?? m.phase)} · ${t('lbWatchElapsed', { t: at })}` : t('lbWatchStarting');
                 return (
                   <button
                     key={m.code}
                     className="lb-watch-row"
                     disabled={watching}
-                    aria-label={t('lbWatchRow', { a: m.names.FOR, b: m.names.AGAINST })}
+                    // The label replaces the row's text for a screen reader,
+                    // so it carries all of it: who, the motion, how far in,
+                    // and the audience ("Watch kip vs dune" was all it said).
+                    aria-label={`${t('lbWatchRow', { a: m.names.FOR, b: m.names.AGAINST, m: m.topic.en })}. ${when}. ${t('specWatching', { n: m.watchers })}`}
                     onClick={() => watchOne(m.code, { category: null })}
                   >
                     <span className="lb-watch-pair" aria-hidden="true">
@@ -1342,7 +1540,10 @@ export default function Home({
       ) : null}
       {settingsOpen ? (
         <SettingsSheet
-          account={account.signedIn ? account : null}
+          // The whole account, guests included: the sheet reads `google`
+          // off it, and a guest was told "Sign-in is off on this server"
+          // with Google switched on (QA 2026-09-13).
+          account={account}
           onClose={() => setSettingsOpen(false)}
           onRenamed={() => window.location.reload()}
         />

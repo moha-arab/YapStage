@@ -60,7 +60,16 @@ export function sttConfigured(): boolean {
 /** Transcribe one turn's audio. Returns null on any failure — the caller
     falls back to whatever browser transcription arrived. */
 export async function transcribe(audio: Buffer): Promise<string | null> {
-  if (!sttConfigured()) return null;
+  return (await transcribeDetailed(audio)).text;
+}
+
+/** The same, telling "nothing was said" (text null, failed false: silence
+    or Whisper's silence boilerplate) apart from "we could not transcribe"
+    (failed true: not configured, a network error, a non-2xx). The daily
+    rebuttal needs the difference: one is "we can't hear you", the other is
+    "try again in a minute". */
+export async function transcribeDetailed(audio: Buffer): Promise<{ text: string | null; failed: boolean }> {
+  if (!sttConfigured()) return { text: null, failed: true };
   const url = `https://api.cloudflare.com/client/v4/accounts/${process.env.CF_ACCOUNT_ID}/ai/run/${MODEL}`;
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 30_000);
@@ -77,7 +86,7 @@ export async function transcribe(audio: Buffer): Promise<string | null> {
     if (!res.ok) {
       console.error(`[stt] Workers AI ${res.status}`);
       event('stt_failed', { status: res.status });
-      return null;
+      return { text: null, failed: true };
     }
     const data = (await res.json()) as {
       result?: {
@@ -95,16 +104,16 @@ export async function transcribe(audio: Buffer): Promise<string | null> {
     const clean = stripHallucinations(String(text ?? '').trim());
     if (clean.length > 0) {
       event('stt_ok');
-      return clean;
+      return { text: clean, failed: false };
     }
     // Silence (real or hallucinated) reports as nothing said, which is exactly
     // what the judge is built to handle.
     event('stt_empty');
-    return null;
+    return { text: null, failed: false };
   } catch (err) {
     console.error(`[stt] transcription failed: ${errTag(err)}`);
     event('stt_failed', { err: errTag(err) });
-    return null;
+    return { text: null, failed: true };
   } finally {
     clearTimeout(timer);
   }

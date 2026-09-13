@@ -77,6 +77,22 @@ export default function Matches({ onBack, onPlayBot }: Props) {
   const [filter, setFilter] = useState<Filter>('all');
   const [rows, setRows] = useState<MatchRow[] | null>(null);
   const [open, setOpen] = useState<FullMatch | null>(null);
+  // A row that would not open says so, instead of a tap that does nothing.
+  const [openFailed, setOpenFailed] = useState(false);
+
+  function openRow(r: MatchRow) {
+    setOpenFailed(false);
+    void fetch(`/matches/${r.id}`)
+      .then((res) => {
+        if (!res.ok) throw new Error(String(res.status));
+        return res.json();
+      })
+      .then((d) => {
+        if (!d?.match) throw new Error('empty');
+        setOpen({ ...r, ...d.match });
+      })
+      .catch(() => setOpenFailed(true));
+  }
 
   useEffect(() => {
     setRows(null);
@@ -142,16 +158,13 @@ export default function Matches({ onBack, onPlayBot }: Props) {
         </div>
       ) : (
         <div className="match-list">
+          {openFailed ? (
+            <p className="error" role="alert">
+              {t('matchOpenFailed')}
+            </p>
+          ) : null}
           {rows.map((r) => (
-            <button
-              key={r.id}
-              className="match-row"
-              onClick={() => {
-                void fetch(`/matches/${r.id}`)
-                  .then((res) => res.json())
-                  .then((d) => d.match && setOpen({ ...r, ...d.match }));
-              }}
-            >
+            <button key={r.id} className="match-row" onClick={() => openRow(r)}>
               <span className={`match-mark ${r.won ? 'bout-w' : 'bout-l'}`}>{r.won ? 'W' : 'L'}</span>
               <span className="match-main">
                 <span className="match-topic">{capFirst(r.topic)}</span>

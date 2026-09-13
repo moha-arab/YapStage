@@ -369,3 +369,23 @@ performance rating = opponent rating + 400 * log10(score / (1 - score))
 players averaging 1400, its label is wrong by 110 points. On this ladder the
 number stays where it is and the rung's directive moves until the label is true
 again.
+
+## 2026-09-13: bot turns now fit their clock (re-calibration pending)
+
+A paid QA run on the live site measured the ElevenLabs voices at about 2.1
+words a second: Vesper spoke 39.3 seconds in a 35 second defense and 42.9 in
+a 25 second closing. The client cuts the audio at the clock, but the judge
+read the whole generated text, so top bots were scored on words nobody heard.
+
+`fitToClock()` (bots.ts) now trims every bot turn at a sentence end to what
+its voice can say in the turn (8 percent plus one second of margin; standard
+pace: 45 s = 84 words, 35 s = 65, 25 s = 46), and the transcript, caption and
+voice all carry the trimmed text. The prompts did not change.
+
+Consequence: `lengthRule()` sets one word target per rung and pace for EVERY
+turn, so rungs 4 to 8 (80 to 110 words at standard) lose the end of their
+closings (often the weighing sentence) and some of their defenses. Expect the
+top rungs to measure weaker than their labels and to compress together. The
+proper fix is a clock-aware lengthRule (targets per turn length, keeping the
+rung differences as density rather than length), then phase D (about 1.60
+dollars) and, if the order moves, phase A (about 7 dollars). Not done yet.

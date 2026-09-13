@@ -38,6 +38,12 @@ interface Props {
   /** People spectating this debate. Debaters must always know. */
   watchers?: number;
   onPassMic: (stepIndex: number) => void;
+  /** Ranked: leaving costs the game, and the confirm says so. */
+  ranked?: boolean;
+  /** This page's own socket is down. Said in every mode, bots included. */
+  offline?: boolean;
+  /** Walk out of the debate (App.tsx leaveDebate). Absent: no Leave control. */
+  onLeave?: () => void;
 }
 
 /** Below this level the mic counts as silent: the green room's line
@@ -78,9 +84,14 @@ export default function Debate({
   heardWords = 0,
   watchers = 0,
   onPassMic,
+  ranked = false,
+  offline = false,
+  onLeave,
 }: Props) {
   const { lang, t } = useI18n();
   const isBot = Boolean(botOpponent);
+  // The way out, asked once: the first tap shows what leaving costs.
+  const [confirmLeave, setConfirmLeave] = useState(false);
   const mySide = start.yourSide;
   // Settle-it replaces FOR/AGAINST with what each person is actually arguing.
   const label = (side: Side) => start.framing?.positions[side] ?? t(side);
@@ -161,14 +172,19 @@ export default function Debate({
         ? t('micHears')
         : t('micLouder')
       : t('micLive');
-  // Proof the judge is getting words, from the same two signals.
-  const judgeHears = sttServer ? heardWords > 0 : speechSupported && speechHeard;
+  // Proof the judge is getting words, from the same two signals. Never while
+  // this page is offline: nothing said now reaches the judge, whatever
+  // arrived before the drop (QA 2026-09-13: a bot game kept saying "the
+  // judge hears you" through a dead connection).
+  const judgeHears = !offline && (sttServer ? heardWords > 0 : speechSupported && speechHeard);
   // Flat for four seconds with nothing confirmed: say so while it can still
   // be fixed. A pause after the judge has your words is a pause, not a fault.
   const micSilent = myTurn && !judgeHears && quietMs >= SILENT_MS;
   const mic: { tone: MicTone; text: string } = mediaError
     ? { tone: 'error', text: t(mediaError) }
-    : !myTurn
+    : offline
+      ? { tone: 'warn', text: t('dvMicOffline') }
+      : !myTurn
       ? { tone: 'off', text: t('dvMicOff') }
       : micSilent
         ? { tone: 'warn', text: t('dvMicSilent') }
@@ -187,7 +203,42 @@ export default function Debate({
         {watchers > 0 ? (
           <span className="watch-pill">{t('specWatching', { n: watchers })}</span>
         ) : null}
+        {/* The way out of a live debate (there was none but the browser's
+            own Back, reload or close). Visible, and one confirm that says
+            what it costs before anything happens. */}
+        {onLeave ? (
+          <button
+            className="scr-btn dv-leave"
+            aria-expanded={confirmLeave}
+            aria-controls="dv-leave-confirm"
+            onClick={() => setConfirmLeave((v) => !v)}
+          >
+            {t('dvLeave')}
+          </button>
+        ) : null}
       </header>
+
+      {onLeave && confirmLeave ? (
+        <div id="dv-leave-confirm" className="banner banner-warn dv-leave-confirm" role="alertdialog" aria-labelledby="dv-leave-q">
+          <p id="dv-leave-q">{t(isBot ? 'dvLeaveBot' : ranked ? 'dvLeaveRanked' : 'dvLeaveFriend')}</p>
+          <div className="dv-leave-actions">
+            <button className="btn btn-small" onClick={onLeave}>
+              {t(isBot ? 'dvLeaveEnd' : 'dvLeaveYes')}
+            </button>
+            <button className="btn btn-small ghost" autoFocus onClick={() => setConfirmLeave(false)}>
+              {t('dvLeaveNo')}
+            </button>
+          </div>
+        </div>
+      ) : null}
+
+      {/* Your own connection, in every mode: a bot game showed nothing at
+          all while the socket was down. */}
+      {offline ? (
+        <div className="banner banner-warn" role="alert">
+          {t('dvOffline')}
+        </div>
+      ) : null}
 
       <MatchTrack
         schedule={schedule}

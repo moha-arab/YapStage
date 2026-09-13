@@ -10,13 +10,16 @@ export interface Category {
   key: keyof CategoryScores;
   labelKey: string;
   descKey: string;
+  /** The same line for someone who argued neither side (a watcher), where
+      the debater's wording ("your side") would be wrong. */
+  watchDescKey?: string;
   max: number;
 }
 
 export const CATEGORIES: Category[] = [
-  { key: 'argument', labelKey: 'catArgument', descKey: 'catArgumentDesc', max: 30 },
+  { key: 'argument', labelKey: 'catArgument', descKey: 'catArgumentDesc', watchDescKey: 'catArgumentDescWatch', max: 30 },
   { key: 'evidence', labelKey: 'catEvidence', descKey: 'catEvidenceDesc', max: 20 },
-  { key: 'clash', labelKey: 'catClash', descKey: 'catClashDesc', max: 30 },
+  { key: 'clash', labelKey: 'catClash', descKey: 'catClashDesc', watchDescKey: 'catClashDescWatch', max: 30 },
   { key: 'delivery', labelKey: 'catDelivery', descKey: 'catDeliveryDesc', max: 20 },
 ];
 
@@ -41,11 +44,14 @@ export function ScoreBars({
   order,
   nameOf,
   progress = 1,
+  watcher = false,
 }: {
   scores: Record<Side, CategoryScores>;
   order: Side[];
   nameOf: (s: Side) => string;
   progress?: number;
+  /** Read by someone who argued neither side: the lines say "their side". */
+  watcher?: boolean;
 }) {
   const { t } = useI18n();
   return (
@@ -63,7 +69,7 @@ export function ScoreBars({
           <div className="vd-row-head">
             <span className="vd-cat">
               {t(c.labelKey)}
-              <span className="vd-cat-desc">{t(c.descKey)}</span>
+              <span className="vd-cat-desc">{t(watcher && c.watchDescKey ? c.watchDescKey : c.descKey)}</span>
             </span>
             <span className="vd-cat-max num">/{c.max}</span>
           </div>

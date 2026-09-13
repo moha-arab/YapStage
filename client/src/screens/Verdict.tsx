@@ -144,8 +144,14 @@ export default function VerdictScreen({
   // Signed-out and just handed a real verdict: the one moment an account ask
   // is a gift rather than a toll.
   const [saveNudge, setSaveNudge] = useState(false);
+  // Only an account has a match history to open, so only an account is told
+  // the transcript went into it (a guest has the save nudge instead).
+  const [signedIn, setSignedIn] = useState(false);
   useEffect(() => {
-    void whoAmI().then((me) => setSaveNudge(me.google && !me.signedIn));
+    void whoAmI().then((me) => {
+      setSaveNudge(me.google && !me.signedIn);
+      setSignedIn(me.signedIn);
+    });
   }, []);
 
   useEffect(() => {
@@ -601,6 +607,7 @@ export default function VerdictScreen({
             order={order}
             nameOf={(s) => (mySide !== undefined && s === me ? t('you') : names[s])}
             progress={e}
+            watcher={mySide === undefined}
           />
 
           {/* The judge writes two notes per debater: bullet one is the
@@ -701,7 +708,7 @@ export default function VerdictScreen({
         {/* What is and is not kept, said once, beside the one button that
             sends anything anywhere. */}
         <p className="vd-util-note" aria-live="polite">
-          {shareState === 'failed' ? t('shareFailed') : `${t('shareNote')} ${t('vdKeptNote')}`}
+          {shareState === 'failed' ? t('shareFailed') : signedIn ? `${t('shareNote')} ${t('vdKeptNote')}` : t('shareNote')}
           {shareState === 'copied' ? <span className="sr-only"> {t('shareCopied')}</span> : null}
         </p>
 

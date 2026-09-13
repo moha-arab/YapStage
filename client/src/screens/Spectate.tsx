@@ -207,7 +207,9 @@ export default function Spectate({ code, initial, onLeave, onNext }: Props) {
                 <p>{capFirst(reason)}</p>
               </div>
             ) : null}
-            {!ruling ? <ScoreBars scores={v.scores} order={['FOR', 'AGAINST']} nameOf={(s) => n[s]} /> : null}
+            {!ruling ? (
+              <ScoreBars scores={v.scores} order={['FOR', 'AGAINST']} nameOf={(s) => n[s]} watcher />
+            ) : null}
           </div>
         </div>
       );
@@ -221,6 +223,31 @@ export default function Spectate({ code, initial, onLeave, onNext }: Props) {
         <h1 className="display spec-end-word">{t('specEndedEarly')}</h1>
         {why ? <p className="subtitle">{why}</p> : null}
         {actions}
+      </div>
+    );
+  }
+
+  // A room that has not started (a friend's green room, opened by its code):
+  // no motion, no names and nothing live yet. It used to draw the match with
+  // the room code as the motion, "..." for both names and a LIVE tag. The
+  // server sends a fresh snapshot the moment the debate begins, and the
+  // first phase follows, so this turns into the match on its own.
+  const notStarted =
+    !phase && !judging && (!state || state.status === 'waiting' || state.status === 'greenroom' || !state.topic);
+  if (notStarted) {
+    return (
+      <div className="stage center-col spectate spec-end">
+        <header className="topbar spec-topbar">
+          <Brand />
+          <span className="spec-watchers">{t('specWatching', { n: watchers })}</span>
+        </header>
+        <h1 className="display spec-end-word">{t('specRoomWaiting')}</h1>
+        <p className="subtitle">{t('specRoomWaitingSub')}</p>
+        <div className="spec-actions">
+          <button className="btn btn-primary" onClick={leave}>
+            {t('specLeave')}
+          </button>
+        </div>
       </div>
     );
   }

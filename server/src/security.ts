@@ -99,6 +99,48 @@ export function typedSpeechAllowed(ranked: boolean, sttOn: boolean): boolean {
   return !(ranked && sttOn);
 }
 
+/* ------------------------------------------------------------- user text */
+
+// C0 controls except tab, LF and CR; DEL; the C1 block. U+0000 is the one
+// that bites: Postgres refuses it in text and in jsonb, so a single NUL in a
+// typed chunk used to lose the whole match row and any report on it.
+const CONTROL_RE = /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F-\u009F]/g;
+// Half a surrogate pair. JSON.stringify writes it as a \uD8xx escape and
+// jsonb refuses that too. A .slice() through an emoji is enough to make one.
+const LONE_SURROGATE_RE = /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g;
+// Line breaks and tabs, plus the bidi overrides and isolates that can make
+// a line read backwards on somebody else's screen.
+const LINE_BREAKS_RE = /[\t\n\r\u2028\u2029]+/g;
+const BIDI_RE = /[\u202A-\u202E\u2066-\u2069]/g;
+
+/** Text that is safe to store: control characters and broken surrogate
+    halves removed, line breaks kept. Every write of user text or model text
+    to the database goes through this (store.ts). */
+export function stripControl(raw: unknown): string {
+  return String(raw ?? '').replace(CONTROL_RE, '').replace(LONE_SURROGATE_RE, '');
+}
+
+/** One line of user text (a typed speech chunk, a coach question): stored
+    safe, line breaks and bidi overrides folded to a space, trimmed, capped at
+    `max`. The cap is applied before the surrogate pass, so a cut through an
+    emoji never leaves half of it behind. */
+export function cleanLine(raw: unknown, max: number): string {
+  const s = String(raw ?? '')
+    .replace(CONTROL_RE, '')
+    .replace(LINE_BREAKS_RE, ' ')
+    .replace(BIDI_RE, '')
+    .trim()
+    .slice(0, max);
+  return s.replace(LONE_SURROGATE_RE, '').trim();
+}
+
+/** A paragraph of user text (a settle-it account): like cleanLine, but line
+    breaks survive. */
+export function cleanBlock(raw: unknown, max: number): string {
+  const s = String(raw ?? '').replace(CONTROL_RE, '').replace(BIDI_RE, '').trim().slice(0, max);
+  return s.replace(LONE_SURROGATE_RE, '').trim();
+}
+
 /* ------------------------------------------------------------- coach chat */
 
 export interface ChatTurn {
@@ -139,17 +181,37 @@ export function coachHistory(raw: unknown): ChatTurn[] | null {
 
 const isRelayLine = (line: string): boolean => /\styp\s+relay(\s|$)/.test(line);
 
+/** A relay candidate still names the address it relays FOR in its
+    `raddr <ip> rport <port>` pair: for a client not running relay-only
+    that is its own public address (its srflx), which is the one thing
+    relay-only exists to hide. Both are zeroed, the way browsers already
+    write them for an obscured address; ICE never reads them. */
+const hideRelated = (line: string): string =>
+  line.replace(/(\s)raddr\s+\S+/i, '$1raddr 0.0.0.0').replace(/(\s)rport\s+\S+/i, '$1rport 0');
+
 /** Ranked calls are relay only, so two strangers never learn each other's
     address. The client asks for relay candidates alone (webrtc.ts); this is
     the server's half, for a client that does not: host, srflx and prflx
-    candidates are dropped, and an SDP body loses its non-relay candidate
-    lines and the default address in its c= and a=rtcp lines. An empty
-    candidate (end of candidates) passes. Returns null to drop the message. */
+    candidates are dropped, a relay candidate's related address is zeroed,
+    and an SDP body loses its non-relay candidate lines, its relay lines'
+    related addresses and the default address in its c= and a=rtcp lines. An
+    empty candidate (end of candidates) passes. A trickled candidate is
+    rebuilt from the four fields RTCIceCandidateInit has, so nothing else a
+    client tacked on rides along. Returns null to drop the message. */
 export function relayOnlySignal(payload: SignalPayload): SignalPayload | null {
   if ('candidate' in payload) {
-    const line = typeof payload.candidate?.candidate === 'string' ? payload.candidate.candidate : '';
+    const c = payload.candidate;
+    const line = typeof c?.candidate === 'string' ? c.candidate : '';
     if (line === '') return payload;
-    return isRelayLine(line) ? payload : null;
+    if (!isRelayLine(line)) return null;
+    return {
+      candidate: {
+        candidate: hideRelated(line),
+        ...(c.sdpMid !== undefined ? { sdpMid: c.sdpMid } : {}),
+        ...(c.sdpMLineIndex !== undefined ? { sdpMLineIndex: c.sdpMLineIndex } : {}),
+        ...(c.usernameFragment !== undefined ? { usernameFragment: c.usernameFragment } : {}),
+      },
+    };
   }
   if ('description' in payload) {
     const d = payload.description;
@@ -159,13 +221,25 @@ export function relayOnlySignal(payload: SignalPayload): SignalPayload | null {
       .split(/\r?\n/)
       .filter((l) => !l.startsWith('a=candidate:') || isRelayLine(l))
       .map((l) => {
+        if (l.startsWith('a=candidate:')) return hideRelated(l);
         if (l.startsWith('c=IN IP4 ')) return 'c=IN IP4 0.0.0.0';
         if (l.startsWith('c=IN IP6 ')) return 'c=IN IP6 ::';
         if (l.startsWith('a=rtcp:')) return l.replace(/\sIN\s+IP4\s+\S+/, ' IN IP4 0.0.0.0').replace(/\sIN\s+IP6\s+\S+/, ' IN IP6 ::');
         return l;
       })
       .join(eol);
-    return { description: { ...d, sdp } };
+    return { description: { type: d.type, sdp } };
   }
   return null;
+}
+
+/* ------------------------------------------------------------------ 404s */
+
+/** Whether a request nobody has a route for gets the HTML 404 page rather
+    than the JSON one: a browser asking for a page. HEAD is answered like GET
+    (same status and headers, no body), which is what link checkers and
+    crawlers expect. */
+export function wantsHtml404(method: string, accept: unknown): boolean {
+  if (method !== 'GET' && method !== 'HEAD') return false;
+  return String(accept ?? '').includes('text/html');
 }

@@ -14,13 +14,43 @@
 let el: HTMLAudioElement | null = null;
 let unlocked = false;
 let currentUrl: string | null = null;
+/** Bumped by every playBotTurn. A turn's timers and handlers check it, so a
+    turn that has been replaced can never speak, cut the new one off, or free
+    its audio. */
+let turn = 0;
 
-/** 1 frame of silent mp3 — enough to satisfy iOS that a user started playback. */
-const SILENT_MP3 =
-  'data:audio/mpeg;base64,//uQxAAAAAAAAAAAAAAAAAAAAAAAWGluZwAAAA8AAAACAAACcQCA' +
-  'gICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgP////////' +
-  '////////////////////////////////8AAAA5TEFNRTMuMTAwAc0AAAAAAAAAABSAJAJAQgAA' +
-  'gAAAAnGDVYEBAAAAAAAAAAAAAAAAAAAA';
+/** A tenth of a second of silence as a 16-bit PCM WAV, built here rather than
+    pasted in. The silent MP3 this replaces did not decode in Chrome: play()
+    rejected with NotSupportedError on every start, so the element was never
+    unlocked, every tap re-ran the unlock, and its error event fired whatever
+    onerror the last turn had left behind (which read the PREVIOUS verdict out
+    loud through the browser voice). Plain PCM WAV decodes in every browser
+    that has an audio element. Shared with the spectator audio. */
+export const SILENT_WAV: string = (() => {
+  const rate = 22_050;
+  const samples = rate / 10;
+  const bytes = new Uint8Array(44 + samples * 2); // the samples stay zero: silence
+  const v = new DataView(bytes.buffer);
+  const tag = (at: number, s: string) => {
+    for (let i = 0; i < s.length; i++) bytes[at + i] = s.charCodeAt(i);
+  };
+  tag(0, 'RIFF');
+  v.setUint32(4, 36 + samples * 2, true);
+  tag(8, 'WAVE');
+  tag(12, 'fmt ');
+  v.setUint32(16, 16, true); // fmt chunk size
+  v.setUint16(20, 1, true); // PCM
+  v.setUint16(22, 1, true); // mono
+  v.setUint32(24, rate, true);
+  v.setUint32(28, rate * 2, true); // byte rate
+  v.setUint16(32, 2, true); // block align
+  v.setUint16(34, 16, true); // bits per sample
+  tag(36, 'data');
+  v.setUint32(40, samples * 2, true);
+  let bin = '';
+  for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+  return `data:audio/wav;base64,${btoa(bin)}`;
+})();
 
 function element(): HTMLAudioElement {
   if (!el) {
@@ -41,18 +71,27 @@ export function botVoiceElement(): HTMLAudioElement {
     the bot is silent-then-robotic on every phone. */
 export function unlockBotVoice(): void {
   if (unlocked) return;
+  // A turn owns the element: swapping in the silence would cut it off.
+  if (currentUrl) return;
   try {
     const a = element();
-    a.src = SILENT_MP3;
+    // Nothing a previous turn left on the element may react to this.
+    a.onended = null;
+    a.onerror = null;
+    const at = turn;
+    a.src = SILENT_WAV;
     a.volume = 0;
     const p = a.play();
     if (p && typeof p.then === 'function') {
       void p
         .then(() => {
-          a.pause();
-          a.currentTime = 0;
-          a.volume = 1;
           unlocked = true;
+          // Only stop the silence: a turn may have taken the element since.
+          if (turn === at && !currentUrl) {
+            a.pause();
+            a.currentTime = 0;
+          }
+          a.volume = 1;
         })
         .catch(() => {
           // Autoplay still refused. We'll try again on the next gesture.
@@ -76,6 +115,10 @@ function releaseUrl(): void {
 
 export function stopBotVoice(): void {
   if (el) {
+    // Clear the handlers first: emptying the element must not look like an
+    // error to a turn that is over.
+    el.onended = null;
+    el.onerror = null;
     el.pause();
     try {
       el.removeAttribute('src');
@@ -138,6 +181,8 @@ export function playBotTurn(
   maxMs?: number,
 ): void {
   stopBotVoice();
+  const mine = ++turn;
+  const live = () => mine === turn;
   const startedAt = Date.now();
   let done = false;
   let cutoff: ReturnType<typeof setTimeout> | null = null;
@@ -145,9 +190,10 @@ export function playBotTurn(
   // A turn must never end before the words could plausibly have been said. If
   // playback was blocked and the promise rejected in 5ms, holding the floor is
   // what stops the bot from "passing instantly, then talking over you".
+  // A turn replaced by a newer one is over and says nothing more.
   const floor = Math.min(spokenMs(text), maxMs ?? Number.MAX_SAFE_INTEGER);
   const finish = (respectFloor: boolean) => {
-    if (done) return;
+    if (done || !live()) return;
     const waited = Date.now() - startedAt;
     if (respectFloor && waited < floor) {
       setTimeout(() => finish(false), floor - waited);
@@ -157,11 +203,18 @@ export function playBotTurn(
     if (cutoff) clearTimeout(cutoff);
     onDone();
   };
+  // The browser voice reads THIS turn's text only, and only while this is
+  // still the turn.
+  const fallback = () => {
+    if (!live()) return;
+    browserSpeak(text, lang, () => finish(true));
+  };
 
   // The bot gets the same shot clock a human gets: when its speaking allowance
   // expires, the mic is taken away mid-sentence — no monologuing past the bell.
   if (maxMs && maxMs > 0) {
     cutoff = setTimeout(() => {
+      if (!live()) return;
       stopBotVoice();
       finish(false);
     }, maxMs);
@@ -180,6 +233,7 @@ export function playBotTurn(
       let safety: ReturnType<typeof setTimeout> | null = null;
       const armSafety = (ms: number) => {
         safety = setTimeout(() => {
+          if (!live()) return;
           if (!a.paused && !a.ended && a.currentTime > 0) {
             armSafety(5000);
             return;
@@ -191,27 +245,30 @@ export function playBotTurn(
       armSafety(spokenMs(text) + 6000);
       a.onended = () => {
         if (safety) clearTimeout(safety);
+        if (!live()) return;
         releaseUrl();
         finish(false); // real audio finished: it genuinely took its time
       };
       a.onerror = () => {
         if (safety) clearTimeout(safety);
+        if (!live()) return;
         releaseUrl();
-        browserSpeak(text, lang, () => finish(true));
+        fallback();
       };
       a.src = url;
       a.volume = 1;
       void a.play().catch(() => {
         if (safety) clearTimeout(safety);
+        if (!live()) return;
         releaseUrl();
         // Blocked (no gesture yet). Speak it, and hold the floor either way.
-        browserSpeak(text, lang, () => finish(true));
+        fallback();
       });
       return;
     } catch {
-      browserSpeak(text, lang, () => finish(true));
+      fallback();
       return;
     }
   }
-  browserSpeak(text, lang, () => finish(true));
+  fallback();
 }

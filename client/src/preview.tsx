@@ -280,6 +280,12 @@ function debateScene(o: {
         heardWords={theirs || params.get('heard') === '0' ? 0 : 14}
         watchers={2}
         onPassMic={noop}
+        // &ranked=1 for ranked's leave line; &offline=1 for this page's own
+        // connection down. The Leave control opens its confirm here; the
+        // answers do nothing (the socket is dead in the harness).
+        ranked={params.get('ranked') === '1'}
+        offline={params.get('offline') === '1'}
+        onLeave={noop}
       />
     );
   };
@@ -663,16 +669,18 @@ const SCREENS: Record<string, () => JSX.Element> = {
       onRetryMedia={noop}
     />
   ),
-  /* Play a friend with the room already open: both codes under the VS. */
+  /* Play a friend with the room already open: both codes under the VS.
+     &guest=1 holds it as a guest (the "Playing as" line under the stage). */
   friendRoom: () => {
     fakeFetch({
       '/rating': { rating: 1512, placed: true, placementBot: 'Clover' },
       '/bots': BOTS_FAKE,
       '/live': { live: 0, watchable: 0, featured: null },
     });
+    const asGuest = new URLSearchParams(location.search).has('guest');
     return (
       <Home
-        account={{ signedIn: true, google: true, name: 'zorvint', mask: 'bally' }}
+        account={asGuest ? { signedIn: false, google: true } : { signedIn: true, google: true, name: 'zorvint', mask: 'bally' }}
         {...HOME_PROPS}
         initialMode="friend"
         initialRoom={room({ participantCount: 1, peerName: undefined, peerAvatar: undefined })}
@@ -1131,6 +1139,11 @@ const SCREENS: Record<string, () => JSX.Element> = {
       }}
       onLeave={noop}
     />
+  ),
+  /* A friend's room opened by its code before the debate starts: the green
+     room, no motion and no names yet. */
+  spectateWaiting: () => (
+    <Spectate code="ABCDEF" initial={{ code: 'ABCDEF', status: 'greenroom', watchers: 1 }} onLeave={noop} />
   ),
   /* A room opened by code after the judge ruled: the compact result. */
   spectateDone: () => (

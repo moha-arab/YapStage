@@ -251,6 +251,11 @@ if (want('e4')) {
   const a = connect();
   const b = connect();
   const cr = await emitP(a, 'lobby:create', { sessionId: `e4a${U}`, name: 'Guest2007', playerId: `pid-e4a${U}` });
+  if (!cr?.ok) {
+    // Usually the per-address waiting-room cap, full of rooms another suite
+    // left open on this server: run this suite against a fresh server.
+    throw new Error(`E4: lobby:create was refused (${cr?.error}); run the edge suite against a fresh server`);
+  }
   const code = cr.update.code;
   await emitP(b, 'lobby:join', { code, sessionId: `e4b${U}`, name: 'Guest2003', playerId: `pid-e4b${U}` });
   const sb = once(b, 'debate:start', 8000);

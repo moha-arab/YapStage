@@ -7,6 +7,7 @@ const DISPUTE_MAX = 400;
 import { initAudio } from '../sound';
 import { unlockBotVoice } from '../botvoice';
 import { useAudioLevel } from '../useAudioLevel';
+import { useCountdown } from '../useCountdown';
 import { useI18n } from '../i18n';
 import MicMeter from '../MicMeter';
 import VideoTile from '../VideoTile';
@@ -22,10 +23,15 @@ interface Props {
   speechSupported: boolean;
   rtcState: RTCPeerConnectionState | null;
   onRetryMedia: () => void;
-  /** Outcome of the invite that opened this room, when it came from a call-out.
-      It has to render HERE, because this is the screen the caller lands on: a
-      message set on the friends screen is a message nobody ever sees. */
+  /** Something that happened to this room: today the host being told the
+      guest left and the code still works (lobby:notice). It has to render
+      HERE, because this is the screen the host is on. */
   notice?: { key: string; x?: string } | null;
+  /** People watching this room (LobbyUpdate.watchers, kept live by
+      spectate:count). Debaters always know they have an audience. */
+  watchers?: number;
+  /** The other player's connection is out until then (peer:connection). */
+  peerLostUntil?: number | null;
 }
 
 /* THE GREEN ROOM (2026-09 pass). The start button used to sit below the fold
@@ -42,8 +48,11 @@ export default function GreenRoom({
   rtcState,
   onRetryMedia,
   notice,
+  watchers = 0,
+  peerLostUntil = null,
 }: Props) {
   const { lang, t } = useI18n();
+  const awayMs = useCountdown(peerLostUntil ?? undefined, peerLostUntil ? Date.now() : undefined);
   const [copied, setCopied] = useState(false);
   function copyLink() {
     const link = `${window.location.origin}/?code=${lobby.code}`;
@@ -110,12 +119,14 @@ export default function GreenRoom({
           : true;
   const canConfirm = !!localStream && connected && ready && !pick.youConfirmed;
 
+  // Both wearing characters, the link is a voice call, not a video.
+  const onCamera = !masked || !peerMasked;
   const confirmLabel = pick.youConfirmed
     ? t('confirmedWaiting', { x: peer })
     : !connected
       ? rtcState === 'failed'
-        ? t('videoFailed')
-        : t('connectingVideo')
+        ? t(onCamera ? 'videoFailed' : 'callFailed')
+        : t(onCamera ? 'connectingVideo' : 'connectingCall')
       : mode === 'agree'
         ? !hostTopicId
           ? isHost
@@ -248,6 +259,15 @@ export default function GreenRoom({
   // bottom of the screen, and a warning under it would never be seen.
   const banners = (
     <>
+      {/* The other player's connection is out (a host who dropped before
+          the friend walked in has two minutes to come back). Said once, in
+          fixed words, for a screen reader; the countdown is for the eye. */}
+      {!waiting && peerLostUntil ? (
+        <div className="banner banner-warn" role="alert">
+          <span className="sr-only">{t('grPeerAwaySr', { x: peer })}</span>
+          <span aria-hidden="true">{t('grPeerAway', { x: peer, n: Math.max(0, Math.ceil(awayMs / 1000)) })}</span>
+        </div>
+      ) : null}
       {mediaError ? (
         <div className="banner banner-error" role="alert">
           {t(mediaError)}{' '}
@@ -257,9 +277,10 @@ export default function GreenRoom({
         </div>
       ) : null}
 
+      {/* Ranked has no room to open again: the way back is the queue. */}
       {!waiting && rtcState === 'failed' ? (
         <div className="banner banner-error" role="alert">
-          {t('netFail')}
+          {t(lobby.ranked ? 'netFailRanked' : 'netFail')}
         </div>
       ) : null}
 
@@ -276,6 +297,7 @@ export default function GreenRoom({
       <header className="topbar scr-bar">
         <Brand />
         <span className="scr-where">{t('greenRoom')}</span>
+        {watchers > 0 ? <span className="watch-pill">{t('specWatching', { n: watchers })}</span> : null}
         {/* There was no way out of this screen except a page refresh, which
             the unload warning then argued with. */}
         <button className="scr-btn" onClick={() => socket.emit('lobby:leave')}>

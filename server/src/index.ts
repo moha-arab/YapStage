@@ -22,16 +22,19 @@ import {
   type SocketData,
   type TopicText,
 } from './protocol.js';
-import { REFRESH_MS, getIceServers, refreshIceServers, turnMode } from './turn.js';
+import { REFRESH_MS, getIceServers, refreshIceServers, relayAvailable, turnMode } from './turn.js';
 import {
   createLobby,
   destroyLobby,
   getLobby,
   allLobbies,
+  liveSeatOf,
   lobbyCount,
   participantOf,
   peerOf,
   randomAvatar,
+  reopenForNextGuest,
+  setOnLobbyDestroyed,
   sideOf,
   startSweep,
   touch,
@@ -99,12 +102,15 @@ import { rankedRefusal } from './gate.js';
 import {
   SECURITY_HEADERS,
   SITE_ORIGIN,
+  cleanBlock,
+  cleanLine,
   coachHistory,
   guestIdShapeOk,
   relayOnlySignal,
   statsKeyOk,
   trustOneHop,
   typedSpeechAllowed,
+  wantsHtml404,
 } from './security.js';
 import { llmDown, llmUsage } from './llm.js';
 
@@ -201,6 +207,10 @@ if (fs.existsSync(clientDist)) {
   // unhashed file above).
   for (const page of ['/privacy', '/terms']) {
     app.get(page, async (_req, reply) => reply.header('Cache-Control', 'no-cache').sendFile('index.html'));
+    // With a trailing slash (a pasted link, a crawler) the router saw a
+    // different path and answered with the 404 page. One page, one address:
+    // send it to the plain one.
+    app.get(`${page}/`, async (_req, reply) => reply.redirect(page, 301));
   }
 } else {
   console.warn(`[server] client build not found at ${clientDist} — API/socket only`);
@@ -208,9 +218,11 @@ if (fs.existsSync(clientDist)) {
 
 // Anything else nobody has: a person with a browser gets the 404 page
 // (client/public/404.html, self-contained), everything else a JSON 404.
+// HEAD is answered like GET (security.ts wantsHtml404): same status and
+// type, and Node sends no body for a HEAD.
 const notFoundPage = path.join(clientDist, '404.html');
 app.setNotFoundHandler((req, reply) => {
-  if (req.method === 'GET' && (req.headers.accept ?? '').includes('text/html') && fs.existsSync(notFoundPage)) {
+  if (wantsHtml404(req.method, req.headers.accept) && fs.existsSync(notFoundPage)) {
     return reply
       .code(404)
       .type('text/html; charset=utf-8')
@@ -452,12 +464,21 @@ app.get('/drill', async (req) => {
     seconds: DRILL_SECONDS,
     ...state,
     signedIn: Boolean(s),
+    // The drill records audio and the server transcribes it, the way a match
+    // does, so it works in every browser. The browser's own recognizer
+    // (Chrome only) is the fallback for when this is false.
+    stt: sttConfigured(),
   };
 });
 
-app.post<{ Body: { text?: string; id?: string } }>(
+/** A thirty second answer is ~120 KB of opus at 32 kbps, and up to about
+    half a megabyte of AAC from Safari, which ignores the bitrate. */
+const DRILL_AUDIO_MAX = 1_200_000;
+
+app.post<{ Body: { text?: string; id?: string; audio?: string; mime?: string } }>(
   '/drill',
-  { bodyLimit: 16_384 },
+  // Room for the recorded answer as base64 (4/3 of DRILL_AUDIO_MAX).
+  { bodyLimit: 1_700_000 },
   async (req, reply) => {
     // Per person (the account, or the address for a guest), under a wider
     // per-address ceiling so one campus NAT is not one person.
@@ -465,7 +486,7 @@ app.post<{ Body: { text?: string; id?: string } }>(
     if (!allow(`drill:${drillWho}`, 20, 10 * 60_000) || !allow(`drillip:${req.ip}`, 100, 10 * 60_000)) {
       return reply.code(429).send({ error: 'rate_limited' });
     }
-    const answer = String(req.body?.text ?? '').trim().slice(0, 4000);
+    let answer = String(req.body?.text ?? '').trim().slice(0, 4000);
     const day = today();
     const daily = drillOfDay(day);
     // Score the drill the player actually saw (a tab left open across
@@ -473,10 +494,25 @@ app.post<{ Body: { text?: string; id?: string } }>(
     // streak.
     const d = drillById(req.body?.id) ?? daily;
     const countsForStreak = d.id === daily.id;
+    // A recorded answer: transcribed by the same Whisper call a match turn
+    // goes through, silence and hallucination filter included (stt.ts), then
+    // scored like typed-in text. "Nothing said" and "could not transcribe"
+    // are different answers to the player, so they are told apart here.
+    const audio = typeof req.body?.audio === 'string' ? req.body.audio : '';
+    if (audio) {
+      const buf = Buffer.from(audio, 'base64');
+      if (buf.length > DRILL_AUDIO_MAX) return reply.code(413).send({ error: 'too_big' });
+      const { transcribeDetailed } = await import('./stt.js');
+      const heard = buf.length < 1000 ? { text: null, failed: false } : await transcribeDetailed(buf);
+      if (heard.failed) return reply.code(503).send({ error: 'stt_down' });
+      if (!heard.text) return { result: null, error: 'not_heard', words: 0 };
+      answer = heard.text.slice(0, 4000);
+    }
     // Silence is not a score. Say so plainly instead of asking the judge to
     // grade nothing and getting a hallucinated 40 back.
-    if (answer.split(/\s+/).filter(Boolean).length < 8) {
-      return { result: null, error: 'too_short' };
+    const words = answer.split(/\s+/).filter(Boolean).length;
+    if (words < 8) {
+      return { result: null, error: 'too_short', words };
     }
     try {
       const result = await scoreDrill(d, answer);
@@ -492,6 +528,8 @@ app.post<{ Body: { text?: string; id?: string } }>(
         // and whether it was the day's own drill (the only kind that counts).
         day,
         daily: countsForStreak,
+        // How many words the judge had to go on, shown with the score.
+        words,
       };
     } catch (err) {
       console.error(`[drill] scoring failed: ${errTag(err)}`);
@@ -597,7 +635,7 @@ app.post<{ Params: { id: string }; Body: { question?: string; history?: unknown 
     ) {
       return reply.code(429).send({ error: 'rate_limited' });
     }
-    const question = String(req.body?.question ?? '').slice(0, 300).trim();
+    const question = cleanLine(req.body?.question, 300);
     if (!Number.isInteger(id) || !question) return reply.code(400).send({ error: 'bad_request' });
     // At most eight turns reach the model, alternating, each a string of at
     // most 1200 characters (security.ts coachHistory); anything else is
@@ -926,6 +964,9 @@ function updateFor(lobby: Lobby, receiver: Participant): LobbyUpdate {
     yourMasked: receiver.masked,
     peerMasked: peer?.masked,
     spectatorsAllowed: lobby.spectatorsAllowed,
+    // Debaters always know they have an audience, green room included;
+    // spectate:count keeps it current from here.
+    watchers: spectatorCount(lobby.code),
   };
 }
 
@@ -1005,6 +1046,11 @@ function resetForRematch(lobby: Lobby): void {
   lobby.pick.guestTopicId = null;
   lobby.pick.hostConfirmed = false;
   lobby.pick.guestConfirmed = false;
+  // Both clients set up WebRTC again for the rematch and each says rtc:ready
+  // when it has. Left true from the first debate, the first of them to say
+  // so got rtc:go at once and offered to a peer that was not listening yet.
+  if (lobby.host) lobby.host.rtcReady = false;
+  if (lobby.guest) lobby.guest.rtcReady = false;
   touch(lobby);
   event('rematch', { code: lobby.code });
 }
@@ -1040,10 +1086,92 @@ function releasePreviousSeat(socket: {
     dropSpectator(socket.id, code);
   }
   socket.data.code = undefined;
+  // Starting something else also gives up this tab's place in the ranked
+  // queue, or the queue can pair it in the middle of that other game.
+  if (rankedQueue.some((q) => q.socketId === socket.id)) {
+    dropFromQueue(socket.id);
+    broadcastQueue();
+  }
 }
 
-/** At most this many rooms waiting for a guest per address. */
-const MAX_WAITING_PER_IP = 3;
+/** At most this many rooms waiting for a guest per address. It was 3, and
+    the lobby opens a room whenever the friend tab is on screen, so a
+    classroom or an office behind one address ran out after three people
+    looked at that tab. 25 still keeps one address from filling the lobby
+    cap (MAX_LOBBIES), with the create gate (20 a person, 100 an address,
+    per five minutes) in front of it. */
+const MAX_WAITING_PER_IP = 25;
+
+/** A host whose socket dropped while their room waited (a switch to
+    WhatsApp to send the code, a wifi blip) keeps the room for the rest of
+    its waiting TTL and takes it back with lobby:resume. If the friend walks
+    in while the host is still away, the host gets this long to come back
+    before the room closes on the friend. */
+const HOST_AWAY_MS = 2 * 60_000;
+
+/** One player, one live seat. True when `playerId` (a device id, or an
+    account's player id, which every tab and device of the account shares)
+    already holds a live seat through another socket (lobby.ts liveSeatOf:
+    a green room, a debate, a verdict being written), or, with `queue`, a
+    place in the ranked queue from another socket. A second tab otherwise
+    ran a second game at the same time: another full set of model calls, and
+    for an account, two ranked matches at once. */
+function busyElsewhere(playerId: string, socketId: string, queue = true): boolean {
+  if (!playerId) return false;
+  if (liveSeatOf(playerId, socketId)) return true;
+  return queue && rankedQueue.some((q) => q.playerId === playerId && q.socketId !== socketId);
+}
+
+/** Everyone watching `code` is sent out with `reason` (an i18n key, shown
+    like any lobby:closed): out of both of the lobby's socket rooms and off
+    the count, which drops to zero for the debaters. */
+function sendWatchersOut(code: string, reason: string): void {
+  const set = spectators.get(code);
+  if (!set || set.size === 0) return;
+  spectators.delete(code);
+  for (const sid of set) {
+    const s = io.sockets.sockets.get(sid);
+    if (!s) continue;
+    void s.leave(code);
+    void s.leave(`spec:${code}`);
+    if (s.data.code === code) s.data.code = undefined;
+    s.emit('lobby:closed', { reason });
+  }
+  broadcastWatchers(code);
+}
+
+/** The guest walked out of a friend room's green room, by Leave or by
+    closing the tab: the room goes back to waiting under the same code
+    (lobby.ts reopenForNextGuest) and the host is told who left and that the
+    code still works. */
+function reopenAfterGuestLeft(lobby: Lobby): void {
+  const who = lobby.guest?.name ?? '';
+  reopenForNextGuest(lobby);
+  // A host who is away (dropped before or during the green room) keeps a
+  // waiting room for the rest of its TTL, so the green room's grace stops.
+  if (lobby.host?.disconnectedAt && lobby.host.graceTimer) {
+    clearTimeout(lobby.host.graceTimer);
+    lobby.host.graceTimer = undefined;
+  }
+  broadcastLobbyUpdate(lobby);
+  if (lobby.host && !lobby.host.disconnectedAt) {
+    io.to(lobby.host.socketId).emit('lobby:notice', { reason: 'noticeGuestLeft', vars: { x: who } });
+  }
+}
+
+// Whatever destroys a lobby (a leave, the sweep, abort's timer, the judge's
+// post-verdict cleanup in judge.ts), its watchers go with it: the count, and
+// the audio room. The lobby's own socket room is left to the caller, which
+// may still have a lobby:closed to send through it (the sweep does).
+setOnLobbyDestroyed((code) => {
+  const set = spectators.get(code);
+  spectators.delete(code);
+  io.socketsLeave(`spec:${code}`);
+  for (const sid of set ?? []) {
+    const s = io.sockets.sockets.get(sid);
+    if (s?.data.code === code) s.data.code = undefined;
+  }
+});
 
 io.on('connection', (socket) => {
   // Bind the socket to its account BEFORE any handler runs. A yap name is only
@@ -1147,6 +1275,20 @@ io.on('connection', (socket) => {
       socket.data.starting = false;
     }
     if (!socket.connected) return;
+    // One player, one live seat: a green room or a debate in another tab.
+    if (busyElsewhere(playerId, socket.id)) return cb({ ok: false, error: 'busy_elsewhere' });
+    // This tab's own room from before a dropped connection it never took
+    // back (a client that does not lobby:resume a waiting room) goes now,
+    // rather than sitting out its TTL against the address's cap.
+    const sid = String(p.sessionId ?? '').slice(0, 64);
+    if (sid) {
+      for (const l of allLobbies()) {
+        if (l.status === 'waiting' && l.host?.disconnectedAt && l.host.sessionId === sid) {
+          destroyLobby(l.code);
+          io.socketsLeave(l.code);
+        }
+      }
+    }
     if (lobbyCount() >= MAX_LOBBIES) return cb({ ok: false, error: 'rate_limited' });
     // Rooms nobody has joined yet, per address. The socket's own waiting
     // room does not count: making a new one releases it.
@@ -1201,6 +1343,19 @@ io.on('connection', (socket) => {
     if (lobby.host?.sessionId && lobby.host.sessionId === String(p.sessionId ?? '')) {
       return cb({ ok: false, error: 'self' });
     }
+    // ...and the same DEVICE. A second tab has a session id of its own but
+    // the device's player id, so a signed-out player could walk into their
+    // own room from the next tab and debate themselves.
+    if (playerId && lobby.host?.playerId === playerId) return cb({ ok: false, error: 'self' });
+    // One player, one live seat: not while this player holds a green room, a
+    // debate or a place in the ranked queue through another tab.
+    if (busyElsewhere(playerId, socket.id)) return cb({ ok: false, error: 'busy_elsewhere' });
+    // Nor while the HOST does. A waiting room is not a live seat, so its host
+    // can have gone into a game from another tab since opening it; from the
+    // door, that reads as "their debate already started".
+    if (lobby.host?.playerId && busyElsewhere(lobby.host.playerId, lobby.host.socketId)) {
+      return cb({ ok: false, error: 'in_progress' });
+    }
 
     releasePreviousSeat(socket);
     lobby.guest = {
@@ -1219,6 +1374,22 @@ io.on('connection', (socket) => {
     event('lobby_joined', { code: lobby.code });
     cb({ ok: true, update: updateFor(lobby, lobby.guest) });
     broadcastLobbyUpdate(lobby);
+    // The host is away: their connection dropped while the room waited (a
+    // switch to WhatsApp to send this very code, say) and has not resumed.
+    // The friend waits in the green room and is told the host's connection
+    // is out; the host gets HOST_AWAY_MS to come back before the room closes.
+    const host = lobby.host;
+    if (host?.disconnectedAt) {
+      socket.emit('peer:connection', { state: 'lost', graceDeadline: Date.now() + HOST_AWAY_MS });
+      if (host.graceTimer) clearTimeout(host.graceTimer);
+      host.graceTimer = setTimeout(() => {
+        const l = getLobby(lobby.code);
+        if (l !== lobby || l.host !== host || !host.disconnectedAt || l.status !== 'greenroom') return;
+        io.to(l.code).emit('lobby:closed', { reason: 'closedHostLeft' });
+        destroyLobby(l.code);
+        io.socketsLeave(l.code);
+      }, HOST_AWAY_MS);
+    }
   });
 
   socket.on('lobby:resume', (p, cb) => {
@@ -1356,6 +1527,10 @@ io.on('connection', (socket) => {
     if (lobby.status !== 'greenroom' && lobby.status !== 'waiting') return;
     if (participantOf(lobby, socket.id) !== lobby.host) return;
     lobby.spectatorsAllowed = Boolean(allowed);
+    // "Just us" means just us: whoever is already watching is sent out with
+    // a reason, instead of watching on while the hint says only the
+    // opponent can use the code.
+    if (!lobby.spectatorsAllowed) sendWatchersOut(lobby.code, 'closedWatchersOff');
     touch(lobby);
     broadcastLobbyUpdate(lobby);
   });
@@ -1440,7 +1615,9 @@ io.on('connection', (socket) => {
     if (!lobby || lobby.status !== 'greenroom' || lobby.topicMode !== 'dispute') return;
     const me = participantOf(lobby, socket.id);
     if (!me) return;
-    const clean = String(text ?? '').trim().slice(0, DISPUTE_MAX);
+    // Plain text (security.ts cleanBlock): it becomes the motion, and the
+    // motion is filed with the match.
+    const clean = cleanBlock(text, DISPUTE_MAX);
     if (me === lobby.host) lobby.pick.hostDispute = clean || null;
     else lobby.pick.guestDispute = clean || null;
     // Any change invalidates both confirmations, same as changing a topic.
@@ -1560,9 +1737,38 @@ io.on('connection', (socket) => {
       socket.data.code = undefined;
       return;
     }
-    // A human debate only before it starts. Mid-debate leaving is the
-    // disconnect path, which has grace timers and a peer to notify.
+    // Leaving a live human debate on purpose (the in-debate Leave control,
+    // whose confirm says what it costs) ends it now rather than after the
+    // reconnect grace a dropped connection gets: ranked counts it as a
+    // walk-out under applyForfeit's rule, and the player who stayed is told
+    // their opponent left instead of watching a "reconnecting" countdown.
+    if (lobby.status === 'in_debate') {
+      if (me.graceTimer) clearTimeout(me.graceTimer);
+      me.disconnectedAt = Date.now();
+      void socket.leave(lobby.code);
+      void socket.leave(`spec:${lobby.code}`);
+      socket.data.code = undefined;
+      socket.emit('lobby:closed', { reason: '' });
+      if (lobby.ranked) void applyForfeit(lobby, me);
+      abort(io, lobby, 'abortLeft', { x: me.name });
+      return;
+    }
+    // Otherwise a human room is only left before it starts; judging and the
+    // verdict are not walk-outs (the disconnect path marks them).
     if (lobby.status !== 'waiting' && lobby.status !== 'greenroom') return;
+    // The GUEST of a friend room walking out does not end the room: it goes
+    // back to waiting under the same code, exactly as when the guest's tab
+    // closes, and the host is told the code still works. (It was destroyed,
+    // and the code the host had just shared went with it.) A ranked seat
+    // belongs to the pairing, so a ranked room still closes below.
+    if (me === lobby.guest && lobby.status === 'greenroom' && !lobby.ranked) {
+      void socket.leave(lobby.code);
+      void socket.leave(`spec:${lobby.code}`);
+      socket.data.code = undefined;
+      socket.emit('lobby:closed', { reason: '' });
+      reopenAfterGuestLeft(lobby);
+      return;
+    }
     // The person who stayed gets told why the room vanished; the person who
     // pressed leave already knows, so they get no banner about their own click.
     socket.to(lobby.code).emit('lobby:closed', { reason: 'closedPeerLeft' });
@@ -1683,7 +1889,7 @@ io.on('connection', (socket) => {
     if (!me) return;
     const side = sideOf(lobby, me);
     if (!side) return;
-    const question = String(p.question ?? '').trim().slice(0, 300);
+    const question = cleanLine(p.question, 300);
     if (!question) return;
     const sid = socket.id;
     if (lobby.coachAsks[side] >= 8) {
@@ -1753,6 +1959,14 @@ io.on('connection', (socket) => {
     // The model API is failing: a ranked match now would be minutes of
     // debating towards a verdict that cannot come.
     if (llmDown()) return cb({ ok: false, error: 'judge_down' });
+    // Ranked calls are relay only (rtc:signal strips every other candidate),
+    // so with no relay (TURN) credentials two players can never hear each
+    // other: refuse, rather than pair them into a silent room. Fast (test)
+    // mode has no relay and never places a call, so it is exempt.
+    if (!FAST && !relayAvailable()) {
+      event('queue_no_relay');
+      return cb({ ok: false, error: 'no_relay' });
+    }
     const name = nameOf(String(p?.name ?? '').trim());
     if (!nameAllowed(name)) return cb({ ok: false, error: 'bad_name' });
     if (rankedQueue.some((q) => q.socketId === socket.id)) return cb({ ok: true });
@@ -1762,6 +1976,10 @@ io.on('connection', (socket) => {
         const playerId = await resolveId(p?.playerId);
         if (!playerId) return cb({ ok: false, error: 'bad_name' });
         if (!io.sockets.sockets.get(socket.id)) return;
+        // One player, one live seat. Another tab's place in the QUEUE is not
+        // refused (this tab takes it over, below); a seat in a green room or
+        // a debate is: that was one account in two ranked matches at once.
+        if (busyElsewhere(playerId, socket.id, false)) return cb({ ok: false, error: 'busy_elsewhere' });
         // Ranked starts after the placement match (one game against the bot
         // nearest 1400 sets the starting rating). Only knowable with the
         // store up; with it down the queue stays open, as before.
@@ -1774,6 +1992,9 @@ io.on('connection', (socket) => {
         const row = await getPlayer(playerId, name);
         // The socket may have left the queue (or died) while we read the rating.
         if (!io.sockets.sockets.get(socket.id)) return;
+        // Again with no await between the check and the queue, so a start in
+        // another tab during the reads above cannot slip past it.
+        if (busyElsewhere(playerId, socket.id, false)) return cb({ ok: false, error: 'busy_elsewhere' });
         // One slot per socket and per PLAYER. A second tab takes over the
         // queue place instead of sitting beside itself (the other half of how
         // one person met themselves), and the tab it replaced is told it is
@@ -1980,6 +2201,10 @@ io.on('connection', (socket) => {
       // The socket may have died while we read the level.
       if (!io.sockets.sockets.get(socket.id)) return;
     }
+    // One player, one live seat: a second tab running a second bot game is
+    // a second full set of model calls. Checked after the last await, so
+    // nothing takes a seat between this and createLobby below.
+    if (busyElsewhere(playerId, socket.id)) return cb({ ok: false, error: 'busy_elsewhere' });
 
     // Placement is played on ranked terms: a random motion, the coin deals
     // the sides, standard pace. Nothing about it is the player's pick.
@@ -2116,6 +2341,8 @@ io.on('connection', (socket) => {
       socket.data.starting = false;
     }
     if (!socket.connected) return;
+    // One player, one live seat (the lesson is a full set of model calls too).
+    if (busyElsewhere(playerId, socket.id)) return cb({ ok: false, error: 'busy_elsewhere' });
     if (lobbyCount() >= MAX_LOBBIES) return cb({ ok: false, error: 'rate_limited' });
 
     releasePreviousSeat(socket);
@@ -2159,8 +2386,14 @@ io.on('connection', (socket) => {
     const isHost = me === lobby.host;
 
     if (lobby.status === 'waiting') {
-      destroyLobby(lobby.code);
-      io.socketsLeave(lobby.code);
+      // Only the host sits in a waiting room, and their screen still shows
+      // the code. The likeliest reason for the drop is that they went to send
+      // it (a phone backgrounds the tab and the ping times out ~45 s later)
+      // or the wifi blinked, so the room is NOT destroyed: it stays for the
+      // rest of its waiting TTL (lobby.ts WAITING_TTL_MS; the sweep closes
+      // it) and the same session takes it back with lobby:resume. A friend
+      // who walks in meanwhile waits for them (lobby:join, HOST_AWAY_MS).
+      me.disconnectedAt = Date.now();
       return;
     }
 
@@ -2181,16 +2414,9 @@ io.on('connection', (socket) => {
           io.socketsLeave(l.code);
         }, GRACE_MS);
       } else {
-        lobby.guest = undefined;
-        lobby.status = 'waiting';
-        lobby.waitingSince = Date.now(); // the ten-minute wait starts again
-        // clear the departed guest's picks and all confirmations
-        lobby.pick.guestTopicId = null;
-        lobby.pick.hostConfirmed = false;
-        lobby.pick.guestConfirmed = false;
-        if (lobby.host) lobby.host.rtcReady = false;
-        touch(lobby);
-        broadcastLobbyUpdate(lobby);
+        // Back to waiting, same code, and the host is told (the same path as
+        // the guest pressing Leave).
+        reopenAfterGuestLeft(lobby);
       }
       return;
     }

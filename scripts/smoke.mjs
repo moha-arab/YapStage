@@ -1403,12 +1403,13 @@ console.log('\n=== Scenario 18: security headers, guest names, audio, room cap, 
     g.disconnect();
   }
 
-  // At most three rooms waiting for a guest per address.
+  // At most twenty-five rooms waiting for a guest per address (it was three,
+  // which a classroom on one address ran out of at once).
   {
     const hosts = [];
     let refusedAt = -1;
     let refusal = '';
-    for (let i = 0; i < 5; i++) {
+    for (let i = 0; i < 30; i++) {
       const s = connect();
       hosts.push(s);
       const r = await emitP(s, 'lobby:create', { sessionId: `cap-${i}`, name: `Guest${5000 + i}` });
@@ -1418,12 +1419,20 @@ console.log('\n=== Scenario 18: security headers, guest names, audio, room cap, 
         break;
       }
     }
-    check('cap: a fourth waiting room from one address is refused', refusedAt >= 0 && refusedAt <= 3, `refused at ${refusedAt}`);
+    // Earlier scenarios may still hold waiting rooms on this address (a room
+    // now outlives its host's socket for its waiting TTL), so the refusal can
+    // come before the twenty-sixth; it must come by then.
+    check(`cap: a waiting room past twenty-five from one address is refused (refused at ${refusedAt})`, refusedAt >= 0 && refusedAt <= 25);
     check('cap: the refusal reads as rate_limited', refusal === 'rate_limited');
     hosts[0].emit('lobby:leave');
     await sleep(200);
     const again = refusedAt >= 0 ? await emitP(hosts[refusedAt], 'lobby:create', { sessionId: 'cap-again', name: 'Guest5099' }) : { ok: false };
     check('cap: closing one frees a place', again.ok === true);
+    // Leave, not just disconnect: a waiting room survives its host's socket
+    // for its TTL now, and thirty of them would starve the next suite run
+    // from this address.
+    for (const s of hosts) s.emit('lobby:leave');
+    await sleep(300);
     for (const s of hosts) s.disconnect();
   }
 

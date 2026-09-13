@@ -18,6 +18,7 @@ import {
   releaseMedia,
   setMicEnabled,
   setAudioOnly,
+  setRankedRoom,
   setTrackHealthHandlers,
   setupPeer,
   teardownPeer,
@@ -97,6 +98,104 @@ function leaveRoom(): void {
 function clearResume(): void {
   try {
     sessionStorage.removeItem(RESUME_KEY);
+  } catch {
+    // ignore
+  }
+}
+
+// A LIVE debate or green room survives a reload of this tab (QA 2026-09-13:
+// a reload threw the game away without a word, and in ranked the server's
+// grace ran out into a walk-out loss). What lobby:resume needs is kept for
+// this tab alone, and it only counts once the page has really unloaded:
+// pagehide stamps it. A duplicated tab copies sessionStorage but never
+// unloaded, so it cannot take the seat from the tab it was copied from.
+const LIVE_KEY = 'yap.live';
+/** The server holds a dropped seat for 15 seconds (index.ts GRACE_MS). */
+const LIVE_RESUME_MS = 20_000;
+/** Older than this it is a tab restored long after, not a reload: say nothing. */
+const LIVE_NOTICE_MS = 10 * 60_000;
+
+interface LiveRecord {
+  code: string;
+  sid: string;
+  bot: boolean;
+  /** Friend and ranked rooms: the room as last seen. The server resends the
+      debate on a resume but not the room, and the call is rebuilt from it. */
+  lobby: LobbyUpdate | null;
+  /** In the debate itself rather than the green room (picks the line shown
+      when the seat is gone). */
+  debating: boolean;
+  /** When the page unloaded. */
+  at?: number;
+}
+
+function saveLive(rec: LiveRecord): void {
+  try {
+    sessionStorage.setItem(LIVE_KEY, JSON.stringify(rec));
+  } catch {
+    // storage blocked: a reload ends the game, as it always did
+  }
+}
+
+function clearLive(): void {
+  try {
+    sessionStorage.removeItem(LIVE_KEY);
+  } catch {
+    // ignore
+  }
+}
+
+function stampLive(): void {
+  try {
+    const raw = sessionStorage.getItem(LIVE_KEY);
+    if (!raw) return;
+    sessionStorage.setItem(LIVE_KEY, JSON.stringify({ ...(JSON.parse(raw) as LiveRecord), at: Date.now() }));
+  } catch {
+    // ignore
+  }
+}
+
+/** Read once and forget: a record is good for one try. */
+function takeLive(): LiveRecord | null {
+  try {
+    const raw = sessionStorage.getItem(LIVE_KEY);
+    sessionStorage.removeItem(LIVE_KEY);
+    if (!raw) return null;
+    const rec = JSON.parse(raw) as LiveRecord;
+    return rec && typeof rec.code === 'string' && typeof rec.sid === 'string' ? rec : null;
+  } catch {
+    return null;
+  }
+}
+
+// The in-app screens that get an entry of their own in the browser history,
+// so Back (and Android's back gesture) returns to the lobby instead of
+// leaving YapStage. The debate keeps its own rule: no entry, and the unload
+// warning when you try to leave it.
+type Overlay = 'drill' | 'matches' | 'spectate';
+
+function overlayEntry(): string | undefined {
+  try {
+    return (history.state as { yap?: string } | null)?.yap;
+  } catch {
+    return undefined;
+  }
+}
+
+function pushOverlay(kind: Overlay): void {
+  try {
+    if (overlayEntry() !== kind) history.pushState({ yap: kind }, '');
+  } catch {
+    // no history API: Back leaves, as before
+  }
+}
+
+/** Closed from inside the app: step back over its entry, so the next Back
+    leaves the lobby the ordinary way instead of landing on a dead entry. The
+    popstate that follows finds nothing open and does nothing. */
+function dropOverlayEntry(): void {
+  try {
+    if (overlayEntry()) history.back();
   } catch {
     // ignore
   }
@@ -216,12 +315,29 @@ export default function App() {
   const botCodeRef = useRef<string | null>(null);
   // A bot game whose socket never comes back is called after a while.
   const dropTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  // This page's own socket is down (every mode says so on the match screen).
+  const [offline, setOffline] = useState(false);
+  // The green room's line about the room itself (lobby:notice), e.g. the
+  // host being told the guest left and the code still works.
+  const [roomNotice, setRoomNotice] = useState<{ key: string; x?: string } | null>(null);
+  // A reload is getting its seat back (yap.live): hold the boot lockup rather
+  // than drawing a lobby that would start opening rooms.
+  const [resuming, setResuming] = useState(false);
+  // Watching someone else's room. A ref as well, because the room's debate
+  // events reach this socket too and the handlers below must ignore them.
+  const spectatingRef = useRef<string | null>(null);
 
   const resetToHome = useCallback((message: string | null) => {
     releaseMedia();
     stopTurn();
     stopBotVoice();
     clearResume();
+    clearLive();
+    setRoomNotice(null);
+    // A watcher sent home by lobby:closed still has the watching screen's
+    // history entry under them.
+    if (spectatingRef.current) dropOverlayEntry();
+    spectatingRef.current = null;
     replayRef.current = false;
     startingRef.current = false;
     // A finished bot game's room would otherwise block the next start.
@@ -258,6 +374,12 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    // A watcher's socket sits in the room it watches, so that room's debate
+    // events reach it too. They belong to the Spectate screen, which has its
+    // own listeners; App's are for the debaters. Taking them turned a
+    // watcher's "stop watching" into a phantom verdict (QA 2026-09-13).
+    const forMe = () =>
+      !spectatingRef.current && (startedRef.current || Boolean(lobbyRef.current) || Boolean(botCodeRef.current));
     socket.on('lobby:update', (u) => {
       // A one-seat update with no lobby set is the host's own settings echo
       // from the stage (Home listens for those). Taking it would flip the
@@ -266,6 +388,11 @@ export default function App() {
       // sees two seats when the friend walks in, ranked comes by queue:matched,
       // and a guest leaving the green room happens while the lobby is set.
       if (!lobbyRef.current && u.participantCount === 1) return;
+      // The watcher count rides in the room since 2026-09-13; spectate:count
+      // keeps it live from there.
+      if (typeof u.watchers === 'number') setWatchers(u.watchers);
+      // A friend walked back in: the "they left" line is old news.
+      if (u.participantCount === 2) setRoomNotice(null);
       setLobby(u);
     });
     // Spectator plumbing: the snapshot (kept here so the Spectate screen can
@@ -273,11 +400,34 @@ export default function App() {
     // debaters must always see.
     socket.on('spectate:state', (s) => setSpecState(s));
     socket.on('spectate:count', (p) => setWatchers(p.n));
-    socket.on('lobby:closed', ({ reason }) => resetToHome(reason));
-    socket.on('rtc:go', () => void beginOffer());
-    socket.on('rtc:signal', (p) => void handleSignal(p));
+    socket.on('lobby:closed', ({ reason }) => {
+      // A watcher gets the room's closing too. Theirs is one plain line, not
+      // a reason written to one of the players.
+      // The host shutting the door ("Just us") has its own words.
+      if (spectatingRef.current) {
+        return resetToHome(reason === 'closedWatchersOff' ? 'closedWatchersOff' : 'specRoomClosed');
+      }
+      // The server tells whoever stayed 'closedPeerLeft' whichever seat left
+      // (index.ts lobby:leave). To a friend room's guest the one who left is
+      // the host, and the host line says what to do next.
+      const u = lobbyRef.current;
+      resetToHome(reason === 'closedPeerLeft' && u?.role === 'guest' && !u.ranked ? 'closedHostLeft' : reason);
+    });
+    // Signalling can fail (a closed connection, keys the other side refuses).
+    // A bare `void` here left those as unhandled rejections.
+    socket.on('rtc:go', () => {
+      beginOffer().catch((err) => console.warn('[rtc] offer failed', err));
+    });
+    socket.on('rtc:signal', (p) => {
+      handleSignal(p).catch((err) => console.warn('[rtc] signal failed', err));
+    });
     socket.on('debate:start', (p) => {
       startingRef.current = false;
+      // Set here as well as on render: a resumed page gets debate:start and
+      // the phase (or the verdict) back to back, and forMe() below must
+      // already know it is in a debate when the second one lands.
+      startDataRef.current = p;
+      startedRef.current = true;
       // Play again from a bot verdict: the finished match clears in the same
       // render the new one arrives. The verdict released the mic, and start.bot
       // staying true would not re-run the media effect, so ask for it again.
@@ -293,6 +443,7 @@ export default function App() {
       setStart(p);
     });
     socket.on('debate:phase', (p) => {
+      if (!forMe()) return;
       setBotFailed(false); // a new turn clears the last one's error
       setHeardWords(0);
       // Backstop: if the server force-advanced past the bot (its fallback
@@ -306,10 +457,13 @@ export default function App() {
     });
     // Proof the judge is receiving you, reduced to a count.
     socket.on('caption', (p) => {
+      if (!forMe()) return;
       if (phaseRef.current && p.stepIndex !== phaseRef.current.stepIndex) return;
       setHeardWords((p.text.match(/\S+/g) ?? []).length);
     });
     socket.on('debate:ended', () => {
+      if (!forMe()) return;
+      clearLive(); // from here a reload recovers the verdict (yap.resume) instead
       setEnded(true);
       stopTurn();
       stopTurnRecording(); // flushes the final turn's audio upload
@@ -360,6 +514,8 @@ export default function App() {
       );
     });
     socket.on('debate:aborted', ({ reason, vars }) => {
+      if (!forMe()) return;
+      clearLive();
       stopTurn();
       stopTurnRecording();
       stopBotVoice();
@@ -375,10 +531,12 @@ export default function App() {
       setPeerLostUntil(p.state === 'lost' ? (p.graceDeadline ?? Date.now() + 15000) : null),
     );
     socket.on('verdict:status', (p) => {
+      if (!forMe()) return;
       stopTurn(); // never leave the recognizer running past the debate
       setJudgeStatus(p);
     });
     socket.on('verdict:result', (p) => {
+      if (!forMe()) return;
       stopTurn();
       clearResume(); // don't re-fetch (and re-save the receipt) on a later refresh
       setVerdictInfo(p);
@@ -416,6 +574,15 @@ export default function App() {
     socket.on('rematch:go', () => {
       // Both agreed: drop the finished-debate state and fall back to the green
       // room. Keep the camera/connection — the server kept the same lobby.
+      // Unless this side pressed "Leave the call" on the verdict: the mic is
+      // off and the connection gone, and nothing about the room changes to
+      // bring them back (the green room sat on "Connecting..." for good). The
+      // bump re-runs both the media and the peer effects; the other side's
+      // old connection starts over when our fresh one's offer or its own
+      // rtc:go arrives (webrtc.ts rebuildPc).
+      if (!localStreamRef.current) setMediaRetry((n) => n + 1);
+      startedRef.current = false;
+      startDataRef.current = null;
       setStart(null);
       setPhase(null);
       setEnded(false);
@@ -430,7 +597,11 @@ export default function App() {
     // went away, and it covers every cause: a deploy, a crash, or bad wifi. The
     // server cannot be relied on to say goodbye — Railway kills the container
     // without a shutdown signal, which was verified rather than assumed.
+    // The host of a friend room hears when the guest walks out: the room
+    // waits again under the same code (index.ts reopenAfterGuestLeft).
+    socket.on('lobby:notice', (p) => setRoomNotice({ key: p.reason, x: p.vars?.x }));
     socket.on('disconnect', () => {
+      setOffline(true);
       if (!startedRef.current || endedRef.current || settledRef.current) return;
       // A bot debate is resumed by the room code its start ack carried (the
       // 'connect' handler below), so a blip is not the end of it. Only a
@@ -453,6 +624,7 @@ export default function App() {
       }
     });
     socket.on('connect', () => {
+      setOffline(false);
       clearTimeout(dropTimer.current);
       // Transient reconnect at ANY stage: try to reclaim our seat. A refreshed
       // page has a new sessionId so this only fires for true network blips.
@@ -515,6 +687,8 @@ export default function App() {
       socket.off('spectate:count');
       socket.off('caption');
       socket.off('connect');
+      socket.off('disconnect');
+      socket.off('lobby:notice');
     };
   }, [resetToHome]);
 
@@ -545,6 +719,97 @@ export default function App() {
     } catch {
       // corrupt entry — ignore
     }
+  }, []);
+
+  // A reload in the middle of a game (yap.live, stamped on pagehide): take
+  // the seat back under the old session id. The server resends the debate
+  // (or the green room) itself; the room comes back from the record, so the
+  // call can be rebuilt. If the seat is gone, one plain line on the lobby
+  // instead of silence.
+  useEffect(() => {
+    const rec = takeLive();
+    if (!rec?.at) return;
+    const age = Date.now() - rec.at;
+    const lost = rec.debating ? 'reloadEnded' : 'reloadRoomClosed';
+    if (age > LIVE_RESUME_MS) {
+      // The server has let the seat go. Long ago, it is a restored tab and
+      // there is nothing worth saying.
+      if (age < LIVE_NOTICE_MS) setNotice(lost);
+      return;
+    }
+    session.id = rec.sid;
+    if (rec.lobby) setRankedRoom(Boolean(rec.lobby.ranked));
+    setResuming(true);
+    let done = false;
+    const finish = (key: string | null) => {
+      if (done) return;
+      done = true;
+      clearTimeout(timer);
+      setResuming(false);
+      if (key) setNotice(key);
+    };
+    const attempt = () => {
+      socket.emit('lobby:resume', { code: rec.code, sessionId: rec.sid }, (res) => {
+        if (done) return;
+        if (res.ok) {
+          // Before the resent events land (they follow this ack), so the
+          // handlers above treat them as this page's.
+          if (rec.bot) botCodeRef.current = rec.code;
+          else if (rec.lobby && !lobbyRef.current) {
+            lobbyRef.current = rec.lobby;
+            setLobby(rec.lobby);
+          }
+          // A reloaded page may not play sound until it is touched (autoplay
+          // rules): the first tap anywhere unlocks the voices again.
+          window.addEventListener(
+            'pointerdown',
+            () => {
+              initAudio();
+              unlockBotVoice();
+            },
+            { once: true, capture: true },
+          );
+          return finish(null);
+        }
+        // A friend room's guest seat is freed the moment its tab goes (the
+        // room waits again under the same code), so walk back in.
+        const u = rec.lobby;
+        if (!rec.debating && u && u.role === 'guest' && !u.ranked) {
+          socket.emit(
+            'lobby:join',
+            { code: u.code, sessionId: session.id, name: u.yourName, playerId: playerId() },
+            (again) => {
+              if (!again.ok) return finish(lost);
+              lobbyRef.current = again.update;
+              setLobby(again.update);
+              finish(null);
+            },
+          );
+          return;
+        }
+        finish(lost);
+      });
+    };
+    // No answer at all (the server cannot be reached): stop holding the lockup.
+    const timer = setTimeout(() => finish(lost), 10_000);
+    if (socket.connected) attempt();
+    else socket.once('connect', attempt);
+  }, []);
+
+  // Keep yap.live in step with what a reload would have to come back to: a
+  // green room, or a debate until it ends (yap.resume takes the verdict).
+  useEffect(() => {
+    const code = lobby?.code ?? (start ? botCodeRef.current : null);
+    if (!code || ended || verdictInfo || abortInfo || debrief || spectating) {
+      clearLive();
+      return;
+    }
+    saveLive({ code, sid: session.id, bot: !lobby, lobby, debating: Boolean(start) });
+  }, [lobby, start, ended, verdictInfo, abortInfo, debrief, spectating]);
+
+  useEffect(() => {
+    window.addEventListener('pagehide', stampLive);
+    return () => window.removeEventListener('pagehide', stampLive);
   }, []);
 
   // "We heard you" indicator: transcript chunk (browser STT) or captured
@@ -833,6 +1098,7 @@ export default function App() {
           locked: 'errLocked',
           judge_down: 'errJudgeDown',
           in_progress: 'errBusy',
+          busy_elsewhere: 'errBusyElsewhere',
         };
         resetToHome(map[res.error ?? ''] ?? 'lostLobby');
       },
@@ -915,6 +1181,8 @@ export default function App() {
               in_progress: c.placement ? 'errPlacing' : 'errBusy',
               unplaced: 'errUnplaced',
               judge_down: 'errJudgeDown',
+              // A live seat in another tab or device (one player, one seat).
+              busy_elsewhere: 'errBusyElsewhere',
             };
             resetToHome(map[res.error ?? ''] ?? 'lostLobby');
             resolve('failed');
@@ -961,6 +1229,85 @@ export default function App() {
     }
   }, []);
 
+  // The socket handlers read who is watching from a ref (see forMe).
+  spectatingRef.current = spectating;
+
+  /** Everything "stop watching" clears. The watched room's debate events
+      never reach the debaters' state (forMe), and this also drops anything a
+      late one set, so leaving can never fall through to a verdict or a
+      cancelled screen that was never this page's. */
+  const endSpectate = useCallback(() => {
+    spectatingRef.current = null;
+    setSpectating(null);
+    setSpecState(null);
+    setSpecFeed(null);
+    setEnded(false);
+    setVerdictInfo(null);
+    setJudgeStatus(null);
+    setAbortInfo(null);
+  }, []);
+
+  // Which in-app screen owns the current history entry (see pushOverlay).
+  const overlayRef = useRef<Overlay | null>(null);
+  overlayRef.current = viewingDrill ? 'drill' : viewingMatches ? 'matches' : spectating ? 'spectate' : null;
+
+  // Browser Back (or Android's back gesture) on one of those screens: back
+  // to the lobby, not out of YapStage.
+  useEffect(() => {
+    const onPop = () => {
+      const open = overlayRef.current;
+      if (!open || overlayEntry() === open) return;
+      overlayRef.current = null;
+      if (open === 'drill') setViewingDrill(false);
+      else if (open === 'matches') setViewingMatches(false);
+      else {
+        socket.emit('spectate:leave');
+        endSpectate();
+      }
+    };
+    window.addEventListener('popstate', onPop);
+    return () => window.removeEventListener('popstate', onPop);
+  }, [endSpectate]);
+
+  /** Closed from inside the app: the screen goes, then its history entry. */
+  const closeOverlay = useCallback(
+    (kind: Overlay) => {
+      overlayRef.current = null;
+      if (kind === 'drill') setViewingDrill(false);
+      else if (kind === 'matches') setViewingMatches(false);
+      else endSpectate();
+      dropOverlayEntry();
+    },
+    [endSpectate],
+  );
+
+  // The in-app way out of a live debate (Debate.tsx, Leave).
+  const leaveDebate = useCallback(() => {
+    const s = startDataRef.current;
+    clearLive();
+    if (!s || s.bot) {
+      // A bot game (the lesson and the placement too) can be walked out of
+      // any time before its verdict: the server calls it off and files
+      // nothing (index.ts lobby:leave). resetToHome hands the room back.
+      resetToHome(null);
+      return;
+    }
+    // A human debate has no mid-debate lobby:leave on the server: walking
+    // out is the path the unload warning guards. This seat's connection
+    // goes, the server's grace runs out and the debate is called for both
+    // (in ranked the walk-out costs the game, judge.ts applyForfeit). The
+    // socket comes straight back under a NEW session, so nothing resumes the
+    // seat that was just given up, and the lobby works at once.
+    socket.emit('lobby:leave'); // ignored mid-debate today; right if the server learns it
+    lobbyRef.current = null;
+    startedRef.current = false;
+    startDataRef.current = null;
+    resetToHome('leftDebate');
+    session.id = crypto.randomUUID();
+    socket.disconnect();
+    socket.connect();
+  }, [resetToHome]);
+
   // Characters come with an account: a guest wears the grey silhouette on
   // every screen, the same one the server seats them in.
   const selfMask = account?.signedIn ? (account.mask ?? MASK_IDS[0]) : GUEST_AVATAR;
@@ -980,15 +1327,15 @@ export default function App() {
     );
   } else if (viewingDrill) {
     titleKey = 'drillPill';
-    content = <Drill onBack={() => setViewingDrill(false)} />;
+    content = <Drill onBack={() => closeOverlay('drill')} />;
   } else if (viewingMatches) {
     titleKey = 'myMatches';
     content = (
       <Matches
-        onBack={() => setViewingMatches(false)}
+        onBack={() => closeOverlay('matches')}
         onPlayBot={() => {
           setHomeMode('bot');
-          setViewingMatches(false);
+          closeOverlay('matches');
         }}
       />
     );
@@ -1001,36 +1348,25 @@ export default function App() {
         key={spectating}
         code={spectating}
         initial={specState}
-        onLeave={() => {
-          setSpectating(null);
-          setSpecState(null);
-          setSpecFeed(null);
-        }}
+        onLeave={() => closeOverlay('spectate')}
         onNext={
           specFeed
             ? () => {
                 setSpecState(null);
                 const cat = specFeed.category ? `&category=${encodeURIComponent(specFeed.category)}` : '';
+                // "Next" stays on the same history entry; running out of
+                // debates goes back over it like any other way out.
                 void fetch(`/spectate/random?not=${spectating}${cat}`)
                   .then((r) => r.json())
                   .then((d: { code: string | null }) => {
-                    if (!d.code) {
-                      setSpectating(null);
-                      setSpecFeed(null);
-                      return;
-                    }
+                    if (!d.code) return closeOverlay('spectate');
                     socket.emit('spectate:join', { code: d.code }, (res) => {
-                      if (res.ok) setSpectating(d.code!);
-                      else {
-                        setSpectating(null);
-                        setSpecFeed(null);
-                      }
+                      if (!res.ok) return closeOverlay('spectate');
+                      spectatingRef.current = d.code;
+                      setSpectating(d.code);
                     });
                   })
-                  .catch(() => {
-                    setSpectating(null);
-                    setSpecFeed(null);
-                  });
+                  .catch(() => closeOverlay('spectate'));
               }
             : undefined
         }
@@ -1123,6 +1459,9 @@ export default function App() {
         heardWords={heardWords}
         watchers={watchers}
         onPassMic={(stepIndex) => socket.emit('turn:done', { stepIndex })}
+        ranked={Boolean(lobby?.ranked)}
+        offline={offline}
+        onLeave={leaveDebate}
       />
     );
   } else if (botPicking) {
@@ -1172,9 +1511,14 @@ export default function App() {
         speechSupported={speechSupported}
         rtcState={rtcState}
         onRetryMedia={retryMedia}
+        notice={lobby.participantCount === 1 ? roomNotice : null}
+        watchers={watchers}
+        peerLostUntil={peerLostUntil}
       />
     );
-  } else if (!account) {
+  } else if (!account || resuming) {
+    // (resuming: a reload is taking its seat back; the lobby would start
+    // opening rooms and joining queues underneath it.)
     // The boot /auth/me has not answered yet, so we do not know who this is.
     // Hold the brand lockup instead of guessing: a lobby drawn for a guest
     // and redrawn for the account a frame later flashes, and the empty plum
@@ -1190,12 +1534,22 @@ export default function App() {
         notice={notice}
         onEntered={handleEntered}
         onSpectate={(code, feed) => {
+          // Every screen off the lobby gets a history entry, so Back lands
+          // on the lobby instead of leaving YapStage.
+          pushOverlay('spectate');
+          spectatingRef.current = code;
           setSpectating(code);
           setSpecFeed(feed);
         }}
-        onMatches={() => setViewingMatches(true)}
+        onMatches={() => {
+          pushOverlay('matches');
+          setViewingMatches(true);
+        }}
         onMaskSaved={(mask) => setAccount({ ...account, mask })}
-        onDrill={() => setViewingDrill(true)}
+        onDrill={() => {
+          pushOverlay('drill');
+          setViewingDrill(true);
+        }}
         onBotStart={startBotAs}
         onTutorial={onTutorial}
         initialMode={homeMode}

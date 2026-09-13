@@ -262,6 +262,16 @@ export function touch(lobby: Lobby): void {
   lobby.touchedAt = Date.now();
 }
 
+/** Set once by index.ts: what else has to go when a lobby goes (its
+    spectator list and the spectators' audio room). It lives here, on the one
+    function every path calls (a leave, a sweep, abort's timer, the judge's
+    post-verdict cleanup), so no path can forget it. Runs after the lobby is
+    out of the map. */
+let onLobbyDestroyed: ((code: string) => void) | null = null;
+export function setOnLobbyDestroyed(fn: ((code: string) => void) | null): void {
+  onLobbyDestroyed = fn;
+}
+
 export function destroyLobby(code: string): void {
   const lobby = lobbies.get(code);
   if (!lobby) return;
@@ -271,6 +281,11 @@ export function destroyLobby(code: string): void {
   if (lobby.host?.graceTimer) clearTimeout(lobby.host.graceTimer);
   if (lobby.guest?.graceTimer) clearTimeout(lobby.guest.graceTimer);
   lobbies.delete(code);
+  try {
+    onLobbyDestroyed?.(code);
+  } catch (err) {
+    console.error('[lobby] destroy hook failed', err);
+  }
 }
 
 export function participantOf(lobby: Lobby, socketId: string): Participant | undefined {
@@ -304,6 +319,54 @@ export function waitingRoomsFrom(ip: string, exceptCode?: string): number {
     if (l.status === 'waiting' && l.hostIp === ip && l.code !== exceptCode) n += 1;
   }
   return n;
+}
+
+/** A room that holds its players: a green room (a friend room with both
+    seats, or a ranked pairing), a debate, or a verdict still being written.
+    A waiting room does not count: it costs nothing and the lobby opens one
+    whenever the friend tab is on screen. */
+export function seatIsLive(l: Lobby): boolean {
+  return (
+    l.status === 'greenroom' || l.status === 'in_debate' || (l.status === 'judging' && l.judgeState !== 'failed')
+  );
+}
+
+/** The lobby in which `playerId` holds a live seat through some socket
+    other than `exceptSocketId`: a second tab, or another device on the same
+    account (a signed-in seat's playerId is the account's). One player, one
+    live seat: every start refuses while this finds something (index.ts). */
+export function liveSeatOf(playerId: string | undefined, exceptSocketId?: string): Lobby | undefined {
+  if (!playerId) return undefined;
+  for (const l of lobbies.values()) {
+    if (!seatIsLive(l)) continue;
+    for (const s of [l.host, l.guest]) {
+      if (s && s.playerId === playerId && s.socketId !== exceptSocketId) return l;
+    }
+  }
+  return undefined;
+}
+
+/** The guest walked out of a friend room's green room (Leave, or the tab
+    closed): the room goes back to waiting under the SAME code, for them to
+    come back or for somebody else. The host's settings stay; the guest's
+    picks, both confirmations and the host's WebRTC readiness do not, and the
+    ten-minute wait for a guest starts again. Ranked rooms never come here
+    (a ranked seat belongs to the pairing; index.ts closes those). */
+export function reopenForNextGuest(lobby: Lobby): void {
+  if (lobby.guest?.graceTimer) clearTimeout(lobby.guest.graceTimer);
+  lobby.guest = undefined;
+  lobby.status = 'waiting';
+  lobby.waitingSince = Date.now();
+  // In 'agree' mode the guest's pick is the host's, mirrored (index.ts
+  // pick:topic): keep the mirror, or the next guest walks in on a blank one.
+  lobby.pick.guestTopicId = lobby.topicMode === 'agree' ? lobby.pick.hostTopicId : null;
+  lobby.pick.guestDispute = null;
+  lobby.pick.disputeProblem = null;
+  lobby.pick.hostConfirmed = false;
+  lobby.pick.guestConfirmed = false;
+  lobby.rematch = { host: false, guest: false };
+  if (lobby.host) lobby.host.rtcReady = false;
+  touch(lobby);
 }
 
 export function startSweep(onDestroy?: (code: string) => void): void {
