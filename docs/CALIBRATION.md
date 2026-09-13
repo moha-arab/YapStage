@@ -254,6 +254,26 @@ median human: its four turns are written in advance, so it cannot actually
 respond to what the bot just said, and clash is 30 of the 100 rubric points.
 A real player of the same ability scores higher than the script does.
 
+## Spot check on 2026-09-13 (the no-animal rule and the renames)
+
+The bot prompt gained one sentence (a persona, not a species: never mention,
+joke about or pun on being an animal) and the eight styles lost their
+species; three bots were renamed in their prompts (Dodger, Prudence,
+Sterling). Phase D at 1 run per cell, about 1.60 dollars. Not one animal
+reference in the 16 transcripts, and every cell sits inside the 2026-09-12
+numbers' noise (yesterday's figure in brackets):
+
+| rung | bot | average profile | strong profile |
+| --- | --- | --- | --- |
+| 1 | Nib | +58 (+61) | +64 (+60) |
+| 2 | Moss | +13 (+36) | +36 (+46) |
+| 3 | Dodger | -8 (+8) | +22 (+22) |
+| 4 | Clover | -25 (-25) | -15 (-12) |
+| 5 | Prudence | -33 (-33) | -29 (-24) |
+| 6 | Rocco | -30 (-31) | -20 (-17) |
+| 7 | Sterling | -27 (-24) | -13 (-12) |
+| 8 | Vesper | -32 (-38) | -25 (-28) |
+
 ## Re-run the calibration whenever the judge prompt changes
 
 The ratings are measured against a specific judge. Changing the rubric changes
