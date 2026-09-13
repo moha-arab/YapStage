@@ -505,22 +505,23 @@ const MONEY_IDS = ['money-happiness', 'landlords', 'crypto-scam', 'no-billionair
   const cr = await emitP(host, 'lobby:create', { sessionId: 'r-h', name: 'randhost' });
   const code = cr.update.code;
   await emitP(guest, 'lobby:join', { code, sessionId: 'r-g', name: 'randguest' });
-  check('lobby defaults to standard pace', cr.update.pace === 'standard');
+  check('lobby defaults to blitz pace', cr.update.pace === 'blitz');
   host.emit('pick:mode', 'random');
   await new Promise((r) => setTimeout(r, 200)); // let the mode propagate before confirming
 
-  // pace is host-controlled, like the mode
+  // pace is host-controlled, like the mode (rooms open on blitz since
+  // 2026-09-13, so the host moves it to standard here)
   const paceUpdate = once(guest, 'lobby:update', 4000);
-  host.emit('pick:pace', 'blitz');
+  host.emit('pick:pace', 'standard');
   const u1 = await paceUpdate;
-  check('pace: host sets blitz', u1.pace === 'blitz');
+  check('pace: host sets standard', u1.pace === 'standard');
   let lastPace = u1.pace;
   const paceTracker = (u) => { lastPace = u.pace; };
   guest.on('lobby:update', paceTracker);
-  guest.emit('pick:pace', 'standard'); // guest is not host — must be ignored
+  guest.emit('pick:pace', 'long'); // guest is not host — must be ignored
   await new Promise((r) => setTimeout(r, 250));
   guest.off('lobby:update', paceTracker);
-  check('pace: guest cannot change it', lastPace === 'blitz');
+  check('pace: guest cannot change it', lastPace === 'standard');
 
   const started = once(host, 'debate:start', 8000);
   const gStarted = once(guest, 'debate:start', 8000);
