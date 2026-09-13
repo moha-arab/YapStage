@@ -8,9 +8,19 @@
 import crypto from 'node:crypto';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { event } from './stats.js';
-import { AVATAR_IDS, nameProblem } from './protocol.js';
-import { claimUsername, getLocker, linkAccount, setLocker, type AccountRow, type CarriedDrill } from './store.js';
+import { AVATAR_IDS, foldName, nameProblem } from './protocol.js';
+import {
+  claimUsername,
+  deleteAccountData,
+  getLocker,
+  linkAccount,
+  renameUsername,
+  setLocker,
+  type AccountRow,
+  type CarriedDrill,
+} from './store.js';
 import { today } from './drills.js';
+import { allow } from './ratelimit.js';
 
 const AUTH_URL = 'https://accounts.google.com/o/oauth2/v2/auth';
 const TOKEN_URL = 'https://oauth2.googleapis.com/token';
@@ -18,6 +28,17 @@ const TOKEN_URL = 'https://oauth2.googleapis.com/token';
 const SESSION_COOKIE = 'yap_session';
 const STATE_COOKIE = 'yap_oauth_state';
 const SESSION_DAYS = 30;
+/** A yap name can change once in this many days. Slow on purpose: the name is
+    the identity on every scoreboard, so it should not become a disguise. */
+const NAME_CHANGE_DAYS = 30;
+const NAME_CHANGE_MS = NAME_CHANGE_DAYS * 24 * 60 * 60 * 1000;
+
+/** When the name may next change (ISO), or null if it may change now. */
+function nextNameChange(changedAt: Date | null | undefined): string | null {
+  if (!changedAt) return null;
+  const at = changedAt.getTime() + NAME_CHANGE_MS;
+  return at > Date.now() ? new Date(at).toISOString() : null;
+}
 
 export function googleConfigured(): boolean {
   return Boolean(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET);
@@ -136,7 +157,13 @@ function redirectUri(req: FastifyRequest): string {
   return `${req.protocol}://${req.headers.host}/auth/google/callback`;
 }
 
-export function registerAuth(app: FastifyInstance): void {
+export interface AuthHooks {
+  /** An account was just deleted: close every socket it has open. Lives in
+      index.ts, which owns the socket server. */
+  onAccountDeleted?: (sub: string) => void;
+}
+
+export function registerAuth(app: FastifyInstance, hooks: AuthHooks = {}): void {
   // Start sign-in. `state` is a random value echoed back by Google and matched
   // against a cookie: without it, an attacker could complete a login FOR you.
   app.get('/auth/google', async (req, reply) => {
@@ -233,18 +260,33 @@ export function registerAuth(app: FastifyInstance): void {
   /** Who am I? The client calls this on boot and adopts the returned playerId,
       which is how progress follows an account across devices. `needsName` is
       the one-time yap-name claim: a fresh account can't play until it lands. */
-  app.get('/auth/me', async (req) => {
+  app.get('/auth/me', async (req, reply) => {
     const s = readSession(req);
     if (!s) return { signedIn: false, google: googleConfigured() };
     const locker = await getLocker(s.sub);
+    // The account was deleted (from another device, say): this cookie is a
+    // leftover that still verifies. Clear it and answer as signed out.
+    if (locker.missing) {
+      clearCookie(reply, SESSION_COOKIE);
+      return { signedIn: false, google: googleConfigured() };
+    }
+    // The cookie carries the name it was signed with, and a rename on another
+    // device leaves it stale. The row is the truth: answer with it, and
+    // re-sign this device's cookie so its next socket carries it too.
+    let name = s.name;
+    if (locker.username && locker.username !== s.name) {
+      name = locker.username;
+      setCookie(reply, SESSION_COOKIE, packSession({ ...s, name }), SESSION_DAYS * 24 * 60 * 60);
+    }
     return {
       signedIn: true,
       google: true,
       playerId: s.playerId,
-      name: s.name,
-      needsName: !s.name,
+      name,
+      needsName: !name,
       mask: locker.mask,
       maskDefault: locker.maskDefault,
+      nextNameChange: nextNameChange(locker.nameChangedAt),
     };
   });
 
@@ -263,6 +305,78 @@ export function registerAuth(app: FastifyInstance): void {
     const session: Session = { ...s, name };
     setCookie(reply, SESSION_COOKIE, packSession(session), SESSION_DAYS * 24 * 60 * 60);
     return { ok: true, name };
+  });
+
+  /** Change the claimed yap name, once per NAME_CHANGE_DAYS. Same validator
+      and the same unique index as the claim above; the claim stays one-shot
+      and this is the only way to change a name after it. Re-issues the
+      session so the next socket connection carries the new name (the client
+      reconnects its socket on success, as it does after claiming). */
+  app.post<{ Body: { name?: string } }>('/auth/rename', async (req, reply) => {
+    const s = readSession(req);
+    if (!s) return reply.code(401).send({ ok: false, error: 'signed_out' });
+    if (!allow(`rename:${s.sub}`, 10, 10 * 60_000) || !allow(`rename-ip:${req.ip}`, 30, 10 * 60_000)) {
+      return reply.code(429).send({ ok: false, error: 'rate_limited' });
+    }
+    // Saved in the form the validator checks: nameProblem() tests the NFKC
+    // form, so an un-normalized full-width name would pass and be stored wide.
+    const name = String(req.body?.name ?? '').normalize('NFKC').trim();
+    const problem = nameProblem(name);
+    if (problem) return reply.code(400).send({ ok: false, error: problem });
+    const result = await renameUsername(s.sub, name, NAME_CHANGE_MS);
+    switch (result.status) {
+      case 'ok': {
+        const session: Session = { ...s, name };
+        setCookie(reply, SESSION_COOKIE, packSession(session), SESSION_DAYS * 24 * 60 * 60);
+        return { ok: true, name, nextNameChange: nextNameChange(result.changedAt) };
+      }
+      case 'too_soon':
+        return reply
+          .code(409)
+          .send({ ok: false, error: 'too_soon', nextNameChange: nextNameChange(result.changedAt) });
+      case 'taken':
+        return reply.code(409).send({ ok: false, error: 'taken' });
+      case 'same':
+        return reply.code(400).send({ ok: false, error: 'same' });
+      case 'unclaimed':
+        // No name yet: that is the claim's job (/auth/username), not this one.
+        return reply.code(409).send({ ok: false, error: 'unclaimed' });
+      default:
+        return reply.code(503).send({ ok: false, error: 'down' });
+    }
+  });
+
+  /** Delete the account, for good. The person types their username to
+      confirm; it is checked here against the account's fold, so case does not
+      matter. Everything the account owns goes in one transaction (store.ts
+      deleteAccountData lists it), the session cookie is cleared, and every
+      socket the account has open is closed. */
+  app.post<{ Body: { confirm?: string } }>('/auth/delete', async (req, reply) => {
+    const s = readSession(req);
+    if (!s) return reply.code(401).send({ ok: false, error: 'signed_out' });
+    if (!allow(`delete:${s.sub}`, 5, 10 * 60_000) || !allow(`delete-ip:${req.ip}`, 20, 10 * 60_000)) {
+      return reply.code(429).send({ ok: false, error: 'rate_limited' });
+    }
+    const confirm = String(req.body?.confirm ?? '').normalize('NFKC').trim();
+    if (!confirm || confirm.length > 32) return reply.code(400).send({ ok: false, error: 'mismatch' });
+    const result = await deleteAccountData(s.sub, foldName(confirm));
+    if (result.status === 'ok' || result.status === 'missing') {
+      // Either way there is no account behind this cookie any more.
+      clearCookie(reply, SESSION_COOKIE);
+      hooks.onAccountDeleted?.(s.sub);
+    }
+    switch (result.status) {
+      case 'ok':
+        return { ok: true };
+      case 'missing':
+        return reply.code(404).send({ ok: false, error: 'missing' });
+      case 'mismatch':
+        return reply.code(400).send({ ok: false, error: 'mismatch' });
+      case 'unclaimed':
+        return reply.code(409).send({ ok: false, error: 'unclaimed' });
+      default:
+        return reply.code(503).send({ ok: false, error: 'down' });
+    }
   });
 
   /** The locker: your mask, plus the older "mask by default" flag. The flag

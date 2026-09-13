@@ -167,7 +167,14 @@ app.get('/healthz', async () => ({
   commit: process.env.RAILWAY_GIT_COMMIT_SHA?.slice(0, 7) ?? 'dev',
 }));
 
-registerAuth(app);
+registerAuth(app, {
+  // A deleted account's open tabs and devices lose their seats and presence
+  // now, not at their next reload. Runs at request time, long after `io`
+  // below exists.
+  onAccountDeleted: (sub) => {
+    io.in(`acct:${sub}`).disconnectSockets(true);
+  },
+});
 
 app.get('/bots', async () => ({ bots: publicBots(), topics: TOPIC_CATEGORIES }));
 
@@ -887,7 +894,18 @@ io.on('connection', (socket) => {
     // Locker: your saved mask follows you into every mode, including training,
     // which has no green room to pick one in.
     void getLocker(sess.sub).then((l) => {
-      if (socket.data.account) socket.data.locker = l;
+      if (!socket.data.account) return;
+      if (l.missing) {
+        // A deleted account's leftover cookie: this socket is a guest now.
+        void socket.leave(`acct:${sess.sub}`);
+        socket.data.account = undefined;
+        return;
+      }
+      socket.data.locker = { mask: l.mask, maskDefault: l.maskDefault };
+      // The cookie carries the name it was signed with. After a rename on
+      // another device that name is stale (and may be someone else's by now),
+      // so the account row wins.
+      if (l.username) socket.data.account.name = l.username;
     });
   }
   /** The name this socket is allowed to use. An account with no claimed name

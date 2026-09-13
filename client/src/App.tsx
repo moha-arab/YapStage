@@ -39,7 +39,8 @@ import Matches from './screens/Matches';
 import Drill from './screens/Drill';
 import Splash, { splashWanted } from './Splash';
 import { MASK_IDS } from './Mask';
-import { playBotTurn, stopBotVoice } from './botvoice';
+import { playBotTurn, stopBotVoice, unlockBotVoice } from './botvoice';
+import { initAudio } from './sound';
 
 interface VerdictInfo {
   verdict: VerdictData;
@@ -176,12 +177,20 @@ export default function App() {
   localStreamRef.current = localStream;
   const settledRef = useRef(false); // verdict/debrief shown or aborted — nothing to resume
   settledRef.current = Boolean(verdictInfo) || Boolean(abortInfo) || Boolean(debrief);
+  // "Play again" from a bot verdict. The last bot match's setup, so the same
+  // bot can be asked for again, and a flag that keeps the old result on
+  // screen until the new match's debate:start replaces it in one render
+  // (no flash of the lobby in between). Same socket is safe: the judge lets
+  // the finished lobby's room go silently ten minutes after the verdict.
+  const lastBotRef = useRef<{ who: string; c: BotStartConfig } | null>(null);
+  const replayRef = useRef(false);
 
   const resetToHome = useCallback((message: string | null) => {
     releaseMedia();
     stopTurn();
     stopBotVoice();
     clearResume();
+    replayRef.current = false;
     setLobby(null);
     setStart(null);
     setPhase(null);
@@ -229,7 +238,21 @@ export default function App() {
     socket.on('lobby:closed', ({ reason }) => resetToHome(reason));
     socket.on('rtc:go', () => void beginOffer());
     socket.on('rtc:signal', (p) => void handleSignal(p));
-    socket.on('debate:start', (p) => setStart(p));
+    socket.on('debate:start', (p) => {
+      // Play again from a bot verdict: the finished match clears in the same
+      // render the new one arrives. The verdict released the mic, and start.bot
+      // staying true would not re-run the media effect, so ask for it again.
+      if (replayRef.current) {
+        replayRef.current = false;
+        setPhase(null);
+        setEnded(false);
+        setVerdictInfo(null);
+        setJudgeStatus(null);
+        setUnlocked(null);
+        setMediaRetry((n) => n + 1);
+      }
+      setStart(p);
+    });
     socket.on('debate:phase', (p) => {
       setBotFailed(false); // a new turn clears the last one's error
       setHeardWords(0);
@@ -739,6 +762,7 @@ export default function App() {
     (who: string, c: BotStartConfig) => {
       setNotice(null);
       setBotName(who);
+      lastBotRef.current = { who, c };
       socket.emit(
         'bot:start',
         { sessionId: session.id, name: who, lang: langRef.current, playerId: playerId(), ...c },
@@ -761,6 +785,20 @@ export default function App() {
   );
 
   const startBot = useCallback((c: BotStartConfig) => startBotAs(botName, c), [botName, startBotAs]);
+
+  // The verdict's "Play Moss again". Runs inside the tap, which is where the
+  // audio unlocks must happen (the lobby's Go button does the same two).
+  // Placement is one game ever, so it is never replayed from here.
+  const playBotAgain = useCallback(() => {
+    const last = lastBotRef.current;
+    if (!last || last.c.placement) return;
+    stopBotVoice();
+    initAudio();
+    unlockBotVoice();
+    clearResume();
+    replayRef.current = true;
+    startBotAs(last.who, last.c);
+  }, [startBotAs]);
 
   // Dead local track with a live call: re-acquire and hot-swap (replaceTrack,
   // no renegotiation). Without a prior stream, fall back to the full retry
@@ -875,6 +913,9 @@ export default function App() {
         unlocked={unlocked}
         avatars={start?.avatars ?? null}
         opponentRating={start?.bot?.elo}
+        onPlayAgain={
+          start?.bot && lastBotRef.current && !lastBotRef.current.c.placement ? playBotAgain : undefined
+        }
       />
     );
   } else if (start) {

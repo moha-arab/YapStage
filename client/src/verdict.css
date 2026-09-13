@@ -1,0 +1,758 @@
+/* After the debate: the wait and the result (Verdict.tsx).
+   One big thing to look at (the result, on screen from the first frame) and
+   one obvious thing to press. Gold appears ONLY on a win: the word, your
+   total, a rating gain, an unlock. Nothing else here is ever gold. */
+
+.vd {
+  --gold: #ffc72e;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--s5);
+  padding-top: clamp(20px, 4vh, 44px);
+  text-align: center;
+  overflow-x: clip;
+}
+
+.vd-topic {
+  max-width: min(100%, 760px);
+  text-wrap: balance;
+}
+
+/* ------------------------------------------------------------ layout -- */
+
+.vd-grid {
+  width: min(100%, 1120px);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--s6);
+  justify-items: center;
+}
+
+.vd-result {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--s4);
+  width: min(100%, 520px);
+}
+
+.vd-why {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s4);
+  width: min(100%, 560px);
+  text-align: start;
+}
+
+/* Wide: the result on the left, held in view, and the why beside it, so the
+   whole story fits one screen with no scrolling. */
+@media (min-width: 960px) {
+  .vd-grid {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: var(--s7);
+    align-items: start;
+  }
+
+  .vd-result {
+    position: sticky;
+    top: var(--s5);
+  }
+}
+
+/* ------------------------------------------------------ the big word -- */
+
+.vd-word {
+  font-size: clamp(46px, min(7.2vw, 11vh), 88px);
+  line-height: 0.95;
+  letter-spacing: 0.02em;
+  color: var(--paper);
+}
+
+.vd-word.won {
+  color: var(--gold);
+}
+
+/* "{name} wins": a sentence, not a verdict on you, so it sits smaller. */
+.vd-word.neutral {
+  font-size: clamp(30px, 4.6vw, 54px);
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+
+/* ---------------------------------------------------------- fighters -- */
+
+.vd-stage {
+  display: flex;
+  justify-content: center;
+  align-items: flex-end;
+  gap: clamp(8px, 3vw, 36px);
+  width: 100%;
+}
+
+.vd-fighter {
+  --art: clamp(84px, min(24vw, 16vh), 150px);
+  --glow: var(--amber);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 0;
+  flex: 0 1 auto;
+}
+
+.vd-fighter.is-against {
+  --glow: var(--turq);
+}
+
+.vd-fighter.vd-big {
+  --art: clamp(128px, min(38vw, 26vh), 240px);
+}
+
+/* On camera: a framed square in the side's colour, no cone and no pool. */
+.vd-cam .lb-cone,
+.vd-cam .vd-art::after {
+  display: none;
+}
+
+.vd-cam .vd-art .tile {
+  border: 2px solid var(--glow);
+  border-radius: var(--r-lg);
+}
+
+.vd-wait .vd-fighter {
+  --art: clamp(104px, min(32vw, 26vh), 210px);
+}
+
+/* The cone the fighter stands in: the lobby's own light (Cone.tsx). */
+.vd-lit {
+  position: relative;
+  display: flex;
+  justify-content: center;
+  width: calc(var(--art) + 36px);
+  max-width: 100%;
+  padding-top: calc(var(--art) * 0.2);
+}
+
+.vd-lit .lb-cone {
+  width: 100%;
+}
+
+.vd-art {
+  position: relative;
+  z-index: 1;
+  width: var(--art);
+  height: var(--art);
+  filter: drop-shadow(0 16px 20px rgba(0, 0, 0, 0.45));
+}
+
+/* The pool of light at their feet. */
+.vd-art::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  bottom: 4px;
+  width: 104%;
+  height: 18px;
+  transform: translateX(-50%);
+  border-radius: 50%;
+  background: var(--glow);
+  opacity: 0.28;
+  z-index: -1;
+}
+
+/* The one who lost: same light, turned down. */
+.vd-dim .lb-cone {
+  opacity: 0.3;
+}
+
+.vd-dim .vd-art {
+  filter: saturate(0.5) brightness(0.72) drop-shadow(0 12px 16px rgba(0, 0, 0, 0.4));
+}
+
+.vd-dim .vd-art::after {
+  opacity: 0.12;
+}
+
+/* A live tile standing where a drawing would: no frame, no name tag, no
+   dimming. A camera is cut square with the house corner; a character's tile
+   is transparent, so it looks exactly like the drawing, and it still carries
+   the other person's voice. */
+.vd-art .tile {
+  width: 100%;
+  height: 100%;
+  aspect-ratio: 1;
+  border: 0;
+  opacity: 1;
+}
+
+.vd-art .tile-masked {
+  background: none;
+  border-radius: 0;
+  overflow: visible;
+}
+
+.vd-art .tile video {
+  filter: none;
+}
+
+.vd-art .tile .tag,
+.vd-art .tile .live-pill,
+.vd-art .tile .you-badge {
+  display: none;
+}
+
+/* On camera and off the call: an initial, so the light is never empty. */
+.vd-mono {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  font-family: 'Ultra', serif;
+  font-size: calc(var(--art) * 0.55);
+  line-height: 1;
+  color: var(--glow);
+  text-transform: lowercase;
+}
+
+.vd-name {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  max-width: 100%;
+  margin-top: var(--s2);
+}
+
+.vd-name-text {
+  font-family: 'Ultra', serif;
+  font-size: clamp(15px, 1.8vw, 21px);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.vd-you {
+  flex: none;
+  padding: 1px 7px;
+  border-radius: var(--r-sm);
+  background: var(--glow);
+  color: #101018;
+  font-size: var(--t1);
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.vd-left {
+  font-size: var(--t2);
+  color: var(--muted);
+}
+
+.vd-total {
+  font-family: 'Ultra', serif;
+  font-size: clamp(30px, 3.6vw, 44px);
+  line-height: 1.05;
+  color: var(--paper);
+}
+
+.vd-dim .vd-total {
+  color: var(--muted);
+}
+
+.vd-gold .vd-total {
+  color: var(--gold);
+}
+
+/* ------------------------------------------------ rating and unlock -- */
+
+.vd-rating-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.vd-rating {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 10px;
+  margin: 0;
+  padding: 6px 16px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--house-2);
+  font-size: var(--t4);
+  color: var(--muted);
+}
+
+.vd-rating > b {
+  font-family: var(--mono);
+  font-size: var(--t6);
+  font-weight: 500;
+  color: var(--paper);
+}
+
+.vd-rating.up > b {
+  color: var(--gold);
+}
+
+.vd-rating span b {
+  font-weight: 500;
+  color: var(--paper);
+}
+
+.vd-rating-sub,
+.vd-rating-note {
+  margin: 0;
+  max-width: 38ch;
+  font-size: var(--t3);
+  color: var(--muted);
+}
+
+.vd-unlock {
+  margin: 0;
+  font-weight: 700;
+  font-size: var(--t4);
+  color: var(--gold);
+}
+
+.vd-notheard {
+  max-width: 440px;
+  padding: 12px 16px;
+  border: 1px solid rgba(255, 91, 91, 0.45);
+  border-radius: var(--r-md);
+  background: rgba(255, 91, 91, 0.07);
+}
+
+.vd-notheard-line {
+  margin: 0;
+  font-weight: 700;
+  color: var(--paper);
+}
+
+.vd-notheard-fix {
+  margin: 6px 0 0;
+  font-size: var(--t3);
+  line-height: 1.45;
+  color: var(--muted);
+}
+
+/* -------------------------------------------------------- next steps -- */
+
+.vd-actions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+  width: min(100%, 380px);
+}
+
+.vd-actions .btn-primary {
+  min-height: var(--ctl-lg);
+  font-size: var(--t5);
+  font-weight: 700;
+}
+
+.vd-actions-row {
+  display: flex;
+  gap: var(--s2);
+}
+
+.vd-actions-row:empty {
+  display: none;
+}
+
+.vd-actions-row .btn {
+  flex: 1 1 0;
+  min-width: 0;
+  padding-inline: 12px;
+}
+
+.vd-action-note {
+  margin: 0;
+  font-size: var(--t3);
+  color: var(--muted);
+}
+
+.vd-save {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  width: min(100%, 380px);
+  padding: 10px 14px;
+  border: 1px dashed var(--line);
+  border-radius: var(--r-md);
+}
+
+.vd-save p {
+  margin: 0;
+  font-size: var(--t3);
+}
+
+/* The open call, said in one line with its off switch beside it. */
+.vd-call {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+  font-size: var(--t3);
+  color: var(--live);
+}
+
+.vd-call-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--live);
+  animation: livePulse 1.6s ease-in-out infinite;
+}
+
+.vd-call-off {
+  margin: 0;
+  font-size: var(--t3);
+  color: var(--muted);
+}
+
+/* --------------------------------------------------------------- why -- */
+
+.vd-label {
+  display: block;
+  font-size: var(--t1);
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.vd-reason p {
+  margin: 6px 0 0;
+  font-size: var(--t5);
+  line-height: 1.45;
+  color: var(--paper);
+}
+
+.vd-orders,
+.vd-said {
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--house-2);
+}
+
+.vd-orders p {
+  margin: 6px 0 0;
+}
+
+.vd-said-one {
+  margin-top: 8px;
+}
+
+.vd-said-who {
+  font-size: var(--t2);
+  font-weight: 700;
+}
+
+.vd-said-one p {
+  margin: 2px 0 0;
+}
+
+.is-for {
+  --c: var(--amber);
+}
+
+.is-against {
+  --c: var(--turq);
+}
+
+.vd-score {
+  padding: 14px 16px 6px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--house-2);
+}
+
+.vd-legend {
+  display: flex;
+  gap: var(--s4);
+  font-size: var(--t3);
+  font-weight: 700;
+  padding-bottom: 10px;
+}
+
+.vd-key {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  color: var(--paper);
+}
+
+.vd-key i {
+  flex: none;
+  width: 14px;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--c);
+}
+
+.vd-row {
+  padding: 10px 0;
+  border-top: 1px solid var(--line);
+}
+
+.vd-row-head,
+.vd-bar-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 2.4em;
+  align-items: center;
+  column-gap: 10px;
+}
+
+.vd-row-head {
+  align-items: baseline;
+  margin-bottom: 6px;
+}
+
+.vd-cat {
+  font-weight: 700;
+  font-size: var(--t4);
+  color: var(--paper);
+}
+
+.vd-cat-desc {
+  margin-inline-start: 8px;
+  font-weight: 400;
+  font-size: var(--t3);
+  color: var(--muted);
+}
+
+.vd-cat-max {
+  font-family: var(--mono);
+  font-size: var(--t2);
+  color: var(--muted);
+  text-align: end;
+}
+
+.vd-bar-row + .vd-bar-row {
+  margin-top: 5px;
+}
+
+.vd-bar {
+  height: 10px;
+  border-radius: 5px;
+  background: var(--house-3);
+  overflow: hidden;
+}
+
+.vd-bar i {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--c);
+}
+
+.vd-n {
+  font-family: var(--mono);
+  font-size: var(--t4);
+  line-height: 1;
+  text-align: end;
+  color: var(--c);
+}
+
+.vd-notes {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: var(--s3);
+}
+
+.vd-note {
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--house-2);
+}
+
+.vd-note p {
+  margin: 6px 0 0;
+  font-size: var(--t4);
+  line-height: 1.5;
+  color: var(--paper);
+}
+
+/* The one to act on gets a little more weight than the pat on the back. */
+.vd-note-fix {
+  border-color: rgba(239, 232, 216, 0.3);
+}
+
+.vd-quote {
+  margin: 0;
+  padding: 2px 0 2px 14px;
+  border-inline-start: 3px solid var(--gel);
+}
+
+.vd-quote p {
+  margin: 4px 0 0;
+  font-size: var(--t5);
+  line-height: 1.4;
+  color: var(--paper);
+}
+
+/* ----------------------------------------------------- further down -- */
+
+.vd-more {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--s4);
+  width: min(100%, 720px);
+  margin-top: var(--s4);
+  padding-top: var(--s6);
+  border-top: 1px solid var(--line);
+}
+
+.vd-coach {
+  scroll-margin-top: var(--s5);
+}
+
+.vd-theirs {
+  width: min(100%, 560px);
+  text-align: start;
+}
+
+.vd-theirs-quote {
+  margin: 6px 0 0;
+  color: var(--paper);
+}
+
+.vd-theirs ul {
+  margin: 6px 0 0;
+  padding-inline-start: 18px;
+  font-size: var(--t4);
+  color: var(--muted);
+}
+
+.vd-util {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--s2);
+}
+
+.vd-util-note {
+  margin: -8px 0 0;
+  font-size: var(--t2);
+  color: var(--muted);
+}
+
+/* ---------------------------------------------------------- the wait -- */
+
+.vd-wait {
+  justify-content: center;
+  gap: var(--s4);
+}
+
+.vd-deciding {
+  font-size: clamp(28px, 4.4vw, 50px);
+  margin-top: var(--s2);
+}
+
+/* Indeterminate on purpose: a light moving along a track says "working" and
+   claims nothing about how far along it is. */
+.vd-progress {
+  position: relative;
+  width: min(240px, 70%);
+  height: 4px;
+  border-radius: 2px;
+  background: var(--house-3);
+  overflow: hidden;
+}
+
+.vd-progress i {
+  position: absolute;
+  inset-block: 0;
+  left: 0;
+  width: 40%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, transparent, var(--paper), transparent);
+  animation: vdSweep 1.5s ease-in-out infinite;
+}
+
+@keyframes vdSweep {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(250%);
+  }
+}
+
+/* ---------------------------------------------------------- entrance -- */
+
+.vd-in {
+  animation: vdIn var(--slow) cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  animation-delay: var(--d, 0s);
+}
+
+.vd-word.vd-in {
+  animation-name: vdStamp;
+}
+
+@keyframes vdIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes vdStamp {
+  from {
+    opacity: 0;
+    transform: scale(1.3);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* A tap lands everything where it was going. */
+.vd-skip .vd-in {
+  animation: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .vd-in,
+  .vd-progress i,
+  .vd-call-dot {
+    animation: none;
+  }
+
+  .vd-progress i {
+    left: 30%;
+  }
+}
+
+/* ------------------------------------------------------------- phone -- */
+
+@media (max-width: 520px) {
+  .vd {
+    gap: var(--s4);
+  }
+
+  .vd-result {
+    gap: var(--s3);
+  }
+
+  .vd-cat-desc {
+    display: block;
+    margin: 2px 0 0;
+  }
+}

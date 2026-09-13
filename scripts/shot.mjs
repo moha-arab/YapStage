@@ -59,6 +59,10 @@ const chrome = spawn(
     '--use-fake-ui-for-media-stream',
     '--use-fake-device-for-media-stream',
     '--autoplay-policy=no-user-gesture-required',
+    // Silent, always: a screenshot run loads screens that speak (the bots,
+    // the judge reading a verdict) and it must never play through the
+    // owner's speakers (2026-09-12, he heard a verdict read over and over).
+    '--mute-audio',
     `--remote-debugging-port=${PORT}`,
     `--user-data-dir=${PROFILE}`,
     'about:blank',

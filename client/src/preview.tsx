@@ -24,11 +24,13 @@ import Spectate from './screens/Spectate';
 import Home from './screens/Home';
 import GreenRoom from './screens/GreenRoom';
 import Drill from './screens/Drill';
+import SettingsSheet from './screens/SettingsSheet';
 import type { DebateStart, LobbyUpdate, Side, Verdict as VerdictData } from '../../server/src/protocol';
 import VideoTile from './VideoTile';
 import Mask, { MASK_IDS } from './Mask';
 import FightCard from './FightCard';
 import Debate from './screens/Debate';
+import { SHAPE } from './MatchTrack';
 import Splash from './Splash';
 import { ARISTOTLE_200, BOT_PORTRAITS, NAPOLEON_200 } from './dev/botPortraits';
 
@@ -118,7 +120,7 @@ const HOME_PROPS = {
 
 const VERDICT: VerdictData = {
   winner: 'FOR',
-  summary: 'the coin gave you the harder side and you still walked out with it.',
+  summary: 'you answered their best point head on and kept your own standing.',
   scores: {
     FOR: { argument: 26, evidence: 15, clash: 24, delivery: 17 },
     AGAINST: { argument: 21, evidence: 12, clash: 19, delivery: 16 },
@@ -141,6 +143,10 @@ const VERDICT: VerdictData = {
 };
 
 const names: Record<Side, string> = { FOR: 'zorvint', AGAINST: 'goat' };
+
+/* An empty stream: enough for a masked tile to count as "on the call", which
+   is how the post-verdict call is drawn. No device, no prompt. */
+const CALL = typeof MediaStream !== 'undefined' ? new MediaStream() : null;
 
 /* A stand-in camera: a canvas drawn as a dim room with a head and shoulders
    in it, captured as a MediaStream. No permission prompt, no device, the
@@ -170,6 +176,29 @@ function fakeCam(): MediaStream {
   return c.captureStream(8);
 }
 
+/* A stand-in mic: a buzzy tone that swells and fades a few times a second,
+   so the mic meter has a voice to show. It is wired to no speaker, so it is
+   silent; only the analyser hears it. */
+function fakeMic(): MediaStream {
+  const ctx = new AudioContext();
+  const voice = ctx.createOscillator();
+  voice.type = 'sawtooth';
+  voice.frequency.value = 170;
+  const gain = ctx.createGain();
+  gain.gain.value = 0.55;
+  const swell = ctx.createOscillator();
+  swell.frequency.value = 2.2;
+  const depth = ctx.createGain();
+  depth.gain.value = 0.45;
+  swell.connect(depth).connect(gain.gain);
+  const out = ctx.createMediaStreamDestination();
+  voice.connect(gain).connect(out);
+  voice.start();
+  swell.start();
+  void ctx.resume().catch(() => {});
+  return out.stream;
+}
+
 const DISPUTE_FRAMING: DebateStart['framing'] = {
   argument: 'the dishes are a shared job, not a favour',
   positions: {
@@ -194,16 +223,29 @@ function debateScene(o: {
   dispute?: boolean;
 }) {
   return function DebateScene() {
-    const theirs = new URLSearchParams(location.search).get('floor') === 'them';
+    const params = new URLSearchParams(location.search);
     const peerSide: Side = o.mySide === 'FOR' ? 'AGAINST' : 'FOR';
-    const speaker: Side = theirs ? peerSide : o.mySide;
+    // &step=0..7 jumps to that turn of the script (its round and speaker);
+    // &bot=thinking or &bot=failed shows the bot's other two states.
+    const stepParam = params.get('step');
+    const scripted = stepParam !== null ? SHAPE[Number(stepParam)] : undefined;
+    const botMode = params.get('bot');
+    const speaker: Side = scripted ? scripted.speaker : params.get('floor') === 'them' ? peerSide : o.mySide;
+    const theirs = speaker === peerSide;
     const [now] = useState(() => Date.now());
     const [cam] = useState(() => (o.me === 'cam' || o.opp === 'cam' ? fakeCam() : null));
+    // &mic=on gives a character a live (silent) mic for the meter; muted on
+    // their turn the way webrtc.ts does it, by disabling the track.
+    const [mic] = useState(() => (o.me === 'mask' && params.get('mic') === 'on' ? fakeMic() : null));
+    mic?.getAudioTracks().forEach((tr) => (tr.enabled = !theirs));
     const bot = o.opp === 'bot' ? { id: 'sloth', name: 'Moss', color: 'ink', elo: 1400 } : undefined;
     const avatars: Partial<Record<Side, string>> = {};
     if (o.me === 'mask') avatars[o.mySide] = o.myMask ?? 'bally';
     if (o.opp === 'mask') avatars[peerSide] = o.oppMask ?? 'marisol';
-    const stepIndex = speaker === 'FOR' ? 2 : 3;
+    const stepIndex = scripted ? Number(stepParam) : speaker === 'FOR' ? 2 : 3;
+    // Standard pace, 14 seconds into the turn.
+    const seconds = [45, 45, 45, 45, 35, 35, 25, 25][stepIndex];
+    const deadline = now + (seconds - 14) * 1000;
     const start: DebateStart = {
       topic: o.dispute
         ? { id: 'dispute', en: 'the dishes are a shared job, not a favour', ar: '' }
@@ -219,8 +261,8 @@ function debateScene(o: {
     return (
       <Debate
         start={start}
-        phase={{ stepIndex, phase: 'rebuttal', activeSpeaker: speaker, seconds: 45, deadline: now + 31000, serverNow: now }}
-        localStream={o.me === 'cam' ? cam : null}
+        phase={{ stepIndex, phase: scripted?.phase ?? 'rebuttal', activeSpeaker: speaker, seconds, deadline, serverNow: now }}
+        localStream={o.me === 'cam' ? cam : mic}
         remoteStream={o.opp === 'cam' ? cam : null}
         remoteVideoDead={false}
         peerLostUntil={null}
@@ -228,12 +270,13 @@ function debateScene(o: {
         speechHeard
         speechSupported
         sttServer
-        mediaError={null}
+        mediaError={params.get('err') ? 'mediaError' : null}
         onRetryMedia={noop}
         botOpponent={bot ? { id: bot.id, name: bot.name, color: bot.color } : null}
-        botTurn={bot && theirs ? { stepIndex, text: 'a degree is a receipt, not an education.' } : null}
-        botSpeakDeadline={bot && theirs ? now + 31000 : null}
-        heardWords={theirs ? 0 : 14}
+        botTurn={bot && theirs && !botMode ? { stepIndex, text: 'a degree is a receipt, not an education.' } : null}
+        botSpeakDeadline={bot && theirs && !botMode ? deadline : null}
+        botFailed={Boolean(bot && theirs && botMode === 'failed')}
+        heardWords={theirs || params.get('heard') === '0' ? 0 : 14}
         watchers={2}
         onPassMic={noop}
       />
@@ -257,7 +300,7 @@ const GREEN: LobbyUpdate = {
       topics: [
         { id: 'messi-ronaldo', en: 'Messi is better than Ronaldo', ar: '' },
         { id: 'chess-sport', en: 'Chess is a sport', ar: '' },
-        { id: 'var-ruined', en: 'VAR has ruined football', ar: '' },
+        { id: 'var-ruined', en: 'VAR has made football worse', ar: '' },
       ],
     },
     {
@@ -297,20 +340,22 @@ const GREEN: LobbyUpdate = {
 };
 
 const SCREENS: Record<string, () => JSX.Element> = {
+  /* Ranked, you won, the call still open. &silent=1 for the judge having
+     heard nothing from you (the not-heard box replaces VICTORY). */
   verdict: () => (
     <Verdict
       info={{
         verdict: VERDICT,
         names,
-        heard: { FOR: 214, AGAINST: 188 },
+        heard: { FOR: new URLSearchParams(location.search).has('silent') ? 0 : 214, AGAINST: 188 },
         elo: { FOR: { before: 1104, after: 1128 }, AGAINST: { before: 1180, after: 1156 } },
       }}
       status={null}
       mySide="FOR"
       topic={{ id: 'demo', en: 'college is no longer worth it', ar: '' }}
-      localStream={null}
-      remoteStream={null}
-      rtcConnected={false}
+      localStream={CALL}
+      remoteStream={CALL}
+      rtcConnected
       peerName="goat"
       myName="zorvint"
       onLeaveCall={noop}
@@ -319,7 +364,31 @@ const SCREENS: Record<string, () => JSX.Element> = {
       rematch={null}
       ranked
       avatars={{ FOR: 'bally', AGAINST: 'marisol' }}
-      opponentRating={1180}
+    />
+  ),
+  /* Ranked, you lost (you are goat, AGAINST), and you already left the call. */
+  verdictLoss: () => (
+    <Verdict
+      info={{
+        verdict: VERDICT,
+        names,
+        heard: { FOR: 214, AGAINST: 188 },
+        elo: { FOR: { before: 1104, after: 1128 }, AGAINST: { before: 1180, after: 1156 } },
+      }}
+      status={null}
+      mySide="AGAINST"
+      topic={{ id: 'demo', en: 'college is no longer worth it', ar: '' }}
+      localStream={null}
+      remoteStream={null}
+      rtcConnected={false}
+      peerName="zorvint"
+      myName="goat"
+      onLeaveCall={noop}
+      onRetry={noop}
+      onRematch={noop}
+      rematch={null}
+      ranked
+      avatars={{ FOR: 'bally', AGAINST: 'marisol' }}
     />
   ),
   /* The placement verdict: a starting rating, no delta, nothing gold. */
@@ -327,7 +396,7 @@ const SCREENS: Record<string, () => JSX.Element> = {
     <Verdict
       info={{
         verdict: VERDICT,
-        names: { FOR: 'zorvint', AGAINST: 'Rocco' },
+        names: { FOR: 'zorvint', AGAINST: 'Clover' },
         heard: { FOR: 214, AGAINST: 188 },
         placement: { rating: 1512 },
       }}
@@ -337,15 +406,100 @@ const SCREENS: Record<string, () => JSX.Element> = {
       localStream={null}
       remoteStream={null}
       rtcConnected={false}
-      peerName="Rocco"
+      peerName="Clover"
       myName="zorvint"
       onLeaveCall={noop}
       onRetry={noop}
       onRematch={noop}
       rematch={null}
-      botOpponent={{ id: 'boar', name: 'Rocco', color: 'for' }}
+      botOpponent={{ id: 'rabbit', name: 'Clover', color: 'against' }}
       avatars={{ FOR: 'bally' }}
-      opponentRating={1350}
+      opponentRating={1400}
+    />
+  ),
+  /* A bot match, unrated, signed out (the save nudge shows). You win;
+     &lose=1 puts you on the losing side. */
+  verdictBot: () => {
+    fakeFetch({ '/auth/me': { google: true, signedIn: false } });
+    const lose = new URLSearchParams(location.search).has('lose');
+    return (
+      <Verdict
+        info={{
+          verdict: VERDICT,
+          names: { FOR: lose ? 'Moss' : 'zorvint', AGAINST: lose ? 'zorvint' : 'Moss' },
+          heard: { FOR: 214, AGAINST: 188 },
+        }}
+        status={null}
+        mySide={lose ? 'AGAINST' : 'FOR'}
+        topic={{ id: 'demo', en: 'college is no longer worth it', ar: '' }}
+        localStream={null}
+        remoteStream={null}
+        rtcConnected={false}
+        peerName="Moss"
+        myName="zorvint"
+        onLeaveCall={noop}
+        onRetry={noop}
+        onRematch={noop}
+        rematch={null}
+        botOpponent={{ id: 'sloth', name: 'Moss', color: 'ink' }}
+        avatars={lose ? { AGAINST: 'bally' } : { FOR: 'bally' }}
+        onPlayAgain={noop}
+      />
+    );
+  },
+  /* A friend room: you in a character, them on camera, the call live, and
+     they have already asked for a rematch. */
+  verdictFriend: function VerdictFriend() {
+    const [cam] = useState(fakeCam);
+    return (
+      <Verdict
+        info={{ verdict: VERDICT, names, heard: { FOR: 214, AGAINST: 188 } }}
+        status={null}
+        mySide="FOR"
+        topic={{ id: 'demo', en: 'college is no longer worth it', ar: '' }}
+        localStream={CALL}
+        remoteStream={cam}
+        rtcConnected
+        peerName="goat"
+        myName="zorvint"
+        onLeaveCall={noop}
+        onRetry={noop}
+        onRematch={noop}
+        rematch={{ youWant: false, peerWant: true, peerLeft: false }}
+        avatars={{ FOR: 'bally' }}
+      />
+    );
+  },
+  /* Settle-it: a ruling (a split and a decree) instead of a scorecard. */
+  verdictRuling: () => (
+    <Verdict
+      info={{
+        verdict: {
+          ...VERDICT,
+          summary: '',
+          ruling: {
+            split: { FOR: 64, AGAINST: 36 },
+            decree: 'the dishes are shared. cooking earns you a night off drying, not a week off everything.',
+            orders: ['goat washes tonight, zorvint dries.', 'whoever cooks picks the music, and that is all they pick.'],
+          },
+        },
+        names,
+        heard: { FOR: 214, AGAINST: 188 },
+      }}
+      framing={DISPUTE_FRAMING ?? null}
+      status={null}
+      mySide="AGAINST"
+      topic={{ id: 'dispute', en: 'the dishes are a shared job, not a favour', ar: '' }}
+      localStream={CALL}
+      remoteStream={CALL}
+      rtcConnected
+      peerName="zorvint"
+      myName="goat"
+      onLeaveCall={noop}
+      onRetry={noop}
+      onRematch={noop}
+      rematch={null}
+      avatars={{ FOR: 'garn', AGAINST: 'athena' }}
     />
   ),
   /* The lobby for a player who has not placed yet: the placement bot stands
@@ -508,6 +662,22 @@ const SCREENS: Record<string, () => JSX.Element> = {
       onRetryMedia={noop}
     />
   ),
+  /* Play a friend with the room already open: both codes under the VS. */
+  friendRoom: () => {
+    fakeFetch({
+      '/rating': { rating: 1512, placed: true, placementBot: 'Clover' },
+      '/bots': BOTS_FAKE,
+      '/live': { live: 0, watchable: 0, featured: null },
+    });
+    return (
+      <Home
+        account={{ signedIn: true, google: true, name: 'zorvint', mask: 'bally' }}
+        {...HOME_PROPS}
+        initialMode="friend"
+        initialRoom={room({ participantCount: 1, peerName: undefined, peerAvatar: undefined })}
+      />
+    );
+  },
   /* Signed in and placed: the rating chip under your name, two bar buttons. */
   homeSigned: () => {
     fakeFetch({
@@ -602,7 +772,27 @@ const SCREENS: Record<string, () => JSX.Element> = {
     });
     return <Matches onBack={noop} />;
   },
+  /* The judge at work, in a friend room: the call is still open. */
   verdictWait: () => (
+    <Verdict
+      info={null}
+      status={{ state: 'pending' }}
+      mySide="FOR"
+      topic={{ id: 'demo', en: 'college is no longer worth it', ar: '' }}
+      localStream={CALL}
+      remoteStream={CALL}
+      rtcConnected
+      peerName="goat"
+      myName="zorvint"
+      onLeaveCall={noop}
+      onRetry={noop}
+      onRematch={noop}
+      rematch={null}
+      avatars={{ FOR: 'bally', AGAINST: 'marisol' }}
+    />
+  ),
+  /* The same wait against a bot: no call, so no call line. */
+  verdictWaitBot: () => (
     <Verdict
       info={null}
       status={{ state: 'pending' }}
@@ -611,13 +801,14 @@ const SCREENS: Record<string, () => JSX.Element> = {
       localStream={null}
       remoteStream={null}
       rtcConnected={false}
-      peerName="goat"
+      peerName="Moss"
       myName="zorvint"
       onLeaveCall={noop}
       onRetry={noop}
       onRematch={noop}
       rematch={null}
-      ranked
+      botOpponent={{ id: 'sloth', name: 'Moss', color: 'ink' }}
+      avatars={{ FOR: 'bally' }}
     />
   ),
   matches: () => <Matches onBack={noop} />,
@@ -934,6 +1125,30 @@ const SCREENS: Record<string, () => JSX.Element> = {
       onLeave={noop}
       onNext={noop}
     />
+  ),
+  /* Settings over a blank stage: signed in and free to rename (settings),
+     this month's change already spent (settingsSoon), signed out (settingsOut). */
+  settings: () => (
+    <SettingsSheet
+      account={{ signedIn: true, google: true, name: 'zorvint', nextNameChange: null }}
+      onClose={noop}
+      onRenamed={noop}
+    />
+  ),
+  settingsSoon: () => (
+    <SettingsSheet
+      account={{
+        signedIn: true,
+        google: true,
+        name: 'zorvint',
+        nextNameChange: new Date(Date.now() + 19 * 86_400_000).toISOString(),
+      }}
+      onClose={noop}
+      onRenamed={noop}
+    />
+  ),
+  settingsOut: () => (
+    <SettingsSheet account={{ signedIn: false, google: true }} onClose={noop} onRenamed={noop} />
   ),
 };
 

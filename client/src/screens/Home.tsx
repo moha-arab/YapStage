@@ -60,6 +60,7 @@ import type { BotStartConfig } from './BotSelect';
 import BotRoster from './BotRoster';
 import MaskRoster from './MaskRoster';
 import LobbySheet from './LobbySheet';
+import SettingsSheet from './SettingsSheet';
 import MatchSetup, {
   DEFAULT_SETUP,
   emitSetup,
@@ -68,7 +69,7 @@ import MatchSetup, {
   type MatchSetupValue,
 } from '../MatchSetup';
 import { session, socket } from '../socket';
-import { playerId, saveLocker, signIn, signOut, type Account } from '../player';
+import { playerId, saveLocker, signIn, type Account } from '../player';
 import * as guest from '../guest';
 import { unlockSpectateAudio } from '../specaudio';
 import { unlockBotVoice } from '../botvoice';
@@ -126,6 +127,8 @@ interface Props {
   onSpectate: (code: string, feed: { category: string | null } | null) => void;
   /** Dev harness only (preview.tsx): open on a mode other than ranked. */
   initialMode?: Mode;
+  /** Dev harness only (preview.tsx): open with a friend room already made. */
+  initialRoom?: LobbyUpdate;
   onMatches: () => void;
   onDrill: () => void;
   onBotStart: (name: string, config: BotStartConfig) => void;
@@ -145,6 +148,7 @@ export default function Home({
   onTutorial,
   onMaskSaved,
   initialMode,
+  initialRoom,
 }: Props) {
   const { t } = useI18n();
 
@@ -166,6 +170,7 @@ export default function Home({
   const [pickedBot, setPickedBot] = useState<string | null>(null);
   const [roster, setRoster] = useState(false);
   const [maskRoster, setMaskRoster] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   // A guest's name is typed once and kept on the device, never asked again.
@@ -325,7 +330,7 @@ export default function Home({
   // The whole LobbyUpdate, not just the code: the match settings the host
   // picks here are server state, and the server's echo is what the panel
   // shows, so the stage and the green room can never disagree.
-  const [room, setRoom] = useState<LobbyUpdate | null>(null);
+  const [room, setRoom] = useState<LobbyUpdate | null>(initialRoom ?? null);
   const [joinCode, setJoinCode] = useState(arrival);
   const [copied, setCopied] = useState(false);
   const opening = useRef(false);
@@ -594,6 +599,12 @@ export default function Home({
       0
     </span>
   );
+  // A bot's rating, in the same chip that carries yours, under its name.
+  const ratingChip = (n: number) => (
+    <span className="lb-tier lb-tier-bot">
+      <span className="lb-elo">{n}</span>
+    </span>
+  );
   const stand = (pic: ReactNode, name: ReactNode | null, small: ReactNode | null) => (
     <>
       <div className="lb-picked lb-static">
@@ -634,16 +645,19 @@ export default function Home({
   if (placing && rank) {
     // Unplaced: the placement bot stands where a stranger would, and the one
     // line under it says what the game is for.
+    // Its rating is a chip under its name, level with "Not placed yet" under
+    // yours; what the game is for is said under the VS (his layout,
+    // 2026-09-12).
     opponent = (
       <>
-        <div className="lb-art">
-          <BotAvatar botId={placementBot?.id ?? ''} color={placementBot?.color ?? 'against'} size="var(--art)" bare />
+        <div className="lb-picked lb-static">
+          <div className="lb-art">
+            <BotAvatar botId={placementBot?.id ?? ''} color={placementBot?.color ?? 'against'} size="var(--art)" bare />
+          </div>
+          <div className="lb-fname">{rank.placementBot}</div>
+          <span className="lb-change">{blank}</span>
         </div>
-        <div className="lb-fname">
-          {rank.placementBot}
-          {placementBot ? <span className="lb-frating">{placementBot.elo}</span> : null}
-        </div>
-        <div className="lb-soft lb-soft-placement">{t('lbPlacementLine', { x: rank.placementBot })}</div>
+        {placementBot ? ratingChip(placementBot.elo) : chipSlot}
       </>
     );
   } else if (mode === 'ranked') {
@@ -675,10 +689,7 @@ export default function Home({
         <div className="lb-art">
           <BotAvatar botId={chosenBot.id} color={chosenBot.color} size="var(--art)" bare />
         </div>
-        <div className="lb-fname">
-          {chosenBot.name}
-          <span className="lb-frating">{chosenBot.elo}</span>
-        </div>
+        <div className="lb-fname">{chosenBot.name}</div>
       </>
     ) : pickedBot === 'tutor' ? (
       <>
@@ -694,7 +705,7 @@ export default function Home({
           {picked}
           <span className="lb-change">{t('lbChangeBot')}</span>
         </button>
-        {chipSlot}
+        {chosenBot ? ratingChip(chosenBot.elo) : chipSlot}
       </>
     ) : (
       stand(
@@ -711,7 +722,6 @@ export default function Home({
         <div className="lb-drill">
           <div className="lb-drill-clock">0:30</div>
           <div className="lb-drill-t">{drill ? t('drillTier', { n: drill.tier }) : t('lbDrillToday')}</div>
-          <div className="lb-drill-s">{t('lbDrillSub')}</div>
         </div>
       </>
     );
@@ -828,13 +838,13 @@ export default function Home({
 
   /* ---- around the VS: codes, placed so they never move the stage ---- */
 
-  // Your own room's code above the VS, the box for somebody else's code below
-  // it (his layout, 2026-09-12). Both are positioned out of the layout, so
-  // the fighters, the lights and the button sit exactly where Play Online
-  // has them in every tab.
-  const midTop =
+  // Everything around the VS sits UNDER it (his layout, pass three,
+  // 2026-09-12): your room's code, then the box for somebody else's code, and
+  // in ranked the placement line. Positioned out of the layout, so the
+  // fighters, the lights and the button sit where Play Online has them.
+  const roomTicket =
     mode === 'friend' && room ? (
-      <div className="lb-mid-top lb-ticket">
+      <div className="lb-ticket lb-ticket-mid">
         <span className="lb-lab">{t('lbUseCode')}</span>
         <span className="lb-code">{room.code}</span>
         <button className="lb-copy" onClick={copyLink}>
@@ -844,7 +854,7 @@ export default function Home({
     ) : null;
 
   const codeBox = (value: string, set: (v: string) => void, submit: () => void, cta: string, off: boolean) => (
-    <div className="lb-mid-bot lb-join">
+    <div className="lb-join lb-join-mid">
       <span className="lb-lab">{t('lbGotCode')}</span>
       <div className="lb-join-row">
         <input
@@ -868,12 +878,16 @@ export default function Home({
     </div>
   );
 
-  const midBot =
-    mode === 'friend'
-      ? codeBox(joinCode, setJoinCode, join, t('walkIn'), busy)
-      : mode === 'watch'
-        ? codeBox(watchCode, setWatchCode, watchByCode, t('watchBtn'), watching)
-        : null;
+  const midBot = placing ? (
+    <div className="lb-mid-bot lb-mid-note">{t('lbPlacementLine', { x: rank?.placementBot ?? '' })}</div>
+  ) : mode === 'friend' ? (
+    <div className="lb-mid-bot lb-mid-stack">
+      {roomTicket}
+      {codeBox(joinCode, setJoinCode, join, t('walkIn'), busy)}
+    </div>
+  ) : mode === 'watch' ? (
+    <div className="lb-mid-bot lb-mid-stack">{codeBox(watchCode, setWatchCode, watchByCode, t('watchBtn'), watching)}</div>
+  ) : null;
 
   const sheetError = error ? (
     <p className="lb-err" role="alert">
@@ -895,20 +909,33 @@ export default function Home({
         </div>
 
         <div className="lb-who">
+          {/* Two proper buttons, top right (his ask, 2026-09-12): your
+              previous matches and Settings. Sign out lives in Settings. A
+              guest has no match history, so they get Settings and the quiet
+              sign-in instead. */}
           {account.signedIn ? (
-            // Two buttons that look like buttons (his note). Your name is
-            // already under your mask on the stage, so it does not repeat here.
-            <>
-              <button className="lb-bar-btn" onClick={onMatches}>
-                {t('myMatches')}
-              </button>
-              <button className="lb-bar-btn lb-bar-btn-quiet" onClick={() => void signOut()}>
-                {t('signOut')}
-              </button>
-            </>
-          ) : account.google ? (
-            // Quiet on purpose: a guest can do everything but ranked without
-            // it, so it must not read as the price of entry.
+            <button className="lb-bar-btn lb-bar-ico" onClick={onMatches}>
+              <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true">
+                <circle cx="8" cy="8" r="6.2" fill="none" stroke="currentColor" strokeWidth="1.6" />
+                <path d="M8 4.6V8l2.4 1.6" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+              </svg>
+              {t('myMatches')}
+            </button>
+          ) : null}
+          <button className="lb-bar-btn lb-bar-ico" onClick={() => setSettingsOpen(true)}>
+            <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true">
+              <path
+                d="M6.9 1.5h2.2l.4 1.8a5 5 0 0 1 1.2.7l1.8-.6 1.1 1.9-1.4 1.2a5 5 0 0 1 0 1.4l1.4 1.2-1.1 1.9-1.8-.6a5 5 0 0 1-1.2.7l-.4 1.8H6.9l-.4-1.8a5 5 0 0 1-1.2-.7l-1.8.6-1.1-1.9 1.4-1.2a5 5 0 0 1 0-1.4L2.4 5.3l1.1-1.9 1.8.6a5 5 0 0 1 1.2-.7z"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.4"
+                strokeLinejoin="round"
+              />
+              <circle cx="8" cy="8" r="2" fill="none" stroke="currentColor" strokeWidth="1.4" />
+            </svg>
+            {t('lbSettings')}
+          </button>
+          {!account.signedIn && account.google ? (
             <button className="lb-bar-btn lb-bar-btn-quiet" onClick={signIn}>
               {t('signIn')}
             </button>
@@ -958,7 +985,6 @@ export default function Home({
           </div>
 
           <div className="lb-mid">
-            {midTop}
             <div className={`lb-vs ${mode === 'drill' ? 'lb-vs-hidden' : ''}`}>{t('vs')}</div>
             {midBot}
           </div>
@@ -1120,6 +1146,13 @@ export default function Home({
       ) : null}
       {maskRoster ? (
         <MaskRoster picked={myMask} onPick={pickMask} onClose={closeMaskRoster} />
+      ) : null}
+      {settingsOpen ? (
+        <SettingsSheet
+          account={account.signedIn ? account : null}
+          onClose={() => setSettingsOpen(false)}
+          onRenamed={() => window.location.reload()}
+        />
       ) : null}
     </div>
   );

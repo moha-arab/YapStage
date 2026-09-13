@@ -2292,3 +2292,158 @@
     margin-top: 0;
   }
 }
+
+/* ---- pass three (2026-09-12, his layout): both codes UNDER the VS, the
+   placement line in the middle, a bot's rating as a chip under its name ---- */
+.lb-mid-stack {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+/* Your room's code: the label on top, the code and the copy button side by
+   side, so the pair under the VS stays shorter than the stage. */
+.lb-ticket-mid {
+  display: grid;
+  grid-template-columns: auto auto;
+  align-items: center;
+  column-gap: 14px;
+  row-gap: 6px;
+  padding: 10px 18px 12px;
+  background: var(--house-2);
+  border: 1px solid rgba(31, 194, 212, 0.45);
+  border-radius: var(--r-lg);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+}
+
+.lb-ticket-mid .lb-lab {
+  grid-column: 1 / -1;
+}
+
+.lb-ticket-mid .lb-code {
+  font-size: clamp(26px, 4.4vh, 38px);
+}
+
+.lb-ticket-mid .lb-copy {
+  margin-top: 0;
+  min-height: 38px;
+  padding: 6px 14px;
+  font-size: 14px;
+  background: rgba(31, 194, 212, 0.12);
+}
+
+.lb-join-mid {
+  gap: 8px;
+  padding: 12px 16px 14px;
+  background: var(--house-2);
+  border: 1px solid var(--house-3);
+  border-radius: var(--r-lg);
+}
+
+.lb-mid-note {
+  max-width: 24ch;
+  white-space: normal;
+  text-align: center;
+  color: var(--muted);
+  font-weight: 600;
+  font-size: 15px;
+  line-height: 1.35;
+}
+
+/* A bot's rating: the chip your own rating wears, in the quiet colour. */
+.lb-tier-bot {
+  border-color: var(--house-3);
+  color: var(--paper);
+}
+
+.lb-tier-bot .lb-elo {
+  font-size: 14px;
+}
+
+@media (max-width: 620px) {
+  .lb-mid-stack {
+    gap: 8px;
+  }
+
+  .lb-ticket-mid {
+    grid-template-columns: auto auto auto;
+    column-gap: 10px;
+    padding: 6px 12px;
+  }
+
+  .lb-ticket-mid .lb-lab {
+    display: inline;
+    grid-column: auto;
+    font-size: 12px;
+  }
+
+  .lb-ticket-mid .lb-code {
+    font-size: 20px;
+  }
+
+  .lb-ticket-mid .lb-copy {
+    min-height: 30px;
+    padding: 4px 10px;
+    font-size: 13px;
+  }
+
+  .lb-join-mid {
+    padding: 0;
+    background: none;
+    border: 0;
+  }
+
+  .lb-mid-note {
+    max-width: 32ch;
+    font-size: 13px;
+  }
+}
+
+/* A short laptop: the two code cards under the VS go compact, so the pair
+   ends above the go button instead of sliding under it. */
+@media (min-width: 621px) and (max-height: 780px) {
+  .lb-mid-stack {
+    gap: 8px;
+  }
+
+  .lb-ticket-mid {
+    padding: 6px 14px 8px;
+    row-gap: 2px;
+  }
+
+  .lb-ticket-mid .lb-code {
+    font-size: clamp(22px, 4vh, 30px);
+  }
+
+  .lb-ticket-mid .lb-copy {
+    min-height: 32px;
+    padding: 4px 12px;
+  }
+
+  .lb-join-mid {
+    gap: 6px;
+    padding: 8px 12px 10px;
+  }
+
+  .lb-mid-bot .input-code,
+  .lb-mid-bot .lb-join-row .btn {
+    height: 40px;
+  }
+}
+
+/* The two bar buttons carry an icon each (his ask: "2 nice buttons"). */
+.lb-bar-ico {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.lb-bar-ico svg {
+  flex: none;
+  color: var(--muted);
+}
+
+.lb-bar-ico:hover svg {
+  color: var(--paper);
+}

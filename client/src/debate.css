@@ -1,0 +1,600 @@
+/* ============================== THE MATCH ==============================
+   Rebuilt 2026-09-12 (Debate.tsx, Spectate.tsx, MatchTrack.tsx). Three bands,
+   top to bottom, each answering one question a first-timer has:
+
+     the track   how far through the debate are we, how long is left
+     the stage   who is talking, and is it me
+     the strip   what are we arguing, which side am I, what do I press
+
+   The paper panel that used to stand beside the tiles carried all of it in
+   one column and left half the screen empty. Paper is still the key light,
+   one warm panel per screen: it is the strip along the bottom now.
+
+   Debater colour lives on the lit tile, the track's segments and the clock.
+   Never gold: gold is a win. */
+
+.stage.debate {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s4);
+  min-height: 100vh;
+  padding-bottom: var(--s5);
+  /* The fight card fades out ahead of the first turn; the match fades in
+     behind it, so the one screen change a debater cannot control is soft. */
+  animation: fadeUp var(--mid) ease;
+}
+
+@supports (min-height: 100dvh) {
+  .stage.debate {
+    min-height: 100dvh;
+  }
+}
+
+.stage.debate > .topbar {
+  margin-bottom: 0;
+}
+
+/* Every band shares one measure, so the three read as one stage. */
+.dv-track,
+.dv-stage,
+.dv-strip,
+.debate .banner {
+  width: 100%;
+  max-width: 1240px;
+  margin-inline: auto;
+}
+
+.debate .banner {
+  text-align: center;
+}
+
+/* ---------------------------------------------------------------- track */
+
+.dv-track {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  /* The clock row holds the digits' height even when the clock is a word
+     ("Thinking..."), so the track never jumps when a bot starts talking. */
+  grid-template-rows: minmax(clamp(40px, 4.14vw, 54px), auto) auto;
+  grid-template-areas:
+    'turn clock'
+    'rounds left';
+  column-gap: var(--s6);
+  row-gap: 6px;
+  align-items: end;
+}
+
+.dv-turn {
+  grid-area: turn;
+  margin: 0;
+  font-size: var(--t4);
+  color: var(--muted);
+  line-height: 1.2;
+  padding-bottom: 4px;
+}
+
+.dv-turn b {
+  color: var(--paper);
+  font-weight: 700;
+}
+
+.dv-rounds {
+  grid-area: rounds;
+  align-self: start;
+  display: flex;
+  gap: 14px;
+  min-width: 0;
+}
+
+.dv-round {
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.dv-segs {
+  display: flex;
+  gap: 4px;
+}
+
+.dv-round-name {
+  font-size: var(--t1);
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--muted);
+  opacity: 0.6;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dv-round-done .dv-round-name {
+  opacity: 1;
+}
+
+.dv-round-now .dv-round-name {
+  color: var(--paper);
+  opacity: 1;
+}
+
+/* One segment per turn, as wide as the turn is long, in the colour of the
+   side that speaks it. Upcoming turns are outlines, finished turns are
+   filled, and the turn being spoken fills as its clock runs. */
+.dv-for {
+  --gel: var(--amber);
+  --gel-dim: rgba(240, 130, 30, 0.7);
+  --gel-wash: rgba(240, 130, 30, 0.16);
+  --gel-glow: rgba(240, 130, 30, 0.55);
+}
+
+.dv-against {
+  --gel: var(--turq);
+  --gel-dim: rgba(31, 194, 212, 0.7);
+  --gel-wash: rgba(31, 194, 212, 0.14);
+  --gel-glow: rgba(31, 194, 212, 0.5);
+}
+
+/* Upcoming: an outline in the side's colour. Done: filled solid. */
+.dv-seg {
+  position: relative;
+  flex: 1 1 0;
+  min-width: 0;
+  height: 12px;
+  border-radius: 3px;
+  border: 1.5px solid var(--gel-dim);
+  overflow: hidden;
+}
+
+.dv-seg.is-done {
+  background: var(--gel);
+  border-color: var(--gel);
+}
+
+.dv-seg.is-now {
+  border-color: var(--gel);
+  background: var(--gel-wash);
+  box-shadow: 0 0 14px 1px var(--gel-glow);
+}
+
+.dv-seg i {
+  position: absolute;
+  inset-block: 0;
+  inset-inline-start: 0;
+  background: var(--gel);
+  transition: width 0.15s linear;
+}
+
+/* The turn clock: the biggest number on screen, in the speaker's colour. */
+.dv-clock {
+  grid-area: clock;
+  justify-self: end;
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+  font-size: clamp(44px, 4.6vw, 60px);
+  line-height: 0.9;
+  letter-spacing: -0.02em;
+  color: var(--gel);
+  direction: ltr;
+}
+
+/* "Thinking..." set at 60px mono would be wider than the column; anything
+   that is not a clock reads as a line of type instead. */
+.dv-clock.is-word {
+  font-family: 'Libre Franklin', system-ui, sans-serif;
+  font-weight: 700;
+  font-size: var(--t6);
+  letter-spacing: 0;
+  line-height: 1.2;
+  direction: inherit;
+}
+
+.dv-clock.is-danger {
+  color: var(--danger);
+  animation: dangerPulse 0.5s ease-in-out infinite;
+}
+
+.dv-clock.is-failed {
+  color: var(--muted);
+}
+
+.dv-left {
+  grid-area: left;
+  justify-self: end;
+  align-self: start;
+  margin: 0;
+  font-size: var(--t2);
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+/* ---------------------------------------------------------------- stage */
+
+.dv-stage {
+  flex: 1 0 auto;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: var(--s3);
+}
+
+/* Two equal tiles, side by side, as big as the height allows: each tile is
+   16:10, so the pair is 3.2 heights wide. 380px is everything else on the
+   screen (bar, track, status, strip, the report link). */
+.dv-tiles {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 20px;
+  width: min(100%, max(480px, min(1240px, calc((100vh - 380px) * 3.2 + 20px))));
+  margin-inline: auto;
+}
+
+@supports (height: 100dvh) {
+  .dv-tiles {
+    width: min(100%, max(480px, min(1240px, calc((100dvh - 380px) * 3.2 + 20px))));
+  }
+}
+
+/* Who has the floor, in words, under the lit tile. */
+.dv-status {
+  width: min(100%, max(480px, min(1240px, calc((100vh - 380px) * 3.2 + 20px))));
+  margin-inline: auto;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  column-gap: 20px;
+  min-height: 48px;
+  text-align: center;
+}
+
+.dv-status > * {
+  grid-column: 1;
+}
+
+.dv-status-end > * {
+  grid-column: 2;
+}
+
+.dv-status b {
+  font-size: var(--t6);
+  font-weight: 800;
+  color: var(--gel);
+  line-height: 1.25;
+}
+
+.dv-status span {
+  font-size: var(--t3);
+  color: var(--muted);
+  line-height: 1.4;
+}
+
+.dv-status.is-failed b {
+  color: #ffb3b3;
+  font-size: var(--t4);
+  font-weight: 600;
+}
+
+/* ---------------------------------------------------------------- strip */
+
+.dv-strip {
+  display: flex;
+  align-items: center;
+  gap: var(--s5);
+  background: var(--paper);
+  color: #101018;
+  border-radius: var(--r-md);
+  padding: var(--s4) var(--s5);
+}
+
+.dv-strip-text {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.dv-kicker {
+  margin: 0 0 6px;
+  font-size: var(--t3);
+  font-weight: 700;
+  color: #3a3830;
+}
+
+.dv-motion {
+  margin: 0;
+  font-size: clamp(20px, 2.1vw, 28px);
+  line-height: 1.08;
+  color: #101018;
+}
+
+/* "You're arguing FOR": the side as a solid chip in its gel, the same chip
+   as the badge on your tile. */
+.dv-side b {
+  display: inline-block;
+  margin-inline-start: 4px;
+  padding: 1px 9px;
+  border-radius: var(--r-sm);
+  font-size: var(--t2);
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  vertical-align: 1px;
+}
+
+.dv-side.dv-for b {
+  background: var(--amber);
+  color: #241203;
+}
+
+.dv-side.dv-against b {
+  background: var(--turq);
+  color: #04262a;
+}
+
+/* Settle-it: the side is a sentence, set as type in an ink-safe tone. */
+.dv-side.dv-side-long b {
+  display: inline;
+  background: none;
+  padding: 0;
+  margin: 0;
+  font-size: inherit;
+  letter-spacing: 0;
+  text-transform: none;
+  vertical-align: baseline;
+}
+
+.dv-side-long.dv-for b {
+  color: #b45a09;
+}
+
+.dv-side-long.dv-against b {
+  color: #0f8f9e;
+}
+
+.dv-strip-act {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: var(--s4);
+}
+
+/* YOUR MIC, on screen the whole match: an icon, five bars that move with
+   your voice, and one line saying what that means. Its colour is its state:
+   green when the judge has your words, amber when we cannot hear you, grey
+   while it is off for their turn, red when it is blocked. Never gold. */
+.dv-mic {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-height: var(--ctl-md);
+  max-width: 380px;
+  padding: 6px 12px;
+  border: 1px solid rgba(16, 16, 24, 0.16);
+  border-radius: var(--r-sm);
+  background: rgba(16, 16, 24, 0.04);
+  color: #101018;
+  font-size: var(--t3);
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.dv-mic-icon {
+  flex: none;
+}
+
+.dv-bars {
+  flex: none;
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 16px;
+}
+
+.dv-bars i {
+  width: 4px;
+  border-radius: 1px;
+  background: rgba(16, 16, 24, 0.16);
+  transition: background 0.08s linear;
+}
+
+.dv-bars i:nth-child(1) { height: 28%; }
+.dv-bars i:nth-child(2) { height: 46%; }
+.dv-bars i:nth-child(3) { height: 64%; }
+.dv-bars i:nth-child(4) { height: 82%; }
+.dv-bars i:nth-child(5) { height: 100%; }
+
+.dv-bars i.on {
+  background: currentColor;
+}
+
+/* The judge has actually received words. The only green on the paper. */
+.dv-mic-heard {
+  color: #0b7a3b;
+  border-color: rgba(11, 122, 59, 0.35);
+  background: rgba(11, 122, 59, 0.07);
+}
+
+/* Silent on your own turn: amber, the gel darkened to read on paper. */
+.dv-mic-warn {
+  color: #8f4304;
+  border-color: var(--amber);
+  background: rgba(240, 130, 30, 0.16);
+}
+
+.dv-mic-off {
+  color: var(--paper-dim);
+}
+
+.dv-mic-error {
+  color: #b3261e;
+  border-color: rgba(179, 38, 30, 0.45);
+  background: rgba(179, 38, 30, 0.06);
+  font-weight: 600;
+}
+
+.btn.dv-retry {
+  flex: none;
+  background: #101018;
+  color: var(--paper);
+}
+
+.btn.dv-retry:hover:not(:disabled) {
+  background: #2a2a3d;
+}
+
+.btn.dv-pass {
+  min-width: 180px;
+  min-height: var(--ctl-lg);
+  background: #101018;
+  color: var(--paper);
+  font-size: var(--t4);
+}
+
+.btn.dv-pass:hover:not(:disabled) {
+  background: #2a2a3d;
+}
+
+.btn.dv-pass:disabled {
+  background: transparent;
+  border-color: rgba(16, 16, 24, 0.3);
+  color: var(--paper-dim);
+}
+
+/* A spectator's way out, quieter than the way on. */
+.btn.dv-quiet {
+  background: transparent;
+  border-color: rgba(16, 16, 24, 0.3);
+  color: #101018;
+}
+
+.btn.dv-quiet:hover:not(:disabled) {
+  background: rgba(16, 16, 24, 0.07);
+}
+
+.dv-report {
+  display: flex;
+  justify-content: center;
+  margin-top: calc(var(--s3) * -1);
+}
+
+/* --------------------------------------------------------------- phones */
+
+@media (max-width: 720px) {
+  .stage.debate {
+    gap: var(--s3);
+    padding-top: var(--s3);
+    padding-bottom: var(--s4);
+  }
+
+  /* Clock beside the turn line, the segments under both, the round names
+     dropped: "Turn 3 of 8 · Rebuttals" already says where you are. */
+  .dv-track {
+    grid-template-rows: minmax(36px, auto) auto auto;
+    grid-template-areas:
+      'turn clock'
+      'rounds rounds'
+      'left left';
+    column-gap: var(--s3);
+    row-gap: 8px;
+  }
+
+  .dv-turn {
+    align-self: center;
+    padding-bottom: 0;
+  }
+
+  .dv-rounds {
+    gap: 8px;
+  }
+
+  .dv-seg {
+    height: 10px;
+  }
+
+  .dv-round-name {
+    display: none;
+  }
+
+  .dv-clock {
+    font-size: 40px;
+  }
+
+  .dv-clock.is-word {
+    font-size: var(--t5);
+  }
+
+  .dv-left {
+    justify-self: start;
+  }
+
+  /* Two columns, and taller than a laptop tile: a phone has height to spare
+     and 16:10 at this width is a thumbnail. What height is left over goes
+     round the tiles, so the strip and its button sit at the thumb. */
+  .dv-tiles,
+  .dv-status {
+    width: 100%;
+    gap: 10px;
+  }
+
+  .dv-tiles .tile {
+    aspect-ratio: 3 / 4;
+  }
+
+  /* One line across the width, not squeezed under one column. */
+  .dv-status,
+  .dv-status-end {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+  }
+
+  .dv-strip {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--s3);
+    padding: var(--s4);
+  }
+
+  .dv-motion {
+    font-size: 22px;
+  }
+
+  .dv-strip-act {
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: var(--s3);
+  }
+
+  .btn.dv-pass {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
+  /* The mic line gets its own row, the button the row under it. */
+  .dv-mic {
+    flex: 1 1 100%;
+    max-width: none;
+  }
+
+  .dv-report {
+    margin-top: 0;
+  }
+}
+
+/* A phone held sideways: wider than a phone, a quarter of a laptop's height. */
+@media (orientation: landscape) and (max-height: 500px) {
+  .dv-tiles .tile {
+    aspect-ratio: auto;
+    height: min(40vh, 200px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .stage.debate,
+  .dv-clock.is-danger {
+    animation: none;
+  }
+
+  .dv-bars i {
+    transition: none;
+  }
+}

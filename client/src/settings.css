@@ -1,0 +1,171 @@
+/* Settings: a sheet over the lobby (LobbySheet gives it the roster's panel).
+   Plain sections split by hairlines: your name, your account, and deleting it. */
+
+.set {
+  display: flex;
+  flex-direction: column;
+}
+
+.set-sec {
+  padding: 18px 0;
+  border-top: 1px solid var(--house-3);
+}
+
+.set-sec:first-child {
+  border-top: 0;
+  padding-top: 2px;
+}
+
+.set-sec:last-child {
+  padding-bottom: 0;
+}
+
+/* The same eyebrow as .field-label, as a heading. */
+.set-h {
+  margin: 0 0 12px;
+  font-size: var(--t1);
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+/* ---- username ---- */
+
+.set-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.set-name {
+  min-width: 0;
+  font-family: 'Ultra', serif;
+  font-size: clamp(22px, 3vw, 28px);
+  line-height: 1.15;
+  color: var(--paper);
+  overflow-wrap: anywhere;
+}
+
+.set-row .btn {
+  flex: none;
+}
+
+.set-edit {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.set-edit .input {
+  flex: 1 1 200px;
+  width: auto;
+  min-width: 0;
+  font-weight: 600;
+}
+
+.set-btns {
+  display: flex;
+  gap: 8px;
+}
+
+.set-note,
+.set-hint,
+.set-ok {
+  margin: 10px 0 0;
+  font-size: var(--t3);
+  line-height: 1.45;
+}
+
+.set-note {
+  color: var(--muted);
+}
+
+.set-hint {
+  color: #ffb3b3;
+}
+
+.set-ok {
+  color: var(--turq);
+}
+
+.set-sec .error {
+  font-size: var(--t3);
+}
+
+/* ---- account ---- */
+
+.set-acct {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.set-acct .set-note {
+  margin: 0;
+  flex: 1 1 220px;
+}
+
+/* ---- delete account ----
+   Quiet until opened (a ghost button like any other choice). The red only
+   arrives in the confirm step, and only on the one button that does it. */
+
+.set-del {
+  padding: 14px;
+  border: 1px solid rgba(255, 91, 91, 0.35);
+  border-radius: var(--r-md);
+  background: rgba(255, 91, 91, 0.05);
+}
+
+.set-del-what {
+  margin: 0 0 12px;
+  font-size: var(--t4);
+  line-height: 1.45;
+  color: var(--paper);
+}
+
+.set-del-lab {
+  display: block;
+  margin-bottom: 6px;
+  font-size: var(--t3);
+  color: var(--muted);
+}
+
+/* Red once the typed name matches. Disabled, .btn:disabled wins (it is more
+   specific), so until then it is the same outline as any button not ready. */
+.set-danger {
+  background: var(--danger);
+  border-color: var(--danger);
+  color: #101018;
+}
+
+.set-danger:hover:not(:disabled) {
+  background: #ff7373;
+  border-color: #ff7373;
+}
+
+.set-danger:active:not(:disabled) {
+  background: #e84e4e;
+  border-color: #e84e4e;
+}
+
+/* A phone: the buttons take a full row under the field, split evenly. */
+@media (max-width: 560px) {
+  .set-btns {
+    flex: 1 1 100%;
+  }
+
+  .set-btns .btn {
+    flex: 1;
+  }
+
+  /* "Delete my account" is the longer label: give it the room to stay on
+     one line beside Cancel. */
+  .set-btns .set-danger {
+    flex: 2;
+    white-space: nowrap;
+  }
+}

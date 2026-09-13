@@ -46,6 +46,31 @@ export interface Account {
   /** The locker: your saved mask, and whether you wear it instead of a camera. */
   mask?: string | null;
   maskDefault?: boolean;
+  /** When the yap name may next change (ISO). Null or absent: it can change
+      now. Names change once every 30 days (server auth.ts /auth/rename). */
+  nextNameChange?: string | null;
+}
+
+export type RenameResult =
+  | { ok: true; name: string; nextNameChange: string | null }
+  | { ok: false; error: string; nextNameChange?: string | null };
+
+/** Change the yap name. The server decides everything (taken, reserved, too
+    soon); `error` is its code, or 'failed' when it could not be reached. The
+    caller reconnects the socket on success, as ClaimName does. */
+export async function renameAccount(name: string): Promise<RenameResult> {
+  try {
+    const res = await fetch('/auth/rename', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ name }),
+    });
+    const d = (await res.json()) as { ok?: boolean; name?: string; error?: string; nextNameChange?: string | null };
+    if (d.ok && d.name) return { ok: true, name: d.name, nextNameChange: d.nextNameChange ?? null };
+    return { ok: false, error: d.error || 'failed', nextNameChange: d.nextNameChange ?? null };
+  } catch {
+    return { ok: false, error: 'failed' };
+  }
 }
 
 /** Save your mask choice to the account, so it follows you into every mode. */
@@ -73,6 +98,25 @@ export async function whoAmI(): Promise<Account> {
     return me;
   } catch {
     return { signedIn: false, google: false };
+  }
+}
+
+/** Delete the account for good. `confirm` is the username as the person typed
+    it; the server checks it against the account (by its fold, so case does
+    not matter). On success the server has already cleared the session; the
+    caller then runs signOut() to reset the device. */
+export async function deleteAccount(confirm: string): Promise<{ ok: true } | { ok: false; error: string }> {
+  try {
+    const res = await fetch('/auth/delete', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ confirm }),
+    });
+    const d = (await res.json()) as { ok?: boolean; error?: string };
+    if (d.ok) return { ok: true };
+    return { ok: false, error: d.error || 'failed' };
+  } catch {
+    return { ok: false, error: 'failed' };
   }
 }
 

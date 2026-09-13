@@ -119,6 +119,9 @@ export async function initStore(): Promise<void> {
     await pool.query(`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS drill_best integer NOT NULL DEFAULT 0`);
     await pool.query(`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS mask text`);
     await pool.query(`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS mask_default boolean NOT NULL DEFAULT false`);
+    // When the yap name last changed. Null means never: the first claim is a
+    // pick, not a change. A name changes once per 30 days (auth.ts /auth/rename).
+    await pool.query(`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS username_changed_at timestamptz`);
     // BACKFILL, and the reason this exists is worth keeping.
     // `username_fold` arrived in a later deploy than `username`, so every
     // account that claimed a name in between has username set and fold NULL.
@@ -620,14 +623,39 @@ export interface AccountRow {
   username: string | null;
 }
 
+export interface Locker {
+  mask: string | null;
+  maskDefault: boolean;
+  /** The current yap name, from the row. Absent when the store is down or the
+      row is gone, so a caller can tell "unknown" from "no name yet". */
+  username?: string | null;
+  /** When the name last changed; null if it never has. */
+  nameChangedAt?: Date | null;
+  /** The store answered and there is no such account: it was deleted, and
+      whatever cookie asked is a leftover. Never set when the store is down. */
+  missing?: boolean;
+}
+
 /** The locker: your chosen mask, and whether you want it INSTEAD of a camera
-    by default. Ranked ignores the second flag (always masked). */
-export async function getLocker(sub: string): Promise<{ mask: string | null; maskDefault: boolean }> {
+    by default. Ranked ignores the second flag (always masked). It reads back
+    the current yap name too, in the same query: the session cookie only knows
+    the name it was signed with, so after a rename on another device this row
+    is the truth (auth.ts /auth/me, and the socket bind in index.ts). */
+export async function getLocker(sub: string): Promise<Locker> {
   if (!pool || !ready) return { mask: null, maskDefault: false };
   try {
-    const r = await pool.query(`SELECT mask, mask_default FROM accounts WHERE sub = $1`, [sub]);
-    if (r.rowCount !== 1) return { mask: null, maskDefault: false };
-    return { mask: (r.rows[0].mask as string) || null, maskDefault: Boolean(r.rows[0].mask_default) };
+    const r = await pool.query(
+      `SELECT mask, mask_default, username, username_changed_at FROM accounts WHERE sub = $1`,
+      [sub],
+    );
+    if (r.rowCount !== 1) return { mask: null, maskDefault: false, missing: true };
+    const row = r.rows[0];
+    return {
+      mask: (row.mask as string) || null,
+      maskDefault: Boolean(row.mask_default),
+      username: (row.username as string) || null,
+      nameChangedAt: row.username_changed_at ? new Date(row.username_changed_at as string | Date) : null,
+    };
   } catch {
     return { mask: null, maskDefault: false };
   }
@@ -862,6 +890,164 @@ export async function claimUsername(
     if ((err as { code?: string })?.code === '23505') return 'taken';
     console.error('[store] claimUsername failed:', err);
     return 'down';
+  }
+}
+
+export type RenameOutcome =
+  | { status: 'ok'; changedAt: Date }
+  | { status: 'too_soon'; changedAt: Date }
+  | { status: 'taken' | 'same' | 'unclaimed' | 'down' };
+
+/** Change a claimed yap name, at most once per `minGapMs`. Names used to be
+    permanent (claimUsername above); they change now, but slowly, so a name is
+    still an identity people can recognise. The same unique index referees
+    as for a claim, so 'taken' is a normal answer. The ladder row follows the
+    new name; past matches do not (each match row keeps its opponent's name
+    as text), so receipts stay as they were played. The row is locked for the
+    check-then-write, so two tabs renaming at once cannot both slip under the
+    30-day rule. */
+export async function renameUsername(
+  sub: string,
+  username: string,
+  minGapMs: number,
+): Promise<RenameOutcome> {
+  if (!pool || !ready) return { status: 'down' };
+  let client: pg.PoolClient;
+  try {
+    client = await pool.connect();
+  } catch (err) {
+    console.error('[store] renameUsername connect failed:', err);
+    return { status: 'down' };
+  }
+  try {
+    await client.query('BEGIN');
+    const cur = await client.query(
+      `SELECT username, username_changed_at, player_id FROM accounts WHERE sub = $1 FOR UPDATE`,
+      [sub],
+    );
+    const row = cur.rows[0] as
+      | { username: string | null; username_changed_at: Date | string | null; player_id: string }
+      | undefined;
+    if (!row || !row.username) {
+      await client.query('ROLLBACK');
+      return { status: 'unclaimed' };
+    }
+    const last = row.username_changed_at ? new Date(row.username_changed_at) : null;
+    if (last && Date.now() - last.getTime() < minGapMs) {
+      await client.query('ROLLBACK');
+      return { status: 'too_soon', changedAt: last };
+    }
+    if (row.username === username) {
+      await client.query('ROLLBACK');
+      return { status: 'same' };
+    }
+    const upd = await client.query(
+      `UPDATE accounts SET username = $2, username_fold = $3, username_changed_at = now()
+       WHERE sub = $1 RETURNING username_changed_at`,
+      [sub, username, foldName(username)],
+    );
+    // The ladder row shows this name too, so keep the two in step.
+    await client.query(`UPDATE players SET name = $2 WHERE id = $1`, [row.player_id, username]);
+    await client.query('COMMIT');
+    event('username_changed');
+    return { status: 'ok', changedAt: new Date(upd.rows[0].username_changed_at as string | Date) };
+  } catch (err) {
+    await client.query('ROLLBACK').catch(() => {});
+    // 23505 = unique violation: somebody already has that name (or its fold).
+    if ((err as { code?: string })?.code === '23505') return { status: 'taken' };
+    console.error('[store] renameUsername failed:', err);
+    return { status: 'down' };
+  } finally {
+    client.release();
+  }
+}
+
+export type DeleteOutcome =
+  | { status: 'ok'; removed: Record<string, number> }
+  | { status: 'missing' | 'unclaimed' | 'mismatch' | 'down' };
+
+/** Delete an account and everything filed under it, in one transaction, after
+    checking the typed confirmation against the name (by fold, so case and
+    lookalike letters do not matter). What goes and what stays:
+      accounts     the row (Google profile, yap name, drill streak, locker)
+      friends      every row with this sub on either side
+      matches      this player's own copies; in OTHER players' ranked rows the
+                   opponent name becomes 'deleted' (reserved, so nobody can
+                   hold it). Ranked is account-only, so a ranked opponent name
+                   is an account's; friend and bot rows are name-only text and
+                   a guest may have typed the same name, so they are left.
+      players      the canonical row (ratings, campaign, leaderboard entry)
+      cheat_flags  kept as moderation records, name scrubbed to 'deleted';
+                   what is left is ids, a score and speech-timing numbers
+    `reports` and `cards` hold names and quotes, never an id, so nothing here
+    can tie them to this account and they are left as they are. */
+export async function deleteAccountData(sub: string, confirmFold: string): Promise<DeleteOutcome> {
+  if (!pool || !ready) return { status: 'down' };
+  let client: pg.PoolClient;
+  try {
+    client = await pool.connect();
+  } catch (err) {
+    console.error('[store] deleteAccountData connect failed:', err);
+    return { status: 'down' };
+  }
+  try {
+    await client.query('BEGIN');
+    const cur = await client.query(
+      `SELECT player_id, username, username_fold FROM accounts WHERE sub = $1 FOR UPDATE`,
+      [sub],
+    );
+    const row = cur.rows[0] as
+      | { player_id: string; username: string | null; username_fold: string | null }
+      | undefined;
+    if (!row) {
+      await client.query('ROLLBACK');
+      return { status: 'missing' };
+    }
+    if (!row.username) {
+      await client.query('ROLLBACK');
+      return { status: 'unclaimed' };
+    }
+    if ((row.username_fold || foldName(row.username)) !== confirmFold) {
+      await client.query('ROLLBACK');
+      return { status: 'mismatch' };
+    }
+    const pid = row.player_id;
+    // adoptable() stops two accounts sharing a player row, but never delete a
+    // rating and a history that a second account still stands on.
+    const shared = await client.query(
+      `SELECT 1 FROM accounts WHERE player_id = $1 AND sub <> $2 LIMIT 1`,
+      [pid, sub],
+    );
+    const ownsPlayer = shared.rowCount === 0;
+
+    const removed: Record<string, number> = {};
+    const run = async (label: string, sql: string, params: unknown[]) => {
+      const r = await client.query(sql, params);
+      removed[label] = r.rowCount ?? 0;
+    };
+    await run('friends', `DELETE FROM friends WHERE lo_sub = $1 OR hi_sub = $1`, [sub]);
+    if (ownsPlayer) {
+      await run('matches', `DELETE FROM matches WHERE player_id = $1`, [pid]);
+      await run('cheat_flags_scrubbed', `UPDATE cheat_flags SET name = 'deleted' WHERE player_id = $1`, [pid]);
+      await run('players', `DELETE FROM players WHERE id = $1`, [pid]);
+    }
+    // After this player's own rows are gone, so only other players' copies
+    // match. The home page's recent-ranked feed shows this name as the loser.
+    await run(
+      'opponent_renamed',
+      `UPDATE matches SET opponent = 'deleted' WHERE mode = 'ranked' AND opponent = $1`,
+      [row.username],
+    );
+    await run('accounts', `DELETE FROM accounts WHERE sub = $1`, [sub]);
+    await client.query('COMMIT');
+    event('account_deleted', removed);
+    return { status: 'ok', removed };
+  } catch (err) {
+    await client.query('ROLLBACK').catch(() => {});
+    console.error('[store] deleteAccountData failed:', err);
+    return { status: 'down' };
+  } finally {
+    client.release();
   }
 }
 

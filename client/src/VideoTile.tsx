@@ -25,6 +25,9 @@ interface Props {
       the coin's call is on your face from the first frame to the last. `side`
       is left off where the side is a sentence (settle-it). */
   you?: { label: string; side?: string };
+  /** The "on the mic" pill on the lit tile. The match leaves it off: a status
+      line under the lit tile says who has the floor there, in words. */
+  pill?: boolean;
 }
 
 /** The character standing in the frame: a head-and-shoulders bust, bottom
@@ -143,7 +146,7 @@ export default function VideoTile(props: Props) {
           {props.sub ? <span className="tag-sub">{props.sub}</span> : null}
         </div>
         {props.you ? <YouBadge {...props.you} /> : null}
-        {props.active ? <div className="live-pill">{t('onTheMic')}</div> : null}
+        {props.active && props.pill !== false ? <div className="live-pill">{t('onTheMic')}</div> : null}
       </div>
     );
   }
@@ -164,7 +167,7 @@ export default function VideoTile(props: Props) {
         {props.sub ? <span className="tag-sub">{props.sub}</span> : null}
       </div>
       {props.you ? <YouBadge {...props.you} /> : null}
-      {props.active ? <div className="live-pill">{t('onTheMic')}</div> : null}
+      {props.active && props.pill !== false ? <div className="live-pill">{t('onTheMic')}</div> : null}
     </div>
   );
 }

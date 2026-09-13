@@ -852,9 +852,11 @@ console.log('\n=== Scenario 16: watch a match, browse and filter ===');
   await once(A.x, 'debate:phase', 15000);
 
   const spec = connect();
+  // Listen before asking: the state can land in the same tick as the ack.
+  const specState = once(spec, 'spectate:state', 10000);
   const sj = await emitP(spec, 'spectate:join', { code: A.code });
   check('browse: a watcher joins the first by code', sj.ok === true);
-  await once(spec, 'spectate:state', 10000);
+  await specState;
 
   const live = await fetch(`${URL}/live`).then((r) => r.json());
   const raw = JSON.stringify(live);
@@ -1291,9 +1293,11 @@ console.log('\n=== Scenario 17: guest play, ranked gated ===');
   ).json();
   check('guest: the drill answers a guest too (silence refused, not scored)', short.error === 'too_short');
 
+  // Listen before asking: debate:start can land in the same tick as the ack.
+  const gStart = once(g, 'debate:start', 12000);
   const bs = await emitP(g, 'bot:start', { sessionId: 'guest-1', name: 'walkin', playerId: 'pid-guest-1', botId: 'mouse', topicMode: 'random', lang: 'en' });
   check('guest: a bot game starts with no cookie', bs.ok === true);
-  const gs = await once(g, 'debate:start', 12000);
+  const gs = await gStart;
   check('guest: the guest is seated under the typed name', gs.names[gs.yourSide] === 'walkin');
   g.on('debate:phase', (ph) => {
     if (ph.activeSpeaker === gs.yourSide) {

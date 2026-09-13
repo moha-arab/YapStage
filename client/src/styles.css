@@ -106,16 +106,9 @@
 @media (prefers-reduced-motion: reduce) {
   .stage,
   .lb,
-  .score-reveal,
   .stamp,
-  .verdict-details,
-  .huge,
   .live-pill,
   .live-tag i,
-  .bill-mic.mic-live,
-  .clock-danger,
-  .clock-failed,
-  .gavel-spinner,
   .queue-pulse,
   .bot-thinking-cap,
   .lb-searching {
@@ -188,7 +181,6 @@ body {
    not shove the label next to it sideways. */
 .num,
 .elo,
-.shot-clock,
 .drill-clock {
   font-family: var(--mono);
   font-variant-numeric: tabular-nums;
@@ -211,10 +203,7 @@ html[dir='rtl'] body {
 html[dir='rtl'] .display,
 html[dir='rtl'] .brand,
 html[dir='rtl'] .side-name,
-html[dir='rtl'] .score-reveal-label,
-html[dir='rtl'] .score-reveal-num,
 html[dir='rtl'] .score-head,
-html[dir='rtl'] .feedback h3,
 html[dir='rtl'] .marquee-track,
 html[dir='rtl'] .vs {
   font-family: 'Lalezar', 'Ultra', serif;
@@ -222,14 +211,11 @@ html[dir='rtl'] .vs {
 }
 
 html[dir='rtl'] .tape,
-html[dir='rtl'] .grade-chip,
-html[dir='rtl'] .you-result,
 html[dir='rtl'] .meter-hint {
   font-family: 'Rakkas', serif;
 }
 
 /* digits and codes always read left-to-right */
-.shot-clock,
 .ticket-code,
 .pill-code,
 .input-code {
@@ -623,21 +609,6 @@ html[dir='rtl'] .meter-hint {
   padding: 1px 8px;
 }
 
-/* rating movement on a ranked verdict */
-.elo-line {
-  margin: 2px 0 0;
-  font-family: var(--marker);
-  font-size: 15px;
-}
-
-.elo-line.won {
-  color: var(--gold);
-}
-
-.elo-line.lost {
-  color: var(--muted);
-}
-
 /* ============ spectate ============ */
 .spec-topbar {
   align-items: center;
@@ -657,32 +628,6 @@ html[dir='rtl'] .meter-hint {
   color: var(--muted);
 }
 
-/* The spectator sees the debaters' own frames: each fighter a tile with the
-   character standing on its bottom edge, and the tile of whoever has the
-   floor lit in their colour (.tile-active), never gold: gold here would
-   announce a winner three rounds before there is one. */
-.spec-fighters {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: clamp(10px, 3vw, 28px);
-  width: min(100%, 760px);
-}
-
-.spec-fighter {
-  flex: 0 1 300px;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 4px;
-}
-
-.spec-frame {
-  width: 100%;
-  margin-bottom: 6px;
-}
-
 /* Nobody drawn yet: the lobby's question mark, in the side's gel. */
 .spec-fighter-glyph {
   font-family: 'Ultra', serif;
@@ -692,30 +637,10 @@ html[dir='rtl'] .meter-hint {
   opacity: 0.5;
 }
 
-.spec-fighter-name {
-  font-family: 'Ultra', serif;
-  font-size: clamp(16px, 2.2vw, 22px);
-  max-width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.spec-fighter-side {
-  font-size: 11px;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-  color: var(--muted);
-}
-
 .spec-score {
   font-family: var(--marker);
   font-size: 18px;
   margin: 0;
-}
-
-.spec-deliberating {
-  font-size: 22px;
 }
 
 /* ============ home: the three doors ============ */
@@ -1156,29 +1081,6 @@ html[dir='rtl'] .meter-hint {
 .side-mine {
 }
 
-/* the judge got nothing from you: a diagnosis, not a taunt */
-.not-heard {
-  margin: 14px auto 0;
-  max-width: 520px;
-  padding: 12px 16px;
-  border: 1px solid rgba(226, 87, 76, 0.5);
-  border-radius: 10px;
-  background: rgba(226, 87, 76, 0.08);
-  text-align: center;
-}
-.not-heard-line {
-  margin: 0;
-  font-family: var(--marker);
-  font-size: 15px;
-  color: var(--for);
-}
-.not-heard-fix {
-  margin: 6px 0 0;
-  font-family: var(--marker);
-  font-size: 12px;
-  line-height: 1.45;
-  color: var(--muted);
-}
 
 /* which client bundle this device is running (diagnostics, deliberately dim) */
 /* ---- the daily drill ---- */
@@ -1385,36 +1287,6 @@ html[dir='rtl'] .meter-hint {
   font-size: var(--t3);
   max-width: 42ch;
   margin-inline: auto;
-}
-
-/* The delta is what you feel, so it is the size of the headline. */
-.elo-result {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 2px;
-  margin-top: var(--s2);
-}
-.elo-delta {
-  font-family: 'Ultra', serif;
-  font-size: var(--t7);
-  line-height: 1;
-}
-.elo-result.won .elo-delta {
-  color: var(--gold);
-}
-.elo-result.lost .elo-delta {
-  color: var(--muted);
-}
-/* The placement rating is neither a win nor a loss: paper, never gold. */
-.elo-result.placed .elo-delta {
-  color: var(--paper);
-}
-.elo-why {
-  font-size: var(--t2);
-  color: var(--muted);
-  max-width: 34ch;
-  text-align: center;
 }
 
 .stakes {
@@ -1697,18 +1569,6 @@ html[dir='rtl'] .meter-hint {
   letter-spacing: 0.12em;
   color: var(--muted);
   opacity: 0.4;
-}
-
-/* share the ruling (opt-in, nothing stored) */
-.share-row {
-  margin: 18px auto 0;
-  text-align: center;
-}
-.share-note {
-  margin: 6px 0 0;
-  font-family: var(--marker);
-  font-size: 12px;
-  color: var(--muted);
 }
 
 /* the cross-game read: what you are ALWAYS weak at */
@@ -2758,70 +2618,6 @@ html[dir='rtl'] .meter-hint {
   }
 }
 
-/* ============================== THE MATCH ==============================
-   Two faces and one sheet of paper.
-
-   The old debate screen was six full-width strips stacked down the page — a
-   round rail, a tile row, a clock row, a progress bar, a rule line, a button
-   row — each with its own border and none of them obviously more important
-   than the rest. Everything except the faces now lives on ONE warm panel
-   beside the video, which is the brightest thing on screen on purpose: it is
-   the key light on somebody's face at 11pm in a dorm.
-
-   Debater colour rides on the tile frame, the clock and the bar. It never
-   washes a background. */
-.stage.debate {
-  display: flex;
-  flex-direction: column;
-  /* The fight card fades out ahead of the first turn; the match fades in
-     behind it, so the one screen change a debater cannot control is soft. */
-  animation: fadeUp var(--mid) ease;
-}
-
-.debate .arena {
-  width: 100%;
-  margin-block: auto;
-}
-
-/* The phase rail. The debate screen folded these into the paper panel, but
-   SPECTATE still shows the whole rail — a watcher has no other way to know
-   how far in they arrived. */
-.round-card {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  justify-content: center;
-  flex-wrap: wrap;
-  margin: 4px 0 16px;
-}
-
-/* The same chip as .cat-tab, minus the hand cursor: nobody presses these. */
-.round {
-  display: inline-flex;
-  align-items: center;
-  min-height: var(--ctl-sm);
-  font-size: var(--t2);
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.12em;
-  color: var(--muted);
-  border: 1px solid var(--line);
-  border-radius: var(--r-sm);
-  padding: 6px 12px;
-}
-
-.round-now {
-  color: #101018;
-  background: var(--paper);
-  border-color: var(--paper);
-}
-
-.round-step {
-  font-size: 12px;
-  color: var(--muted);
-  margin-inline-start: 8px;
-}
-
 .live-tag {
   display: inline-flex;
   align-items: center;
@@ -2840,146 +2636,6 @@ html[dir='rtl'] .meter-hint {
   animation: livePulse 1.6s ease-in-out infinite;
 }
 
-.match {
-  display: grid;
-  /* 1240 and not wider: at full 1600 the paper panel drifted to the far
-     right of a big monitor and the whole match read as pushed to one side
-     (his report). Capped and centered, the three pieces read as one stage. */
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 300px;
-  gap: 14px;
-  align-items: stretch;
-  max-width: 1240px;
-  margin: 0 auto;
-}
-
-/* .tiles used to be the grid itself; inside .match each stack is one cell. */
-.debate .tiles {
-  display: contents;
-}
-
-.bill {
-  background: var(--paper);
-  color: #101018;
-  border-radius: var(--r-md);
-  padding: 18px 20px;
-  display: flex;
-  flex-direction: column;
-  gap: 11px;
-  min-width: 0;
-}
-
-.bill-sec {
-  font-size: var(--t1);
-  font-weight: 700;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-  color: var(--paper-dim);
-}
-
-.bill-motion {
-  font-size: clamp(20px, 2vw, 26px);
-  line-height: 1.05;
-  margin: 0;
-  color: #101018;
-}
-
-/* "You're arguing FOR" under the motion: your side as a solid chip in its
-   gel, the same chip as the badge on your tile. */
-.bill .bill-side {
-  margin: 0;
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 4px 8px;
-  font-size: 13px;
-  font-weight: 700;
-  color: #3a3830;
-}
-
-.bill-side b {
-  padding: 2px 9px;
-  border-radius: var(--r-sm);
-  font-size: 12px;
-  font-weight: 800;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-}
-
-.bill-side.for b {
-  background: var(--amber);
-  color: #241203;
-}
-
-.bill-side.against b {
-  background: var(--turq);
-  color: #04262a;
-}
-
-/* Settle-it: a sentence, set as type in the side's ink-safe tone. */
-.bill-side.bill-side-long b {
-  background: none;
-  padding: 0;
-  font-size: 13px;
-  letter-spacing: 0;
-  text-transform: none;
-}
-
-.bill-side-long.for b {
-  color: #b45a09;
-}
-
-.bill-side-long.against b {
-  color: #0f8f9e;
-}
-
-.bill-round {
-  display: flex;
-  justify-content: space-between;
-  align-items: baseline;
-  border-top: 1px solid #101018;
-  padding-top: 9px;
-  gap: 10px;
-}
-
-.bill-round b {
-  font-size: 15px;
-  text-transform: lowercase;
-}
-
-.bill-round span {
-  font-size: 12px;
-  color: var(--paper-dim);
-}
-
-.shot-clock {
-  font-family: var(--mono);
-  font-size: clamp(40px, 5vw, 56px);
-  line-height: 1;
-  letter-spacing: -0.02em;
-  color: var(--amber);
-}
-
-.clock-word {
-  font-family: 'Libre Franklin', system-ui, sans-serif;
-  font-weight: 700;
-  font-size: 22px;
-  letter-spacing: 0;
-}
-
-.clock-for {
-  color: var(--amber);
-}
-
-.clock-against {
-  color: #0f8f9e; /* the turquoise, darkened to hold on paper */
-}
-
-.clock-danger,
-.clock-failed {
-  color: #c62828;
-  animation: dangerPulse 0.5s ease-in-out infinite;
-}
-
 @keyframes dangerPulse {
   0%,
   100% {
@@ -2990,254 +2646,12 @@ html[dir='rtl'] .meter-hint {
   }
 }
 
-.clock-track {
-  height: 6px;
-  border-radius: 3px;
-  background: rgba(16, 16, 24, 0.14);
-  overflow: hidden;
-}
-
-.clock-fill {
-  height: 100%;
-  transition: width 0.15s linear;
-}
-
 .fill-for {
   background: var(--for);
 }
 
 .fill-against {
   background: #0f8f9e;
-}
-
-.bill-who {
-  font-size: 14px;
-  font-weight: 700;
-}
-
-.bill-who.for {
-  color: #b45a09;
-}
-
-.bill-who.against {
-  color: #0f8f9e;
-}
-
-.bill-how {
-  font-size: var(--t3);
-  color: #3a3830;
-  line-height: 1.45;
-  margin: 0;
-}
-
-.bill-how-failed {
-  color: #c62828;
-  font-weight: 600;
-}
-
-.bill-mic {
-  margin-top: auto;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 12px;
-  font-weight: 700;
-  color: var(--paper-dim);
-}
-
-.bill-mic i {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: currentColor;
-  flex: none;
-}
-
-/* The judge has actually received words. This is the only green on the panel,
-   so it means one thing. */
-.bill-mic.mic-heard {
-  color: #0b7a3b;
-}
-
-.bill-mic.mic-live {
-  color: #b45a09;
-  animation: livePulse 1.6s ease-in-out infinite;
-}
-
-.bill-mic.mic-off {
-  color: var(--paper-dim);
-}
-
-.debate .pass-mic {
-  width: 100%;
-  background: #101018;
-  color: var(--paper);
-}
-
-.debate .pass-mic:hover:not(:disabled) {
-  background: #2a2a3d;
-}
-
-.debate .banner {
-  max-width: 1600px;
-  margin: 14px auto 0;
-  text-align: center;
-}
-
-/* A phone cannot hold two videos and a panel side by side: the faces go on
-   one row and the paper takes the width under them. */
-@media (max-width: 1000px) {
-  .match {
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  }
-
-  .bill {
-    grid-column: 1 / -1;
-  }
-}
-
-/* Verdict */
-.verdict-wait .deliberating {
-  font-size: clamp(26px, 4.5vw, 48px);
-}
-
-.gavel-spinner {
-  width: 44px;
-  height: 44px;
-  border: 1px solid var(--line);
-  border-top-color: var(--amber);
-  border-radius: 50%;
-  animation: spin 0.9s linear infinite;
-}
-
-@keyframes spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
-
-.verdict-drum {
-  justify-content: center;
-}
-
-.huge {
-  font-size: clamp(36px, 8vw, 100px);
-  animation: livePulse 0.8s ease-in-out infinite;
-}
-
-/* score reveals */
-.score-reveals {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-  width: min(560px, 100%);
-}
-
-.score-reveal {
-  animation: stampInFlat var(--slow) cubic-bezier(0.2, 1.25, 0.4, 1);
-  padding: 14px 18px;
-}
-
-.score-reveal:nth-child(odd) {
-}
-
-.score-reveal:nth-child(even) {
-}
-
-@keyframes stampInFlat {
-  from {
-    transform: scale(1.25);
-    opacity: 0;
-  }
-  to {
-    transform: scale(1);
-    opacity: 1;
-  }
-}
-
-.score-reveal-head {
-  display: flex;
-  justify-content: space-between;
-  align-items: baseline;
-  margin-bottom: 10px;
-  border-bottom: 1px solid var(--line);
-  padding-bottom: 6px;
-}
-
-.score-reveal-label {
-  font-family: 'Ultra', serif;
-  font-size: 18px;
-}
-
-.score-reveal-max {
-  font-size: 12px;
-  color: var(--muted);
-  text-transform: uppercase;
-  letter-spacing: 0.12em;
-}
-
-.score-reveal-desc {
-  font-size: 13px;
-  color: var(--muted);
-  margin: 0 0 10px;
-}
-
-.score-reveal-sides {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-}
-
-.score-reveal-side {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  min-width: 0;
-}
-
-.score-reveal-side .fighter {
-  font-size: 15px;
-  font-weight: 700;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.score-reveal-num {
-  font-family: 'Ultra', serif;
-  font-size: 28px;
-}
-
-.grade-chip {
-  font-family: var(--marker);
-  font-size: 22px;
-  display: inline-block;
-}
-
-/* Grades ride ONE ramp, from bright to dim, instead of four unrelated hues.
-   The old set put a C in the AGAINST blue and a B in a green that appears
-   nowhere else, so a scorecard read as a colour wheel and the debater colours
-   stopped meaning "which side". */
-.grade-Aplus,
-.grade-A {
-  color: #ffffff;
-}
-
-.grade-B {
-  color: var(--paper);
-}
-
-.grade-C {
-  color: var(--muted);
-}
-
-.grade-D {
-  color: #b98a8a;
-}
-
-.grade-F {
-  color: var(--danger);
 }
 
 /* winner stamp */
@@ -3271,29 +2685,6 @@ html[dir='rtl'] .meter-hint {
   font-size: clamp(17px, 2.4vw, 22px);
   max-width: 720px;
   margin: 6px 0 0;
-}
-
-.you-result {
-  font-family: var(--marker);
-  font-size: 18px;
-  margin: 0;
-}
-
-.you-result.won {
-  color: var(--gold);
-}
-
-.you-result.lost {
-  color: var(--muted);
-}
-
-.verdict-details {
-  display: flex;
-  flex-direction: column;
-  gap: 18px;
-  width: min(760px, 100%);
-  margin-top: 10px;
-  animation: fadeUp var(--slow) ease;
 }
 
 @keyframes fadeUp {
@@ -3371,12 +2762,6 @@ html[dir='rtl'] .meter-hint {
   opacity: 0.6;
 }
 
-.quotes {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
 .quote {
   margin: 0;
   padding: 14px 18px;
@@ -3398,33 +2783,6 @@ html[dir='rtl'] .meter-hint {
   font-style: normal;
   font-size: 13px;
   color: var(--muted);
-}
-
-.feedback-cols {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 12px;
-}
-
-.feedback {
-  text-align: start;
-}
-
-.feedback h3 {
-  margin: 0 0 8px;
-  font-family: 'Ultra', serif;
-  font-size: 15px;
-  font-weight: 400;
-}
-
-.feedback ul {
-  margin: 0;
-  padding-left: 18px;
-  color: var(--muted);
-  font-size: 15px;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
 }
 
 /* ask the yapmaster: a small coaching chat on the verdict screen */
@@ -3505,45 +2863,8 @@ html[dir='rtl'] .meter-hint {
   margin: 4px 0 0;
 }
 
-.verdict-actions {
-  display: flex;
-  gap: 12px;
-  justify-content: center;
-  flex-wrap: wrap;
-}
-
-/* post-debate live strip: the open call must be visible, always */
-.live-strip {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 8px;
-  margin-top: 18px;
-  padding-top: 14px;
-  border-top: 1px solid var(--line);
-  width: min(520px, 100%);
-}
-
-.live-strip-tiles {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 10px;
-  width: 100%;
-}
-
-.live-strip-tiles .tile {
-  aspect-ratio: 16 / 10;
-}
-
-.live-note {
-  font-size: 13px;
-  color: var(--live);
-  margin: 0;
-}
-
 @media (max-width: 720px) {
-  .tiles,
-  .feedback-cols {
+  .tiles {
     grid-template-columns: 1fr;
   }
 
@@ -3572,11 +2893,6 @@ html[dir='rtl'] .meter-hint {
   .tile {
     aspect-ratio: auto;
     height: min(38vh, 200px);
-  }
-
-  .debate .topbar,
-  .round-card {
-    margin-bottom: 6px;
   }
 
   .home .logo {
@@ -3937,26 +3253,6 @@ html[dir='rtl'] .meter-hint {
 }
 .btn-settle { background: var(--panel-2); border-color: var(--for); color: var(--for); }
 
-/* settle-it ruling: what each of them said, then the split, then the decree */
-.said-pair { display:flex; gap:14px; flex-wrap:wrap; justify-content:center; margin:6px auto 18px; max-width:760px; }
-.said { flex:1 1 300px; padding:10px 14px; border-radius:10px; background:rgba(242,232,213,.05);
-  border-left:2px solid rgba(242,232,213,.18); text-align:left; }
-.said-who { font-family:var(--marker); font-size: 11px; letter-spacing:.14em; }
-.said-who.for { color:var(--for); } .said-who.against { color:var(--against); }
-.said-text { margin:4px 0 0; font-size: 15px; line-height:1.45; color:var(--ink); }
-.split { display:flex; align-items:center; justify-content:center; gap:18px; margin:10px 0 4px; }
-.split-half { display:flex; flex-direction:column; align-items:center; opacity:.62; }
-.split-half.split-win { opacity:1; }
-.split-pct { font-family:var(--display,inherit); font-size: 66px; line-height:1; font-weight:800; }
-.split-half.for .split-pct { color:var(--for); } .split-half.against .split-pct { color:var(--against); }
-.split-name { font-family:var(--marker); font-size: 13px; color:var(--muted); margin-top:4px; }
-.split-slash { font-size: 42px; color:var(--muted); opacity:.5; }
-.decree { max-width:720px; margin:14px auto 0; font-size: 18px; line-height:1.45; color:var(--ink); }
-.orders { max-width:560px; margin:18px auto 0; padding:14px 18px; text-align:left; }
-.orders-label { font-family:var(--marker); font-size: 11px; letter-spacing:.18em; color:var(--amber); }
-.order { margin:6px 0 0; font-size: 15px; line-height:1.45; }
-@media (max-width:640px){ .split-pct{font-size: 48px;} .split{gap:10px;} }
-
 /* settle-it: your own account of the argument */
 .dispute-box {
   width: 100%;
@@ -3996,27 +3292,11 @@ html[dir='rtl'] .meter-hint {
   color: var(--for);
   font-size: 15px;
 }
-.clock-failed {
-  color: var(--for);
-  opacity: 0.85;
-}
 
 /* on your own closing turn the rule is not a footnote, it's the instruction */
 .phase-rule-live {
   color: var(--amber);
   font-size: 15px;
-}
-
-/* "pass the mic" sits under the clock track, only on your turn */
-.pass-row {
-  display: flex;
-  justify-content: center;
-  margin-top: 12px;
-}
-.pass-mic {
-  font-family: var(--marker);
-  font-size: 15px;
-  letter-spacing: 0.04em;
 }
 
 .bot-mirror {
@@ -4651,25 +3931,6 @@ html[dir='rtl'] .meter-hint {
   gap: 12px;
 }
 
-/* The account ask, placed where it's a gift: right after a real verdict. */
-.save-nudge {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  flex-wrap: wrap;
-  justify-content: center;
-  border: 1px dashed var(--amber);
-  padding: 12px 16px;
-  margin-top: 14px;
-}
-
-.save-nudge-line {
-  margin: 0;
-  font-size: 15px;
-  flex: 1;
-  min-width: 200px;
-}
-
 /* The locker */
 .locker-preview {
   display: flex;
@@ -4694,15 +3955,6 @@ html[dir='rtl'] .meter-hint {
   margin-top: 4px;
   font-size: 12px;
   color: var(--muted);
-}
-
-.spec-actions {
-  display: flex;
-  gap: 10px;
-  align-items: center;
-  justify-content: center;
-  flex-wrap: wrap;
-  margin-top: 10px;
 }
 
 /* Green room, invite-only: the seat your friend is about to take. */

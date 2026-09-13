@@ -1,12 +1,34 @@
-import { useEffect, useState } from 'react';
-import { type CategoryScores, type Framing, type Side, type TopicText, type Verdict as VerdictData } from '../../../server/src/protocol';
-import { isSoundMuted, playCrash, playDrumRoll, playHit, setSoundMuted, speak } from '../sound';
+// AFTER THE DEBATE (redesigned 2026-09-12). His brief: "Rethink the results
+// menu and after the debate", "simple, user friendly, not overwhelming", with
+// chess.com as the bar: one big thing to look at, one obvious thing to do.
+//
+// The test it is built against: a first-time sixteen-year-old sees in one
+// second whether they won, in five seconds why, and knows what to press.
+//
+// So the old show is gone. It held the result back for about seventeen
+// seconds (four score cards at 2.6s each, then a three-second drum roll, then
+// "the yapmaster is..."), which is exactly the wait that question forbids.
+// Now the result is on screen from the first frame: VICTORY or DEFEAT, both
+// fighters with the winner lit and large, the totals. The drama that is left
+// is a second of totals counting up and bars filling, and a tap skips it.
+//
+// Reading order, top to bottom (left column then right on a wide screen):
+//   the result, what it did to your rating, what to press next
+//   the judge's sentence, the four categories as paired bars, your two notes
+//   then the coach, their notes, share, report
+import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
+import type { CategoryScores, Framing, Side, TopicText, Verdict as VerdictData } from '../../../server/src/protocol';
+import { isSoundMuted, playCrash, setSoundMuted, speak } from '../sound';
 import { socket } from '../socket';
 import { useI18n } from '../i18n';
 import VideoTile from '../VideoTile';
 import ReportFlag from '../Report';
 import { signIn, whoAmI } from '../player';
 import { playBotTurn, stopBotVoice } from '../botvoice';
+import BotAvatar from '../BotAvatar';
+import Mask from '../Mask';
+import Cone from '../Cone';
+import '../verdict.css';
 
 const COACH_LIMIT = 6;
 interface CoachMsg {
@@ -45,107 +67,16 @@ interface Props {
   /** Ranked hides rematch: the queue is how you go again, so two accounts
       cannot sit in a loop trading rating. */
   ranked?: boolean;
-  /** Campaign: the win moved your frontier — announce the new challenger. */
+  /** Campaign: the win moved your frontier. Announce the new challenger. */
   unlocked?: { level: number; unlocked: string | null } | null;
   /** Masks by side (an entry = that side is masked), so the post-verdict call
       still shows a face for players who never had a camera. */
   avatars?: Partial<Record<Side, string>> | null;
   /** What the opponent was rated, so the delta can explain its own size. */
   opponentRating?: number;
-}
-
-/** The rating movement, taught rather than announced.
-    The delta is the thing you feel, so it is the headline; the sentence under
-    it is one line of Elo literacy per match, which kills "why did I only get
-    six points" permanently and costs nothing. */
-function EloResult({
-  before,
-  after,
-  won,
-  opponentRating,
-}: {
-  before: number;
-  after: number;
-  won: boolean;
-  opponentRating?: number;
-}) {
-  const { t } = useI18n();
-  const delta = after - before;
-  const favoured = opponentRating !== undefined ? before > opponentRating : null;
-  const why =
-    favoured === null
-      ? null
-      : won
-        ? favoured
-          ? t('eloFavored')
-          : t('eloUnderdog')
-        : favoured
-          ? t('eloUpsetLoss')
-          : t('eloExpectedLoss');
-  return (
-    <div className={`elo-result ${won ? 'won' : 'lost'}`}>
-      <span className="elo-delta elo">
-        {delta > 0 ? '+' : ''}
-        {delta}
-      </span>
-      <span className="elo-line elo">
-        {before} → {after}
-      </span>
-      {why ? <span className="elo-why">{why}</span> : null}
-    </div>
-  );
-}
-
-/**
- * The call stays open after the debate so you can react to the results
- * together. That must be VISIBLE: an open mic is never allowed to be a
- * hidden audio element. Cameras on screen, plain words, a leave button.
- */
-function LiveStrip({
-  localStream,
-  remoteStream,
-  rtcConnected,
-  peerName,
-  myName,
-  onLeaveCall,
-  myMask,
-  peerMask,
-}: Pick<Props, 'localStream' | 'remoteStream' | 'rtcConnected' | 'peerName' | 'myName' | 'onLeaveCall'> & {
-  myMask?: string;
-  peerMask?: string;
-}) {
-  const { t } = useI18n();
-  // A masked debater has no camera by design — the post-verdict chat must
-  // still work for them, so 'no stream' is only 'you left' when unmasked.
-  if (!localStream && !myMask) {
-    return <p className="live-note">{t('youLeft')}</p>;
-  }
-  return (
-    <div className="live-strip">
-      <div className="live-strip-tiles">
-        <VideoTile
-          stream={localStream}
-          muted
-          mirror
-          maskId={myMask}
-          label={myName}
-          sub={t('live')}
-        />
-        <VideoTile
-          stream={rtcConnected ? remoteStream : null}
-          muted={false}
-          maskId={peerMask}
-          label={peerName}
-          sub={rtcConnected && (remoteStream || peerMask) ? t('live') : undefined}
-          placeholder={t('leftCall')}
-        />
-      </div>
-      <p className="live-note">{t(myMask ? 'stillLiveMasked' : 'stillLive')}</p>
-      <button className="btn btn-small" onClick={onLeaveCall}>
-        {t('leaveCall')}
-      </button>
-    </div>
-  );
+  /** Bot matches: the same bot, the same setup, straight into a new match.
+      Absent when there is nothing to replay (placement, a resumed page). */
+  onPlayAgain?: () => void;
 }
 
 interface Category {
@@ -162,29 +93,33 @@ const CATEGORIES: Category[] = [
   { key: 'delivery', labelKey: 'catDelivery', descKey: 'catDeliveryDesc', max: 20 },
 ];
 
-// Reveal order builds drama: light categories first, clash (the "did you
-// actually debate them" score) closes the show.
-const REVEAL_ORDER: Category[] = [CATEGORIES[1], CATEGORIES[3], CATEGORIES[0], CATEGORIES[2]];
-
-// Game-show generous curve — texture, not a transcript.
-function grade(score: number, max: number): string {
-  const pct = score / max;
-  if (pct >= 0.92) return 'A+';
-  if (pct >= 0.83) return 'A';
-  if (pct >= 0.7) return 'B';
-  if (pct >= 0.55) return 'C';
-  if (pct >= 0.4) return 'D';
-  return 'F';
-}
-
 function total(s: CategoryScores): number {
   return s.argument + s.evidence + s.clash + s.delivery;
 }
 
-type Stage = 'waiting' | 'scores' | 'drumroll' | 'reveal' | 'details';
+/* The one bit of show left. The result itself never waits on this: it is on
+   screen from the first frame, and only the numbers roll in under it. */
+const REVEAL_DELAY_MS = 250;
+const REVEAL_MS = 1100;
+const VOICE_AT_MS = 700;
 
-const FIRST_CARD_MS = 1200;
-const PER_CARD_MS = 2600;
+const ease = (p: number) => 1 - Math.pow(1 - p, 3);
+
+/** "now {n}" with the number set in the mono face, wherever the language
+    puts it in the sentence. */
+function withNum(template: string, n: number): ReactNode {
+  const [a, b = ''] = template.split('{n}');
+  return (
+    <>
+      {a}
+      <b className="elo">{n}</b>
+      {b}
+    </>
+  );
+}
+
+const sideCls = (s: Side) => (s === 'FOR' ? 'is-for' : 'is-against');
+const delay = (s: number) => ({ '--d': `${s}s` }) as CSSProperties;
 
 export default function VerdictScreen({
   info,
@@ -206,29 +141,17 @@ export default function VerdictScreen({
   avatars,
   framing,
   opponentRating,
+  onPlayAgain,
 }: Props) {
   const { lang, t } = useI18n();
-  // No shared call to keep visible when the opponent is a bot.
-  const strip = botOpponent ? null : (
-    <LiveStrip
-      localStream={localStream}
-      remoteStream={remoteStream}
-      rtcConnected={rtcConnected}
-      peerName={peerName}
-      myName={myName}
-      onLeaveCall={onLeaveCall}
-      myMask={mySide ? avatars?.[mySide] : undefined}
-      peerMask={mySide ? avatars?.[mySide === 'FOR' ? 'AGAINST' : 'FOR'] : undefined}
-    />
-  );
-  const [stage, setStage] = useState<Stage>('waiting');
-  const [revealed, setRevealed] = useState(0);
   const [muted, setMuted] = useState(isSoundMuted());
   const [coachLog, setCoachLog] = useState<CoachMsg[]>([]);
   const [coachThinking, setCoachThinking] = useState(false);
   const [coachAsks, setCoachAsks] = useState(0);
   const [coachInput, setCoachInput] = useState('');
   const [shareState, setShareState] = useState<'idle' | 'working' | 'copied' | 'failed'>('idle');
+  const [starting, setStarting] = useState(false);
+  const coachRef = useRef<HTMLDivElement>(null);
   // Signed-out and just handed a real verdict: the one moment an account ask
   // is a gift rather than a toll.
   const [saveNudge, setSaveNudge] = useState(false);
@@ -239,7 +162,7 @@ export default function VerdictScreen({
   useEffect(() => {
     const onReply = (p: { text: string; error?: boolean; done?: boolean }) => {
       setCoachThinking(false);
-      if (p.done) return; // cap reached — the input is already hidden
+      if (p.done) return; // cap reached: the input is already hidden
       setCoachLog((l) => [...l, { role: 'coach', text: p.text, error: p.error }]);
     };
     socket.on('coach:reply', onReply);
@@ -258,58 +181,56 @@ export default function VerdictScreen({
     socket.emit('coach:ask', { question });
   }
 
+  // The reveal: 0 to 1 over about a second, driving the totals and the bars.
+  // A tap anywhere lands it at 1. Reduced motion starts it at 1.
+  const [progress, setProgress] = useState(0);
+  const [skipped, setSkipped] = useState(false);
+  const skipRef = useRef(false);
   useEffect(() => {
     if (!info) return;
-    let alive = true;
-    const timers: ReturnType<typeof setTimeout>[] = [];
-    setStage('scores');
-    setRevealed(0);
-
-    REVEAL_ORDER.forEach((_, i) => {
-      timers.push(
-        setTimeout(() => {
-          if (!alive) return;
-          playHit();
-          setRevealed(i + 1);
-        }, FIRST_CARD_MS + i * PER_CARD_MS),
-      );
-    });
-
-    const drumAt = FIRST_CARD_MS + REVEAL_ORDER.length * PER_CARD_MS + 900;
-    timers.push(
-      setTimeout(() => {
-        if (!alive) return;
-        setStage('drumroll');
-        playDrumRoll(3000);
-      }, drumAt),
-    );
-    timers.push(
-      setTimeout(() => {
-        if (!alive) return;
-        playCrash();
-        // The YapMaster reads their own ruling. Falls back to the browser voice
-        // when the server had no TTS, which is what this always used to be.
-        // In settle-it the decree is the sentencing line, so that is what gets
-        // read aloud rather than the hype summary.
-        const spoken = info.verdict.ruling?.decree || info.verdict.summary;
-        if (info.audio && !isSoundMuted()) {
-          playBotTurn(spoken, info.audio, info.mime, lang, () => {});
-        } else {
-          speak(spoken);
-        }
-        setStage('reveal');
-      }, drumAt + 3200),
-    );
-    timers.push(
-      setTimeout(() => {
-        if (alive) setStage('details');
-      }, drumAt + 4800),
-    );
-
-    return () => {
-      alive = false;
-      timers.forEach(clearTimeout);
+    const still = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+    if (still) {
+      setProgress(1);
+      setSkipped(true);
+      return;
+    }
+    skipRef.current = false;
+    setProgress(0);
+    const t0 = performance.now();
+    let raf = 0;
+    const tick = (now: number) => {
+      if (skipRef.current) return setProgress(1);
+      const k = Math.min(1, Math.max(0, (now - t0 - REVEAL_DELAY_MS) / REVEAL_MS));
+      setProgress(k);
+      if (k < 1) raf = requestAnimationFrame(tick);
     };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [info]);
+
+  function skip() {
+    if (skipRef.current) return;
+    skipRef.current = true;
+    setProgress(1);
+    setSkipped(true);
+  }
+
+  // The sound of the result, then the YapMaster reads their line. Falls back
+  // to the browser voice when the server had no TTS. In settle-it the decree
+  // is the line that gets read, not the hype summary.
+  useEffect(() => {
+    if (!info) return;
+    playCrash();
+    const spoken = info.verdict.ruling?.decree || info.verdict.summary;
+    const voice = setTimeout(() => {
+      if (!spoken) return;
+      if (info.audio && !isSoundMuted()) {
+        playBotTurn(spoken, info.audio, info.mime, lang, () => {});
+      } else {
+        speak(spoken);
+      }
+    }, VOICE_AT_MS);
+    return () => clearTimeout(voice);
   }, [info]);
 
   // Ask the server for a link, then hand it to the OS share sheet on mobile or
@@ -348,384 +269,462 @@ export default function VerdictScreen({
     if (next) stopBotVoice();
   }
 
-  if (!info) {
+  const home = () => window.location.assign('/');
+
+  // You on the left, them on the right, in both the wait and the result, so
+  // the bars below read "yours against theirs" in the same order.
+  const me: Side = mySide ?? 'FOR';
+  const them: Side = me === 'FOR' ? 'AGAINST' : 'FOR';
+  const order: Side[] = [me, them];
+  const nameOf = (s: Side) => (info ? info.names[s] : s === me ? myName : peerName);
+  const gel = { '--gel': me === 'FOR' ? 'var(--amber)' : 'var(--turq)' } as CSSProperties;
+
+  // The call stays open after the debate so you can react to the result
+  // together, and an open mic must be VISIBLE, never a hidden audio element.
+  // So the fighters ARE the call: a live tile (a character, or a face on
+  // camera) that also carries the other person's voice, plus one plain line
+  // and a leave button. No stream means you left, or never had a mic.
+  const callOn = !botOpponent && Boolean(localStream);
+
+  const isBot = (side: Side) => Boolean(botOpponent) && side !== me;
+  const streamOf = (side: Side) =>
+    callOn && !isBot(side) ? (side === me ? localStream : rtcConnected ? remoteStream : null) : null;
+  // A face on camera stands in a frame, not a cone: a square photo in a
+  // spotlight reads as a picture hung in a lamp.
+  const onCamera = (side: Side) =>
+    !isBot(side) && !avatars?.[side] && Boolean(streamOf(side)?.getVideoTracks().length);
+
+  const art = (side: Side) => {
+    if (botOpponent && isBot(side)) {
+      return <BotAvatar botId={botOpponent.id} color={botOpponent.color} size="100%" bare />;
+    }
+    const mask = avatars?.[side];
+    const mine = side === me;
+    const stream = streamOf(side);
+    if (stream) {
+      return <VideoTile stream={stream} muted={mine} mirror={mine} maskId={mask} label={nameOf(side)} />;
+    }
+    if (mask) return <Mask id={mask} size="100%" bare />;
+    // On camera and off the call: no character to stand in the light.
     return (
-      <div className="stage center-col verdict-wait">
-        <p className="kicker">{topic?.[lang] ?? ''}</p>
-        {status?.state === 'failed' ? (
+      <span className="vd-mono" aria-hidden="true">
+        {nameOf(side).slice(0, 1)}
+      </span>
+    );
+  };
+
+  const fighter = (side: Side, o: { big?: boolean; dim?: boolean; score?: ReactNode; gold?: boolean } = {}) => (
+    <div
+      key={side}
+      className={`vd-fighter ${sideCls(side)} ${o.big ? 'vd-big' : ''} ${o.dim ? 'vd-dim' : ''} ${
+        o.gold ? 'vd-gold' : ''
+      } ${onCamera(side) ? 'vd-cam' : ''}`}
+    >
+      <div className="vd-lit">
+        <Cone color={side === 'FOR' ? '#F0821E' : '#1FC2D4'} id={`vdCone${side}`} />
+        <div className="vd-art">{art(side)}</div>
+      </div>
+      <div className="vd-name">
+        {mySide !== undefined && side === me ? <span className="vd-you">{t('you')}</span> : null}
+        <span className="vd-name-text">{nameOf(side)}</span>
+      </div>
+      {callOn && side === them && !rtcConnected ? <span className="vd-left">{t('leftCall')}</span> : null}
+      {o.score !== undefined ? <div className="vd-total num">{o.score}</div> : null}
+    </div>
+  );
+
+  const callLine = botOpponent ? null : callOn ? (
+    <div className="vd-call">
+      <span className="vd-call-dot" aria-hidden="true" />
+      <span>{t(avatars?.[me] ? 'stillLiveMasked' : 'stillLive')}</span>
+      <button className="btn btn-small" onClick={onLeaveCall}>
+        {t('leaveCall')}
+      </button>
+    </div>
+  ) : (
+    <p className="vd-call-off">{t('youLeft')}</p>
+  );
+
+  /* ------------------------------ the wait ------------------------------ */
+
+  if (!info) {
+    const failed = status?.state === 'failed' ? status : null;
+    return (
+      <div className="stage vd vd-wait" style={gel}>
+        <p className="kicker vd-topic">{topic?.[lang] ?? ''}</p>
+        <div className="vd-stage">{order.map((s) => fighter(s))}</div>
+        {failed ? (
           <>
-            <h1 className="display">{t('judgeFailed')}</h1>
-            <p className="subtitle">{t(status.message ?? 'judgeFailedSub')}</p>
-            {!status.terminal ? (
-              <button className="btn btn-primary" onClick={onRetry}>
-                {t('callJudgeBack')}
+            <h1 className="display vd-deciding">{t('judgeFailed')}</h1>
+            <p className="subtitle">{t(failed.message ?? 'judgeFailedSub')}</p>
+            <div className="vd-actions">
+              {!failed.terminal ? (
+                <button className="btn btn-primary" onClick={onRetry}>
+                  {t('callJudgeBack')}
+                </button>
+              ) : null}
+              <button className={`btn ${failed.terminal ? 'btn-primary' : ''}`} onClick={home}>
+                {t('backHome')}
               </button>
-            ) : null}
-            <button className="btn" onClick={() => window.location.assign('/')}>
-              {t('backHome')}
-            </button>
+            </div>
           </>
         ) : (
           <>
-            <h1 className="display deliberating">{t('deliberating')}</h1>
-            <div className="gavel-spinner" aria-hidden="true" />
-            <p className="subtitle">{t('deliberatingSub')}</p>
+            <h1 className="display vd-deciding">{t('deliberating')}</h1>
+            {/* Honest: it moves, it never claims a percentage it cannot know. */}
+            <div className="vd-progress" role="progressbar" aria-label={t('deliberating')}>
+              <i />
+            </div>
           </>
         )}
-        {strip}
+        {callLine}
       </div>
     );
   }
+
+  /* ------------------------------ the result ---------------------------- */
 
   const { verdict, names } = info;
   const winner = verdict.winner;
-  const loser: Side = winner === 'FOR' ? 'AGAINST' : 'FOR';
+  const ruling = verdict.ruling;
+  // Zero words from you means the mic never reached the judge. Say that
+  // plainly instead of VICTORY or DEFEAT, otherwise it reads as a defeat you
+  // earned, and the only way to find out was to ask the coach and be told
+  // "I heard nothing", which is how this surfaced in the first place.
+  const notHeard = mySide !== undefined && info.heard?.[mySide] === 0;
   const youWon = mySide !== undefined && mySide === winner;
+  const outcome = mySide === undefined || notHeard ? 'neutral' : youWon ? 'won' : 'lost';
+  const e = ease(progress);
+  const score = (s: Side) =>
+    ruling ? `${Math.round(ruling.split[s] * e)}%` : Math.round(total(verdict.scores[s]) * e);
 
-  if (stage === 'scores') {
-    return (
-      <div className="stage center-col verdict-scores">
-        <p className="kicker">{topic?.[lang] ?? ''}</p>
-        <h1 className="display">{t('scoresIn')}</h1>
-        <div className="score-reveals">
-          {REVEAL_ORDER.slice(0, revealed).map((c) => (
-            <div className="score-reveal card" key={c.key}>
-              <div className="score-reveal-head">
-                <span className="score-reveal-label">{t(c.labelKey)}</span>
-                <span className="score-reveal-max">{t('outOf', { n: c.max })}</span>
-              </div>
-              <p className="score-reveal-desc">{t(c.descKey)}</p>
-              <div className="score-reveal-sides">
-                <div className="score-reveal-side">
-                  <span className="fighter for">{names.FOR}</span>
-                  <span className="score-reveal-num">{verdict.scores.FOR[c.key]}</span>
-                  <span className={`grade-chip grade-${grade(verdict.scores.FOR[c.key], c.max).replace('+', 'plus')}`}>
-                    {grade(verdict.scores.FOR[c.key], c.max)}
-                  </span>
-                </div>
-                <span className="vs">VS</span>
-                <div className="score-reveal-side">
-                  <span className="fighter against">{names.AGAINST}</span>
-                  <span className="score-reveal-num">{verdict.scores.AGAINST[c.key]}</span>
-                  <span className={`grade-chip grade-${grade(verdict.scores.AGAINST[c.key], c.max).replace('+', 'plus')}`}>
-                    {grade(verdict.scores.AGAINST[c.key], c.max)}
-                  </span>
-                </div>
-              </div>
-            </div>
-          ))}
+  // What the match did to your rating, in one line.
+  let rating: ReactNode = null;
+  if (mySide !== undefined && !notHeard) {
+    const elo = info.elo?.[mySide];
+    if (elo) {
+      const delta = elo.after - elo.before;
+      // One line of Elo literacy when we know who you played, which kills
+      // "why did I only get six points" for good.
+      const favoured = opponentRating !== undefined ? elo.before > opponentRating : null;
+      const why =
+        favoured === null
+          ? null
+          : youWon
+            ? t(favoured ? 'eloFavored' : 'eloUnderdog')
+            : t(favoured ? 'eloUpsetLoss' : 'eloExpectedLoss');
+      rating = (
+        <div className="vd-rating-wrap vd-in" style={delay(0.2)}>
+          <p className={`vd-rating ${delta > 0 ? 'up' : ''}`}>
+            <b className="elo">{delta > 0 ? `+${delta}` : delta < 0 ? `−${-delta}` : '0'}</b>
+            <span>{withNum(t('vdNow'), elo.after)}</span>
+          </p>
+          {why ? <p className="vd-rating-sub">{why}</p> : null}
         </div>
-        {revealed >= REVEAL_ORDER.length ? (
-          <p className="subtitle">{t('totalsHidden')}</p>
-        ) : null}
-        {strip}
-      </div>
-    );
+      );
+    } else if (info.placement) {
+      // A measurement, not a prize: paper, never gold, win or lose.
+      rating = (
+        <div className="vd-rating-wrap vd-in" style={delay(0.2)}>
+          <p className="vd-rating">
+            <span>{withNum(t('vdStartAt'), info.placement.rating)}</span>
+          </p>
+          <p className="vd-rating-sub">{t('placedLine')}</p>
+        </div>
+      );
+    } else if (botOpponent) {
+      rating = (
+        <p className="vd-rating-note vd-in" style={delay(0.2)}>
+          {t('vdBotUnrated')}
+        </p>
+      );
+    }
   }
 
-  if (stage === 'drumroll') {
-    return (
-      <div className="stage center-col verdict-drum">
-        <h1 className="display huge">{t('yapmasterIs')}</h1>
-        {strip}
-      </div>
+  // Next steps: one loud button, the same mode again where that exists.
+  const friendRoom = !botOpponent && !ranked;
+  let again: ReactNode = null;
+  if (friendRoom && !rematch?.peerLeft) {
+    again = rematch?.youWant ? (
+      <button className="btn btn-primary" disabled>
+        {t('rematchWaiting', { x: peerName })}
+      </button>
+    ) : (
+      <button className="btn btn-primary" onClick={onRematch}>
+        {rematch?.peerWant ? t('rematchAccept', { x: peerName }) : t('rematch')}
+      </button>
+    );
+  } else if (botOpponent && onPlayAgain && !info.placement) {
+    again = (
+      <button
+        className="btn btn-primary"
+        disabled={starting}
+        onClick={() => {
+          setStarting(true);
+          onPlayAgain();
+        }}
+      >
+        {starting ? t('vdStarting') : t('vdPlayAgain', { x: botOpponent.name })}
+      </button>
     );
   }
+  const coachOn = mySide !== undefined;
 
-  // The scoreboard, coaching, coach chat and actions: identical in both modes,
-  // so it is built once and dropped into whichever ruling screen renders.
-  const details = (
-        <div className="verdict-details">
-          {verdict.injectionDetected ? (
-            <div className="banner banner-warn">{t('injection')}</div>
-          ) : null}
+  const myNotes = mySide !== undefined ? verdict.feedback[me] ?? [] : [];
+  const myQuote = mySide !== undefined ? verdict.bestQuote[me] : '';
+  const reason = ruling?.decree || verdict.summary;
+  const noteSides: Side[] = mySide !== undefined ? [them] : ['FOR', 'AGAINST'];
 
-          <div className="scoreboard card">
-            <div className="score-head">
-              <span className={`fighter for`}>
-                {names.FOR} · {total(verdict.scores.FOR)}
-              </span>
-              <span className="vs">/100</span>
-              <span className={`fighter against`}>
-                {names.AGAINST} · {total(verdict.scores.AGAINST)}
-              </span>
-            </div>
-            {CATEGORIES.map((c) => (
-              <div className="score-row" key={c.key}>
-                <span className="score-num">{verdict.scores.FOR[c.key]}</span>
-                <div className="score-bars">
-                  <div className="score-bar left">
-                    <div
-                      className="score-fill fill-for"
-                      style={{ width: `${(verdict.scores.FOR[c.key] / c.max) * 100}%` }}
-                    />
-                  </div>
-                  <span className="score-label" title={t(c.descKey)}>
-                    {t(c.labelKey)} <em>/{c.max}</em>
-                  </span>
-                  <div className="score-bar">
-                    <div
-                      className="score-fill fill-against"
-                      style={{ width: `${(verdict.scores.AGAINST[c.key] / c.max) * 100}%` }}
-                    />
-                  </div>
-                </div>
-                <span className="score-num">{verdict.scores.AGAINST[c.key]}</span>
-              </div>
-            ))}
-          </div>
+  return (
+    <div className={`stage vd vd-${outcome} ${skipped ? 'vd-skip' : ''}`} style={gel} onPointerDown={skip}>
+      <p className="kicker vd-topic">{topic?.[lang] ?? ''}</p>
 
-          <div className="quotes">
-            {(['FOR', 'AGAINST'] as Side[]).map((side) =>
-              verdict.bestQuote[side] ? (
-                <blockquote key={side} className={`quote ${side === 'FOR' ? 'for' : 'against'}`}>
-                  “{verdict.bestQuote[side]}”
-                  <cite>— {names[side]}</cite>
-                </blockquote>
-              ) : null,
+      <div className="vd-grid">
+        <section className="vd-result">
+          <h1 className={`display vd-word vd-in ${outcome}`}>
+            {outcome === 'won' ? t('youWon') : outcome === 'lost' ? t('youLost') : t('vdWins', { x: names[winner] })}
+          </h1>
+
+          <div className="vd-stage vd-in" style={delay(0.06)}>
+            {order.map((s) =>
+              fighter(s, {
+                big: s === winner,
+                dim: s !== winner,
+                score: score(s),
+                gold: s === winner && outcome === 'won',
+              }),
             )}
           </div>
 
-          <div className="feedback-cols">
-            {(['FOR', 'AGAINST'] as Side[]).map((side) => (
-              <div key={side} className="card feedback">
-                <h3 className={side === 'FOR' ? 'for' : 'against'}>{names[side]}</h3>
-                <ul>
-                  {verdict.feedback[side].map((f, i) => (
-                    <li key={i}>{f}</li>
-                  ))}
-                </ul>
-              </div>
-            ))}
-          </div>
-
-          {mySide !== undefined ? (
-            <div className="coach-card card">
-              <h3 className="coach-title">{t('coachTitle')}</h3>
-              {/* one chat, not two. the note is what tells you arguing with the
-                  ruling is on the table at all — no mode switch needed. */}
-              <p className="coach-note">{t('coachNote')}</p>
-              {coachLog.length > 0 || coachThinking ? (
-                <div className="coach-log">
-                  {coachLog.map((m, i) => (
-                    <p key={i} className={`coach-msg ${m.role}`}>
-                      {m.error ? t('coachError') : m.text}
-                    </p>
-                  ))}
-                  {coachThinking ? (
-                    <p className="coach-msg coach thinking">{t('coachThinking')}</p>
-                  ) : null}
-                </div>
-              ) : null}
-
-              {coachAsks < COACH_LIMIT ? (
-                <>
-                  <div className="coach-presets">
-                    {[
-                      youWon ? 'coachHowWon' : 'coachWhyLost',
-                      'coachImprove',
-                      'coachChallenge',
-                    ].map((key) => (
-                      <button
-                        key={key}
-                        className="btn btn-small"
-                        disabled={coachThinking}
-                        onClick={() => askCoach(t(key))}
-                      >
-                        {t(key)}
-                      </button>
-                    ))}
-                  </div>
-                  <div className="coach-input-row">
-                    <input
-                      className="input"
-                      value={coachInput}
-                      placeholder={t('coachPlaceholder')}
-                      maxLength={300}
-                      onChange={(e) => setCoachInput(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') askCoach(coachInput);
-                      }}
-                    />
-                    <button
-                      className="btn"
-                      disabled={coachThinking || !coachInput.trim()}
-                      onClick={() => askCoach(coachInput)}
-                    >
-                      {t('coachSend')}
-                    </button>
-                  </div>
-                </>
-              ) : (
-                <p className="coach-done">{t('coachDone')}</p>
-              )}
+          {notHeard ? (
+            <div className="vd-notheard vd-in" style={delay(0.2)}>
+              <p className="vd-notheard-line">{t('notHeard')}</p>
+              <p className="vd-notheard-fix">{t('notHeardFix')}</p>
             </div>
           ) : null}
-
-          {/* Opt-in per debate. Nothing leaves until you press it, and even
-              then the result rides inside the link rather than a database. */}
-          <div className="share-row">
-            <button className="btn btn-small" disabled={shareState === 'working'} onClick={share}>
-              {shareState === 'copied' ? t('shareCopied') : t('shareBtn')}
-            </button>
-            <p className="share-note">
-              {shareState === 'failed' ? t('shareFailed') : t('shareNote')}
+          {rating}
+          {unlocked ? (
+            <p className="vd-unlock vd-in" style={delay(0.25)}>
+              {unlocked.unlocked ? t('unlockedTape', { x: unlocked.unlocked }) : t('campaignDone')}
             </p>
-          </div>
+          ) : null}
 
-          <div className="verdict-actions">
-            {/* Bot and ranked debates have no rematch, and "new opponent" went
-                to the same lobby as "back to the lobby" did, so one button. */}
-            {botOpponent || ranked ? null : rematch?.peerLeft ? (
-              <button className="btn btn-primary" disabled>
-                {t('rematchPeerLeft', { x: peerName })}
-              </button>
-            ) : rematch?.youWant ? (
-              <button className="btn btn-primary" disabled>
-                {t('rematchWaiting', { x: peerName })}
-              </button>
-            ) : (
-              <button className="btn btn-primary" onClick={onRematch}>
-                {rematch?.peerWant ? t('rematchAccept', { x: peerName }) : t('rematch')}
+          <div className="vd-actions vd-in" style={delay(0.3)}>
+            {again ?? (
+              <button className="btn btn-primary" onClick={home}>
+                {t('backHome')}
               </button>
             )}
-            <button
-              className={`btn ${botOpponent || ranked ? 'btn-primary' : ''}`}
-              onClick={() => window.location.assign('/')}
-            >
-              {t('backHome')}
-            </button>
-            <button className="btn" onClick={toggleMute}>
-              {muted ? t('unmuteStage') : t('muteStage')}
-            </button>
+            <div className="vd-actions-row">
+              {again ? (
+                <button className="btn" onClick={home}>
+                  {t('backHome')}
+                </button>
+              ) : null}
+              {coachOn ? (
+                <button
+                  className="btn"
+                  onClick={() => coachRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+                >
+                  {t('coachTitle')}
+                </button>
+              ) : null}
+            </div>
+            {friendRoom && rematch?.peerLeft ? (
+              <p className="vd-action-note">{t('rematchPeerLeft', { x: peerName })}</p>
+            ) : null}
           </div>
+
           {saveNudge ? (
-            <div className="save-nudge">
-              <p className="save-nudge-line">{t('saveThisNudge')}</p>
+            <div className="vd-save vd-in" style={delay(0.35)}>
+              <p>{t('saveThisNudge')}</p>
               <button className="btn btn-small btn-google" onClick={signIn}>
                 {t('signInGoogle')}
               </button>
             </div>
           ) : null}
+          {callLine}
+        </section>
 
-          {!botOpponent ? <ReportFlag /> : null}
-          <p className="footnote">{t('condolences', { x: names[loser] })}</p>
-        </div>
-  );
+        <section className="vd-why vd-in" style={delay(0.35)}>
+          {verdict.injectionDetected ? <div className="banner banner-warn">{t('injection')}</div> : null}
 
-  // Settle-it lands as a court ruling, not a scoreboard: what each of them said
-  // the fight was about, then the split, then the decree, then the orders.
-  const ruling = verdict.ruling;
-  if (ruling) {
-    const other: Side = winner === 'FOR' ? 'AGAINST' : 'FOR';
-    return (
-      <div className="stage center-col verdict">
-        <p className="kicker">{t('theRuling')}</p>
-
-        {framing ? (
-          <div className="said-pair">
-            <div className="said">
-              <span className="said-who for">{names.FOR}</span>
-              <p className="said-text">&ldquo;{framing.said.FOR}&rdquo;</p>
+          {reason ? (
+            <div className="vd-reason">
+              <span className="vd-label">{t('vdJudge')}</span>
+              <p>{reason}</p>
             </div>
-            <div className="said">
-              <span className="said-who against">{names.AGAINST}</span>
-              <p className="said-text">&ldquo;{framing.said.AGAINST}&rdquo;</p>
+          ) : null}
+
+          {ruling && ruling.orders.length > 0 ? (
+            <div className="vd-orders">
+              <span className="vd-label">{t('theOrders')}</span>
+              {ruling.orders.map((o, i) => (
+                <p key={i}>{o}</p>
+              ))}
             </div>
-          </div>
-        ) : null}
+          ) : null}
 
-        <p className="kicker">{t('theArgument')}</p>
-        <h1 className="display motion">{topic?.[lang] ?? ''}</h1>
+          {ruling && framing ? (
+            <div className="vd-said">
+              <span className="vd-label">{t('vdSaid')}</span>
+              {order.map((s) => (
+                <div className="vd-said-one" key={s}>
+                  <span className={`vd-said-who ${sideCls(s)}`}>{names[s]}</span>
+                  <p>&ldquo;{framing.said[s]}&rdquo;</p>
+                </div>
+              ))}
+            </div>
+          ) : null}
 
-        <div className="split">
-          <div className={`split-half ${winner === 'FOR' ? 'for' : 'against'} split-win`}>
-            <span className="split-pct">{ruling.split[winner]}</span>
-            <span className="split-name">{names[winner]}</span>
-          </div>
-          <span className="split-slash">/</span>
-          <div className={`split-half ${other === 'FOR' ? 'for' : 'against'}`}>
-            <span className="split-pct">{ruling.split[other]}</span>
-            <span className="split-name">{names[other]}</span>
-          </div>
-        </div>
-
-        <p className="decree">{ruling.decree}</p>
-
-        {ruling.orders.length > 0 ? (
-          <div className="orders card">
-            <span className="orders-label">{t('theOrders')}</span>
-            {ruling.orders.map((o, i) => (
-              <p key={i} className="order">
-                {o}
-              </p>
+          <div className="vd-score">
+            <div className="vd-legend">
+              {order.map((s) => (
+                <span key={s} className={`vd-key ${sideCls(s)}`}>
+                  <i aria-hidden="true" />
+                  {mySide !== undefined && s === me ? t('you') : names[s]}
+                </span>
+              ))}
+            </div>
+            {CATEGORIES.map((c) => (
+              <div className="vd-row" key={c.key}>
+                <div className="vd-row-head">
+                  <span className="vd-cat">
+                    {t(c.labelKey)}
+                    <span className="vd-cat-desc">{t(c.descKey)}</span>
+                  </span>
+                  <span className="vd-cat-max num">/{c.max}</span>
+                </div>
+                {order.map((s) => (
+                  <div className="vd-bar-row" key={s}>
+                    <div className="vd-bar">
+                      <i
+                        className={sideCls(s)}
+                        style={{ width: `${(verdict.scores[s][c.key] / c.max) * 100 * e}%` }}
+                      />
+                    </div>
+                    <span className={`vd-n num ${sideCls(s)}`}>{verdict.scores[s][c.key]}</span>
+                  </div>
+                ))}
+              </div>
             ))}
           </div>
-        ) : null}
 
-        {mySide !== undefined && info.heard && info.heard[mySide] === 0 ? (
-          <div className="not-heard">
-            <p className="not-heard-line">{t('notHeard')}</p>
-            <p className="not-heard-fix">{t('notHeardFix')}</p>
-          </div>
-        ) : null}
-        {strip}
-        {stage === 'details' ? details : null}
-      </div>
-    );
-  }
-
-  return (
-    <div className="stage center-col verdict">
-      <p className="kicker">{topic?.[lang] ?? ''}</p>
-      <div className={`stamp ${winner === 'FOR' ? 'for' : 'against'}`}>
-        <span className="stamp-label">{t('yapmaster')}</span>
-        <span className="stamp-name display">{names[winner]}</span>
-        <span className="stamp-side">{t(winner)}</span>
-      </div>
-      <p className="summary">{verdict.summary}</p>
-      {/* Zero words from you means the mic never reached the judge. Say that
-          plainly — otherwise it reads as a defeat you earned, and the only way
-          to find out is to ask the coach afterwards and be told "I heard
-          nothing", which is how this surfaced in the first place. */}
-      {mySide !== undefined && info.heard && info.heard[mySide] === 0 ? (
-        <div className="not-heard">
-          <p className="not-heard-line">{t('notHeard')}</p>
-          <p className="not-heard-fix">{t('notHeardFix')}</p>
-        </div>
-      ) : mySide !== undefined ? (
-        <>
-          <p className={`you-result ${youWon ? 'won' : 'lost'}`}>
-            {youWon ? t('youWon') : t('youLost')}
-          </p>
-          {info.elo?.[mySide] ? (
-            <EloResult
-              before={info.elo[mySide].before}
-              after={info.elo[mySide].after}
-              won={youWon}
-              opponentRating={opponentRating}
-            />
-          ) : null}
-          {/* The placement match: no before, no delta, just where you start.
-              Not gold either way: gold is a win and this is a measurement. */}
-          {info.placement ? (
-            <div className="elo-result placed">
-              <span className="elo-delta elo">{info.placement.rating}</span>
-              <span className="elo-why">{t('placedLine')}</span>
+          {/* The judge writes two notes per debater: bullet one is the
+              strongest thing they did, bullet two the thing that cost them. */}
+          {myNotes.length > 0 ? (
+            <div className="vd-notes">
+              {myNotes[0] ? (
+                <div className="vd-note">
+                  <span className="vd-label">{t('vdWorked')}</span>
+                  <p>{myNotes[0]}</p>
+                </div>
+              ) : null}
+              {myNotes[1] ? (
+                <div className="vd-note vd-note-fix">
+                  <span className="vd-label">{t('vdFix')}</span>
+                  <p>{myNotes[1]}</p>
+                </div>
+              ) : null}
             </div>
           ) : null}
-        </>
-      ) : null}
-      {unlocked ? (
-        <span className="tape tape-gold unlock-tape">
-          {unlocked.unlocked
-            ? t('unlockedTape', { x: unlocked.unlocked })
-            : t('campaignDone')}
-        </span>
-      ) : null}
-      {strip}
 
-      {stage === 'details' ? details : null}
+          {myQuote ? (
+            <blockquote className="vd-quote">
+              <span className="vd-label">{t('vdBestLine')}</span>
+              <p>&ldquo;{myQuote}&rdquo;</p>
+            </blockquote>
+          ) : null}
+        </section>
+      </div>
+
+      <section className="vd-more">
+        {coachOn ? (
+          <div className="coach-card card vd-coach" ref={coachRef}>
+            <h3 className="coach-title">{t('coachTitle')}</h3>
+            {/* one chat, not two. the note is what tells you arguing with the
+                ruling is on the table at all, no mode switch needed. */}
+            <p className="coach-note">{t('coachNote')}</p>
+            {coachLog.length > 0 || coachThinking ? (
+              <div className="coach-log">
+                {coachLog.map((m, i) => (
+                  <p key={i} className={`coach-msg ${m.role}`}>
+                    {m.error ? t('coachError') : m.text}
+                  </p>
+                ))}
+                {coachThinking ? <p className="coach-msg coach thinking">{t('coachThinking')}</p> : null}
+              </div>
+            ) : null}
+
+            {coachAsks < COACH_LIMIT ? (
+              <>
+                <div className="coach-presets">
+                  {[youWon ? 'coachHowWon' : 'coachWhyLost', 'coachImprove', 'coachChallenge'].map((key) => (
+                    <button
+                      key={key}
+                      className="btn btn-small"
+                      disabled={coachThinking}
+                      onClick={() => askCoach(t(key))}
+                    >
+                      {t(key)}
+                    </button>
+                  ))}
+                </div>
+                <div className="coach-input-row">
+                  <input
+                    className="input"
+                    value={coachInput}
+                    placeholder={t('coachPlaceholder')}
+                    maxLength={300}
+                    onChange={(ev) => setCoachInput(ev.target.value)}
+                    onKeyDown={(ev) => {
+                      if (ev.key === 'Enter') askCoach(coachInput);
+                    }}
+                  />
+                  <button
+                    className="btn"
+                    disabled={coachThinking || !coachInput.trim()}
+                    onClick={() => askCoach(coachInput)}
+                  >
+                    {t('coachSend')}
+                  </button>
+                </div>
+              </>
+            ) : (
+              <p className="coach-done">{t('coachDone')}</p>
+            )}
+          </div>
+        ) : null}
+
+        {noteSides.map((s) =>
+          verdict.feedback[s]?.length || verdict.bestQuote[s] ? (
+            <div className="vd-theirs" key={s}>
+              <span className="vd-label">{t('vdTheirNotes', { x: names[s] })}</span>
+              {verdict.bestQuote[s] ? <p className="vd-theirs-quote">&ldquo;{verdict.bestQuote[s]}&rdquo;</p> : null}
+              <ul>
+                {(verdict.feedback[s] ?? []).map((f, i) => (
+                  <li key={i}>{f}</li>
+                ))}
+              </ul>
+            </div>
+          ) : null,
+        )}
+
+        {/* Opt-in per debate. Nothing leaves until you press it, and even
+            then the result rides inside the link rather than a database. */}
+        <div className="vd-util">
+          <button className="btn btn-small" disabled={shareState === 'working'} onClick={share}>
+            {shareState === 'copied' ? t('shareCopied') : t('shareBtn')}
+          </button>
+          <button className="btn btn-small ghost" onClick={toggleMute}>
+            {muted ? t('unmuteStage') : t('muteStage')}
+          </button>
+        </div>
+        <p className="vd-util-note">{shareState === 'failed' ? t('shareFailed') : t('shareNote')}</p>
+
+        {!botOpponent ? <ReportFlag /> : null}
+        <p className="footnote">{t('condolences', { x: names[winner === 'FOR' ? 'AGAINST' : 'FOR'] })}</p>
+      </section>
     </div>
   );
 }
