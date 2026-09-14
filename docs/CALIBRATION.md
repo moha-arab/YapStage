@@ -388,4 +388,41 @@ closings (often the weighing sentence) and some of their defenses. Expect the
 top rungs to measure weaker than their labels and to compress together. The
 proper fix is a clock-aware lengthRule (targets per turn length, keeping the
 rung differences as density rather than length), then phase D (about 1.60
-dollars) and, if the order moves, phase A (about 7 dollars). Not done yet.
+dollars) and, if the order moves, phase A (about 7 dollars).
+
+## 2026-09-14: clock-aware lengthRule, phase D
+
+`lengthRule(rank, pace, seconds)` now caps each rung's word range at what the
+voice can say in that turn (`clockWordBudget(seconds)` less four words for the
+model's overshoot): standard pace asks for under 80 words in a 45 s turn, 61
+in 35 s, 42 in 25 s. Rungs whose own range already fits keep it (Nib and Moss
+openings). From rung 3 up, every rung gets the same length per turn, so the
+rungs now differ only in what they do with the words (`rungDirective`). The
+old closing and defense token trim is gone; `fitToClock` stays as a backstop.
+Standard is the default pace again for friend rooms, ranked and placement.
+
+Phase D at 1 run per cell (16 debates, about 1.60 dollars), margins from the
+human's side, with the 2026-09-13 spot check in brackets:
+
+| bot | average profile | strong profile |
+| --- | --- | --- |
+| Nib | +49 (+58) | +60 (+64) |
+| Moss | +28 (+13) | +42 (+36) |
+| Dodger | +7 (-8) | +10 (+22) |
+| Clover | -25 (-25) | -14 (-15) |
+| Prudence | -27 (-33) | -22 (-29) |
+| Rocco | -20 (-30) | -6 (-20) |
+| Sterling | -17 (-27) | -4 (-13) |
+| Vesper | -24 (-32) | -21 (-25) |
+
+The bottom of the ladder holds its targets: the average profile beats Nib and
+Moss, splits with Dodger and loses from Clover up. The top compressed as
+predicted: Rocco and Sterling measure 10 to 14 points easier than before and
+the strong profile nearly splits with them, while Prudence and Vesper still
+beat it clearly. At one run per cell those gaps sit inside the judge's
+noise, and the top was already out of order on 2026-09-13 (Sterling easier
+than Rocco and Prudence for both profiles). Ladder direction check: OK.
+
+Next, if the top-rung labels matter before real data exists: phase A at 10
+per pair across rungs 5 to 8 (about 7 dollars), and move `rungDirective` for
+Rocco and Sterling rather than giving length back.
