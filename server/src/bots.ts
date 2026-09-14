@@ -274,9 +274,16 @@ export const VOICE_WORDS_PER_SEC = 2.1;
     The budget keeps 8 percent and a second of margin for the clip's lead-in
     and the time the browser takes to start playing it. Nothing in the bot
     prompts changes: this trims after generation. */
+/** How many words the voice can say in a turn of `seconds`, keeping 8 percent
+    and a second of margin (standard pace: 45 s = 84, 35 s = 65, 25 s = 46).
+    lengthRule asks for a few words under this; fitToClock enforces it. */
+export function clockWordBudget(seconds: number): number {
+  return Math.max(8, Math.floor((seconds * 0.92 - 1) * VOICE_WORDS_PER_SEC));
+}
+
 export function fitToClock(text: string, seconds: number): string {
   const clean = text.trim();
-  const budget = Math.max(8, Math.floor((seconds * 0.92 - 1) * VOICE_WORDS_PER_SEC));
+  const budget = clockWordBudget(seconds);
   const count = (s: string) => (s.match(/\S+/g) ?? []).length;
   if (count(clean) <= budget) return clean;
   // A sentence ends at . ! ? (or the Arabic marks) followed by a space or
@@ -307,7 +314,25 @@ export function fitToClock(text: string, seconds: number): string {
 export function lengthRule(
   rank: number,
   pace: Pace = 'standard',
+  /** The turn's real clock. When given, the rung's word range is capped at
+      what the voice can say in it (clockWordBudget, less a few words for the
+      model's overshoot), so a bot plans a whole speech that fits instead of
+      being cut at the clock mid-argument. The rungs keep their differences
+      in what they do with the words (rungDirective), not in how many. */
+  seconds?: number,
 ): { sentences: string; maxTokens: number } {
+  const row = lengthRow(rank, pace);
+  if (!seconds) return row;
+  const target = Math.max(8, clockWordBudget(seconds) - 4);
+  const asked = Math.max(...(row.sentences.match(/\d+/g) ?? ['0']).map(Number));
+  if (asked <= target) return row;
+  return {
+    sentences: `about ${Math.max(2, Math.round(target / 17))} sentences, under ${target} words total`,
+    maxTokens: Math.min(row.maxTokens, Math.ceil(target * 2.2) + 24),
+  };
+}
+
+function lengthRow(rank: number, pace: Pace): { sentences: string; maxTokens: number } {
   const S: Record<number, { sentences: string; maxTokens: number }> = {
     1: { sentences: 'three short sentences, roughly 40 to 55 words', maxTokens: 120 },
     2: { sentences: 'three sentences, roughly 55 to 70 words', maxTokens: 150 },

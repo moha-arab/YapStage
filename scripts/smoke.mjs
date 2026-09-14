@@ -508,23 +508,23 @@ const MONEY_IDS = ['money-happiness', 'landlords', 'crypto-scam', 'no-billionair
   const cr = await emitP(host, 'lobby:create', { sessionId: 'r-h', name: 'Guest1020' });
   const code = cr.update.code;
   await emitP(guest, 'lobby:join', { code, sessionId: 'r-g', name: 'Guest1007' });
-  check('lobby defaults to blitz pace', cr.update.pace === 'blitz');
+  check('lobby defaults to standard pace', cr.update.pace === 'standard');
   host.emit('pick:mode', 'random');
   await new Promise((r) => setTimeout(r, 200)); // let the mode propagate before confirming
 
-  // pace is host-controlled, like the mode (rooms open on blitz since
-  // 2026-09-13, so the host moves it to standard here)
+  // pace is host-controlled, like the mode (rooms open on standard, so the
+  // host moves it to blitz here to see a change land)
   const paceUpdate = once(guest, 'lobby:update', 4000);
-  host.emit('pick:pace', 'standard');
+  host.emit('pick:pace', 'blitz');
   const u1 = await paceUpdate;
-  check('pace: host sets standard', u1.pace === 'standard');
+  check('pace: host sets blitz', u1.pace === 'blitz');
   let lastPace = u1.pace;
   const paceTracker = (u) => { lastPace = u.pace; };
   guest.on('lobby:update', paceTracker);
   guest.emit('pick:pace', 'long'); // guest is not host — must be ignored
   await new Promise((r) => setTimeout(r, 250));
   guest.off('lobby:update', paceTracker);
-  check('pace: guest cannot change it', lastPace === 'standard');
+  check('pace: guest cannot change it', lastPace === 'blitz');
 
   const started = once(host, 'debate:start', 8000);
   const gStarted = once(guest, 'debate:start', 8000);
@@ -756,7 +756,7 @@ console.log('\n=== Scenario 9: ranked + spectate ===');
   const beat = await hb;
   check(
     'queue: heartbeat carries waiting, rating and pace',
-    beat.waiting === 1 && typeof beat.rating === 'number' && beat.pace === 'blitz',
+    beat.waiting === 1 && typeof beat.rating === 'number' && beat.pace === 'standard',
   );
   const q2 = await emitP(r2, 'queue:join', { sessionId: 'rk-2', playerId: 'pid-rk-2', name: 'Guest1010' });
   check('queue: second join accepted', q2.ok === true);
@@ -764,7 +764,7 @@ console.log('\n=== Scenario 9: ranked + spectate ===');
   check('queue: both matched into the same lobby', u1.update.code === u2.update.code);
   check('queue: lobby is flagged ranked', u1.update.ranked === true && u2.update.ranked === true);
   check('queue: ranked topic mode is random', u1.update.topicMode === 'random');
-  check('queue: ranked runs at blitz', u1.update.pace === 'blitz');
+  check('queue: ranked runs at standard', u1.update.pace === 'standard');
   check('queue: ranked seats are masked', u1.update.yourMasked === true && u1.update.peerMasked === true);
   const code9 = u1.update.code;
 
@@ -1022,11 +1022,11 @@ console.log('\n=== Scenario 11: no self-play ===');
   [t1, t2, t3, h, g].forEach((s) => s.disconnect());
 }
 
-// ---------- Scenario 12: ranked is one pace (blitz since 2026-09-13) ----------
+// ---------- Scenario 12: ranked is one pace (standard; blitz for one day) ----------
 // One queue. There was a queue per pace for a week; he took it out so every
 // player who wants a ranked game is in the same line. A client asking for any
 // pace (or one that never existed) is queued with everyone else and lands in
-// the one ranked room, which runs at blitz.
+// the one ranked room, which runs at standard.
 console.log('\n=== Scenario 12: ranked is one pace ===');
 {
   const bz = connect();
@@ -1036,13 +1036,13 @@ console.log('\n=== Scenario 12: ranked is one pace ===');
   const ml = once(lg, 'queue:matched', 8000);
   await emitP(bz, 'queue:join', { sessionId: 'pc-1', playerId: 'pid-pc-1', name: 'Guest1032', pace: 'blitz' });
   const b0 = await bzBeat;
-  check('one queue: the heartbeat says blitz whatever was asked for', b0.pace === 'blitz' && b0.waiting === 1);
+  check('one queue: the heartbeat says standard whatever was asked for', b0.pace === 'standard' && b0.waiting === 1);
   await emitP(lg, 'queue:join', { sessionId: 'pc-2', playerId: 'pid-pc-2', name: 'Guest1023', pace: 'long' });
   const [b1, l1] = await Promise.all([mb, ml]);
   check('one queue: a blitz asker and a long asker meet each other', b1.update.code === l1.update.code);
   check(
-    'one queue: the ranked room runs at blitz',
-    b1.update.pace === 'blitz' && l1.update.pace === 'blitz' && b1.update.ranked === true,
+    'one queue: the ranked room runs at standard',
+    b1.update.pace === 'standard' && l1.update.pace === 'standard' && b1.update.ranked === true,
   );
 
   // A pace that never existed, and none at all (old clients): the same room.
@@ -1053,7 +1053,7 @@ console.log('\n=== Scenario 12: ranked is one pace ===');
   await emitP(s1, 'queue:join', { sessionId: 'pc-5', playerId: 'pid-pc-5', name: 'Guest1038', pace: 'hyper' });
   await emitP(s2, 'queue:join', { sessionId: 'pc-6', playerId: 'pid-pc-6', name: 'Guest1039' });
   const [y1] = await Promise.all([ms1, ms2]);
-  check('one queue: an unknown pace lands in the same blitz room', y1.update.pace === 'blitz');
+  check('one queue: an unknown pace lands in the same standard room', y1.update.pace === 'standard');
 
   // The rating endpoint. No DATABASE_URL locally, so a fresh id is at the
   // seed with nothing played, and whether they are placed is unknown (null):

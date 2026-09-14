@@ -57,7 +57,9 @@ async function runDebate(profileName, botId, runIdx) {
   try {
     const res = await emitP(h, 'bot:start', {
       sessionId: `beat-${profileName}-${botId}-${runIdx}`,
-      name: 'evalhuman',
+      // A guest name the server accepts (^Guest\d{4}$ since 2026-09-13; the
+      // old 'evalhuman' is refused as bad_name and the whole run errors out).
+      name: 'Guest7001',
       botId,
       topicMode: 'agree',
       topicId: 'money-happiness',

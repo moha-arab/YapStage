@@ -798,7 +798,7 @@ function dropFromQueue(socketId: string): void {
 
 function broadcastQueue(): void {
   for (const q of rankedQueue) {
-    io.to(q.socketId).emit('queue:update', { waiting: rankedQueue.length, rating: q.rating, pace: 'blitz' });
+    io.to(q.socketId).emit('queue:update', { waiting: rankedQueue.length, rating: q.rating, pace: 'standard' });
   }
 }
 
@@ -857,9 +857,9 @@ function tryMatch(): void {
     lobby.guest = { socketId: b.socketId, sessionId: b.sessionId, name: b.name, ...seatLookOf(sb.data), playerId: b.playerId, rtcReady: false };
     lobby.status = 'greenroom';
     lobby.topicMode = 'random'; // strangers never negotiate a topic
-    // Ranked plays at blitz length for now (his call, 2026-09-13). The rating
-    // it moves is still the one ladder everybody has (judge.ts names it).
-    lobby.pace = 'blitz'; // pick:pace is refused in a ranked room
+    // Ranked plays at standard length (his call, 2026-09-14, after a day on
+    // blitz). The rating it moves is the one ladder everybody has (judge.ts).
+    lobby.pace = 'standard'; // pick:pace is refused in a ranked room
     lobby.ranked = { host: a.playerId, guest: b.playerId };
     // Ranked is faceless by format: both strangers are behind masks.
     lobby.host!.masked = true;
@@ -2012,7 +2012,7 @@ io.on('connection', (socket) => {
             io.to(q.socketId).emit('queue:update', {
               waiting: rankedQueue.length,
               rating: q.rating,
-              pace: 'blitz',
+              pace: 'standard',
               replaced: true,
             });
           }
@@ -2217,7 +2217,7 @@ io.on('connection', (socket) => {
       !placement && (p?.topicMode === 'agree' || p?.topicMode === 'category') ? p.topicMode : 'random';
     const lang = p?.lang === 'ar' ? 'ar' : 'en';
     // Placement is played on ranked terms, so at ranked's length.
-    const pace = placement ? 'blitz' : p?.pace === 'blitz' || p?.pace === 'long' ? p.pace : 'standard';
+    const pace = placement ? 'standard' : p?.pace === 'blitz' || p?.pace === 'long' ? p.pace : 'standard';
 
     // Resolve the motion.
     let topic;

@@ -216,9 +216,10 @@ export function createLobby(socketId: string, sessionId: string, name: string): 
     topicMode: 'random',
     categoryKey: null,
     hostSide: 'random',
-    // Friend rooms open on blitz, like ranked (his call, 2026-09-13); the host
-    // can still pick standard or long in the green room.
-    pace: 'blitz',
+    // Friend rooms open on standard, like ranked (his call, 2026-09-14, back
+    // from a day on blitz); the host can still pick blitz or long in the
+    // green room.
+    pace: 'standard',
     pick: {
       hostTopicId: null,
       guestTopicId: null,

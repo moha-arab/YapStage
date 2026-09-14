@@ -586,11 +586,15 @@ async function generateBotArgument(lobby: Lobby, bot: Bot, stepIndex: number): P
   };
   const phaseInstr = phaseInstrBy[phase];
 
-  // Shorter rounds get shorter speeches, so the shot clock rarely has to cut
-  // a bot off mid-sentence. The prompts above also ask for brevity in words.
-  const base = lengthRule(lobby.bot!.rank, lobby.pace);
-  const trim = phase === 'closing' ? 0.6 : phase === 'defense' ? 0.8 : 1;
-  const len = { ...base, maxTokens: Math.round(base.maxTokens * trim) };
+  // Each turn's word target comes from its real clock (bots.ts lengthRule),
+  // so a bot writes a whole speech that fits its turn instead of being cut
+  // at the clock mid-argument (fitToClock stays as the backstop). This
+  // replaced a flat token trim on closings and defenses, which shortened by
+  // tokens, not by what the voice can say. The pace's real clock even in
+  // FAST test mode, so calibration measures what a live player hears.
+  const clock =
+    (lobby.tutorial ? TUTORIAL_SCRIPT : SCRIPTS[lobby.pace] ?? SCRIPTS.standard)[stepIndex]?.seconds ?? 45;
+  const len = lengthRule(lobby.bot!.rank, lobby.pace, clock);
   const system = `You are ${bot.name}, an AI debater in a live 1v1 spoken debate. ${bot.style} ${rungDirective(lobby.bot!.rank)}
 Where your character's style conflicts with the STRENGTH rules, the STRENGTH rules always win: keep the personality in tone and word choice only, never as extra or less argumentative firepower.
 You are arguing ${botSide} this motion: "${motion}". ${phaseInstr}
