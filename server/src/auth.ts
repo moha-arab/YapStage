@@ -230,6 +230,9 @@ export interface AuthHooks {
       its player id off any seat it holds. Lives in index.ts, which owns the
       socket server and the lobbies. */
   onAccountDeleted?: (sub: string, playerId: string) => void;
+  /** A mask was just saved to the locker: every live socket on the account
+      should wear it from its next seat (index.ts). */
+  onLockerSaved?: (sub: string, mask: string) => void;
 }
 
 export function registerAuth(app: FastifyInstance, hooks: AuthHooks = {}): void {
@@ -520,6 +523,7 @@ export function registerAuth(app: FastifyInstance, hooks: AuthHooks = {}): void 
       return reply.code(400).send({ ok: false, error: 'bad_mask' });
     }
     const ok = await setLocker(s.sub, mask, Boolean(req.body?.maskDefault));
+    if (ok) hooks.onLockerSaved?.(s.sub, mask);
     return { ok };
   });
 

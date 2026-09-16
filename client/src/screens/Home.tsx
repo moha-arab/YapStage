@@ -913,14 +913,10 @@ export default function Home({
     void saveLocker(id, true).then((ok) => {
       if (!ok) return;
       onMaskSaved(id);
-      // The server reads your locker once, when the socket connects. Bounce
-      // it so the next seat wears the new mask. Not while holding a room:
-      // a bounce would give up the seat, and the green room has its own
-      // picker anyway.
-      if (!room && !queueing) {
-        socket.disconnect();
-        socket.connect();
-      }
+      // The server puts the saved mask on this account's live sockets itself
+      // (index.ts onLockerSaved), and a room still waiting for its guest
+      // shows it at once. The socket bounce that used to do this was skipped
+      // whenever a room was open, which friend mode always is.
     });
   }
 

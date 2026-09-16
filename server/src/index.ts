@@ -291,6 +291,23 @@ registerAuth(app, {
     }
     io.in(`acct:${sub}`).disconnectSockets(true);
   },
+  // A saved mask reaches every live socket on the account at once, and a
+  // room still waiting for its guest shows it straight away (2026-09-16: he
+  // picked Napoleon and walked in as Diogenes). The client used to bounce
+  // its socket for this and skipped the bounce whenever it held a room,
+  // which friend mode always does, so the next seat wore the old mask.
+  onLockerSaved: (sub, mask) => {
+    for (const s of io.sockets.sockets.values()) {
+      if (s.data.account?.sub !== sub) continue;
+      s.data.locker = { mask, maskDefault: s.data.locker?.maskDefault ?? true };
+      const lobby = s.data.code ? getLobby(s.data.code) : undefined;
+      const me = lobby ? participantOf(lobby, s.id) : undefined;
+      if (lobby && me && lobby.status === 'waiting' && (AVATAR_IDS as readonly string[]).includes(mask)) {
+        me.avatarId = mask as AvatarId;
+        broadcastLobbyUpdate(lobby);
+      }
+    }
+  },
 });
 
 app.get('/bots', async () => ({ bots: publicBots(), topics: TOPIC_CATEGORIES }));
@@ -857,6 +874,20 @@ function seatLookOf(data: SocketData): { avatarId: AvatarId; masked: boolean } {
   return { avatarId: onRoster ? (saved as AvatarId) : randomAvatar(), masked: true };
 }
 
+/** The locker loads just after connect, in the background. A start that
+    lands before it has would seat a random mask, so every seat waits for it
+    once. A store that is down falls back to the random mask, as before. */
+async function lockerReady(socket: { data: SocketData }): Promise<void> {
+  const acct = socket.data.account;
+  if (!acct || socket.data.locker) return;
+  try {
+    const l = await getLocker(acct.sub);
+    if (!socket.data.locker && !l.missing) socket.data.locker = { mask: l.mask, maskDefault: l.maskDefault };
+  } catch {
+    /* store down: seatLookOf falls back to a random mask */
+  }
+}
+
 /** Pair the two longest-waiting players into a ranked green room. */
 function tryMatch(): void {
   for (;;) {
@@ -1301,6 +1332,7 @@ io.on('connection', (socket) => {
   const seatLook = () => seatLookOf(socket.data);
   socket.on('lobby:create', async (p, cb) => {
     if (typeof cb !== 'function') return;
+    await lockerReady(socket);
     // Friendly ceiling: two friends never hit this; a lobby-spam script does.
     // Its OWN bucket, separate from solo play. These used to share one, so an
     // evening of bot debates silently used up the budget for opening a room
@@ -1354,6 +1386,7 @@ io.on('connection', (socket) => {
 
   socket.on('lobby:join', async (p, cb) => {
     if (typeof cb !== 'function') return;
+    await lockerReady(socket);
     // Also throttles brute-forcing lobby codes (32^6 space, but still).
     if (!gate('join', p, 30, 150)) return cb({ ok: false, error: 'rate_limited' });
     if (busy()) return cb({ ok: false, error: 'in_progress' });
@@ -1988,6 +2021,9 @@ io.on('connection', (socket) => {
   // same game as everyone else rather than a line nobody else is standing in.
   socket.on('queue:join', (p, cb) => {
     if (typeof cb !== 'function') return;
+    // Matching needs a second player, so the locker has time to land; start
+    // it now so the ranked seat wears the saved mask (tryMatch seatLookOf).
+    void lockerReady(socket);
     if (!gate('join', p, 30, 150)) return cb({ ok: false, error: 'rate_limited' });
     // A second tap while the first is still reading the rating: the first
     // one is doing the work, and this one simply agrees.
@@ -2208,6 +2244,7 @@ io.on('connection', (socket) => {
 
   socket.on('bot:start', async (p, cb) => {
     if (typeof cb !== 'function') return;
+    await lockerReady(socket);
     if (!gate('solo', p, 20, 100)) return cb({ ok: false, error: 'rate_limited' });
     // A double-tapped Go, or a second start while a debate is still running
     // on this socket: one debate at a time, or the first one keeps spending
@@ -2410,6 +2447,7 @@ io.on('connection', (socket) => {
   // every round first), light practice motion, no judge at the end.
   socket.on('tutorial:start', async (p, cb) => {
     if (typeof cb !== 'function') return;
+    await lockerReady(socket);
     if (!gate('solo', p, 20, 100)) return cb({ ok: false, error: 'rate_limited' });
     if (busy()) return cb({ ok: false, error: 'in_progress' });
     if (llmDown()) return cb({ ok: false, error: 'judge_down' });

@@ -322,9 +322,10 @@ export default function Debate({
           )}
         </div>
 
-        {/* Who has the floor, in words, under the lit tile. On your turn the
-            one line of what this round is for rides under it: a first-timer's
-            hardest moment is a live mic and a blank mind. */}
+        {/* Who has the floor, in words, under the lit tile, and on EVERY turn
+            the one line of what this round is for (his call, 2026-09-16: he
+            wants to know what each round does while the other side speaks
+            too, not only on his own turn). Worded for both sides. */}
         <div
           className={`dv-status ${myTurn ? 'dv-status-start' : 'dv-status-end'} ${
             activeSide === 'FOR' ? 'dv-for' : 'dv-against'
@@ -340,7 +341,7 @@ export default function Debate({
                   ? t('dvThinking', { x: peerName })
                   : t('dvSpeaking', { x: peerName })}
           </b>
-          {myTurn ? <span>{t(`howto_${phase.phase}`)}</span> : null}
+          <span>{t(`howto_${phase.phase}`)}</span>
         </div>
       </div>
 
