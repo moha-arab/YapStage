@@ -17,7 +17,7 @@
 //   the judge's sentence, the four categories as paired bars, your two notes
 //   then the coach, their notes, share, report
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
-import type { Framing, Side, TopicText, Verdict as VerdictData } from '../../../server/src/protocol';
+import type { Framing, PlacementResult, Side, TopicText, Verdict as VerdictData } from '../../../server/src/protocol';
 import { isSoundMuted, playCrash, setSoundMuted, speak } from '../sound';
 import { socket } from '../socket';
 import { useI18n } from '../i18n';
@@ -28,6 +28,7 @@ import { playBotTurn, stopBotVoice } from '../botvoice';
 import BotAvatar from '../BotAvatar';
 import Mask from '../Mask';
 import Cone from '../Cone';
+import PlacementMarks, { PLACEMENT_GAMES } from '../PlacementMarks';
 import { JudgeNotes, ScoreBars, capFirst, sideCls, totalOf } from '../VerdictBlocks';
 import '../verdict.css';
 
@@ -47,8 +48,9 @@ interface Props {
     heard?: Record<Side, number>;
     /** Ranked only: what the match did to each side's rating. */
     elo?: Record<Side, { before: number; after: number }>;
-    /** The placement match only: the starting rating it set. */
-    placement?: { rating: number };
+    /** A placement game only: where the series stands after it, and the
+        starting rating once the third game set it. */
+    placement?: PlacementResult;
   } | null;
   /** Settle-it: the argument and both accounts, for the ruling screen. */
   framing?: Framing | null;
@@ -78,6 +80,9 @@ interface Props {
   /** Bot matches: the same bot, the same setup, straight into a new match.
       Absent when there is nothing to replay (placement, a resumed page). */
   onPlayAgain?: () => void;
+  /** A placement game with games still to play: straight into the next one
+      (the server picks the bot). Absent on a resumed page. */
+  onPlayPlacement?: () => void;
 }
 
 /* The one bit of show left. The result itself never waits on this: it is on
@@ -124,6 +129,7 @@ export default function VerdictScreen({
   framing,
   opponentRating,
   onPlayAgain,
+  onPlayPlacement,
 }: Props) {
   const { lang, t } = useI18n();
   const [muted, setMuted] = useState(isSoundMuted());
@@ -402,9 +408,41 @@ export default function VerdictScreen({
     ruling ? `${Math.round(ruling.split[s] * e)}%` : Math.round(totalOf(verdict.scores[s]) * e);
   const finalScore = (s: Side) => (ruling ? `${ruling.split[s]}%` : String(totalOf(verdict.scores[s])));
 
+  // A placement game: where the series stands, what is next, and after the
+  // third game the starting rating. Shown even when the judge heard nothing,
+  // because that game still counts (as a loss).
+  const series = mySide !== undefined ? info.placement : undefined;
+  const seriesDone = series?.rating !== undefined;
+  const seriesStep = Math.min(PLACEMENT_GAMES, (series?.done ?? 0) + 1);
+
   // What the match did to your rating, in one line.
   let rating: ReactNode = null;
-  if (mySide !== undefined && !notHeard) {
+  if (series) {
+    rating = seriesDone ? (
+      // A measurement, not a prize: paper, never gold, win or lose.
+      <div className="vd-rating-wrap vd-series vd-in" style={delay(0.2)}>
+        <span className="vd-label">{t('vdSeriesDone')}</span>
+        <PlacementMarks results={series.results} />
+        <p className="vd-rating">
+          <span>{withNum(t('vdStartAt'), series.rating!)}</span>
+        </p>
+        <p className="vd-rating-sub">{t('placedLine')}</p>
+      </div>
+    ) : (
+      <div className="vd-rating-wrap vd-series vd-in" style={delay(0.2)}>
+        <PlacementMarks results={series.results} />
+        {series.next ? (
+          <p className="vd-rating-sub vd-series-next">
+            {t(series.counted ? 'vdSeriesNext' : 'vdSeriesVoid', {
+              n: seriesStep,
+              total: PLACEMENT_GAMES,
+              x: series.next.name,
+            })}
+          </p>
+        ) : null}
+      </div>
+    );
+  } else if (mySide !== undefined && !notHeard) {
     const elo = info.elo?.[mySide];
     if (elo) {
       const delta = elo.after - elo.before;
@@ -424,16 +462,6 @@ export default function VerdictScreen({
             <span>{withNum(t('vdNow'), elo.after)}</span>
           </p>
           {why ? <p className="vd-rating-sub">{why}</p> : null}
-        </div>
-      );
-    } else if (info.placement) {
-      // A measurement, not a prize: paper, never gold, win or lose.
-      rating = (
-        <div className="vd-rating-wrap vd-in" style={delay(0.2)}>
-          <p className="vd-rating">
-            <span>{withNum(t('vdStartAt'), info.placement.rating)}</span>
-          </p>
-          <p className="vd-rating-sub">{t('placedLine')}</p>
         </div>
       );
     } else if (botOpponent) {
@@ -468,13 +496,27 @@ export default function VerdictScreen({
         {t('rematch')}
       </button>
     );
-  } else if (info.placement) {
+  } else if (series && seriesDone) {
     // Placed: the ladder is the next thing to do, so it is the button. A fresh
     // load of the lobby opens on its ranked tab (Home.tsx), which is where
     // this lands.
     again = (
       <button className="btn btn-primary" onClick={home}>
         {t('vdPlayRanked')}
+      </button>
+    );
+  } else if (series?.next && onPlayPlacement) {
+    // Games still to play: the next one is the button, the lobby the way out.
+    again = (
+      <button
+        className="btn btn-primary"
+        disabled={starting}
+        onClick={() => {
+          setStarting(true);
+          onPlayPlacement();
+        }}
+      >
+        {starting ? t('vdStarting') : t('vdPlayPlacement', { x: series.next.name })}
       </button>
     );
   } else if (botOpponent && onPlayAgain) {
@@ -522,7 +564,7 @@ export default function VerdictScreen({
 
           {notHeard ? (
             <div className="vd-notheard vd-in" style={delay(0.2)}>
-              <p className="vd-notheard-line">{t('notHeard')}</p>
+              <p className="vd-notheard-line">{t(series?.counted ? 'notHeardPlacement' : 'notHeard')}</p>
               <p className="vd-notheard-fix">{t('notHeardFix')}</p>
             </div>
           ) : null}
@@ -540,8 +582,8 @@ export default function VerdictScreen({
               </button>
             )}
             <div className="vd-actions-row">
-              {/* Placement's button already goes to the lobby. */}
-              {again && !info.placement ? (
+              {/* A finished placement's button already goes to the lobby. */}
+              {again && !seriesDone ? (
                 <button className="btn" onClick={home}>
                   {t('backHome')}
                 </button>

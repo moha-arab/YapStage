@@ -332,13 +332,18 @@ export type JoinError =
   /** Ranked needs an account: the queue and the placement match both refuse
       a signed-out socket wherever Google sign-in is configured. */
   | 'signed_out'
-  /** The placement match is one shot, and this player has already played it. */
+  /** Placement is one series, and this player has already finished it. */
   | 'placed'
   /** This socket is already seated in a debate that is running (or being
       judged), or is halfway through starting one. */
   | 'in_progress'
-  /** Ranked needs the placement match first (store up only). */
+  /** Ranked needs the three placement games first (store up only). */
   | 'unplaced'
+  /** Watching a live ranked match needs a signed-in account that has
+      finished its placement games, wherever Google sign-in is configured
+      (gate.ts watchRefusal). A friend room's own code is never refused
+      this way. The refusal carries nothing about the match or the player. */
+  | 'watch_locked'
   /** The model API is failing (llm.ts breaker): new rated, bot and
       placement starts are refused until it recovers. */
   | 'judge_down'
@@ -349,6 +354,19 @@ export type JoinError =
   /** Ranked only: the server has no relay (TURN) credentials right now, and
       ranked calls are relay only, so two players could never connect. */
   | 'no_relay';
+
+/** Where a placement series stands after one of its games (verdict:result).
+    `counted` is false when the game was void (the bot failed a turn) and the
+    same step is to be played again. `rating` is set once, by the game that
+    finished the series. `next` is who the next game is against, null once
+    the series is done. */
+export interface PlacementResult {
+  counted: boolean;
+  done: number;
+  results: { rank: number; won: boolean }[];
+  next: { id: string; name: string; rank: number; elo: number; color: string } | null;
+  rating?: number;
+}
 
 export type CreateResult =
   | { ok: true; update: LobbyUpdate }
@@ -412,7 +430,7 @@ export interface ClientToServer {
       camera, no mic, no seat — they receive state and audio only. */
   'spectate:join': (
     p: { code: string },
-    cb: (res: { ok: boolean; error?: 'not_found' | 'full' | 'rate_limited' }) => void,
+    cb: (res: { ok: boolean; error?: 'not_found' | 'full' | 'rate_limited' | 'watch_locked' }) => void,
   ) => void;
   /** Anti-cheat: you left the tab for `ms` while it was your turn to speak. */
   'turn:away': (p: { ms: number }) => void;
@@ -457,10 +475,11 @@ export interface ClientToServer {
       playerId?: string;
       /** Default true: the ladder counts. false = sparring, unrated. */
       rated?: boolean;
-      /** The placement match: one game against the roster bot nearest 1400
-          that sets an unplaced player's starting rating. The server picks
-          the bot, the topic and the sides itself (botId, topicMode and side
-          are ignored) and refuses a player who is already placed. */
+      /** The next game of this player's placement series (three adaptive
+          games against bots, placement.ts). The server picks the bot from
+          the stored series, the topic and the sides itself (botId,
+          topicMode and side are ignored) and refuses a player who is
+          already placed. */
       placement?: boolean;
     },
     cb: (res: {
@@ -524,10 +543,9 @@ export interface ServerToClient {
     heard?: Record<Side, number>;
     /** Ranked only: what the match did to each side's rating. */
     elo?: Record<Side, { before: number; after: number }>;
-    /** The placement match only: the starting rating it set. Absent when
-        the store was down or the player was barely heard, in which case
-        nothing was set and they are still unplaced. */
-    placement?: { rating: number };
+    /** A placement game only: where the series stands after it. Absent
+        when the store was down (nothing could be recorded). */
+    placement?: PlacementResult;
   }) => void;
   /** Rematch handshake state (per recipient's own view). */
   'rematch:update': (p: { youWant: boolean; peerWant: boolean; peerLeft: boolean }) => void;
@@ -603,6 +621,10 @@ export interface SocketData {
       checks and its seat, across an await: a double-tap sees it and is
       refused instead of opening a second debate. */
   starting?: boolean;
+  /** This socket's account has finished placement, so live ranked matches
+      are open to it (gate.ts watchRefusal). Placed never flips back, so it
+      is remembered and hopping through the feed reads the store once. */
+  watchOk?: boolean;
 }
 
 // Unicode letters (Arabic mode means Arabic names), digits, underscore.

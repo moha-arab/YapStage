@@ -12,7 +12,7 @@ import pg from 'pg';
 import { sanitizeCard, type Card } from './share.js';
 import { event } from './stats.js';
 import { PACES, foldName, type Pace } from './protocol.js';
-import { PLACEMENT_ANCHOR } from './bots.js';
+import { PLACEMENT_GAMES, parseSeries, seriesRating, type PlacementGame } from './placement.js';
 import { stripControl } from './security.js';
 
 let pool: pg.Pool | null = null;
@@ -206,6 +206,16 @@ export async function initStore(): Promise<void> {
     // player was "placed" after three rated games; the backfill below keeps
     // everyone who had got there from being sent to the placement bot.
     await pool.query(`ALTER TABLE players ADD COLUMN IF NOT EXISTS placed boolean NOT NULL DEFAULT false`);
+    // Placement became three adaptive games against bots on 2026-09-16
+    // (placement.ts). Each finished game is appended here as
+    // {rank, won, margin}, so a player can stop after game one or two and
+    // pick the series up later on any device. Only ever appended, and only
+    // at the index the game was started for (recordPlacementGame), so a
+    // double verdict or a resumed socket cannot add a game twice. Rows that
+    // are already placed keep an empty array and are never asked to play.
+    await pool.query(
+      `ALTER TABLE players ADD COLUMN IF NOT EXISTS placement jsonb NOT NULL DEFAULT '[]'::jsonb`,
+    );
     // Match history: the account's own debates, so a verdict is re-openable
     // and the coach can talk about it days later. His call 2026-08-08 (save
     // by default). Since 2026-09-12 a guest's bot and friend games are filed
@@ -428,11 +438,12 @@ export interface PaceRating {
   losses: number;
 }
 
-/** A player's standing on every ladder, plus whether the placement match has
-    set their starting rating. Only the standard ladder moves now (ranked is
-    standard only, 2026-09-12); the other two are read for older clients and
-    stay at the seed. `placed` is one flag for the player, not per pace. */
-export type PlayerRow = Record<Pace, PaceRating> & { placed: boolean };
+/** A player's standing on every ladder, plus whether the placement series
+    has set their starting rating and how far through it they are. Only the
+    standard ladder moves now (ranked is standard only, 2026-09-12); the other
+    two are read for older clients and stay at the seed. `placed` is one flag
+    for the player, not per pace. */
+export type PlayerRow = Record<Pace, PaceRating> & { placed: boolean; placement: PlacementGame[] };
 
 /** The three columns that hold a pace's ladder. Standard is the original
     trio, so its names carry no suffix; the other paces are suffixed. EVERY
@@ -444,9 +455,9 @@ function paceCols(pace: Pace): { rating: string; wins: string; losses: string } 
   return { rating: `rating${sfx}`, wins: `wins${sfx}`, losses: `losses${sfx}` };
 }
 
-/** Every ladder column plus the placed flag, for a SELECT or RETURNING that
-    wants the whole player. */
-const LADDER_COLS = `${PACES.map((p) => Object.values(paceCols(p)).join(', ')).join(', ')}, placed`;
+/** Every ladder column plus the placed flag and the placement series, for a
+    SELECT or RETURNING that wants the whole player. */
+const LADDER_COLS = `${PACES.map((p) => Object.values(paceCols(p)).join(', ')).join(', ')}, placed, placement`;
 
 /** A player's rating on the ladder a match row was played on (`m.pace`), for
     queries that join matches m against players p. */
@@ -457,7 +468,7 @@ const RATING_AT_MATCH_PACE = `CASE m.pace ${PACES.filter((p) => p !== 'standard'
 /** Shape a raw players row into per-pace standings. A column that is somehow
     missing reads as a fresh ladder, never as a crash. */
 function ladderOf(row: Record<string, unknown>): PlayerRow {
-  const out = { placed: row.placed === true } as PlayerRow;
+  const out = { placed: row.placed === true, placement: parseSeries(row.placement) } as PlayerRow;
   for (const pace of PACES) {
     const c = paceCols(pace);
     out[pace] = {
@@ -503,26 +514,15 @@ export async function getRating(id: string): Promise<PlayerRow | null> {
   }
 }
 
-/** Placement used to be three rated games against humans (chess.com hides
-    the rating for 5; three because the pool was tiny). His call 2026-09-12:
-    one game against the roster bot nearest 1400 sets the starting rating
-    instead, and the rating then swings hard for the first human games. The
-    bot game is the ONE exception to bot matches being unrated, and it is one
-    shot: `placed` flips on the first verdict and never flips back, so the
-    farming and no-witness arguments in CALIBRATION.md still hold. Below is
-    how many HUMAN games after placement keep the fast K. */
+/** Placement history: three rated games against humans until 2026-09-12
+    (chess.com hides the rating for 5; three because the pool was tiny), then
+    one game against Clover, and since 2026-09-16 three adaptive games against
+    bots (placement.ts). The series is the ONE exception to bot matches being
+    unrated, and it is still one shot: each game is recorded once, `placed`
+    flips once and never flips back, so the farming and no-witness arguments
+    in CALIBRATION.md still hold. Below is how many HUMAN games after
+    placement keep the fast K. */
 export const FRESH_GAMES = 5;
-
-/** The placement rating, from the judge's 100-point scorecard: 1400 moved
-    by eight points per point of margin (human total minus bot total),
-    clamped to [-400, +300]. A dead-even game lands at 1400; a loss by 50 at
-    1000, which is Dodger's rung and a fair start for someone Clover beat
-    comfortably; a win by 38 or more at 1700, the cap, which
-    a bot game must not hand out above. Floored like everything else. */
-export function placementRating(margin: number): number {
-  const shift = Math.max(-400, Math.min(300, Math.round(margin * 8)));
-  return Math.max(RATING_FLOOR, PLACEMENT_ANCHOR + shift);
-}
 
 /** Where a new player starts.
     700 was chosen from the bot ladder of the time, not from chess. At 700
@@ -563,7 +563,7 @@ const expected = (a: number, b: number): number => 1 / (1 + Math.pow(10, (b - a)
 
 /** ELO for a ranked HUMAN match, the thing that moves a rating once a player
     is placed. Bot debates are deliberately unrated (the placement match is
-    the one exception, placePlayer below): a bot is a fixed strategy you can
+    the one exception, recordPlacementGame below): a bot is a fixed strategy you can
     learn to beat forever, and a bot match has no witness.
 
     The two players can move by DIFFERENT amounts, which is deliberate and is
@@ -632,27 +632,84 @@ export async function applyRankedResult(
   }
 }
 
-/** The placement match landed: set the starting rating from the margin and
-    mark the player placed. ONE SHOT, enforced in the statement itself: the
-    write only happens WHERE placed = false, so two placement games racing
-    (two tabs), a re-run verdict or a replayed socket cannot move a rating
-    twice. Wins and losses are untouched: the K schedule counts human games
-    and this was not one. Returns the rating set, or null when nothing was
-    written (already placed, or the store is down). */
-export async function placePlayer(id: string, name: string, margin: number): Promise<number | null> {
+/** What recording a placement game did. `games` is the series as stored
+    after the call; `recorded` is false when this game was already on file
+    (a double verdict, a resume) or the player is already placed; `rating` is
+    set only by the call that finished the series and placed the player. */
+export interface PlacementWrite {
+  games: PlacementGame[];
+  recorded: boolean;
+  rating: number | null;
+}
+
+/** Record one finished placement game, then place the player if that was the
+    last one. `step` is the index the game was started for (how many games
+    were on file at bot:start), and the append only happens while exactly
+    that many are on file and the player is unplaced: a second verdict for the
+    same game, a replayed socket or a stale tab finds the array already longer
+    and writes nothing. Returns null when the store is down or failed. */
+export async function recordPlacementGame(
+  id: string,
+  name: string,
+  step: number,
+  game: PlacementGame,
+): Promise<PlacementWrite | null> {
   if (!pool || !ready) return null;
+  if (!Number.isInteger(step) || step < 0 || step >= PLACEMENT_GAMES) return null;
+  const pid = id.slice(0, 64);
   try {
-    const rating = placementRating(margin);
+    // The row may not exist yet (a player whose first ranked thing is this).
+    await pool.query(`INSERT INTO players (id, name) VALUES ($1, $2) ON CONFLICT (id) DO NOTHING`, [
+      pid,
+      dbText(name, 24),
+    ]);
+    const entry = JSON.stringify([{ rank: game.rank, won: game.won, margin: Math.round(game.margin) }]);
     const res = await pool.query(
-      `INSERT INTO players (id, name, rating, placed) VALUES ($1, $2, $3, true)
-       ON CONFLICT (id) DO UPDATE SET rating = $3, placed = true, name = $2, updated_at = now()
-       WHERE players.placed = false
+      `UPDATE players SET placement = placement || $3::jsonb, updated_at = now()
+       WHERE id = $1 AND placed = false AND jsonb_array_length(placement) = $2
+       RETURNING placement`,
+      [pid, step, entry],
+    );
+    const recorded = res.rowCount === 1;
+    let games: PlacementGame[];
+    if (recorded) {
+      games = parseSeries(res.rows[0].placement);
+    } else {
+      const row = await getRating(pid);
+      games = row?.placement ?? [];
+    }
+    const rating = games.length >= PLACEMENT_GAMES ? await finishPlacement(pid) : null;
+    return { games, recorded, rating };
+  } catch (err) {
+    console.error('[store] recordPlacementGame failed:', err);
+    return null;
+  }
+}
+
+/** Set the starting rating from a finished series and mark the player
+    placed. ONE SHOT, enforced in the statement itself: the write only happens
+    WHERE placed = false and all three games are on file, so two verdicts
+    racing, a re-run or a replayed socket cannot move a rating twice. Wins and
+    losses are untouched: the K schedule counts human games and these were
+    not. Also called from bot:start for a series that has three games but no
+    rating (the store failed between the two writes), so it heals itself.
+    Returns the rating set, or null when nothing was written. */
+export async function finishPlacement(id: string): Promise<number | null> {
+  if (!pool || !ready) return null;
+  const pid = id.slice(0, 64);
+  try {
+    const row = await getRating(pid);
+    if (!row || row.placed || row.placement.length < PLACEMENT_GAMES) return null;
+    const rating = seriesRating(row.placement);
+    const res = await pool.query(
+      `UPDATE players SET rating = $2, placed = true, updated_at = now()
+       WHERE id = $1 AND placed = false AND jsonb_array_length(placement) >= ${PLACEMENT_GAMES}
        RETURNING rating`,
-      [id.slice(0, 64), dbText(name, 24), rating],
+      [pid, rating],
     );
     return res.rowCount === 1 ? Number(res.rows[0].rating) : null;
   } catch (err) {
-    console.error('[store] placePlayer failed:', err);
+    console.error('[store] finishPlacement failed:', err);
     return null;
   }
 }
@@ -1125,6 +1182,8 @@ export interface AccountExport {
   ladder: {
     name: string;
     placed: boolean;
+    /** The placement games on file: which rung, won or not, the margin. */
+    placementGames: PlacementGame[];
     botLadderLevel: number;
     ratings: Record<Pace, PaceRating>;
     updatedAt: string | null;
@@ -1183,10 +1242,11 @@ export async function exportAccountData(sub: string): Promise<AccountExport | 'm
     const prow = p.rows[0] as Record<string, unknown> | undefined;
     let ladder: AccountExport['ladder'] = null;
     if (prow) {
-      const { placed, ...ratings } = ladderOf(prow);
+      const { placed, placement, ...ratings } = ladderOf(prow);
       ladder = {
         name: String(prow.name ?? ''),
         placed,
+        placementGames: placement,
         botLadderLevel: Number(prow.campaign ?? 0),
         ratings: ratings as Record<Pace, PaceRating>,
         updatedAt: isoOf(prow.updated_at),

@@ -34,9 +34,17 @@
 //      the same queue); the per-length ratings and the three chips under
 //      the stage from 2026-09-04 are gone. The chip under your name shows
 //      your rating, or "not placed yet".
-//   8. PLACEMENT IS ONE MATCH. Unplaced, the ranked stage puts the placement
-//      bot opposite you instead of an empty ring, one line says why, and the
-//      go button starts that game. No placement counter anywhere.
+//   8. PLACEMENT IS THREE BOT GAMES (2026-09-16; one match before that).
+//      Unplaced, the ranked stage puts the next placement bot opposite you
+//      instead of an empty ring (the server picks it: rank 4 first, then up
+//      or down on the result), "Placement 1 of 3" and three marks sit under
+//      the VS, and the go button starts that game.
+//  11. WATCHING LIVE NEEDS FINISHED PLACEMENT (2026-09-16), where sign-in
+//      exists. A guest's watch stage says so with sign-in as the go button;
+//      a signed-in player still placing sees the same line, their series,
+//      and the go button starts their next placement game. The server
+//      refuses the stream either way (watch_locked). The code box for a
+//      friend's room stays, for everyone: the code is the invitation.
 //   9. WATCH MODE BROWSES (2026-09-12, his ask). Under the stage: the deck's
 //      tabs, the live ranked list as rows you tap, the random button, and a
 //      code box for a friend's room. Only ranked is ever listed; a friend's
@@ -83,6 +91,7 @@ import { useI18n } from '../i18n';
 import Mask, { MASK_IDS } from '../Mask';
 import BotAvatar from '../BotAvatar';
 import Cone from '../Cone';
+import PlacementMarks, { PLACEMENT_GAMES, seriesOf, type SeriesInfo } from '../PlacementMarks';
 
 // Keyed by every JoinError. Looked up through errorKey() below, so a code a
 // newer server sends before this client knows it reads as errGeneric, never
@@ -110,6 +119,8 @@ const ERROR_KEYS: Record<JoinError, string> = {
   unplaced: 'errUnplaced',
   // The model API is failing (the server's breaker): nothing rated starts.
   judge_down: 'errJudgeDown',
+  // Watching live ranked matches needs finished placement.
+  watch_locked: 'errWatchLocked',
 };
 
 /** The line for a refusal, with a fallback for a code this build does not
@@ -174,12 +185,13 @@ interface Bot {
 
 interface Rank {
   rating: number;
-  /** false = the placement match is still ahead; null = the store is down
+  /** false = placement games are still ahead; null = the store is down
       and the server cannot say, so the queue shows as if placed. */
   placed: boolean | null;
-  /** Who the placement match is against, named by the server so the stage
-      can put them up before the roster has loaded. */
-  placementBot: string;
+  /** The placement series: games done, won or lost, and who is next (named
+      by the server, with art and rating, so the stage can put them up before
+      the roster has loaded). Null once placed. */
+  series: SeriesInfo | null;
 }
 
 interface Props {
@@ -281,29 +293,36 @@ export default function Home({
 
   /* ---- everything the stage needs to know ---- */
 
-  // Your one rating, and whether the placement match is still ahead. A server
+  // Your one rating, and whether placement games are still ahead. A server
   // built before one-match placement answers without `placed`; that reads as
   // null, which is the queue, so nothing on the stage changes mid-deploy.
   const [rank, setRank] = useState<Rank | null>(null);
   // `unplaced`: the queue just said so, whatever the last /rating read, so
-  // the stage turns to the placement match either way.
+  // the stage turns to the placement series either way.
   const loadRank = useCallback((unplaced = false) => {
     void fetch(`/rating?playerId=${encodeURIComponent(playerId())}`)
       .then((r) => r.json())
       .then((d) => {
         if (typeof d?.rating !== 'number') return;
+        const series = seriesOf(d.placement);
         setRank({
           rating: d.rating,
           placed: unplaced ? false : typeof d.placed === 'boolean' ? d.placed : null,
-          placementBot: typeof d.placementBot === 'string' ? d.placementBot : '',
+          series,
         });
       })
       .catch(() => {});
   }, []);
   useEffect(() => loadRank(), [account.signedIn, loadRank]);
-  // Unplaced means the placement bot stands opposite you in ranked mode.
+  // Unplaced means the next placement bot stands opposite you in ranked mode.
   // Not for a guest: their stage carries the sign-in ask instead.
   const placing = mode === 'ranked' && !needAccount && rank?.placed === false;
+  // Watching live matches waits for finished placement where sign-in exists
+  // (the server says the same: watch_locked). A guest is asked to sign in;
+  // a player still placing is offered their next game.
+  const watchLockedGuest = mode === 'watch' && needAccount;
+  const watchLockedPlacing = mode === 'watch' && account.google && account.signedIn && rank?.placed === false;
+  const watchLocked = watchLockedGuest || watchLockedPlacing;
 
   const [bots, setBots] = useState<Bot[]>([]);
   // The deck rides along with the ladder, for the bot game's settings panel.
@@ -777,9 +796,10 @@ export default function Home({
     settleStart(r, 'bot');
   }
 
-  /** The placement match. Ranked terms (an account, a random motion, the
-      coin deals the sides), but the opponent is the placement bot and the
-      server picks it; the botId here is only what the stage showed. */
+  /** The next placement game. Ranked terms (an account, a random motion,
+      the coin deals the sides), but the opponent is a bot and the server
+      picks it from the stored series; the botId here is only what the stage
+      showed. */
   async function startPlacement() {
     if (!rank || startingRef.current || !requireAccount() || !requireName()) return;
     if (!recordingSupported) return setError('errNoRecord');
@@ -792,7 +812,7 @@ export default function Home({
       return;
     }
     const r = await onBotStart(effName, {
-      botId: placementBot?.id ?? '',
+      botId: nextBot?.id ?? '',
       topicMode: 'random',
       side: 'random',
       pace: 'standard',
@@ -816,7 +836,20 @@ export default function Home({
     socket.emit('spectate:join', { code }, (res) => {
       setWatching(false);
       if (res.ok) return onSpectate(code, feed);
-      setError(res.error === 'full' ? 'specFull' : res.error === 'rate_limited' ? 'errRateLimited' : 'specNotFound');
+      // Locked (placement not finished): the stage turns to the locked one.
+      if (res.error === 'watch_locked') {
+        setSheet(null);
+        loadRank(true);
+      }
+      setError(
+        res.error === 'full'
+          ? 'specFull'
+          : res.error === 'rate_limited'
+            ? 'errRateLimited'
+            : res.error === 'watch_locked'
+              ? 'errWatchLocked'
+              : 'specNotFound',
+      );
     });
   }
 
@@ -913,13 +946,16 @@ export default function Home({
 
   const ladder = bots.filter((b) => b.id !== 'tutor').sort((a, b) => a.rank - b.rank);
   const chosenBot = ladder.find((b) => b.id === pickedBot) ?? null;
-  // The server names the placement bot; the roster gives it a face.
-  const placementBot = rank ? (ladder.find((b) => b.name === rank.placementBot) ?? null) : null;
+  // The server names the next placement bot, with its art and rating.
+  const nextBot = rank?.placed === false ? (rank.series?.next ?? null) : null;
+  // "Placement 2 of 3": the game about to be played.
+  const seriesStep = Math.min(PLACEMENT_GAMES, (rank?.series?.done ?? 0) + 1);
   // The stage follows the tab: the freshest bout in it stands up there. With
   // a tab that has nothing, the rings go empty rather than showing a pair
-  // from another tab under a line that says nothing is on.
+  // from another tab under a line that says nothing is on. Locked, no bout
+  // stands up there at all: the stage is about getting in.
   const watchingFeatured =
-    mode === 'watch' ? (shown[0] ?? live.featured) : null;
+    mode === 'watch' && !watchLocked ? (shown[0] ?? live.featured) : null;
 
   // YOU, on the amber side, in every mode but watch. Your mask is a button:
   // tap it and the mask roster walks out.
@@ -999,25 +1035,26 @@ export default function Home({
     </>
   );
 
-  let opponent;
-  if (placing && rank) {
-    // Unplaced: the placement bot stands where a stranger would, and the one
-    // line under it says what the game is for.
-    // Its rating is a chip under its name, level with "Not placed yet" under
-    // yours; what the game is for is said under the VS (his layout,
-    // 2026-09-12).
-    opponent = (
-      <>
-        <div className="lb-picked lb-static">
-          <div className="lb-art">
-            <BotAvatar botId={placementBot?.id ?? ''} color={placementBot?.color ?? 'against'} size="var(--art)" bare />
-          </div>
-          <div className="lb-fname">{rank.placementBot}</div>
-          <span className="lb-change">{blank}</span>
+  // The next placement bot, standing where a stranger would.
+  // Its rating is a chip under its name, level with "Not placed yet" under
+  // yours; what the game is for is said under the VS (his layout,
+  // 2026-09-12).
+  const nextBotStand = nextBot ? (
+    <>
+      <div className="lb-picked lb-static">
+        <div className="lb-art">
+          <BotAvatar botId={nextBot.id} color={nextBot.color} size="var(--art)" bare />
         </div>
-        {placementBot ? ratingChip(placementBot.elo) : chipSlot}
-      </>
-    );
+        <div className="lb-fname">{nextBot.name}</div>
+        <span className="lb-change">{blank}</span>
+      </div>
+      {ratingChip(nextBot.elo)}
+    </>
+  ) : null;
+
+  let opponent;
+  if ((placing || watchLockedPlacing) && nextBotStand) {
+    opponent = nextBotStand;
   } else if (mode === 'ranked') {
     opponent = stand(
       <div className={`lb-empty ${queueing ? 'lb-searching' : ''}`}>
@@ -1113,13 +1150,13 @@ export default function Home({
   /* ---- the one button ---- */
 
   let go;
-  if (placing) {
+  if (placing || watchLockedPlacing) {
     go = (
       <button className="lb-go" onClick={startPlacement}>
-        {t('lbGoPlacement', { x: rank?.placementBot ?? '' })}
+        {t('lbGoPlacement', { x: nextBot?.name ?? '' })}
       </button>
     );
-  } else if (mode === 'ranked' && needAccount) {
+  } else if ((mode === 'ranked' || mode === 'watch') && needAccount) {
     // The one door that needs an account: the button IS the sign-in, and
     // the line above it (lbRankedAsk) says why.
     go = (
@@ -1208,8 +1245,12 @@ export default function Home({
       : mode === 'bot' && pickedBot === 'tutor'
         ? t('lbCapTutor')
         : placing
-          ? t('lbCap_placement', { x: esc(rank?.placementBot ?? '') })
-          : t(`lbCap_${mode}`);
+          ? t('lbCap_placement', { x: esc(nextBot?.name ?? '') })
+          : watchLockedGuest
+            ? t('lbCap_watchLockedGuest')
+            : watchLockedPlacing
+              ? t('lbCap_watchLocked')
+              : t(`lbCap_${mode}`);
 
   /* ---- around the VS: codes, placed so they never move the stage ---- */
 
@@ -1255,8 +1296,25 @@ export default function Home({
     </div>
   );
 
+  // "Placement 2 of 3" over the three marks: the series, wherever it shows.
+  const seriesCard = rank?.series ? (
+    <div className="lb-series">
+      <span className="lb-lab">{t('lbSeriesTitle', { n: seriesStep, total: PLACEMENT_GAMES })}</span>
+      <PlacementMarks results={rank.series.results} />
+    </div>
+  ) : null;
+
   const midBot = placing ? (
-    <div className="lb-mid-bot lb-mid-note">{t('lbPlacementLine', { x: rank?.placementBot ?? '' })}</div>
+    <div className="lb-mid-bot lb-mid-stack">
+      {seriesCard}
+      <div className="lb-mid-note">{t('lbPlacementLine')}</div>
+    </div>
+  ) : watchLocked ? (
+    <div className="lb-mid-bot lb-mid-stack">
+      <div className="lb-mid-note lb-mid-note-wide lb-watch-locked">{t('lbWatchLocked')}</div>
+      {watchLockedPlacing ? seriesCard : null}
+      {codeBox(watchCode, setWatchCode, watchByCode, t('watchBtn'), watching)}
+    </div>
   ) : mode === 'friend' ? (
     <div className="lb-mid-bot lb-mid-stack">
       {roomTicket}
@@ -1382,7 +1440,9 @@ export default function Home({
                   watchingFeatured.names.FOR,
                   <span className="lb-side">{t('sideFor')}</span>,
                 )
-              : mode === 'watch'
+              : watchLockedPlacing
+                ? me
+                : mode === 'watch'
                 ? stand(
                     <div className="lb-empty lb-empty-a">
                       <span className="lb-empty-q">?</span>
@@ -1448,7 +1508,7 @@ export default function Home({
           ) : null}
 
           {/* The terms, where the account is asked for. */}
-          {mode === 'ranked' && needAccount ? (
+          {(mode === 'ranked' || mode === 'watch') && needAccount ? (
             <p className="lb-agree" dangerouslySetInnerHTML={{ __html: t('signInAgree') }} />
           ) : null}
         </div>

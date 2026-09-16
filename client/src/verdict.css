@@ -782,3 +782,17 @@
     margin: 2px 0 0;
   }
 }
+
+/* ---- a placement game: the three marks, then what comes next or the
+   starting rating. Paper, never gold. ---- */
+.vd-series {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+
+.vd-series-next {
+  color: var(--paper);
+  font-weight: 600;
+}

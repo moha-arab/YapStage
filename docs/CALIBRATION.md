@@ -82,32 +82,46 @@ on it. "I am above Clover" is what a tier used to say, and it still says it.
 
 ## Where humans start
 
-Nobody seeds any more. A new player's first number comes from one placement
-debate against the roster bot rated nearest 1400 (Clover), his call on
-2026-09-12: in a small pool nobody was finding three strangers for placement
-matches, and a rating that never arrives is worse than a rough one. The rule,
-as implemented in `server/src/judge.ts` and `store.placePlayer`:
+Nobody seeds any more. A new player's first number comes from three placement
+games against bots, his call on 2026-09-16 (it was one game against Clover
+from 2026-09-12, and before that three games against strangers nobody in a
+small pool could find). The series adapts, as implemented in
+`server/src/placement.ts`, `server/src/judge.ts` and
+`store.recordPlacementGame` / `store.finishPlacement`:
 
-- The judge's 100-point scorecard gives a margin (your total minus the
-  bot's). Starting rating = 1400 + 8 x margin, clamped to [-400, +300], never
-  below the floor of 500. Dead even is 1400; a loss by 50 lands at 1000
-  (Dodger's rung); a win by 38 or more lands at 1700, the most a bot game may
-  hand out.
-- Wins and losses are untouched, and `placed` flips to true in the same
-  statement that writes the rating, guarded by `WHERE placed = false`, so it
-  can only ever happen once. If we barely heard you (under 40 words), nothing
-  is set and you are still unplaced: a silent mic is our outage, not your
-  rating.
+- Game 1 is rank 4 (Clover, 1400). Game 2 is rank 6 (Rocco) after a win,
+  rank 2 (Moss) after a loss. Game 3 is one rung up from game 2 after a win,
+  one down after a loss, so always rank 1, 3, 5 or 7. The server picks every
+  opponent; motion random, sides a coin, standard pace.
+- Each game's score comes from the judge's margin (your total minus the
+  bot's): s = 1 / (1 + e^(-margin / 15)), clamped to [0.05, 0.95]. S is the
+  mean of the three, clamped the same way. Starting rating = mean of the three
+  opponents' ratings + 400 x log10(S / (1 - S)), rounded and clamped to
+  [200, 3000]. Three wins by 60 against 4, 6 and 7 land at 2578; three losses
+  by 60 against 4, 2 and 1 at 222; near-ties land near the opponents' average.
+- A game counts when its verdict is delivered. If the judge heard nothing
+  from you at all it counts as a loss. A game the bot did not really play (a
+  failed bot turn) is void and the same step is played again, and so is a
+  game you walked out of: nothing is recorded until a verdict.
+- Progress is stored per player (`players.placement`, one `{rank, won,
+  margin}` per game), so you can stop after game 1 or 2 and carry on later on
+  any device. Each game is appended only at the step it was started for, so a
+  double verdict records once; the rating is written once, guarded by `WHERE
+  placed = false`. Wins and losses are untouched.
 - After placement, K is 96 for your first five human games, 40 until twenty,
-  then 24. The bot game is a rough fix; the fast K lets real opponents correct
-  it within a week.
-- Players who already had three or more rated games when this shipped were
-  marked placed and kept their rating. `SEED_RATING` (700) still backs the
-  column default and only matters if the store is down during a placement.
+  then 24. The bot games are a rough fix; the fast K lets real opponents
+  correct it within a week.
+- Players who already had three or more rated games when one-game placement
+  shipped were marked placed and kept their rating; anyone already placed was
+  left alone by the series. `SEED_RATING` (700) still backs the column default
+  and only matters if the store is down.
+- The starting rating is clamped to 500 to 3000 (placement.ts PLACED_MIN):
+  the formula can land near 220 after three heavy losses, but the ranked
+  floor is 500, and a number the first ranked loss would silently lift was
+  not worth showing (2026-09-16).
 
-The first hundred placements should be read against this: the median new
-player should land around Silver, and the multiplier or the clamp moves if
-they do not.
+The first hundred placements should be read against this: if they bunch at
+one end, the margin scale (15) or the clamps move.
 
 ## Bot matches are UNRATED
 
@@ -127,7 +141,7 @@ outrank the cold-start argument:
 
 So the bot ratings on this page are a scale you can compare yourself to. They
 are not something you can win or lose. The one exception is placement: a new
-player's first number comes from one debate against Clover, which attaches the
+player's first number comes from three debates against bots, which attach the
 human scale to the bot scale, and after that the bots never move a rating
 again.
 

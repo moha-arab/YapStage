@@ -648,6 +648,181 @@ console.log('\n=== filed matches keep the transcript ===');
     await app.close();
     delete process.env.SESSION_SECRET;
   }
+
+  // Placement is three adaptive bot games (2026-09-16). The pure parts
+  // (placement.ts, gate.ts) are pinned first, then the series' own SQL runs
+  // against the same stand-in players table: each game recorded once, the
+  // rating written once, a stop after game one or two picked up later.
+  console.log('\n=== placement: three adaptive games ===');
+  {
+    const pl = await import(DIST + 'placement.js');
+    const { BOTS } = await import(DIST + 'bots.js');
+    const W = true;
+    const L = false;
+    const g = (rank, won) => ({ rank, won });
+    // Every path through the series: game 1 is rank 4, game 2 is 6 or 2,
+    // game 3 is one rung either side of game 2.
+    const paths = [
+      [[W, W], [4, 6, 7]],
+      [[W, L], [4, 6, 5]],
+      [[L, W], [4, 2, 3]],
+      [[L, L], [4, 2, 1]],
+    ];
+    check('series: game 1 is always rank 4 (Clover)', pl.nextPlacementRank([]) === 4 && pl.botAtRank(4)?.name === 'Clover');
+    check('series: game 2 is rank 6 after a win, rank 2 after a loss', pl.nextPlacementRank([g(4, W)]) === 6 && pl.nextPlacementRank([g(4, L)]) === 2);
+    for (const [[a, b], ranks] of paths) {
+      const got = [pl.nextPlacementRank([]), pl.nextPlacementRank([g(4, a)]), pl.nextPlacementRank([g(4, a), g(ranks[1], b)])];
+      check(
+        `series: ${a ? 'win' : 'loss'} then ${b ? 'win' : 'loss'} meets ranks ${ranks.join(', ')}, and game 3 is one of 1, 3, 5, 7`,
+        got.join() === ranks.join() && [1, 3, 5, 7].includes(got[2]),
+        got.join(),
+      );
+      for (const c of [W, L]) {
+        check(
+          `series: ${a ? 'W' : 'L'}${b ? 'W' : 'L'}${c ? 'W' : 'L'} is done after game 3`,
+          pl.nextPlacementRank([g(4, a), g(ranks[1], b), g(ranks[2], c)]) === null,
+        );
+      }
+    }
+    check(
+      'series: every rank the series can pick is a visible roster bot',
+      [1, 2, 3, 4, 5, 6, 7].every((r) => pl.botAtRank(r) && !pl.botAtRank(r).hidden) && BOTS.filter((b) => !b.hidden).length === 8,
+    );
+
+    const score = pl.placementGameScore;
+    check('rating: a dead even game scores 0.5', Math.abs(score(0) - 0.5) < 1e-9);
+    check('rating: one game is clamped to [0.05, 0.95]', score(200) === 0.95 && score(-200) === 0.05 && score(NaN) === 0.5);
+    check('rating: a win by 15 scores about 0.73', Math.abs(score(15) - 1 / (1 + Math.exp(-1))) < 1e-9);
+    const elo = (r) => pl.botAtRank(r).elo;
+    const R = (games) => pl.placementRating(games.map(([r, m]) => ({ oppRating: elo(r), margin: m })));
+    const sweep = R([[4, 60], [6, 60], [7, 60]]);
+    const whitewash = R([[4, -60], [2, -60], [1, -60]]);
+    const tieUp = R([[4, 1], [6, 1], [7, 1]]);
+    const tieDown = R([[4, -1], [2, -1], [1, -1]]);
+    const mixed = R([[4, 12], [6, -20], [5, 3]]);
+    console.log(`       examples: sweep ${sweep}, whitewash ${whitewash}, near-ties up ${tieUp} (opp avg 2067), near-ties down ${tieDown} (opp avg 733), W L W by 12/-20/3 ${mixed}`);
+    check('rating: three big wins (4, 6, 7) land near the top', sweep === 2578, String(sweep));
+    check('rating: three big losses (4, 2, 1) start at the ranked floor (500)', whitewash === 500, String(whitewash));
+    check('rating: near-ties land near the opponents\' average', Math.abs(tieUp - 2067) <= 20 && Math.abs(tieDown - 733) <= 20, `${tieUp} ${tieDown}`);
+    check('rating: the formula, worked by hand', mixed === Math.round((1400 + 2200 + 1800) / 3 + 400 * Math.log10(((score(12) + score(-20) + score(3)) / 3) / (1 - (score(12) + score(-20) + score(3)) / 3))), String(mixed));
+    check(
+      'rating: clamped to the ranked floor and the ladder top, 500 to 3000',
+      pl.placementRating([{ oppRating: 3000, margin: 99 }, { oppRating: 3000, margin: 99 }, { oppRating: 3000, margin: 99 }]) === 3000 &&
+        pl.placementRating([{ oppRating: 200, margin: -99 }, { oppRating: 200, margin: -99 }, { oppRating: 200, margin: -99 }]) === 500,
+    );
+    check('rating: seriesRating reads opponents off the roster by rank', pl.seriesRating([{ rank: 4, won: W, margin: 60 }, { rank: 6, won: W, margin: 60 }, { rank: 7, won: W, margin: 60 }]) === sweep);
+
+    const out = (o) => pl.placementOutcome({ heardPlayer: 200, heardBot: 200, botFailures: 0, playerTotal: 70, botTotal: 60, playerWon: true, minWords: 40, ...o });
+    check('outcome: a judged game counts with its winner and margin', JSON.stringify(out({})) === JSON.stringify({ counted: true, won: true, margin: 10 }));
+    check('outcome: the judge heard nothing from the player: a loss', (() => { const o = out({ heardPlayer: 0, playerTotal: 5, botTotal: 80, playerWon: false }); return o.counted && o.won === false && o.margin === -75; })());
+    check('outcome: heard nothing is a loss even if the totals said otherwise', (() => { const o = out({ heardPlayer: 0 }); return o.counted && o.won === false && o.margin < 0; })());
+    check('outcome: barely heard (but heard) still counts as judged', out({ heardPlayer: 12 }).counted === true);
+    check('outcome: a bot that failed a turn voids the game', out({ botFailures: 1 }).counted === false && out({ heardBot: 10 }).counted === false);
+
+    const view = pl.seriesView([{ rank: 4, won: L, margin: -9 }]);
+    check('view: done, results without margins, and the next bot', view.done === 1 && view.next?.name === 'Moss' && view.next.rank === 2 && !JSON.stringify(view).includes('margin'));
+    check('view: a finished series has nobody next', pl.seriesView([{ rank: 4, won: W, margin: 1 }, { rank: 6, won: L, margin: -1 }, { rank: 5, won: W, margin: 3 }]).next === null);
+    check('parse: junk in the column reads as no games', pl.parseSeries('x').length === 0 && pl.parseSeries([null, { rank: 'a' }, { rank: 4, won: true, margin: 2 }]).length === 1);
+
+    // ---- the watch lock ----
+    const { watchRefusal } = await import(DIST + 'gate.js');
+    const ask = (o) => watchRefusal({ googleOn: true, signedIn: true, placed: true, byCode: false, ...o });
+    check('watch: a guest is locked out of live ranked matches', ask({ signedIn: false, placed: null }) === 'watch_locked');
+    check('watch: signed in but still placing is locked out', ask({ placed: false }) === 'watch_locked');
+    check('watch: signed in and placed watches', ask({}) === null);
+    check('watch: store down (placed unknown) does not lock a signed-in player', ask({ placed: null }) === null);
+    check('watch: a friend room by its code is open to a guest and to a placing player', ask({ byCode: true, signedIn: false, placed: null }) === null && ask({ byCode: true, placed: false }) === null);
+    check('watch: with sign-in off (dev, smoke) nobody is locked', ask({ googleOn: false, signedIn: false, placed: null }) === null && ask({ googleOn: false, placed: false }) === null);
+
+    // ---- persistence, against the stand-in players table ----
+    const withSeries = pg.Pool.prototype.query;
+    const writes = { rating: 0 };
+    pg.Pool.prototype.query = async function (sql, params = []) {
+      const q = String(sql).replace(/\s+/g, ' ').trim();
+      if (q.startsWith('INSERT INTO players (id, name) VALUES ($1, $2) ON CONFLICT (id) DO NOTHING')) {
+        if (!players.has(params[0])) players.set(params[0], { id: params[0], name: params[1], placed: false, placement: [], rating: 700 });
+        return { rows: [], rowCount: 1 };
+      }
+      if (q.startsWith('UPDATE players SET placement = placement || $3::jsonb')) {
+        const row = players.get(params[0]);
+        const list = row?.placement ?? [];
+        if (!row || row.placed || list.length !== params[1]) return { rows: [], rowCount: 0 };
+        row.placement = [...list, ...JSON.parse(params[2])];
+        return { rows: [{ placement: row.placement }], rowCount: 1 };
+      }
+      if (q.startsWith('UPDATE players SET rating = $2, placed = true')) {
+        const row = players.get(params[0]);
+        if (!row || row.placed || (row.placement ?? []).length < 3) return { rows: [], rowCount: 0 };
+        row.rating = params[1];
+        row.placed = true;
+        writes.rating += 1;
+        return { rows: [{ rating: row.rating }], rowCount: 1 };
+      }
+      return withSeries.call(this, sql, params);
+    };
+
+    const pid = 'acct_sub-placing';
+    const nextOf = async () => {
+      const row = await store.getRating(pid);
+      return { step: row?.placement.length ?? 0, rank: pl.nextPlacementRank(row?.placement ?? []), placed: row?.placed };
+    };
+    let at = await nextOf();
+    check('store: a new player starts at step 0 against rank 4', at.step === 0 && at.rank === 4 && !at.placed);
+    // Game 1: lost to Clover by 14. Then the player stops.
+    const g1 = await store.recordPlacementGame(pid, 'placing', 0, { rank: 4, won: L, margin: -14 });
+    check('store: game 1 is recorded', g1?.recorded === true && g1.games.length === 1 && g1.rating === null);
+    // A second verdict for the same game (a double emit, a resume).
+    const g1again = await store.recordPlacementGame(pid, 'placing', 0, { rank: 4, won: W, margin: 30 });
+    check('store: a double verdict for game 1 records nothing', g1again?.recorded === false && players.get(pid).placement.length === 1 && players.get(pid).placement[0].won === false);
+    at = await nextOf();
+    check('store: continuing later (any device) reads step 1 against rank 2', at.step === 1 && at.rank === 2);
+    // Game 2 against Moss is started and aborted: nothing is recorded, so the
+    // next start is the same step, and that replay records.
+    at = await nextOf();
+    check('store: an aborted game 2 leaves the same step to replay', at.step === 1 && at.rank === 2);
+    const g2 = await store.recordPlacementGame(pid, 'placing', 1, { rank: 2, won: W, margin: 22 });
+    check('store: the replayed game 2 is recorded', g2?.recorded === true && g2.games.length === 2);
+    const stale = await store.recordPlacementGame(pid, 'placing', 1, { rank: 2, won: L, margin: -5 });
+    check('store: a stale game-2 verdict after that records nothing', stale?.recorded === false && players.get(pid).placement.length === 2);
+    at = await nextOf();
+    check('store: game 3 is rank 3 (lost, then won)', at.step === 2 && at.rank === 3);
+    check('store: not placed after two games', (await store.getRating(pid))?.placed === false);
+    // Game 3: two verdicts land at once.
+    const [g3a, g3b] = await Promise.all([
+      store.recordPlacementGame(pid, 'placing', 2, { rank: 3, won: W, margin: 8 }),
+      store.recordPlacementGame(pid, 'placing', 2, { rank: 3, won: W, margin: 8 }),
+    ]);
+    const expected = pl.seriesRating([
+      { rank: 4, won: L, margin: -14 },
+      { rank: 2, won: W, margin: 22 },
+      { rank: 3, won: W, margin: 8 },
+    ]);
+    const ratings = [g3a?.rating, g3b?.rating].filter((r) => r !== null);
+    check(
+      'store: game 3 recorded once and the rating written once (placed = true)',
+      [g3a, g3b].filter((x) => x?.recorded).length === 1 &&
+        ratings.length === 1 &&
+        ratings[0] === expected &&
+        writes.rating === 1 &&
+        players.get(pid).placed === true &&
+        players.get(pid).rating === expected &&
+        players.get(pid).placement.length === 3,
+      JSON.stringify({ g3a, g3b, expected, writes, row: players.get(pid) }),
+    );
+    check('store: finishing again writes nothing', (await store.finishPlacement(pid)) === null && writes.rating === 1);
+    check('store: a game after placement records nothing', (await store.recordPlacementGame(pid, 'placing', 2, { rank: 3, won: L, margin: -40 }))?.recorded === false && players.get(pid).rating === expected);
+    // Someone placed before the series existed: untouched.
+    players.set('acct_old', { id: 'acct_old', name: 'old', placed: true, placement: [], rating: 1812 });
+    const old = await store.recordPlacementGame('acct_old', 'old', 0, { rank: 4, won: W, margin: 50 });
+    check('store: an already placed player is untouched', old?.recorded === false && old.rating === null && players.get('acct_old').rating === 1812 && players.get('acct_old').placement.length === 0);
+    // Three games on file but no rating (the store failed between writes):
+    // finishPlacement heals it, once.
+    players.set('acct_half', { id: 'acct_half', name: 'half', placed: false, rating: 700, placement: [{ rank: 4, won: true, margin: 5 }, { rank: 6, won: false, margin: -5 }, { rank: 5, won: true, margin: 1 }] });
+    const healed = await store.finishPlacement('acct_half');
+    check('store: a series with three games and no rating is finished once', healed === pl.seriesRating(players.get('acct_half').placement) && players.get('acct_half').placed === true && (await store.finishPlacement('acct_half')) === null);
+    check('store: a step outside 0 to 2 is refused', (await store.recordPlacementGame('acct_x', 'x', 3, { rank: 4, won: W, margin: 1 })) === null);
+    pg.Pool.prototype.query = withSeries;
+  }
   delete process.env.DATABASE_URL;
 }
 

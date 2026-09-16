@@ -10,7 +10,8 @@ import {
   applyRankedResult,
   campaignLocksOn,
   getCampaign,
-  placePlayer,
+  getRating,
+  recordPlacementGame,
   saveCheatFlag,
   saveMatch,
   type MatchRow,
@@ -19,6 +20,7 @@ import { clipText, countsAsOutage, llmBudget, llmFailed, llmOk } from './llm.js'
 import { FLAG_AT, analyze } from './cheat.js';
 import { PROMPT, TIER_META, type Drill } from './drills.js';
 import { BOTS } from './bots.js';
+import { placementOutcome, seriesView } from './placement.js';
 
 // Local copy of the step layout (phase/speaker per index) so judge.ts has no
 // runtime dependency on debate.ts. Every pace shares this 6-step shape; only
@@ -682,31 +684,55 @@ export function emitVerdict(io: Io, lobby: Lobby, to: string): void {
 /** The 100-point total the scorecard adds up to. */
 const total = (s: CategoryScores) => s.argument + s.evidence + s.clash + s.delivery;
 
-/** The placement match: set the starting rating from the margin. The one
-    bot game that touches a rating, and it can only ever do so once per
-    player (placePlayer refuses a placed row). Fail-soft like applyElo. */
+/** A placement game: record it in the player's series, and when it was the
+    third, set the starting rating. The one bot game that touches a rating,
+    and each game can only be recorded once (recordPlacementGame appends at
+    the step the game was started for, and only while the player is
+    unplaced). What counts is placement.ts placementOutcome. Fail-soft like
+    applyElo: a dead store costs the record, never the verdict. */
 async function applyPlacement(lobby: Lobby): Promise<void> {
   if (!lobby.placement || !lobby.bot || !lobby.sides || !lobby.verdict) return;
   const human: Side = lobby.bot.side === 'FOR' ? 'AGAINST' : 'FOR';
-  // A mic that never reached us is not a placement. Nothing is set, so the
-  // player is still unplaced and gets to play it for real.
-  if (heardCounts(lobby)[human] < MIN_RATED_WORDS) {
-    event('placement_quiet', { code: lobby.code });
+  const heard = heardCounts(lobby);
+  const outcome = placementOutcome({
+    heardPlayer: heard[human],
+    heardBot: heard[lobby.bot.side],
+    botFailures: lobby.botFailures,
+    playerTotal: total(lobby.verdict.scores[human]),
+    botTotal: total(lobby.verdict.scores[lobby.bot.side]),
+    playerWon: lobby.verdict.winner === human,
+    minWords: MIN_RATED_WORDS,
+  });
+  const { playerId, step, rank } = lobby.placement;
+  if (!outcome.counted) {
+    // Void: nothing recorded, the same step comes round again. The client is
+    // told so, with the series as it stands.
+    event('placement_void', { code: lobby.code, botFailures: lobby.botFailures, step });
+    const row = await getRating(playerId);
+    if (!row) return;
+    lobby.placementResult = { counted: false, ...seriesView(row.placement) };
     return;
   }
-  // Nor is a game the bot never played. A bot that failed a turn, or whose
-  // turns were cut before it said anything, hands the human a margin it
-  // did not earn, and the placement is one shot: nothing is set, so the
-  // player plays it again for real.
-  if (lobby.botFailures > 0 || heardCounts(lobby)[lobby.bot.side] < MIN_RATED_WORDS) {
-    event('placement_void', { code: lobby.code, botFailures: lobby.botFailures });
-    return;
-  }
-  const margin = total(lobby.verdict.scores[human]) - total(lobby.verdict.scores[lobby.bot.side]);
-  const rating = await placePlayer(lobby.placement.playerId, lobby.host?.name ?? 'player', margin);
-  if (rating === null) return;
-  lobby.placementResult = { rating };
-  event('placement_applied', { code: lobby.code, margin, rating });
+  const wrote = await recordPlacementGame(playerId, lobby.host?.name ?? 'player', step, {
+    rank,
+    won: outcome.won,
+    margin: outcome.margin,
+  });
+  if (!wrote) return;
+  lobby.placementResult = {
+    counted: true,
+    ...seriesView(wrote.games),
+    ...(wrote.rating !== null ? { rating: wrote.rating } : {}),
+  };
+  event(wrote.rating !== null ? 'placement_applied' : 'placement_game', {
+    code: lobby.code,
+    step,
+    rank,
+    won: outcome.won,
+    margin: outcome.margin,
+    recorded: wrote.recorded,
+    ...(wrote.rating !== null ? { rating: wrote.rating } : {}),
+  });
 }
 
 /** Ranked: move both ratings on the result. Fail-soft — a dead database costs
@@ -715,7 +741,7 @@ async function applyElo(lobby: Lobby): Promise<void> {
   // Ranked means humans. Bot debates never move a rating: a bot is a fixed
   // strategy you can learn to beat permanently, and a bot match has no witness,
   // which is the last place unobserved rating movement belongs. The placement
-  // match is the one exception, and it goes its own way.
+  // series is the one exception, and it goes its own way.
   if (lobby.placement) return applyPlacement(lobby);
   if (lobby.bot) return;
   if (!lobby.ranked || !lobby.sides || !lobby.verdict) return;
@@ -800,8 +826,10 @@ export function matchRowsFor(lobby: Lobby, verdict: Verdict): MatchRow[] {
   const names = namesOf(lobby);
   const mode: 'ranked' | 'custom' | 'bots' = lobby.ranked ? 'ranked' : lobby.bot ? 'bots' : 'custom';
   // Rated only when a rating actually moved: a ranked debate the mic never
-  // reached, or a placement the store did not write, moved nothing.
-  const rated = Boolean(lobby.eloResult) || Boolean(lobby.placementResult);
+  // reached, or a placement game the store did not record (or a void one),
+  // moved nothing. A counted placement game is rated: it is part of the
+  // rating the series sets.
+  const rated = Boolean(lobby.eloResult) || Boolean(lobby.placementResult?.counted);
   const rows: MatchRow[] = [];
   for (const p of [lobby.host, lobby.guest]) {
     if (!p?.playerId) continue; // a bot's empty seat, or a client too old to send an id

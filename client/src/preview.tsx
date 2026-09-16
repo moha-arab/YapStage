@@ -119,6 +119,26 @@ const HOME_PROPS = {
   onMaskSaved: noop,
 };
 
+/* The placement series as /rating and verdict:result describe it, at 0, 1 or
+   2 games done: game one lost to Clover (so Moss is next), then game two won
+   against Moss (so Dodger is next). */
+const NEXT_BOT = {
+  0: { id: 'rabbit', name: 'Clover', rank: 4, elo: 1400, color: 'against' },
+  1: { id: 'sloth', name: 'Moss', rank: 2, elo: 600, color: 'ink' },
+  2: { id: 'raccoon', name: 'Dodger', rank: 3, elo: 1000, color: 'for' },
+} as const;
+function seriesAt(done: 0 | 1 | 2) {
+  const results = [
+    { rank: 4, won: false },
+    { rank: 2, won: true },
+  ].slice(0, done);
+  return { done, results, next: { ...NEXT_BOT[done] } };
+}
+const seriesParam = (): 0 | 1 | 2 => {
+  const n = Number(new URLSearchParams(location.search).get('n'));
+  return n === 1 || n === 2 ? n : 0;
+};
+
 const VERDICT: VerdictData = {
   winner: 'FOR',
   summary: 'you answered their best point head on and kept your own standing.',
@@ -398,14 +418,25 @@ const SCREENS: Record<string, () => JSX.Element> = {
       avatars={{ FOR: 'bally', AGAINST: 'marisol' }}
     />
   ),
-  /* The placement verdict: a starting rating, no delta, nothing gold. */
+  /* After game 3 of placement: the three marks and the starting rating, no
+     delta, nothing gold. */
   placed: () => (
     <Verdict
       info={{
         verdict: VERDICT,
-        names: { FOR: 'zorvint', AGAINST: 'Clover' },
+        names: { FOR: 'zorvint', AGAINST: 'Dodger' },
         heard: { FOR: 214, AGAINST: 188 },
-        placement: { rating: 1512 },
+        placement: {
+          counted: true,
+          done: 3,
+          results: [
+            { rank: 4, won: false },
+            { rank: 2, won: true },
+            { rank: 3, won: true },
+          ],
+          next: null,
+          rating: 1062,
+        },
       }}
       status={null}
       mySide="FOR"
@@ -413,15 +444,15 @@ const SCREENS: Record<string, () => JSX.Element> = {
       localStream={null}
       remoteStream={null}
       rtcConnected={false}
-      peerName="Clover"
+      peerName="Dodger"
       myName="zorvint"
       onLeaveCall={noop}
       onRetry={noop}
       onRematch={noop}
       rematch={null}
-      botOpponent={{ id: 'rabbit', name: 'Clover', color: 'against' }}
+      botOpponent={{ id: 'raccoon', name: 'Dodger', color: 'for' }}
       avatars={{ FOR: 'bally' }}
-      opponentRating={1400}
+      opponentRating={1000}
     />
   ),
   /* A bot match, unrated, signed out (the save nudge shows). You win;
@@ -509,6 +540,67 @@ const SCREENS: Record<string, () => JSX.Element> = {
       avatars={{ FOR: 'garn', AGAINST: 'athena' }}
     />
   ),
+  /* After placement game 1, lost to Clover: "Placement 2 of 3 next: Moss",
+     the next game as the button and the lobby as the way out. */
+  placementNext: () => (
+    <Verdict
+      info={{
+        verdict: VERDICT,
+        names: { FOR: 'Clover', AGAINST: 'zorvint' },
+        heard: { FOR: 214, AGAINST: 188 },
+        placement: { counted: true, ...seriesAt(1) },
+      }}
+      status={null}
+      mySide="AGAINST"
+      topic={{ id: 'demo', en: 'college is no longer worth it', ar: '' }}
+      localStream={null}
+      remoteStream={null}
+      rtcConnected={false}
+      peerName="Clover"
+      myName="zorvint"
+      onLeaveCall={noop}
+      onRetry={noop}
+      onRematch={noop}
+      rematch={null}
+      botOpponent={{ id: 'rabbit', name: 'Clover', color: 'against' }}
+      avatars={{ AGAINST: 'bally' }}
+      onPlayPlacement={noop}
+    />
+  ),
+  /* Ranked for a signed-in player part way through placement. ?n=0, 1 or 2
+     games done (1: lost to Clover, Moss next; 2: then beat Moss, Dodger next). */
+  rankedSeries: () => {
+    const n = seriesParam();
+    fakeFetch({
+      '/rating': { rating: 700, placed: false, placementBot: NEXT_BOT[n].name, placement: seriesAt(n) },
+      '/bots': BOTS_FAKE,
+      '/live': { live: 2, watchable: 2, featured: null, matches: [], categories: [], serverNow: Date.now() },
+      '/drill': {},
+    });
+    return <Home account={{ signedIn: true, google: true, name: 'zorvint', mask: 'bally' }} {...HOME_PROPS} initialMode="ranked" />;
+  },
+  /* Watch mode, locked. ?who=guest (the default): sign in is the button.
+     ?who=placing&n=1: the same line, the series, and their next game. */
+  watchLocked: () => {
+    const q = new URLSearchParams(location.search);
+    const placing = q.get('who') === 'placing';
+    const n = seriesParam();
+    fakeFetch({
+      '/rating': placing
+        ? { rating: 700, placed: false, placementBot: NEXT_BOT[n].name, placement: seriesAt(n) }
+        : { rating: 700, placed: false, placementBot: 'Clover', placement: seriesAt(0) },
+      '/bots': BOTS_FAKE,
+      '/live': { live: 2, watchable: 2, featured: null, matches: [], categories: [], serverNow: Date.now() },
+      '/drill': {},
+    });
+    return (
+      <Home
+        account={placing ? { signedIn: true, google: true, name: 'zorvint', mask: 'bally' } : { signedIn: false, google: true }}
+        {...HOME_PROPS}
+        initialMode="watch"
+      />
+    );
+  },
   /* The lobby for a player who has not placed yet: the placement bot stands
      where a stranger would. /rating and the rest are faked in place, since
      the dev server proxies nothing but /bots and the socket. */
@@ -518,7 +610,7 @@ const SCREENS: Record<string, () => JSX.Element> = {
       const url = String(input);
       const json = (body: unknown) =>
         Promise.resolve(new Response(JSON.stringify(body), { headers: { 'content-type': 'application/json' } }));
-      if (url.startsWith('/rating')) return json({ rating: 700, placed: false, placementBot: 'Clover' });
+      if (url.startsWith('/rating')) return json({ rating: 700, placed: false, placementBot: 'Clover', placement: seriesAt(0) });
       if (url.startsWith('/bots'))
         return json({
           bots: [

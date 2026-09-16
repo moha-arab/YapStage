@@ -3,6 +3,7 @@ import type {
   DebateStart,
   LobbyUpdate,
   PhaseUpdate,
+  PlacementResult,
   Side,
   SpectateState,
   Verdict as VerdictData,
@@ -60,8 +61,8 @@ interface VerdictInfo {
   heard?: Record<Side, number>;
   /** Ranked only: what the match did to each side's rating. */
   elo?: Record<Side, { before: number; after: number }>;
-  /** The placement match only: the starting rating it set. */
-  placement?: { rating: number };
+  /** A placement game only: where the series stands after it. */
+  placement?: PlacementResult;
 }
 
 interface AbortInfo {
@@ -1263,12 +1264,14 @@ export default function App() {
 
   const startBot = useCallback((c: BotStartConfig) => startBotAs(botName, c), [botName, startBotAs]);
 
-  // The verdict's "Play Moss again". Runs inside the tap, which is where the
-  // audio unlocks must happen (the lobby's Go button does the same two).
-  // Placement is one game ever, so it is never replayed from here.
+  // The verdict's "Play Moss again", and after a placement game "play Rocco"
+  // (the same placement start: the server picks the next bot from the stored
+  // series, so a finished game is never replayed). Runs inside the tap, which
+  // is where the audio unlocks must happen (the lobby's Go button does the
+  // same two).
   const playBotAgain = useCallback(() => {
     const last = lastBotRef.current;
-    if (!last || last.c.placement) return;
+    if (!last) return;
     stopBotVoice();
     initAudio();
     unlockBotVoice();
@@ -1501,6 +1504,9 @@ export default function App() {
         opponentRating={start?.bot?.elo}
         onPlayAgain={
           start?.bot && lastBotRef.current && !lastBotRef.current.c.placement ? playBotAgain : undefined
+        }
+        onPlayPlacement={
+          start?.bot && lastBotRef.current?.c.placement && verdictInfo?.placement?.next ? playBotAgain : undefined
         }
       />
     );

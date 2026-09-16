@@ -110,7 +110,7 @@ const PRIVACY: Part[] = [
         </p>
         <h3>Your record</h3>
         <p>
-          Your rating, wins and losses, whether you have played your placement match, how far you are up the bot
+          Your rating, wins and losses, how far you are through your placement games, how far you are up the bot
           ladder, your daily drill streak and best drill score, and the character you picked.
         </p>
         <h3>Friends</h3>
@@ -281,7 +281,7 @@ const PRIVACY: Part[] = [
         </p>
         <h3>People watching</h3>
         <p>
-          Ranked debates can be watched live by anyone, with or without an account. Other rooms, including friend
+          Ranked debates can be watched live by any signed-in player who has finished their placement games. Other rooms, including friend
           rooms, can be watched by anyone who has the room code while the host allows watchers. That is on unless the
           host turns it off. Watchers hear both players, and see your yap names, characters, the motion and the clock.
           Watchers cannot be seen or heard. You can see how many are watching.

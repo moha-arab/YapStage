@@ -57,7 +57,8 @@ import {
   startDispute,
   type Io,
 } from './debate.js';
-import { BOT_BY_ID, placementBot, publicBots } from './bots.js';
+import { BOT_BY_ID, publicBots, type Bot } from './bots.js';
+import { PLACEMENT_GAMES, botAtRank, nextPlacementRank, seriesView } from './placement.js';
 import { sttConfigured } from './stt.js';
 import { applyForfeit, namesOf, runJudge, scoreDrill, scoreTranscript } from './judge.js';
 import { DRILL_SECONDS, PROMPT as DRILL_PROMPT, TIER_META, drillById, drillOfDay, today } from './drills.js';
@@ -68,6 +69,7 @@ import {
   acceptFriend,
   campaignLocksOn,
   drillState,
+  finishPlacement,
   getCampaign,
   getLocker,
   getPlayer,
@@ -98,7 +100,7 @@ import { TOPIC_BY_ID, TOPIC_CATEGORIES } from './topics.js';
 import { errTag, event, recentEvents, statsSnapshot } from './stats.js';
 import { allow } from './ratelimit.js';
 import { googleConfigured, readSession, readSessionCookie, registerAuth } from './auth.js';
-import { rankedRefusal } from './gate.js';
+import { rankedRefusal, watchRefusal } from './gate.js';
 import {
   SECURITY_HEADERS,
   SITE_ORIGIN,
@@ -345,6 +347,11 @@ function liveMatchOf(lobby: Lobby): LiveMatch {
 // skips the debate you are already watching so "next" never hands you the
 // same one back.
 app.get<{ Querystring: { not?: string; category?: string } }>('/spectate/random', async (req) => {
+  // The feed only ever hands out ranked matches, so it is locked the same way
+  // spectate:join is: a code a locked viewer could not open is not handed out.
+  // `locked` says why the answer is empty; nothing else rides along.
+  const sess = readSession(req);
+  if (await watchLocked(Boolean(sess), sess?.playerId)) return { code: null, locked: true };
   const skip = String(req.query.not ?? '').toUpperCase();
   const cat = categoryFilter(req.query.category);
   const live = watchableLobbies().filter(
@@ -354,12 +361,32 @@ app.get<{ Querystring: { not?: string; category?: string } }>('/spectate/random'
   return { code: live[Math.floor(Math.random() * live.length)].code };
 });
 
+/** Whether this viewer is kept out of live ranked matches (gate.ts
+    watchRefusal): only where Google sign-in is configured, only signed out
+    or signed in and still placing. The store is read for `placed`; down, it
+    is unknown and the door stays open, like the ranked queue. */
+async function watchLocked(signedIn: boolean, playerId: string | undefined): Promise<boolean> {
+  const googleOn = googleConfigured();
+  if (!googleOn || !signedIn || !playerId) {
+    return watchRefusal({ googleOn, signedIn: signedIn && Boolean(playerId), placed: null, byCode: false }) !== null;
+  }
+  const row = storeReady() ? await getRating(playerId) : null;
+  const placed: boolean | null = row ? row.placed : storeReady() ? false : null;
+  return watchRefusal({ googleOn, signedIn, placed, byCode: false }) !== null;
+}
+
 // What the lobby's watch mode shows: how many ranked debates are on, how
 // many still have a seat in the crowd, and the browsable list of those. Not
 // lobbyCount(), which counts green rooms, bot bouts and stale waiting rooms
 // and would triple the number for free. Everything here is already public
 // to any spectator (spectateStateFor sends the same fields the moment you
 // join); no player ids, no transcript.
+// Since watching needs finished placement (2026-09-16), this route is still
+// the same for everyone, locked or not, and reads no cookie. Its counts feed
+// the dock's "N live" badge, and the names, masks and motions it lists are
+// the same ones the public ranked board and /feed already show. What it
+// cannot do is open a stream: every code in it goes through spectate:join,
+// which refuses a locked viewer. The locked client does not render the list.
 app.get('/live', async (): Promise<LiveList> => {
   const ranked = allLobbies().filter((l) => Boolean(l.ranked) && l.status === 'in_debate');
   const open = watchableLobbies().filter((l) => l.sides && l.topic);
@@ -409,12 +436,15 @@ app.get<{ Querystring: { playerId?: string } }>('/rating', async (req) => {
   const id = String(req.query.playerId ?? '').slice(0, 64);
   if (!id) return { rating: null };
   // No row yet is not "no rating": it is a player at the seed with nothing
-  // played, who still has the placement match ahead of them. That is only
+  // played, who still has the placement series ahead of them. That is only
   // knowable while the store is up: down, `placed` is null and the client
   // shows the queue rather than sending everyone to the placement bot for a
   // game that could not be recorded.
   const row = await getRating(id);
   const placed: boolean | null = row ? row.placed : storeReady() ? false : null;
+  // Where the placement series stands: games done, won or lost, and who is
+  // next. A placed player (or an unknown one) has nothing ahead.
+  const series = seriesView(placed === true ? [] : (row?.placement ?? []));
   const standing = (pace: Pace) => {
     const r = row?.[pace] ?? { rating: SEED_RATING, wins: 0, losses: 0 };
     return {
@@ -423,21 +453,28 @@ app.get<{ Querystring: { playerId?: string } }>('/rating', async (req) => {
       losses: r.losses,
       games: r.wins + r.losses,
       // Unplaced, the number exists (the seed) but is not shown: it says
-      // nothing about the player yet. Both fields predate one-match placement
-      // and are kept in the shape older clients read.
+      // nothing about the player yet. Both fields are kept in the shape older
+      // clients read.
       provisional: placed !== true,
-      placementsLeft: placed === true ? 0 : 1,
+      placementsLeft: placed === true ? 0 : PLACEMENT_GAMES - series.done,
     };
   };
   // Ranked is standard only, so the top-level fields ARE the ladder. `paces`
   // still carries all three for clients built before the change; the other
-  // two never move now. `placementBot` is who the placement match is against,
-  // so the lobby can name them.
+  // two never move now. `placement` is the series (placement.ts seriesView);
+  // `placementBot` is the next opponent's name, kept for clients built
+  // before the series.
   const paces = Object.fromEntries(PACES.map((p) => [p, standing(p)])) as Record<
     Pace,
     ReturnType<typeof standing>
   >;
-  return { ...paces.standard, paces, placed, placementBot: placementBot().name };
+  return {
+    ...paces.standard,
+    paces,
+    placed,
+    placement: placed === true ? null : series,
+    placementBot: series.next?.name ?? '',
+  };
 });
 
 // ---- the daily rebuttal challenge ----
@@ -1985,9 +2022,9 @@ io.on('connection', (socket) => {
         // refused (this tab takes it over, below); a seat in a green room or
         // a debate is: that was one account in two ranked matches at once.
         if (busyElsewhere(playerId, socket.id, false)) return cb({ ok: false, error: 'busy_elsewhere' });
-        // Ranked starts after the placement match (one game against the bot
-        // nearest 1400 sets the starting rating). Only knowable with the
-        // store up; with it down the queue stays open, as before.
+        // Ranked starts after the placement series (three bot games set the
+        // starting rating, placement.ts). Only knowable with the store up;
+        // with it down the queue stays open, as before.
         if (storeReady()) {
           const standing = await getRating(playerId);
           if (!io.sockets.sockets.get(socket.id)) return;
@@ -2102,34 +2139,61 @@ io.on('connection', (socket) => {
     }
     // A debater does not watch another debate from the seat of a live one.
     if (busy()) return cb({ ok: false, error: 'not_found' });
-    const lobby = getLobby(String(p?.code ?? '').slice(0, 8));
-    if (!lobby) return cb({ ok: false, error: 'not_found' });
-    if (participantOf(lobby, socket.id)) return cb({ ok: false, error: 'not_found' });
-    // The host shut the door (custom only — ranked is always spectatable).
-    if (!lobby.ranked && !lobby.spectatorsAllowed) return cb({ ok: false, error: 'not_found' });
-    if (spectatorCount(lobby.code) >= SPECTATOR_CAP) return cb({ ok: false, error: 'full' });
-    // Moving on to another debate leaves the one being watched: its rooms
-    // (or its phases, verdict and lobby:closed keep arriving here) and its
-    // watcher count. A seat this socket holds elsewhere is left alone.
-    const prev = socket.data.code;
-    if (prev && prev !== lobby.code) {
-      const prevLobby = getLobby(prev);
-      if (!prevLobby || !participantOf(prevLobby, socket.id)) {
-        void socket.leave(prev);
-        void socket.leave(`spec:${prev}`);
-        dropSpectator(socket.id, prev);
+    const code = String(p?.code ?? '').slice(0, 8);
+    const first = getLobby(code);
+    if (!first) return cb({ ok: false, error: 'not_found' });
+    // A RANKED match needs a signed-in account with finished placement,
+    // wherever sign-in exists (gate.ts watchRefusal). Every live ranked door
+    // lands here: a row off the list, the random button, "next", a ranked
+    // code typed in. A friend room (anything not ranked) reached through its
+    // own code or invite link is NOT locked: the host shared that code and
+    // allowed spectators, so whoever holds it was invited.
+    // A placed account stays placed, so the answer is kept on the socket and
+    // hopping through the feed reads the store once.
+    const needsCheck = Boolean(first.ranked) && !socket.data.watchOk;
+    void (async () => {
+      if (needsCheck) {
+        const acct = socket.data.account;
+        if (await watchLocked(Boolean(acct), acct?.playerId)) {
+          return cb({ ok: false, error: 'watch_locked' });
+        }
+        if (!io.sockets.sockets.get(socket.id)) return;
+        if (acct && googleConfigured()) socket.data.watchOk = true;
       }
-    }
-    const set = spectators.get(lobby.code) ?? new Set<string>();
-    set.add(socket.id);
-    spectators.set(lobby.code, set);
-    void socket.join(lobby.code); // live state: phases, verdicts, aborts
-    void socket.join(`spec:${lobby.code}`); // audio relays
-    socket.data.code = lobby.code; // for cleanup on disconnect
-    event('spectate_joined', { code: lobby.code, n: set.size });
-    cb({ ok: true });
-    socket.emit('spectate:state', spectateStateFor(lobby));
-    broadcastWatchers(lobby.code);
+      // The room may have gone, or its code turned over, across that read.
+      const lobby = getLobby(code);
+      if (!lobby) return cb({ ok: false, error: 'not_found' });
+      if (lobby !== first && lobby.ranked && !socket.data.watchOk && googleConfigured()) {
+        return cb({ ok: false, error: 'watch_locked' });
+      }
+      if (busy()) return cb({ ok: false, error: 'not_found' });
+      if (participantOf(lobby, socket.id)) return cb({ ok: false, error: 'not_found' });
+      // The host shut the door (custom only — ranked is always spectatable).
+      if (!lobby.ranked && !lobby.spectatorsAllowed) return cb({ ok: false, error: 'not_found' });
+      if (spectatorCount(lobby.code) >= SPECTATOR_CAP) return cb({ ok: false, error: 'full' });
+      // Moving on to another debate leaves the one being watched: its rooms
+      // (or its phases, verdict and lobby:closed keep arriving here) and its
+      // watcher count. A seat this socket holds elsewhere is left alone.
+      const prev = socket.data.code;
+      if (prev && prev !== lobby.code) {
+        const prevLobby = getLobby(prev);
+        if (!prevLobby || !participantOf(prevLobby, socket.id)) {
+          void socket.leave(prev);
+          void socket.leave(`spec:${prev}`);
+          dropSpectator(socket.id, prev);
+        }
+      }
+      const set = spectators.get(lobby.code) ?? new Set<string>();
+      set.add(socket.id);
+      spectators.set(lobby.code, set);
+      void socket.join(lobby.code); // live state: phases, verdicts, aborts
+      void socket.join(`spec:${lobby.code}`); // audio relays
+      socket.data.code = lobby.code; // for cleanup on disconnect
+      event('spectate_joined', { code: lobby.code, n: set.size });
+      cb({ ok: true });
+      socket.emit('spectate:state', spectateStateFor(lobby));
+      broadcastWatchers(lobby.code);
+    })();
   });
 
   socket.on('spectate:leave', () => {
@@ -2152,11 +2216,13 @@ io.on('connection', (socket) => {
     if (llmDown()) return cb({ ok: false, error: 'judge_down' });
     const name = nameOf(String(p?.name ?? '').trim());
     if (!nameAllowed(name)) return cb({ ok: false, error: 'bad_name' });
-    // The placement match: the server picks the bot (whoever on the roster
-    // is nearest 1400), and the client's botId is ignored so a stale roster
-    // in an old tab cannot place someone against the wrong rung.
+    // A placement game: the server picks the bot from the stored series
+    // (placement.ts nextPlacementRank, read below once the player id is
+    // known; rank 4 until then), and the client's botId is ignored so a stale
+    // roster in an old tab cannot place someone against the wrong rung.
     const placement = p?.placement === true;
-    const bot = placement ? placementBot() : BOT_BY_ID.get(String(p?.botId ?? ''));
+    let bot: Bot | undefined = placement ? botAtRank(4) : BOT_BY_ID.get(String(p?.botId ?? ''));
+    let placementStep = 0;
     if (!bot || bot.hidden) return cb({ ok: false, error: 'not_found' });
     if (lobbyCount() >= MAX_LOBBIES) return cb({ ok: false, error: 'rate_limited' });
 
@@ -2178,10 +2244,11 @@ io.on('connection', (socket) => {
       const refused = rankedRefusal(Boolean(socket.data.account), googleConfigured());
       if (refused) return cb({ ok: false, error: refused });
       if (!playerId) return cb({ ok: false, error: 'bad_name' });
-      // One shot. A placement game already running for this id (a second
-      // tab) is refused here; a finished one is refused by the store, whose
-      // `placed` flag is the truth. With the store down the game still runs
-      // (a dead database never bricks a debate) and simply sets nothing.
+      // One game of the series at a time. A placement game already running
+      // for this id (a second tab) is refused here; a finished series is
+      // refused by the store, whose `placed` flag is the truth. With the
+      // store down the game still runs (a dead database never bricks a
+      // debate) as game one, and simply records nothing.
       // Only a placement that can still finish counts: one being debated, or
       // being judged by a judge that has not failed, with its player still
       // connected. A dead one (aborted, judge gave up, tab gone) must not
@@ -2196,9 +2263,22 @@ io.on('connection', (socket) => {
       if (running) return cb({ ok: false, error: 'in_progress' });
       const standing = await getRating(playerId);
       if (standing?.placed) return cb({ ok: false, error: 'placed' });
+      const games = standing?.placement ?? [];
+      if (games.length >= PLACEMENT_GAMES) {
+        // All three on file but no rating: the store failed between the two
+        // writes. Finish it now rather than play a fourth game.
+        await finishPlacement(playerId);
+        return cb({ ok: false, error: 'placed' });
+      }
       if (!io.sockets.sockets.get(socket.id)) return;
+      // The step is how many games are on file; an aborted game recorded
+      // nothing, so it is simply this same step again.
+      placementStep = games.length;
+      bot = botAtRank(nextPlacementRank(games) ?? 4);
+      if (!bot) return cb({ ok: false, error: 'not_found' });
     }
-    if (playerId && campaignLocksOn()) {
+    // Placement plays whichever rung the series says, campaign or not.
+    if (playerId && campaignLocksOn() && !placement) {
       const level = await getCampaign(playerId);
       if (level !== null && bot.rank > level) {
         return cb({ ok: false, error: 'locked' });
@@ -2249,7 +2329,7 @@ io.on('connection', (socket) => {
     lobby.pace = pace;
     lobby.bot = { id: bot.id, name: bot.name, difficulty: bot.difficulty, rank: bot.rank, side: botSide, lang };
     if (playerId) lobby.campaign = { playerId, botRank: bot.rank };
-    if (placement && playerId) lobby.placement = { playerId };
+    if (placement && playerId) lobby.placement = { playerId, step: placementStep, rank: bot.rank };
 
     // BOT MATCHES ARE UNRATED, the same rule chess.com runs, and the reasons
     // are stronger here than the cold-start argument that briefly overrode
@@ -2261,13 +2341,14 @@ io.on('connection', (socket) => {
     // possible farm for anyone with a chatbot open in the next tab.
     // The bot ladder is a yardstick you measure yourself against, not a source
     // of rating. Ranked means humans.
-    // The ONE exception (his call 2026-09-12) is the placement match above:
-    // one game, against the bot nearest 1400, that sets a new player's
-    // starting rating instead of three placement games nobody in a small
-    // pool could find. It fires once per player, ever (store.placePlayer),
-    // so neither argument comes back: you cannot farm a game you cannot
+    // The ONE exception is placement above: three bot games (his call
+    // 2026-09-16, one game since 2026-09-12) that set a new player's starting
+    // rating instead of placement games against strangers nobody in a small
+    // pool could find. Each game is recorded once and the rating is written
+    // once per player, ever (store.recordPlacementGame, finishPlacement), so
+    // neither argument comes back: you cannot farm a series you cannot
     // replay, and the fast K on the human games after it corrects whatever
-    // the bot got wrong.
+    // the bots got wrong.
     socket.data.code = lobby.code;
     socket.data.role = 'host';
     void socket.join(lobby.code);

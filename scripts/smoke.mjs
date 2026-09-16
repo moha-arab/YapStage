@@ -1063,9 +1063,13 @@ console.log('\n=== Scenario 12: ranked is one pace ===');
   const { bots: roster } = await fetch(`${URL}/bots`).then((r) => r.json());
   const nearest1400 = roster.reduce((a, b) => (Math.abs(b.elo - 1400) < Math.abs(a.elo - 1400) ? b : a));
   check('rating: the top-level fields are the ladder', typeof rt.rating === 'number' && rt.games === 0);
-  check('rating: unplaced reads provisional with one placement left', rt.provisional === true && rt.placementsLeft === 1);
+  check('rating: unplaced reads provisional with three placement games left', rt.provisional === true && rt.placementsLeft === 3);
+  check(
+    'rating: the series is at game 1, against rank 4, nothing done',
+    rt.placement?.done === 0 && rt.placement.results.length === 0 && rt.placement.next?.rank === 4 && !JSON.stringify(rt.placement).includes('margin'),
+  );
   check('rating: placed is unknown, not false, when the store is down', 'placed' in rt && rt.placed === null);
-  check('rating: names the placement bot, the roster bot nearest 1400', rt.placementBot === nearest1400.name);
+  check('rating: names the next placement bot, rank 4 (Clover, 1400)', rt.placementBot === nearest1400.name);
   check(
     'rating: paces still carries three ladders for older clients',
     ['standard', 'blitz', 'long'].every((p) => typeof rt.paces?.[p]?.rating === 'number'),
@@ -1169,23 +1173,24 @@ console.log('\n=== Scenario 14: ladder, deck, daily rebuttal ===');
   check('drill: silence is refused, not scored', short.result === null && short.error === 'too_short');
 }
 
-// ---------- Scenario 15: the placement match ----------
-// A new player's first ranked thing is one game against the roster bot
-// nearest 1400; the verdict's margin sets their starting rating. The server
-// picks the bot, the motion and the sides, refuses a second placement while
-// one is running, and once placed refuses it for good. No DATABASE_URL here,
-// so the rating write itself fails soft: the checks that need the store say
-// so and pass on the honest answer (no rating, still unplaced).
+// ---------- Scenario 15: placement ----------
+// Placement is three adaptive games against bots (2026-09-16; one game
+// against Clover before). Game 1 is always rank 4, Clover at 1400. The
+// server picks the bot, the motion and the sides, and refuses a second
+// placement game while one is running. No DATABASE_URL here, so recording
+// the game fails soft: the checks that need the store say so and pass on the
+// honest answer (nothing recorded, still at game 1). The series logic, the
+// rating and the once-only writes are pinned in scripts/security-unit.mjs.
 console.log('\n=== Scenario 15: placement ===');
 {
-  // The margin-to-rating map, pinned so it cannot drift: 1400 plus eight per
-  // point, clamped to [-400, +300], floored at 500.
-  const { placementRating: pr } = await import('../server/dist/store.js');
+  // The series' opponents and the starting rating, pinned so they cannot
+  // drift (placement.ts; the unit checks cover every path).
+  const { nextPlacementRank: nx, placementRating: pr } = await import('../server/dist/placement.js');
+  check('placement series: 4 first, then 6 or 2, then one rung either side', nx([]) === 4 && nx([{ rank: 4, won: true }]) === 6 && nx([{ rank: 4, won: false }]) === 2 && nx([{ rank: 4, won: true }, { rank: 6, won: false }]) === 5);
   check(
-    'placement map: even is 1400, wide margins clamp to 1000 and 1700',
-    pr(0) === 1400 && pr(-50) === 1000 && pr(-80) === 1000 && pr(38) === 1700 && pr(60) === 1700,
+    'placement rating: dead even against 1400s is 1400, clamped to the ladder',
+    pr([0, 0, 0].map((m) => ({ oppRating: 1400, margin: m }))) === 1400 && pr([99, 99, 99].map((m) => ({ oppRating: 3000, margin: m }))) === 3000,
   );
-  check('placement map: eight points per point of margin between the clamps', pr(10) === 1480 && pr(-25) === 1200);
 
   const { bots: roster } = await fetch(`${URL}/bots`).then((r) => r.json());
   const anchor = roster.reduce((a, b) => (Math.abs(b.elo - 1400) < Math.abs(a.elo - 1400) ? b : a));
@@ -1214,7 +1219,7 @@ console.log('\n=== Scenario 15: placement ===');
   check('placement: accepted for a fresh player', res.ok === true);
   const start = await once(h, 'debate:start', 12000);
   check(
-    'placement: the opponent is the roster bot nearest 1400, not the one asked for',
+    'placement: game 1 is against rank 4 (nearest 1400), not the bot asked for',
     Boolean(start.bot) && start.bot.id === anchor.id && start.bot.elo === anchor.elo,
   );
   const twice = await emitP(h2, 'bot:start', {
@@ -1241,24 +1246,18 @@ console.log('\n=== Scenario 15: placement ===');
 
   const rt = await fetch(`${URL}/rating?playerId=pid-place-1`).then((r) => r.json());
   if (v.placement) {
-    // A store is up: the one-shot really happened, and cannot happen again.
-    const r = v.placement.rating;
-    check('placement: the starting rating is in the 1000 to 1700 band', r >= 1000 && r <= 1700);
-    check('placement: /rating now says placed with that rating', rt.placed === true && rt.rating === r && rt.provisional === false);
-    const again = await emitP(h2, 'bot:start', {
-      sessionId: 'place-h2',
-      name: 'Guest1025',
-      playerId: 'pid-place-1',
-      botId: anchor.id,
-      topicMode: 'random',
-      placement: true,
-    });
-    check('placement: a second placement once placed is refused', again.ok === false && again.error === 'placed');
+    // A store is up: game 1 is on file, no rating yet, game 2 is 6 or 2.
+    check(
+      'placement: game 1 recorded, no rating yet, the next bot is rank 6 or 2',
+      v.placement.done === 1 && v.placement.rating === undefined && [6, 2].includes(v.placement.next?.rank),
+      JSON.stringify(v.placement),
+    );
+    check('placement: /rating says two games left and still unplaced', rt.placed === false && rt.placementsLeft === 2 && rt.placement.done === 1);
   } else {
-    // No store: nothing was set, and the app says so instead of inventing it.
+    // No store: nothing was recorded, and the app says so instead of inventing it.
     // (A retry would be allowed here, since nothing was recorded; not started,
     // because it would leave a real judge call running after the suite ends.)
-    check('placement: no rating is claimed when the store is down (honest)', v.placement === undefined);
+    check('placement: nothing is claimed when the store is down (honest)', v.placement === undefined);
     check('placement: /rating still cannot say placed (store down)', rt.placed === null);
   }
   h.disconnect();
@@ -1278,6 +1277,16 @@ console.log('\n=== Scenario 17: guest play, ranked gated ===');
   check('gate: signed out is refused wherever Google is configured', rankedRefusal(false, true) === 'signed_out');
   check('gate: signed in passes', rankedRefusal(true, true) === null);
   check('gate: without Google nobody is turned away', rankedRefusal(false, false) === null && rankedRefusal(true, false) === null);
+  // Watching live ranked matches needs finished placement where sign-in
+  // exists; this suite runs with it off, so the live joins elsewhere in it
+  // must still work. The full decision table is in security-unit.mjs.
+  const { watchRefusal } = await import('../server/dist/gate.js');
+  check(
+    'watch gate: locked for a guest with Google on, open with it off, open by a friend room code',
+    watchRefusal({ googleOn: true, signedIn: false, placed: null, byCode: false }) === 'watch_locked' &&
+      watchRefusal({ googleOn: false, signedIn: false, placed: null, byCode: false }) === null &&
+      watchRefusal({ googleOn: true, signedIn: false, placed: null, byCode: true }) === null,
+  );
 
   const health = await fetch(`${URL}/healthz`).then((r) => r.json());
   const googleOn = health.auth !== 'off';
@@ -1313,9 +1322,13 @@ console.log('\n=== Scenario 17: guest play, ranked gated ===');
     check('guest: ranked queue refuses a signed-out socket (Google on)', q.ok === false && q.error === 'signed_out');
     const pl = await emitP(g, 'bot:start', { sessionId: 'guest-1', name: 'Guest1040', playerId: 'pid-guest-1', botId: 'rabbit', topicMode: 'random', placement: true });
     check('guest: the placement match refuses a signed-out socket (Google on)', pl.ok === false && pl.error === 'signed_out');
+    const rnd = await fetch(`${URL}/spectate/random`).then((r) => r.json());
+    check('guest: the live feed hands a guest no match code (Google on)', rnd.code === null && rnd.locked === true);
   } else {
     check('guest: ranked queue open where nobody can sign in (Google off)', q.ok === true);
     g.emit('queue:leave');
+    const rnd = await fetch(`${URL}/spectate/random`).then((r) => r.json());
+    check('guest: the live feed is not locked where nobody can sign in (Google off)', rnd.locked === undefined);
   }
 
   const drill = await fetch(`${URL}/drill`).then((r) => r.json());

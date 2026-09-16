@@ -4522,3 +4522,56 @@ html[dir='rtl'] .meter-hint {
     animation: none;
   }
 }
+
+/* ---- the placement series: three marks (PlacementMarks.tsx) ----
+   Never gold: placement is a measurement. Won is filled paper with a tick,
+   lost is a hollow ring with a cross, next is ringed in your amber, later
+   is a faint ring. */
+.pm {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.pm-mark {
+  display: block;
+}
+
+.pm-dot {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  border: 2px solid var(--house-3);
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.pm-won .pm-dot {
+  background: var(--paper);
+  border-color: var(--paper);
+  color: var(--house);
+}
+
+.pm-lost .pm-dot {
+  border-color: var(--muted);
+  color: var(--muted);
+}
+
+.pm-next .pm-dot {
+  border-color: var(--amber);
+  color: var(--amber);
+  box-shadow: 0 0 0 4px rgba(240, 130, 30, 0.16);
+}
+
+.pm-later .pm-dot {
+  border-style: dashed;
+  color: rgba(154, 151, 176, 0.6);
+}
