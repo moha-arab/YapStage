@@ -218,8 +218,8 @@ await emitP(b2, 'lobby:join', { code: code2, sessionId: 'sess-b2', name: 'Guest1
 
 const start2 = once(a2, 'debate:start');
 a2.emit('pick:mode', 'agree');
-a2.emit('pick:topic', 'cereal-soup');
-b2.emit('pick:topic', 'cereal-soup');
+a2.emit('pick:topic', 'sweet-breakfast');
+b2.emit('pick:topic', 'sweet-breakfast');
 a2.emit('pick:side', 'FOR');
 b2.emit('pick:side', 'AGAINST');
 await new Promise((r) => setTimeout(r, 300));
@@ -274,8 +274,8 @@ await emitP(b3, 'lobby:join', { code: code3, sessionId: 'sess-b3', name: 'Guest1
 
 const start3 = once(a3, 'debate:start');
 a3.emit('pick:mode', 'agree');
-a3.emit('pick:topic', 'crypto-scam');
-b3.emit('pick:topic', 'crypto-scam');
+a3.emit('pick:topic', 'cash-gifts');
+b3.emit('pick:topic', 'cash-gifts');
 a3.emit('pick:side', 'FOR');
 b3.emit('pick:side', 'AGAINST');
 await new Promise((r) => setTimeout(r, 300));
@@ -395,7 +395,7 @@ orphanCheck.disconnect();
 
 // ---------- Scenario 5: topic modes (agree / category / random) ----------
 console.log('\n=== Scenario 5: topic modes ===');
-const MONEY_IDS = ['money-happiness', 'landlords', 'crypto-scam', 'no-billionaires', 'invite-pays', 'rent-vs-buy', 'salary-public'];
+const MONEY_IDS = ['cash-gifts', 'money-happiness', 'save-or-spend', 'no-billionaires', 'invite-pays', 'rent-vs-buy', 'salary-public'];
 
 // category mode, set up by the host on the stage BEFORE the friend walks in
 // (the lobby's settings panel, 2026-09-12): the join ack has to carry the
@@ -462,7 +462,7 @@ const MONEY_IDS = ['money-happiness', 'landlords', 'crypto-scam', 'no-billionair
   check('rewind: the category actually changed', ac.categoryKey === 'sport');
   check('the side setting survives mode and category changes', ac.hostSide === 'AGAINST');
 
-  const SPORT_IDS = ['messi-ronaldo', 'esports-sport', 'athletes-overpaid', 'var-ruined', 'chess-sport', 'club-loyalty', 'trophies-stats'];
+  const SPORT_IDS = ['messi-ronaldo', 'esports-sport', 'athletes-overpaid', 'live-vs-tv', 'team-vs-solo', 'club-loyalty', 'trophies-stats'];
   const started = once(host, 'debate:start', 8000);
   const gStarted = once(guest, 'debate:start', 8000);
   host.emit('pick:confirm');
@@ -634,7 +634,7 @@ async function runToVerdict(a, b, aId, bId, name, topic) {
 {
   const a = connect();
   const b = connect();
-  await runToVerdict(a, b, 'rl-a', 'rl-b', 'Guest1041', 'crypto-scam');
+  await runToVerdict(a, b, 'rl-a', 'rl-b', 'Guest1041', 'cash-gifts');
   a.emit('rematch');
   await once(a, 'rematch:update', 5000); // youWant
   const peerLeft = once(a, 'rematch:update', 8000);
@@ -683,6 +683,8 @@ console.log('\n=== Scenario 7: bots mode ===');
     5: 'they attacked my stress point but never disputed that money removes the stressor itself',
     7: 'in closing, money buys time, security, and options, and those build a happy life',
   };
+  // Listen BEFORE asking: debate:start can reach the socket before the ack.
+  const startP = once(h, 'debate:start', 12000);
   const res = await emitP(h, 'bot:start', {
     sessionId: 'bot-h',
     name: 'Guest1003',
@@ -693,7 +695,7 @@ console.log('\n=== Scenario 7: bots mode ===');
     lang: 'en',
   });
   check('bot:start accepted (campaign fails open when store down)', res.ok === true);
-  const start = await once(h, 'debate:start', 12000);
+  const start = await startP;
   // The lobby's settings panel feeds bot:start: the chosen motion and side
   // have to be the ones on the fight card.
   check('bot debate: the chosen motion and side are honoured', start.topic.id === 'money-happiness' && start.yourSide === 'FOR');
@@ -943,9 +945,11 @@ console.log('\n=== Scenario 10: tutorial ===');
   });
   const camp = await emitP(h, 'campaign:get', { playerId: 'pid-tut' });
   check('campaign: level is null (unknown) when the store is down', camp.level === null);
+  // Listen BEFORE asking: debate:start can reach the socket before the ack.
+  const startP = once(h, 'debate:start', 12000);
   const res = await emitP(h, 'tutorial:start', { sessionId: 'tut-h', name: 'Guest1030', lang: 'en', playerId: 'pid-tut' });
   check('tutorial:start accepted', res.ok === true);
-  const start = await once(h, 'debate:start', 12000);
+  const start = await startP;
   check(
     'tutorial: teacher is the YapMaster, arguing FOR',
     Boolean(start.bot) && start.bot.id === 'tutor' && start.names.FOR === 'YapMaster',
@@ -1205,6 +1209,8 @@ console.log('\n=== Scenario 15: placement ===');
   ];
   // The client's picks are ignored on purpose: a stale roster in an old tab
   // must not place someone against the wrong rung.
+  // Listen BEFORE asking: debate:start can reach the socket before the ack.
+  const startP = once(h, 'debate:start', 12000);
   const res = await emitP(h, 'bot:start', {
     sessionId: 'place-h',
     name: 'Guest1025',
@@ -1217,7 +1223,7 @@ console.log('\n=== Scenario 15: placement ===');
     placement: true,
   });
   check('placement: accepted for a fresh player', res.ok === true);
-  const start = await once(h, 'debate:start', 12000);
+  const start = await startP;
   check(
     'placement: game 1 is against rank 4 (nearest 1400), not the bot asked for',
     Boolean(start.bot) && start.bot.id === anchor.id && start.bot.elo === anchor.elo,

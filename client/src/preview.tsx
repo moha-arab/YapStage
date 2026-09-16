@@ -326,15 +326,15 @@ const GREEN: LobbyUpdate = {
       label: { en: 'sport', ar: 'الرياضة' },
       topics: [
         { id: 'messi-ronaldo', en: 'Messi is better than Ronaldo', ar: '' },
-        { id: 'chess-sport', en: 'Chess is a sport', ar: '' },
-        { id: 'var-ruined', en: 'VAR has made football worse', ar: '' },
+        { id: 'team-vs-solo', en: 'Team sports are better than individual sports', ar: '' },
+        { id: 'live-vs-tv', en: 'Watching a match in the stadium beats watching it on TV', ar: '' },
       ],
     },
     {
       key: 'food',
       label: { en: 'food', ar: 'الطعام' },
       topics: [
-        { id: 'cereal-soup', en: 'Cereal is a soup', ar: '' },
+        { id: 'sweet-breakfast', en: 'A sweet breakfast beats a savory one', ar: '' },
         { id: 'tea-coffee', en: 'Tea is better than coffee', ar: '' },
       ],
     },
@@ -657,7 +657,7 @@ const SCREENS: Record<string, () => JSX.Element> = {
       },
       {
         code: 'GHIJKL',
-        topic: { id: 'aliens', en: 'We are not alone in the universe', ar: '' },
+        topic: { id: 'aliens', en: 'Humans should try to contact aliens', ar: '' },
         category: 'big',
         names: { FOR: 'pizzamaster', AGAINST: 'yapqueen' },
         avatars: { FOR: 'marisol', AGAINST: 'diogenes' },
