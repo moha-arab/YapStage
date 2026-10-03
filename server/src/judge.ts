@@ -596,13 +596,22 @@ export async function scoreTranscript(
     };
     if (!ruling.decree) throw new Error('Dispute ruling came back with no decree');
   } else {
-    const byTotal = t(cf) === t(ca) ? raw.winner : t(cf) > t(ca) ? 'FOR' : 'AGAINST';
-    if (byTotal !== raw.winner) {
-      throw new Error(
-        `Judge winner/total mismatch: declared ${raw.winner}, totals favor ${byTotal} (FOR ${t(cf)}, AGAINST ${t(ca)})`,
-      );
+    // The ruling and the rubric can disagree, and on a close debate they
+    // sometimes do: live on 2026-10-03 the judge declared AGAINST on a 68-63
+    // rubric. This used to throw, which burned all three attempts and showed
+    // the player "the judge dropped the gavel" at the end of a real debate.
+    // The declared winner wins: the summary and both feedback notes are
+    // written ABOUT that side (the [WINNER] token is substituted with their
+    // name below), so overriding it prints the praise against the wrong
+    // player. The disagreement is logged instead, so its real rate is
+    // visible; a missing or unusable winner field still falls back to the
+    // totals, which is the one case where there is nothing to honour.
+    const declared: Side | null = raw.winner === 'AGAINST' ? 'AGAINST' : raw.winner === 'FOR' ? 'FOR' : null;
+    const byTotal: Side = t(cf) >= t(ca) ? 'FOR' : 'AGAINST';
+    if (declared && t(cf) !== t(ca) && declared !== byTotal) {
+      event('judge_winner_mismatch', { declared, byTotal, FOR: t(cf), AGAINST: t(ca) });
     }
-    winnerSide = raw.winner === 'AGAINST' ? 'AGAINST' : 'FOR';
+    winnerSide = declared ?? byTotal;
   }
 
   // The judge thinks in letters and the players never see them. Rule 11

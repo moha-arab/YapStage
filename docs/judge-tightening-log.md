@@ -1319,3 +1319,25 @@ Results on the real judge (31 calls plus 6 probe calls, about 1.50 dollars):
 
 Notes in the probe output are English, in the right slots, and name no
 letters. Judge passed; ship.
+
+## 2026-10-03: a close ruling no longer kills the verdict
+
+Live failure, first real bot debate after launch (lobby Q7KU73): the judge
+declared AGAINST while its own rubric totalled FOR 68, AGAINST 63. The parser
+threw `Judge winner/total mismatch`, runJudge burned all three attempts on the
+same close debate, and the player got "the judge dropped the gavel" at the end
+of a five minute game. The breaker never moved, because a mismatch is model
+output, not an outage (llm.ts countsAsOutage), which is why /healthz still
+read `judge: ok`.
+
+Change (judge.ts, debate mode only): the declared winner stands and the
+disagreement is logged as `judge_winner_mismatch` with both totals. The
+summary and both feedback notes are written about the declared side, and the
+[WINNER] token is substituted with that player's name, so overriding the
+winner to match the totals would print the praise against the other player.
+A missing or unusable winner field still falls back to the higher total.
+Settle-it mode is untouched: there the percentages ARE the ruling.
+
+Watch `judge_winner_mismatch` in /stats/events. If it runs above a few percent
+of verdicts, the fix is in the prompt (make the rubric and the ruling agree),
+not in the parser.
