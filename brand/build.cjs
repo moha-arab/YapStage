@@ -5,6 +5,10 @@
  * Then the PNGs, which need a browser because they are rasterised artboards:
  *   node brand/build.cjs --png    (drives headless Chrome over _render.html)
  *
+ * --png resolves the browser from the CHROME environment variable, falling
+ * back to the standard install locations for the platform. BRAND_PORT moves
+ * the local render server off its default port.
+ *
  * THE MARK is two quote marks facing each other: amber on the left, turquoise
  * on the right, rotationally symmetric. It was picked over five other
  * directions because it is the only one that still reads at 16px — a debate is
@@ -170,9 +174,37 @@ write(
 
 if (process.argv.includes('--png')) {
   const { spawn } = require('child_process');
-  const chrome =
-    process.env.CHROME ||
-    'C:/Program Files/Google/Chrome/Application/chrome.exe';
+  // CHROME points at the browser binary. Without it, the standard install
+  // locations for this platform are probed; set CHROME for a portable build,
+  // a CI image, or a channel other than stable.
+  const chromeCandidates = () => {
+    const { PROGRAMFILES, LOCALAPPDATA } = process.env;
+    if (process.platform === 'win32') {
+      return [
+        PROGRAMFILES && `${PROGRAMFILES}/Google/Chrome/Application/chrome.exe`,
+        'C:/Program Files/Google/Chrome/Application/chrome.exe',
+        'C:/Program Files (x86)/Google/Chrome/Application/chrome.exe',
+        LOCALAPPDATA && `${LOCALAPPDATA}/Google/Chrome/Application/chrome.exe`,
+      ].filter(Boolean);
+    }
+    if (process.platform === 'darwin') {
+      return [
+        '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+        '/Applications/Chromium.app/Contents/MacOS/Chromium',
+      ];
+    }
+    return [
+      '/usr/bin/google-chrome',
+      '/usr/bin/google-chrome-stable',
+      '/usr/bin/chromium',
+      '/usr/bin/chromium-browser',
+      '/snap/bin/chromium',
+    ];
+  };
+  const chrome = process.env.CHROME || chromeCandidates().find((p) => fs.existsSync(p));
+  if (!chrome) {
+    throw new Error('no Chrome binary found; set CHROME to the Chrome or Chromium executable');
+  }
   const http = require('http');
   const MIME = { '.html': 'text/html', '.svg': 'image/svg+xml', '.png': 'image/png' };
   const server = http.createServer((req, res) => {

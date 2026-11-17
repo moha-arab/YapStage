@@ -24,10 +24,18 @@
  * shot), clickWait=, port= (debugger port, vary it to run several at once),
  * dir= (output directory, default the repo's .shots/), reduced=1 (the page
  * sees prefers-reduced-motion, for anything that animates).
+ *
+ * Environment: CHROME points at the Chrome/Chromium binary. Without it the
+ * usual install paths for the current platform are probed, so set CHROME for
+ * anything non-standard (a portable build, a CI image, a channel other than
+ * stable).
  */
 import { spawn } from 'node:child_process';
-import { writeFileSync, rmSync, mkdirSync } from 'node:fs';
+import { writeFileSync, rmSync, mkdirSync, existsSync } from 'node:fs';
 import { setTimeout as sleep } from 'node:timers/promises';
+import { fileURLToPath } from 'node:url';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
 
 const args = Object.fromEntries(
   process.argv.slice(2).map((a) => {
@@ -36,18 +44,62 @@ const args = Object.fromEntries(
   }),
 );
 
-const DIR = args.dir ?? new URL('../.shots/', import.meta.url).pathname.replace(/^\//, '');
+// Resolved from this file, so the shots land in the repo's .shots/ whatever
+// the working directory is. fileURLToPath rather than URL.pathname: that
+// pathname is a URL path, so it keeps a leading slash before the drive letter
+// on Windows and percent-escapes any space in the checkout path.
+const DIR = args.dir ?? path.join(path.dirname(fileURLToPath(import.meta.url)), '..', '.shots');
 mkdirSync(DIR, { recursive: true });
 const OUT = `${DIR}/${args.out ?? 'shot'}.png`;
 const W = Number(args.w ?? 1440);
 const H = Number(args.h ?? 900);
 const URL_ = args.url ?? 'http://localhost:3012/';
 const PORT = Number(args.port ?? 9333);
-const PROFILE = `${process.env.TEMP ?? '/tmp'}/ys-cdp-${PORT}`;
+// A throwaway profile per debugger port, so parallel runs never share one and
+// headless never waits on the singleton lock held by a desktop Chrome.
+// os.tmpdir() reads TMPDIR/TEMP per platform instead of assuming either.
+const PROFILE = path.join(tmpdir(), `ys-cdp-${PORT}`);
+
+// CHROME wins; otherwise probe the standard install locations for this
+// platform. An explicit list beats asking the shell: `which chrome` finds
+// nothing on Windows, and the first hit on PATH inside WSL is the Linux
+// stub rather than a browser that can open a window.
+const chromeCandidates = () => {
+  const { PROGRAMFILES, LOCALAPPDATA } = process.env;
+  if (process.platform === 'win32') {
+    return [
+      PROGRAMFILES && `${PROGRAMFILES}/Google/Chrome/Application/chrome.exe`,
+      'C:/Program Files/Google/Chrome/Application/chrome.exe',
+      'C:/Program Files (x86)/Google/Chrome/Application/chrome.exe',
+      LOCALAPPDATA && `${LOCALAPPDATA}/Google/Chrome/Application/chrome.exe`,
+    ].filter(Boolean);
+  }
+  if (process.platform === 'darwin') {
+    return [
+      '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+      '/Applications/Chromium.app/Contents/MacOS/Chromium',
+    ];
+  }
+  return [
+    '/usr/bin/google-chrome',
+    '/usr/bin/google-chrome-stable',
+    '/usr/bin/chromium',
+    '/usr/bin/chromium-browser',
+    '/snap/bin/chromium',
+  ];
+};
+const chromeBin =
+  process.env.CHROME ||
+  chromeCandidates().find((p) => existsSync(p)) ||
+  (() => {
+    throw new Error(
+      'no Chrome binary found; set CHROME to the Chrome or Chromium executable',
+    );
+  })();
 
 rmSync(PROFILE, { recursive: true, force: true });
 const chrome = spawn(
-  process.env.CHROME || 'C:/Program Files/Google/Chrome/Application/chrome.exe',
+  chromeBin,
   [
     '--headless=new',
     '--disable-gpu',
@@ -60,8 +112,8 @@ const chrome = spawn(
     '--use-fake-device-for-media-stream',
     '--autoplay-policy=no-user-gesture-required',
     // Silent, always: a screenshot run loads screens that speak (the bots,
-    // the judge reading a verdict) and it must never play through the
-    // owner's speakers (2026-09-12, he heard a verdict read over and over).
+    // the judge reading a verdict), and a batch of shots otherwise replays
+    // the same verdict out loud over and over.
     '--mute-audio',
     `--remote-debugging-port=${PORT}`,
     `--user-data-dir=${PROFILE}`,
