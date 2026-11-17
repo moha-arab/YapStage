@@ -12,5 +12,3 @@ restart.log
 # design screenshots (scripts/shot.mjs writes here)
 .shots/
 
-# local editor and tooling state
-.claude/
