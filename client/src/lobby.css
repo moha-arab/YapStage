@@ -1,14 +1,14 @@
 /* ============================================================================
    THE LOBBY
    ----------------------------------------------------------------------------
-   The home screen, rebuilt 2026-08-21 as a game lobby rather than a form.
+   The home screen: a game lobby rather than a form.
 
    Shape: a bar, a lit stage with you on one side and whatever you picked on
    the other, your friends standing in the wings, and a dock of five verbs
    along the bottom. Tapping a verb re-dresses the stage; the button under the
    VS is the one thing that starts anything. One navigation, no glossary.
 
-   Rules learned the hard way over ten rounds of mockups:
+   Constraints this layout depends on, each learned from a failure:
      - Each fighter carries its OWN light cone. One shared background drawing
        drifts off-centre the moment the two sides are different widths.
      - Nothing is pre-picked. A bot highlighted before you chose it reads as
@@ -177,13 +177,13 @@
 
 .lb-stage {
   position: relative;
-  /* Scrolls rather than clips (2026-09-12). With the settings panel open on
+  /* Scrolls rather than clips. With the settings panel open on
      a motion list, a short laptop runs out of height; before this the
      fighters' row collapsed to nothing and the art was cut off above the
      bar, which looked like a broken page. Nothing scrolls when it fits. */
   overflow: hidden auto;
   display: grid;
-  /* one column since the wings (friends list) came out, 2026-09-04 */
+  /* one column since the wings (friends list) came out */
   grid-template-columns: minmax(0, 1fr);
   min-height: 0;
 }
@@ -738,9 +738,9 @@
 }
 
 /* The one rule. Wide screens: floated into the bar's empty middle (absolute,
-   out of flow — a dedicated strip read as clutter, his call). Narrow screens:
-   the bar has no empty middle, so it becomes a slim line under the bar rather
-   than disappearing — he wants it visible everywhere. */
+   out of flow — a dedicated strip read as clutter). Narrow screens: the bar
+   has no empty middle, so it becomes a slim line under the bar rather than
+   disappearing; the rule stays visible at every width. */
 .lb-warn {
   position: absolute;
   top: 0;
@@ -1127,7 +1127,7 @@
   transform: scale(1.03);
 }
 
-/* ---- the bar, trimmed (2026-09-04): two buttons that look like buttons ---- */
+/* ---- the bar, trimmed: two buttons that look like buttons ---- */
 
 .lb-who {
   margin-inline-start: auto;
@@ -1167,7 +1167,7 @@
 }
 
 /* ---- play a friend: code, link and the box for someone else's code, all
-   in the middle under the stage (his call: "not on the blue") ---- */
+   in the middle under the stage, clear of the blue side ---- */
 
 .lb-friend {
   grid-column: 1 / -1;
@@ -1185,7 +1185,7 @@
 /* ---- the match settings, under the fighters with the go button ---- */
 /* One panel for friend rooms and bot games (client/src/MatchSetup.tsx). It
    is a strip, not a card: a boxed panel under a boxed ticket read as a form,
-   which is the thing the 2026-08-21 rebuild was undoing. */
+   which is the thing this screen is built to avoid. */
 
 .lb-setup {
   grid-column: 1 / -1;
@@ -1229,8 +1229,8 @@
 }
 
 /* ---- ranked: the placement match ---- */
-/* The three length chips that stood here (2026-09-04) are gone with the
-   per-length ladders: ranked is standard only. What is left under the
+/* The three length chips that stood here are gone with the per-length
+   ladders: ranked is standard only. What is left under the
    placement bot is one sentence, kept to a readable measure. */
 
 .lb-soft-placement {
@@ -1350,48 +1350,9 @@
   z-index: 2;
 }
 
-/* ---- watch a match: the tabs, the live list and the box for a friend's
-   code, in the middle under the stage (2026-09-12, his ask: browse by
-   category, take a random one, or type a code). The list scrolls inside
-   its own box so the stage never grows past the screen; the fighters up
-   top go compact to pay for it, same as a picker row does. ---- */
-
-/* The list under them costs about 300px, so both faces come down further
-   than a picker row asks (.lb-watch .lb-stage-note {
-  margin: 0;
-  text-align: center;
-}
-
-.lb-watch-tabs {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 6px;
-}
-
-.lb-watch-tab {
-  padding: 5px 10px;
-  border-radius: 999px;
-  font-size: 12px;
-  font-weight: 700;
-  color: var(--muted);
-  box-shadow: inset 0 0 0 1px var(--house-3);
-  white-space: nowrap;
-  transition: background 0.12s ease, color 0.12s ease;
-}
-
-.lb-watch-tab:hover {
-  color: var(--paper);
-  background: var(--house-2);
-}
-
-/* Amber, like the go button: it is the thing you picked, not a win. */
-.lb-watch-tab-on,
-.lb-watch-tab-on:hover {
-  color: #241203;
-  background: var(--amber);
-  box-shadow: none;
-}
+/* ---- watch a match: the live list and the box for a friend's code, in the
+   middle under the stage. Take a live match or type a code. The list scrolls
+   inside its own box so the stage never grows past the screen. ---- */
 
 .lb-watch-list {
   display: flex;
@@ -1530,21 +1491,6 @@
 }
 
 @media (max-width: 720px) {
-  /* Nine tabs do not fit a phone in one row; they scroll rather than stack
-     three deep and shove the list off the stage. */
-  .lb-watch-tabs {
-    flex-wrap: nowrap;
-    justify-content: flex-start;
-    overflow-x: auto;
-    padding-bottom: 2px;
-    scroll-snap-type: x proximity;
-  }
-
-  .lb-watch-tab {
-    flex: none;
-    scroll-snap-align: center;
-  }
-
   .lb-watch-list {
     max-height: clamp(88px, 20vh, 150px);
   }
@@ -1967,8 +1913,8 @@
   }
 }
 
-/* ---- around the VS (2026-09-12, his layout): your room's code above it,
-   the box for somebody else's code below it. Out of the layout on purpose:
+/* ---- around the VS: your room's code above it, the box for somebody
+   else's code below it. Out of the layout on purpose:
    every tab keeps Play Online's stage, lights and fighters exactly. ---- */
 .lb-mid {
   position: relative;
@@ -2075,7 +2021,7 @@
   }
 }
 
-/* ---- one stage in every tab, pass two ---- */
+/* ---- one stage in every tab ---- */
 /* A fighter slot that is not a button keeps the button's box, not its hover. */
 .lb-static:hover {
   background: none;
@@ -2134,8 +2080,8 @@
   }
 }
 
-/* ---- the codes, bigger and apart (2026-09-12, his note: "make Your Code
-   bigger and the code bigger, make them separated") ---- */
+/* ---- the codes: both the label and the code itself set large, and the
+   two cards separated ---- */
 .lb-sheet {
   width: min(680px, 100%);
 }
@@ -2293,8 +2239,8 @@
   }
 }
 
-/* ---- pass three (2026-09-12, his layout): both codes UNDER the VS, the
-   placement line in the middle, a bot's rating as a chip under its name ---- */
+/* ---- current middle-column layout: both codes UNDER the VS, the placement
+   line in the middle, a bot's rating as a chip under its name ---- */
 .lb-mid-stack {
   display: flex;
   flex-direction: column;
@@ -2432,7 +2378,7 @@
   }
 }
 
-/* The two bar buttons carry an icon each (his ask: "2 nice buttons"). */
+/* The two bar buttons carry an icon each. */
 .lb-bar-ico {
   display: inline-flex;
   align-items: center;
@@ -2449,8 +2395,8 @@
 }
 
 /* A guest's "Playing as" line sits just over the button on a phone (the name
-   box that used to sit there is gone, 2026-09-13): lift whatever sits under
-   the VS clear of it. */
+   box that used to sit there is gone): lift whatever sits under the VS clear
+   of it. */
 @media (max-width: 620px) {
   .lb-select:has(.lb-guest-note:not(.lb-hide)) .lb-mid-bot {
     bottom: 118px;
@@ -2458,7 +2404,7 @@
 }
 
 /* ============================================================================
-   LAUNCH POLISH (2026-09-12 reviews)
+   FOCUS, DISCLOSURE AND SMALL-SCREEN POLISH
    ========================================================================= */
 
 /* Keyboard focus on a dock tile: the ring sits inside the tile (the dock's
@@ -2683,7 +2629,7 @@
 }
 
 /* ============================================================================
-   QA PASS (2026-09-13)
+   LAYOUT FIXES FOR SHORT, NARROW AND ZOOMED SCREENS
    ========================================================================= */
 
 /* ---- the codes under the VS are in the layout ----
@@ -3075,8 +3021,8 @@
   background: var(--house-2);
 }
 
-/* ---- placement is three games (2026-09-16): "Placement 2 of 3" over three
-   marks, under the VS on the ranked stage and in locked watch mode ---- */
+/* ---- placement is three games: "Placement 2 of 3" over three marks,
+   under the VS on the ranked stage and in locked watch mode ---- */
 .lb-series {
   display: flex;
   flex-direction: column;
