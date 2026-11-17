@@ -1,4 +1,4 @@
-// Unit checks for the pre-launch security and privacy fixes (2026-09-12).
+// Unit checks for the security and privacy guarantees.
 // No server needed: it imports the build (npm run build -w server first).
 //
 //   node scripts/security-unit.mjs
@@ -649,7 +649,7 @@ console.log('\n=== filed matches keep the transcript ===');
     delete process.env.SESSION_SECRET;
   }
 
-  // Placement is three adaptive bot games (2026-09-16). The pure parts
+  // Placement is three adaptive bot games. The pure parts
   // (placement.ts, gate.ts) are pinned first, then the series' own SQL runs
   // against the same stand-in players table: each game recorded once, the
   // rating written once, a stop after game one or two picked up later.

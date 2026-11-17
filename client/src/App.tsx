@@ -104,9 +104,9 @@ function clearResume(): void {
   }
 }
 
-// A LIVE debate or green room survives a reload of this tab (QA 2026-09-13:
-// a reload threw the game away without a word, and in ranked the server's
-// grace ran out into a walk-out loss). What lobby:resume needs is kept for
+// A LIVE debate or green room survives a reload of this tab. Without this a
+// reload threw the game away without a word, and in ranked the server's grace
+// ran out into a walk-out loss. What lobby:resume needs is kept for
 // this tab alone, and it only counts once the page has really unloaded:
 // pagehide stamps it. A duplicated tab copies sessionStorage but never
 // unloaded, so it cannot take the seat from the tab it was copied from.
@@ -230,9 +230,9 @@ export default function App() {
   const [tutoring, setTutoring] = useState(false);
   const [viewingMatches, setViewingMatches] = useState(false);
   const [viewingDrill, setViewingDrill] = useState(false);
-  // Guest play is BACK (his call 2026-09-12: "you don't need an account for
-  // anything but ranked"), reversing 2026-08-22 when playing required a
-  // Google account, full stop. A signed-out visitor lands in the lobby and
+  // Guest play is BACK: nothing but ranked needs an account, reversing the
+  // earlier rule that playing at all required a Google account.
+  // A signed-out visitor lands in the lobby and
   // can play bots, a friend, watch and drill under a name they type once;
   // ranked alone asks for the account, on its own stage (Home.tsx). The
   // Welcome pitch that used to intercept every signed-out visitor went with
@@ -378,7 +378,7 @@ export default function App() {
     // A watcher's socket sits in the room it watches, so that room's debate
     // events reach it too. They belong to the Spectate screen, which has its
     // own listeners; App's are for the debaters. Taking them turned a
-    // watcher's "stop watching" into a phantom verdict (QA 2026-09-13).
+    // watcher's "stop watching" into a phantom verdict.
     const forMe = () =>
       !spectatingRef.current && (startedRef.current || Boolean(lobbyRef.current) || Boolean(botCodeRef.current));
     socket.on('lobby:update', (u) => {
@@ -389,8 +389,8 @@ export default function App() {
       // sees two seats when the friend walks in, ranked comes by queue:matched,
       // and a guest leaving the green room happens while the lobby is set.
       if (!lobbyRef.current && u.participantCount === 1) return;
-      // The watcher count rides in the room since 2026-09-13; spectate:count
-      // keeps it live from there.
+      // The watcher count rides in the room; spectate:count keeps it live
+      // from there.
       if (typeof u.watchers === 'number') setWatchers(u.watchers);
       // A friend walked back in: the "they left" line is old news.
       if (u.participantCount === 2) setRoomNotice(null);
@@ -411,7 +411,7 @@ export default function App() {
       // An empty reason is the server confirming a leave this player just
       // made (a bot game's "End it" included). The screen already says why
       // ("You left the debate."), so keep that line instead of blanking it
-      // a few milliseconds later (2026-09-13 retest).
+      // a few milliseconds later.
       if (!reason) return resetToHome(null, { keepNotice: true });
       // The server tells whoever stayed 'closedPeerLeft' whichever seat left
       // (index.ts lobby:leave). To a friend room's guest the one who left is
@@ -479,8 +479,8 @@ export default function App() {
       setBotSpeakDeadline(null);
       if (startDataRef.current?.bot) {
         // Bot debates: no peer to stay live for — camera and mic OFF at the
-        // verdict. (An active camera with no self-view on screen is exactly
-        // the invisible-mic problem we swore off.)
+        // verdict. An active camera with no self-view on screen is the same
+        // invisible-capture problem as a live mic nobody can see.
         releaseMedia();
         setLocalStream(null);
       } else {
@@ -588,7 +588,7 @@ export default function App() {
       // the peer effect, whose setupPeer says rtc:ready on a fresh connection.
       // Only the side that had left used to say it again; the other kept its
       // dead connection, no offer was ever made, and both green rooms sat on
-      // "Connecting..." for good (QA 2026-09-13).
+      // "Connecting..." for good.
       teardownPeer();
       setRemoteStream(null);
       setRemoteVideoDead(false);
@@ -1063,8 +1063,8 @@ export default function App() {
   const maskedRef = useRef(false);
   useEffect(() => {
     // BOT and TUTORIAL modes have no lobby object on the client (bot:start goes
-    // straight to debate:start). They are ALWAYS masked (2026-09-04, his
-    // call): the camera is a friend-room option, nothing else ever asks.
+    // straight to debate:start). They are ALWAYS masked: the camera is a
+    // friend-room option, nothing else ever asks.
     const masked = lobby ? Boolean(lobby.yourMasked) : true;
     if (masked === maskedRef.current) return;
     maskedRef.current = masked;

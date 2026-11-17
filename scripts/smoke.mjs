@@ -12,13 +12,13 @@ function check(name, cond) {
 
 const connect = () => io(URL, { forceNew: true, transports: ['websocket'] });
 
-// The masks a seat may wear, read from the build rather than copied here: the
-// copy went stale the night the roster became the sixteen-character cast, and
+// The masks a seat may wear, read from the build rather than copied here: a
+// local copy went stale when the roster became the sixteen-character cast, and
 // three fight-card checks failed on a list nothing else used any more.
 const { AVATAR_IDS: ROSTER, GUEST_AVATAR } = await import('../server/dist/protocol.js');
 // The suite runs with auth off, so every socket in it is a guest, and a guest
-// seat wears the grey silhouette (2026-09-12), never a roster mask. Checks
-// that used to ask for "a roster mask" ask for the silhouette.
+// seat wears the grey silhouette, never a roster mask. Checks here therefore
+// expect the silhouette rather than a roster mask.
 // The fight card is on screen from debate:start until startsAt. FAST is 3s and
 // long form 8s; anything outside that is a clock bug the card would expose.
 const revealOk = (start) => {
@@ -73,7 +73,7 @@ const sig = await relayed;
 check('rtc:signal relayed verbatim', sig?.description?.sdp === 'fake-sdp');
 
 // picks: the HOST asks for one motion and names it (guests cannot), then both
-// confirm. A new room is random-topic by default (2026-09-12), so the host
+// confirm. A new room is random-topic by default, so the host
 // switches to 'agree' first. Sides are the host's setting too (Scenario 5
 // drives that); this room leaves it at the default, so the coin deals them.
 const PICKED = 'messi-ronaldo';
@@ -348,7 +348,7 @@ check('server survives payload-less events (no crash)', stillAlive);
 h.disconnect();
 h2.disconnect();
 
-// (b) Names are ASCII-only since Arabic was parked (2026-08-11). That also
+// (b) Names are ASCII-only, Arabic input being parked. That also
 // makes homoglyphs and bidirectional-override characters unrepresentable,
 // which no amount of fold-matching could fix.
 const ar = connect();
@@ -398,7 +398,7 @@ console.log('\n=== Scenario 5: topic modes ===');
 const MONEY_IDS = ['cash-gifts', 'money-happiness', 'save-or-spend', 'no-billionaires', 'invite-pays', 'rent-vs-buy', 'salary-public'];
 
 // category mode, set up by the host on the stage BEFORE the friend walks in
-// (the lobby's settings panel, 2026-09-12): the join ack has to carry the
+// (the lobby's settings panel): the join ack has to carry the
 // category and the side, the guest cannot touch either, and the debate has
 // to honour both.
 {
@@ -564,7 +564,7 @@ console.log('\n=== Scenario 6: rematch ===');
 async function runToVerdict(a, b, aId, bId, name, topic) {
   const cr = await emitP(a, 'lobby:create', { sessionId: aId, name });
   const code = cr.update.code;
-  // Guests are GuestNNNN and nothing else (2026-09-12): the joiner is the
+  // Guests are GuestNNNN and nothing else: the joiner is the
   // host's number plus 500.
   await emitP(b, 'lobby:join', { code, sessionId: bId, name: `Guest${Number(name.slice(5)) + 500}` });
   a.emit('pick:mode', 'agree');
@@ -1027,8 +1027,8 @@ console.log('\n=== Scenario 11: no self-play ===');
 }
 
 // ---------- Scenario 12: ranked is one pace (standard; blitz for one day) ----------
-// One queue. There was a queue per pace for a week; he took it out so every
-// player who wants a ranked game is in the same line. A client asking for any
+// One queue. The earlier queue-per-pace split was removed so every player
+// who wants a ranked game is in the same line. A client asking for any
 // pace (or one that never existed) is queued with everyone else and lands in
 // the one ranked room, which runs at standard.
 console.log('\n=== Scenario 12: ranked is one pace ===');
@@ -1103,8 +1103,8 @@ console.log('\n=== Scenario 13: rooms start masked ===');
   const track = (u) => { last = u; };
   g.on('lobby:update', track);
   h.emit('pick:mask', false); // the host turns their camera on
-  // Once the friend is in, the room keeps the mask the host walked in with
-  // (2026-09-13): a different roster mask is refused.
+  // Once the friend is in, the room keeps the mask the host walked in with:
+  // a different roster mask is refused.
   const otherMask = ROSTER.find((id) => id !== made.update.yourAvatar);
   h.emit('pick:avatar', otherMask);
   await new Promise((r) => setTimeout(r, 500));
@@ -1129,7 +1129,7 @@ console.log('\n=== Scenario 14: ladder, deck, daily rebuttal ===');
   check('ladder: vesper is the boss and nib is the floor', bots[0].name === 'Nib' && bots[7].name === 'Vesper');
   check('ladder: a bot sits at 1400 for placement', bots.some((b) => b.elo === 1400 && b.id === 'rabbit'));
   const { TIERS } = await import('../server/dist/protocol.js');
-  check('tiers: gone, only numbers (2026-09-12)', TIERS === undefined);
+  check('tiers: gone, only numbers', TIERS === undefined);
   const { rungDirective, lengthRule } = await import('../server/dist/bots.js');
   check(
     'rungs: every rank has its own directive and its own length rows',
@@ -1178,7 +1178,7 @@ console.log('\n=== Scenario 14: ladder, deck, daily rebuttal ===');
 }
 
 // ---------- Scenario 15: placement ----------
-// Placement is three adaptive games against bots (2026-09-16; one game
+// Placement is three adaptive games against bots (it was a single game
 // against Clover before). Game 1 is always rank 4, Clover at 1400. The
 // server picks the bot, the motion and the sides, and refuses a second
 // placement game while one is running. No DATABASE_URL here, so recording
@@ -1364,12 +1364,12 @@ console.log('\n=== Scenario 17: guest play, ranked gated ===');
   g.disconnect();
 }
 
-// ---------- Scenario 18: pre-launch security and privacy (2026-09-12) ----------
-// The live half of the review's fixes; scripts/security-unit.mjs has the
-// rest (typed speech in ranked with server STT, coach history, filed matches
-// keeping the transcript for the owner only, share cards, the model budget,
-// trustProxy). Set
-// STATS_KEY to the server's to check the keyed routes and the event trail.
+// ---------- Scenario 18: security and privacy ----------
+// The live half of these checks; scripts/security-unit.mjs has the rest
+// (typed speech in ranked with server STT, coach history, filed matches
+// keeping the transcript for their own player only, share cards, the model
+// budget, trustProxy). Set STATS_KEY to the server's to check the keyed
+// routes and the event trail.
 console.log('\n=== Scenario 18: security headers, guest names, audio, room cap, relay-only ranked ===');
 {
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));

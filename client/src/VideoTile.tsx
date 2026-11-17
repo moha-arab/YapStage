@@ -17,9 +17,9 @@ interface Props {
   /** Mask mode: no camera at all, this player debates behind a mask. The tile
       renders the character instead of video. */
   maskId?: string;
-  /** Accepted and ignored since 2026-09-12. It drove the speaking ring, which
-      is gone (see the note on the lit tile below); the green room still
-      passes it, and the mic meters under the tiles carry the level now. */
+  /** Accepted and ignored. It drove the speaking ring, which is gone (see the
+      note on the lit tile below); the green room still passes it, and the mic
+      meters under the tiles carry the level now. */
   level?: number;
   /** Your own tile in a match: a "you · for" badge in the side's colour, so
       the coin's call is on your face from the first frame to the last. `side`
@@ -82,7 +82,7 @@ export default function VideoTile(props: Props) {
     }
   // props.maskId is in the deps on purpose: leaving mask mode MOUNTS A NEW
   // <video> element, and without a re-run its srcObject is never set — the
-  // camera stays on with a black tile (his "face doesn't come back" bug).
+  // camera stays on with a black tile and the face never comes back.
   }, [props.stream, props.muted, props.maskId]);
 
   // Autoplay refused: keep retrying on EVERY tap until one lands (a single
@@ -125,12 +125,11 @@ export default function VideoTile(props: Props) {
   // Masked player: the tile IS the mask. No video element is ever created, so
   // a masked debate needs no camera permission at all.
   if (props.maskId || (props.stream && !hasVideo)) {
-    // THE CHARACTER IS STILL, and since 2026-09-12 so is everything around it.
-    // Who has the floor used to be a ring round the face that thickened with
-    // the voice; his note: "remove the circle that vibrates when people talk,
-    // just light up each rectangle when it's that person's turn". The whole
-    // tile lights now (.tile-active in styles.css), the same for a camera, a
-    // character or a bot, and it holds steady for the length of the turn.
+    // THE CHARACTER IS STILL, and so is everything around it. Who has the
+    // floor used to be a ring round the face that thickened with the voice.
+    // The whole tile lights instead (.tile-active in styles.css), the same for
+    // a camera, a character or a bot, and it holds steady for the length of
+    // the turn.
     return (
       <div className={`tile tile-masked ${sideClass} ${props.active ? 'tile-active' : ''}`}>
         {/* The <video> element we're NOT rendering was also what played the

@@ -29,7 +29,7 @@ interface Line {
 
 interface FullMatch extends MatchRow {
   verdict: VerdictData;
-  /** Empty on a row filed while transcripts were not kept (2026-09-12). */
+  /** Empty on a row filed while transcripts were not yet kept. */
   transcript?: Line[];
 }
 

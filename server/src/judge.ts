@@ -443,9 +443,9 @@ export interface DrillResult {
 /** Score a daily rebuttal drill: thirty seconds, a number and two sentences.
     A separate, much smaller call than the debate judge on purpose: a drill is
     not a debate and borrowing the four-category rubric would grade the wrong
-    thing entirely. One rubric for all seven tiers (2026-09-12, when the three
-    drill types became one): the tier changes what a strong answer has to
-    find, never the standard, so an 85 on Sunday and an 85 on Saturday mean
+    thing entirely. One rubric for all seven tiers: the tier changes what a
+    strong answer has to find, never the standard, so an 85 on Sunday and an
+    85 on Saturday mean
     the same thing. The tier line, the drill's own note and the tier's caps
     are the only parts of the prompt that move. */
 export async function scoreDrill(drill: Drill, answer: string): Promise<DrillResult> {
@@ -597,7 +597,7 @@ export async function scoreTranscript(
     if (!ruling.decree) throw new Error('Dispute ruling came back with no decree');
   } else {
     // The ruling and the rubric can disagree, and on a close debate they
-    // sometimes do: live on 2026-10-03 the judge declared AGAINST on a 68-63
+    // sometimes do: in production the judge has declared AGAINST on a 68-63
     // rubric. This used to throw, which burned all three attempts and showed
     // the player "the judge dropped the gavel" at the end of a real debate.
     // The declared winner wins: the summary and both feedback notes are
@@ -764,9 +764,9 @@ async function applyElo(lobby: Lobby): Promise<void> {
   // An id is blanked when its account is deleted mid-debate (index.ts
   // onAccountDeleted): a rating row must not be written back into being.
   if (!winnerId || !loserId) return;
-  // One ladder. Ranked plays at blitz length for now (2026-09-13) but moves
-  // the one rating everybody already has, so the ladder is named here rather
-  // than taken from the room's pace.
+  // One ladder. Whatever length ranked currently plays at, it moves the one
+  // rating everybody already has, so the ladder is named here rather than
+  // taken from the room's pace.
   const moved = await applyRankedResult(winnerId, loserId, 'standard');
   if (!moved) return;
   const loserSide: Side = lobby.verdict.winner === 'FOR' ? 'AGAINST' : 'FOR';
@@ -779,9 +779,8 @@ async function applyElo(lobby: Lobby): Promise<void> {
 
 /** A ranked walk-out: the leaver dropped mid-debate and did not come back
     inside the grace window (index.ts, just before abort 'abortWifi').
-    PRODUCT CALL by the launch coordinator, 2026-09-12: the leaver takes the
-    loss, but only if the player who stayed had already been heard
-    (MIN_RATED_WORDS). If neither had said enough, nothing moves, the same
+    The leaver takes the loss, but only if the player who stayed had already
+    been heard (MIN_RATED_WORDS). If neither had said enough, nothing moves, the same
     as a debate where the mic never reached us. Once per debate. */
 export async function applyForfeit(lobby: Lobby, leaver: Participant): Promise<void> {
   if (!lobby.ranked || !lobby.sides || lobby.bot || lobby.forfeitApplied) return;
@@ -819,11 +818,10 @@ async function unlockLevel(io: Io, lobby: Lobby, target: number): Promise<void> 
 /** What gets filed for each human seat. Stored per PLAYER, not per lobby,
     so each side keeps their own point of view (their side, their score,
     their opponent) and can re-open the verdict long after the lobby is
-    gone. Guests file under the device id (since 2026-09-12), which is what
-    an account adopts at sign-in.
+    gone. Guests file under the device id, which is what an account adopts at
+    sign-in.
 
-    WITH THE TRANSCRIPT (his call 2026-09-13, reversing the 2026-09-12
-    "no transcript" option): coaching on a past match is the product, so
+    WITH THE TRANSCRIPT: coaching on a past match is the product, so
     each player's row keeps the whole debate, both sides and any bot lines,
     the way a chess site keeps every game. The in-app notice says so. The
     row is this player's own and goes when their account is deleted; the

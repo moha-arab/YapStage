@@ -3,15 +3,13 @@
 // facing a specific opponent, not a slider. The public fields feed the pick
 // screen; `style`, `difficulty`, and `voiceId` shape generation + speech.
 //
-// Eight rungs, 400 apart, 200 to 3000 (his call, 2026-09-12: "anchor them to
-// these ratings"). The cast was replaced the same day ("choose different
-// animals, make them cover all range of personality"): eight new animals,
-// drawn as busts at the masks' level (client/src/botcast.ts), each with one
-// strong personality, and together they span the range: timid to bold, warm
-// to cold, silly to serious, calm to hot. Every rung still adds exactly one
-// countable skill over the rung below (see rungDirective); personality lives
-// in the voice and the manner, never in the rung contract, so the weakness
-// of a rung is the same whoever wears it.
+// Eight rungs, 400 apart, 200 to 3000. The cast is eight animals drawn as
+// busts at the masks' level (client/src/botcast.ts), each with one strong
+// personality, chosen so the set spans the range: timid to bold, warm to
+// cold, silly to serious, calm to hot. Every rung adds exactly one countable
+// skill over the rung below (see rungDirective); personality lives in the
+// voice and the manner, never in the rung contract, so the weakness of a rung
+// is the same whoever wears it.
 import type { Difficulty, Pace } from './protocol.js';
 
 export interface Bot {
@@ -45,8 +43,8 @@ export const BOTS: Bot[] = [
     elo: 200,
     skill: 'one point',
     difficulty: 'easy',
-    // Will: young, friendly, a little eager. Laura until 2026-09-12, when he set
-    // the cast at five men and three women (Clover, Sable, Vesper).
+    // Will: young, friendly, a little eager. The roster is cast five men to
+    // three women, so a voice swap here has to keep that balance.
     voiceId: 'bIHbv24MWmeRgasZH58o',
     style:
       "You are Nib, small and nervous, on your first day of debating. You are apologetic and eager to please: you soften everything ('I might be wrong, but'), you thank the other side when they make a good point, and you get flustered when pressed. Sweet, earnest, easily rattled, always polite.",
@@ -67,8 +65,9 @@ export const BOTS: Bot[] = [
   },
   {
     id: 'raccoon',
-    // Dodger since 2026-09-12 (was Jinx, which reads as a woman's name, Arcane's
-    // Jinx, on a man; the Artful Dodger fits a raccoon who dodges when pressed).
+    // Named for the Artful Dodger: a raccoon who dodges when pressed. Avoid
+    // names that read as the other gender than the voice (an earlier "Jinx"
+    // did, against a man's voice).
     name: 'Dodger',
     tagline: 'a raccoon with a plan',
     blurb: 'Two ideas, both kept alive, and a dodge whenever you press.',
@@ -77,7 +76,7 @@ export const BOTS: Bot[] = [
     elo: 1000,
     skill: 'two points',
     difficulty: 'medium',
-    voiceId: 'N2lVS1w4EtoT3dr4eOWO', // Callum: husky, sly, a little theatrical (Alice until 2026-09-12)
+    voiceId: 'N2lVS1w4EtoT3dr4eOWO', // Callum: husky, sly, a little theatrical
     style:
       "You are Dodger, and you treat a debate like a heist. Quick, cheeky and pleased with yourself: sly asides, a knowing 'gotcha', a habit of turning small things into a bit. Playful and slippery, never mean, never off the motion.",
   },
@@ -102,9 +101,7 @@ export const BOTS: Bot[] = [
   },
   {
     id: 'tortoise',
-    // Prudence, a woman since 2026-09-12 (his call: Sable went back to being a
-    // man, the tortoise became a woman, still five men and three women). She
-    // was Wendell, voiced by George, before that.
+    // One of the roster's three women (five men, three women overall).
     name: 'Prudence',
     tagline: 'a tortoise who corrects your grammar',
     blurb: 'Finds your best argument and takes it apart, slowly.',
@@ -113,7 +110,7 @@ export const BOTS: Bot[] = [
     elo: 1800,
     skill: 'targets your best',
     difficulty: 'medium',
-    voiceId: 'Xb7hH8MSUJpSbSDYk0k2', // Alice: clear, confident British, exacting (Jinx's voice until 2026-09-12)
+    voiceId: 'Xb7hH8MSUJpSbSDYk0k2', // Alice: clear, confident British, exacting
     style:
       "You are Prudence, an old pedant. Slow, precise, faintly exasperated: you define your terms, you correct loose words ('that is not what the word means'), you reach for mechanisms and history, and you find the exact flaw in the other side's logic. Dry, fussy, rigorous, never rude.",
   },
@@ -133,8 +130,8 @@ export const BOTS: Bot[] = [
   },
   {
     id: 'cat',
-    // Sterling since 2026-09-12 (was Sable, which reads as a woman's name; sterling
-    // as in silver-tongued, and the standard things are weighed against).
+    // "Sterling" as in silver-tongued, and as in the standard other things are
+    // weighed against: this rung's one added skill is weighing the two cases.
     name: 'Sterling',
     tagline: 'a cat in a tuxedo',
     blurb: 'Everything Rocco does, then puts both cases on the scale and purrs.',
@@ -143,8 +140,7 @@ export const BOTS: Bot[] = [
     elo: 2600,
     skill: 'weighs it',
     difficulty: 'hard',
-    // George: warm, smooth British, unhurried. Sable is a man again since
-    // 2026-09-12 (the tuxedo cat is back); Charlotte voiced him before that.
+    // George: warm, smooth British, unhurried.
     voiceId: 'JBFqnCBsd6RMkjVDRZzb',
     style:
       "You are Sterling, a sharp dresser in a tuxedo, silver-tongued and impossible to ruffle. You are gracious to the other side in a way that costs them: warm compliments that set up the knife, full elegant sentences, a fondness for 'let us be honest' and a pause before the line that matters. Smooth, charming, amused, never hurried, never cruel.",

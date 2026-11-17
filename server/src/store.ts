@@ -146,17 +146,18 @@ export async function initStore(): Promise<void> {
     await pool.query(`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS username_changed_at timestamptz`);
     // The Google email, verified addresses only (auth.ts verifiedEmail),
     // refreshed on every sign-in. The first accounts table already had this
-    // column (blanked 2026-09-12 to 09-13, when only `openid` was asked for),
-    // so this is a no-op there and a real add on any table that lacks it.
+    // column (blank for rows written in the 2026-09-12 to 09-13 window, when
+    // only `openid` was asked for), so this is a no-op there and a real add on
+    // any table that lacks it.
     // Owner-only: /auth/me and /auth/export read it, nothing public does.
     await pool.query(`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS email text NOT NULL DEFAULT ''`);
-    // BACKFILL, and the reason this exists is worth keeping.
+    // BACKFILL. The reason it exists:
     // `username_fold` arrived in a later deploy than `username`, so every
     // account that claimed a name in between has username set and fold NULL.
     // Every friend lookup keys on the fold, so those accounts are invisible:
     // typing their exact name returns "no yapper by that name". Confirmed on
-    // production 2026-08-12 — the founder's own account could not be found by
-    // its own name, which is precisely the "friend adding doesn't work" bug.
+    // production: an affected account could not be found by its own name,
+    // which is precisely the "friend adding doesn't work" bug.
     // Postgres treats NULLs as distinct in a unique index, so nothing ever
     // complained. Folding is JS, so the backfill has to round-trip through it.
     try {
@@ -187,12 +188,11 @@ export async function initStore(): Promise<void> {
     await pool.query(
       `ALTER TABLE players ADD COLUMN IF NOT EXISTS campaign integer NOT NULL DEFAULT 0`,
     );
-    // One ladder per pace was his call on 2026-09-04 ("like chess has
-    // different elo for different modes") and was reversed on 2026-09-12:
-    // ranked is standard only now, so one queue holds everyone. The blitz and
-    // long trios stay in the table, untouched, so the decision is cheap to
-    // undo; nothing writes to them any more. The original rating/wins/losses
-    // trio IS the ladder.
+    // One ladder per pace (chess-style, a separate rating per mode) was tried
+    // and reversed: ranked is standard only now, so one queue holds everyone.
+    // The blitz and long trios stay in the table, untouched, so the decision
+    // is cheap to undo; nothing writes to them any more. The original
+    // rating/wins/losses trio IS the ladder.
     for (const pace of PACES) {
       if (pace === 'standard') continue;
       const c = paceCols(pace);
@@ -206,8 +206,8 @@ export async function initStore(): Promise<void> {
     // player was "placed" after three rated games; the backfill below keeps
     // everyone who had got there from being sent to the placement bot.
     await pool.query(`ALTER TABLE players ADD COLUMN IF NOT EXISTS placed boolean NOT NULL DEFAULT false`);
-    // Placement became three adaptive games against bots on 2026-09-16
-    // (placement.ts). Each finished game is appended here as
+    // Placement is three adaptive games against bots (placement.ts).
+    // Each finished game is appended here as
     // {rank, won, margin}, so a player can stop after game one or two and
     // pick the series up later on any device. Only ever appended, and only
     // at the index the game was started for (recordPlacementGame), so a
@@ -217,15 +217,16 @@ export async function initStore(): Promise<void> {
       `ALTER TABLE players ADD COLUMN IF NOT EXISTS placement jsonb NOT NULL DEFAULT '[]'::jsonb`,
     );
     // Match history: the account's own debates, so a verdict is re-openable
-    // and the coach can talk about it days later. His call 2026-08-08 (save
-    // by default). Since 2026-09-12 a guest's bot and friend games are filed
+    // and the coach can talk about it days later. Saved by default. A guest's
+    // bot and friend games are filed
     // too, under the device id: that is what lets signing in later pick those
     // games up (linkAccount) instead of losing them. A row holds the result,
     // the scores, the judge's feedback, the player's OWN best line and the
     // whole transcript (judge.ts matchRowsFor), which is what coaching on a
     // past match reads. No retention prune: a row lives as long as the
     // account, and deleteAccountData removes the player's own rows. Rows
-    // filed 2026-09-12 to 2026-09-13 have an empty transcript.
+    // filed in the 2026-09-12 to 2026-09-13 window, when transcripts were not
+    // kept, have an empty transcript.
     await pool.query(`
       CREATE TABLE IF NOT EXISTS matches (
         id         bigserial PRIMARY KEY,
@@ -265,13 +266,13 @@ export async function initStore(): Promise<void> {
       await pool!.query(`UPDATE players SET rating = GREATEST(${RATING_FLOOR}, rating - 300)`);
     });
     await runOnce('placed_from_games', async () => {
-      // 2026-09-12: placement became one match against a bot. Anyone who had
+      // When placement became a single match against a bot, anyone who had
       // already finished the old three-match placement keeps their standing
       // instead of being handed a placement game they do not need.
       await pool!.query(`UPDATE players SET placed = true WHERE wins + losses >= 3`);
     });
     await runOnce('mask_roster_4', async () => {
-      // The mask set went from eight to four (his picks). Anyone who saved a
+      // The mask set went from eight to four. Anyone who saved a
       // removed mask gets the nearest survivor rather than a broken locker:
       // whites to the new white, the armored to the ninja, the rest home.
       await pool!.query(`
@@ -286,7 +287,7 @@ export async function initStore(): Promise<void> {
         WHERE mask IN ('kitsune','goalie','masque','knight','astro','boxer')`);
     });
     await runOnce('mask_roster_basic', async () => {
-      // The roster turned over again 2026-09-04: goggles, hoodie and wrap came in, the
+      // The roster turned over again: goggles, hoodie and wrap came in, the
       // oni and the calavera went to the vault for a later drop. Same rule as
       // last time for a saved locker: the nearest survivor, never a hole.
       await pool!.query(`
@@ -297,15 +298,15 @@ export async function initStore(): Promise<void> {
         WHERE mask IN ('calavera','oni')`);
     });
     await runOnce('mask_roster_ninja', async () => {
-      // And once more the same evening: the free set is the ninja plus three
-      // drawn to its rule (goggles, hoodie, wrap). The luchador, hockey and
+      // And once more: the free set is the ninja plus three drawn to its rule
+      // (goggles, hoodie, wrap). The luchador, hockey and
       // domino went to the vault. Every saved one of those becomes the ninja.
       await pool!.query(`
         UPDATE accounts SET mask = 'ninja'
         WHERE mask IN ('luchador','hockey','domino')`);
     });
     await runOnce('mask_roster_six', async () => {
-      // 2026-09-09: the free set became six drawn as game skins — ninja, oni,
+      // The free set became six drawn as game skins — ninja, oni,
       // calavera, climber, gamer, huckster. goggles/hoodie/wrap went to the
       // vault; the climber IS the old goggles mask rebuilt, so those wearers
       // follow it. hoodie and wrap fall back to the ninja.
@@ -313,10 +314,9 @@ export async function initStore(): Promise<void> {
       await pool!.query(`UPDATE accounts SET mask = 'ninja' WHERE mask IN ('hoodie','wrap')`);
     });
     await runOnce('mask_roster_cast', async () => {
-      // 2026-09-12: the roster is the fourteen-character cast (busts, cast.ts).
-      // Six of the old masks were redrawn as busts under new names, so their
-      // wearers follow them, and the ninja and the climber became Fuma and
-      // Crux, busts drawn the same night.
+      // The roster is the fourteen-character cast (busts, cast.ts). Six of the
+      // old masks were redrawn as busts under new names, so their wearers
+      // follow them, and the ninja and the climber became Fuma and Crux.
       await pool!.query(`
         UPDATE accounts SET mask = CASE mask
           WHEN 'oni'      THEN 'shuten'
@@ -330,8 +330,8 @@ export async function initStore(): Promise<void> {
           ELSE mask END
         WHERE mask IN ('oni','calavera','gamer','huckster','plague','alien','ninja','climber')`);
     });
-    // The pre-launch waitlist (2026-08-22 to 2026-09-04) is gone with the
-    // page that fed it. It only ever held one test row.
+    // The early-access waitlist is gone with the page that fed it. It only
+    // ever held one test row.
     await runOnce('drop_waitlist', async () => {
       await pool!.query(`DROP TABLE IF EXISTS waitlist`);
     });
@@ -440,7 +440,7 @@ export interface PaceRating {
 
 /** A player's standing on every ladder, plus whether the placement series
     has set their starting rating and how far through it they are. Only the
-    standard ladder moves now (ranked is standard only, 2026-09-12); the other
+    standard ladder moves now (ranked is standard only); the other
     two are read for older clients and stay at the seed. `placed` is one flag
     for the player, not per pace. */
 export type PlayerRow = Record<Pace, PaceRating> & { placed: boolean; placement: PlacementGame[] };
@@ -514,9 +514,9 @@ export async function getRating(id: string): Promise<PlayerRow | null> {
   }
 }
 
-/** Placement history: three rated games against humans until 2026-09-12
-    (chess.com hides the rating for 5; three because the pool was tiny), then
-    one game against Clover, and since 2026-09-16 three adaptive games against
+/** Placement history: originally three rated games against humans (chess.com
+    hides the rating for 5; three because the pool was tiny), then one game
+    against Clover, now three adaptive games against
     bots (placement.ts). The series is the ONE exception to bot matches being
     unrated, and it is still one shot: each game is recorded once, `placed`
     flips once and never flips back, so the farming and no-witness arguments
@@ -539,15 +539,15 @@ export const SEED_RATING = 700;
 
 /** A floor, not a kindness. Set against the old ladder, where 500 against
     Pip (650) meant the gentlest bot beat you 70% of the time. On the
-    2026-09-12 ladder the floor sits between Nib (200) and Moss (600), so a
+    current ladder the floor sits between Nib (200) and Moss (600), so a
     floored player is still a clear favourite over Nib. Everything below it is
     dead space that exists only to humiliate someone. It also plugs the leak: points that fall
     out of the bottom of a pool never come back. */
 export const RATING_FLOOR = 500;
 
 /** K shrinks as the system learns you. A freshly placed player swings hard
-    (96: one game against a bot is a rough fix, and his words were "the
-    rating can fluctuate a lot once they play actual players"), then settles
+    (96: a placement series against bots is only a rough fix on the rating, so
+    it has to be free to move a lot once real opponents arrive), then settles
     through 40 to 24, where a veteran barely moves and cannot be dragged
     around by newcomers. USCF does this with K = 800/(N+m); this is the same
     curve, clamped. `games` counts human games only: the placement match
@@ -877,7 +877,7 @@ async function mergeGuest(
     (auth.ts verifiedEmail; '' otherwise). The email is rewritten on every
     sign-in, so a changed address follows and an unverified one never
     lingers. The Google name and picture are not requested (no `profile`
-    scope since 2026-09-12), and whatever an older build stored in those
+    scope), and whatever an older build stored in those
     columns is blanked here. */
 export async function linkAccount(p: {
   sub: string;
@@ -1220,7 +1220,7 @@ function dayOf(v: unknown): string | null {
            other person's yap name plus the state of the request.
       OUT  anyone else's sub or player id (friends are names; a match names
            its opponent as text), username_fold (a lookup key derived from
-           the name), the name and picture columns (blank since 2026-09-12),
+           the name), the name and picture columns (no longer populated),
            reports and cheat flags (they are keyed by name, not account, and
            the privacy page says to email for them), and share cards (public
            pages, keyed by name).

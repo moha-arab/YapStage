@@ -1,7 +1,7 @@
-// DEV ONLY: candidate bot portraits for the "greatest arguers" ladder,
-// drawn 2026-09-05 so he can judge the register before a cast is locked.
-// Not imported by the app. If a cast is approved these move into
-// BotAvatar.tsx and the animals retire.
+// DEV ONLY: candidate bot portraits for the "greatest arguers" ladder, drawn
+// so the register can be judged before a cast is locked. Not imported by the
+// app. If a cast is approved these move into BotAvatar.tsx and the animals
+// retire.
 //
 // The format that separates a BOT from a MASK: a portrait. A person in a
 // round frame, head and shoulders, face showing. Masks are a disguise with
@@ -10,12 +10,11 @@
 
 const D = '#1a1712';
 
-/** The serious attempt (2026-09-05, "make the best image you can of
-    Napoleon"). Drawn in a 200-box for precision: real facial structure,
-    individual eyes with lids and irises, a nose with nostrils, lips, the
-    forward-combed fringe, the bicorne worn side-on with the cockade, the coat
-    with collar, lapels and epaulettes. Light from the upper left, two tones
-    per surface, no gradients. */
+/** The high-detail attempt, drawn in a 200-box for precision: real facial
+    structure, individual eyes with lids and irises, a nose with nostrils,
+    lips, the forward-combed fringe, the bicorne worn side-on with the
+    cockade, the coat with collar, lapels and epaulettes. Light from the upper
+    left, two tones per surface, no gradients. */
 export const NAPOLEON_200 = `
   <circle cx="100" cy="100" r="98" fill="#1b2340"/>
   <circle cx="100" cy="100" r="88" fill="#26325c"/>

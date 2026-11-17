@@ -1,8 +1,8 @@
-// PLACEMENT IS A THREE GAME SERIES AGAINST BOTS (his call, 2026-09-16,
-// replacing the one game against Clover from 2026-09-12). One game was a
-// coin toss dressed as a measurement: a single judge call on a single motion
-// decided where somebody started. Three games that adapt to the result find
-// the right part of the ladder instead of guessing it from one margin.
+// PLACEMENT IS A THREE GAME SERIES AGAINST BOTS, replacing an earlier single
+// game against Clover. One game was a coin toss dressed as a measurement: a
+// single judge call on a single motion decided where somebody started. Three
+// games that adapt to the result find the right part of the ladder instead of
+// guessing it from one margin.
 //
 // Everything here is pure and has no imports beyond the roster, so the unit
 // checks (scripts/security-unit.mjs) and the smoke suite can pin it directly.
@@ -25,8 +25,8 @@ export const LADDER_MAX = 3000;
 
 /** The lowest starting rating: the ranked floor (store.ts RATING_FLOOR,
     mirrored here so this file stays import-free). Placing someone at 222
-    only for their first ranked loss to lift them to 500 made the number
-    they were shown after placement meaningless (2026-09-16). */
+    only for their first ranked loss to lift them to 500 makes the number
+    shown after placement meaningless. */
 export const PLACED_MIN = 500;
 
 /** One finished placement game, as stored in players.placement (store.ts).

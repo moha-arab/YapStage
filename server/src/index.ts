@@ -292,10 +292,9 @@ registerAuth(app, {
     io.in(`acct:${sub}`).disconnectSockets(true);
   },
   // A saved mask reaches every live socket on the account at once, and a
-  // room still waiting for its guest shows it straight away (2026-09-16: he
-  // picked Napoleon and walked in as Diogenes). The client used to bounce
-  // its socket for this and skipped the bounce whenever it held a room,
-  // which friend mode always does, so the next seat wore the old mask.
+  // room still waiting for its guest shows it straight away. The client used
+  // to bounce its socket for this and skipped the bounce whenever it held a
+  // room, which friend mode always does, so the next seat wore the old mask.
   onLockerSaved: (sub, mask) => {
     for (const s of io.sockets.sockets.values()) {
       if (s.data.account?.sub !== sub) continue;
@@ -358,11 +357,10 @@ function liveMatchOf(lobby: Lobby): LiveMatch {
   };
 }
 
-// One random LIVE ranked debate (feed v1, the "tiktok" spectate). It ran with
-// no filters for a month, his call then; on 2026-09-12 he asked to browse by
-// category, so `category` narrows it and an unknown one is ignored. `not`
-// skips the debate you are already watching so "next" never hands you the
-// same one back.
+// One random LIVE ranked debate (feed v1, the "tiktok" spectate).
+// `category` narrows the feed to one category and an unknown one is ignored.
+// `not` skips the debate you are already watching so "next" never hands you
+// the same one back.
 app.get<{ Querystring: { not?: string; category?: string } }>('/spectate/random', async (req) => {
   // The feed only ever hands out ranked matches, so it is locked the same way
   // spectate:join is: a code a locked viewer could not open is not handed out.
@@ -398,7 +396,7 @@ async function watchLocked(signedIn: boolean, playerId: string | undefined): Pro
 // and would triple the number for free. Everything here is already public
 // to any spectator (spectateStateFor sends the same fields the moment you
 // join); no player ids, no transcript.
-// Since watching needs finished placement (2026-09-16), this route is still
+// Since watching needs finished placement, this route is still
 // the same for everyone, locked or not, and reads no cookie. Its counts feed
 // the dock's "N live" badge, and the names, masks and motions it lists are
 // the same ones the public ranked board and /feed already show. What it
@@ -497,14 +495,14 @@ app.get<{ Querystring: { playerId?: string } }>('/rating', async (req) => {
 // ---- the daily rebuttal challenge ----
 // Same drill for everyone, every day, derived from the date so there is nothing
 // to store or schedule. Playable signed out (the point is that a stranger can
-// try the product in forty seconds). The streak used to need an account ("a
-// promise you keep to a name"); since 2026-09-12 a guest keeps one on the
-// device (client/src/guest.ts, from the `day` and `daily` fields the POST
-// answers with) and it rides the claim into the account at sign-in. The
-// server still only counts a streak it can put a name to.
+// try the product in forty seconds). The streak used to need an account; a
+// guest now keeps one on the device (client/src/guest.ts, from the `day` and
+// `daily` fields the POST answers with) and it rides the claim into the
+// account at sign-in. The server still only counts a streak it can put a name
+// to.
 // One drill a day and no other on offer (the `?type=` picker went with the
-// other drill types, 2026-09-12): the tier climbs Sunday to Saturday, and the
-// only way to get Saturday's is to come back on Saturday.
+// other drill types): the tier climbs Sunday to Saturday, and the only way to
+// get Saturday's is to come back on Saturday.
 app.get('/drill', async (req) => {
   const day = today();
   const d = drillOfDay(day);
@@ -821,9 +819,9 @@ const io: Io = new Server<ClientToServer, ServerToClient, Record<string, never>,
   // 16 KB. A packet over 1 MB closes that socket, which is the point.
   // Ping every 10 s, drop after 15 s without a pong: a silently stalled
   // network is noticed in about 25 s instead of the default ~45 s, which left
-  // a frozen turn on screen with a mic line still saying the judge could hear
-  // (2026-09-13 retest). The grace windows (GRACE_MS, HOST_AWAY_MS) absorb a
-  // phone that pauses a backgrounded tab.
+  // a frozen turn on screen with a mic line still saying the judge could
+  // hear. The grace windows (GRACE_MS, HOST_AWAY_MS) absorb a phone that
+  // pauses a backgrounded tab.
   { serveClient: false, maxHttpBufferSize: 1_000_000, pingInterval: 10_000, pingTimeout: 15_000 },
 );
 
@@ -831,10 +829,8 @@ const io: Io = new Server<ClientToServer, ServerToClient, Record<string, never>,
 // In-memory like the lobbies. An entry is one waiting socket; pairing is
 // strictly first-come-first-served (rating-window matchmaking is pointless
 // until there are enough concurrent players for a window to select from).
-// ONE queue. There was a queue per pace from 2026-09-04 to 2026-09-12, and he
-// took it out: "make all the people play one mode so that we have as many
-// players as possible". A pool this size cannot afford to be split three
-// ways, and a ranked game is a standard game.
+// ONE queue. A queue per pace was tried and removed: a pool this size cannot
+// afford to be split three ways, and a ranked game is a standard game.
 interface QueueEntry {
   socketId: string;
   sessionId: string;
@@ -857,12 +853,12 @@ function broadcastQueue(): void {
 }
 
 /** What a seat wears, decided here and never by the client. Every room starts
-    masked (his call 2026-09-04): a camera is something you switch on in the
-    green room (pick:mask false), never something a stranger gets by default.
+    masked: a camera is something you switch on in the green room (pick:mask
+    false), never something a stranger gets by default.
 
-    Signed out: the grey silhouette, whatever the client asked for (his call
-    2026-09-12: a guest is a silhouette "to encourage them to log in to get
-    skins"). Signed in: the mask you saved, or a random roster mask when there
+    Signed out: the grey silhouette, whatever the client asked for, since the
+    mask roster is something an account unlocks (protocol.ts GUEST_AVATAR).
+    Signed in: the mask you saved, or a random roster mask when there
     is none yet (the locker is read just after connect) or the saved one has
     since left the roster. The locker's mask_default is still stored and
     still accepted, but no seat reads it any more: the room decides, not the
@@ -925,8 +921,8 @@ function tryMatch(): void {
     lobby.guest = { socketId: b.socketId, sessionId: b.sessionId, name: b.name, ...seatLookOf(sb.data), playerId: b.playerId, rtcReady: false };
     lobby.status = 'greenroom';
     lobby.topicMode = 'random'; // strangers never negotiate a topic
-    // Ranked plays at standard length (his call, 2026-09-14, after a day on
-    // blitz). The rating it moves is the one ladder everybody has (judge.ts).
+    // Ranked plays at standard length. The rating it moves is the one ladder
+    // everybody has (judge.ts).
     lobby.pace = 'standard'; // pick:pace is refused in a ranked room
     lobby.ranked = { host: a.playerId, guest: b.playerId };
     // Ranked is faceless by format: both strangers are behind masks.
@@ -951,7 +947,7 @@ function tryMatch(): void {
 // (audio relays). Debaters always see the watcher count.
 const spectators = new Map<string, Set<string>>(); // code -> socketIds
 // 100 is still just a safety rail on the naive one-process audio fan-out;
-// real broadcast scale is the SFU tier (PRD). Was 20 before 2026-08-09.
+// real broadcast scale is the SFU tier (PRD). Raised here from 20.
 const SPECTATOR_CAP = 100;
 
 function spectatorCount(code: string): number {
@@ -1374,7 +1370,7 @@ io.on('connection', (socket) => {
     const lobby = createLobby(socket.id, String(p.sessionId ?? '').slice(0, 64), name);
     lobby.hostIp = ip;
     // The ladder identity, account or device (see Participant.playerId): a
-    // guest's friend games are filed under the device id since 2026-09-12.
+    // guest's friend games are filed under the device id too.
     lobby.host!.playerId = playerId || undefined;
     Object.assign(lobby.host!, seatLook());
     event('lobby_created', { code: lobby.code });
@@ -1521,7 +1517,7 @@ io.on('connection', (socket) => {
     // topic tabs anyway.
     if (!lobby || (lobby.status !== 'greenroom' && lobby.status !== 'waiting')) return;
     if (lobby.ranked) return; // ranked is fixed-format
-    // Settle-it is PARKED (2026-08-05): fully built, deliberately unreachable.
+    // Settle-it is PARKED: fully built, deliberately unreachable.
     // The app's identity is the four sport modes; this is the show. Flip
     // DISPUTE_MODE=on in the environment to bring it back — everything behind
     // this gate (framing, dispute judge, ruling screen, share card) still works.
@@ -1564,8 +1560,8 @@ io.on('connection', (socket) => {
     if (!allow(`pick:${socket.id}`, 60, 10_000)) return;
     const lobby = socket.data.code ? getLobby(socket.data.code) : undefined;
     // Masks are picked in the lobby. Once your friend is in, the room keeps
-    // the mask you walked in with (his call, 2026-09-13: no changing your
-    // mask mid custom game). The green room no longer shows a picker.
+    // the mask you walked in with: no changing masks mid custom game. The
+    // green room no longer shows a picker.
     if (!lobby || lobby.status !== 'waiting') return;
     const me = participantOf(lobby, socket.id);
     if (!me) return;
@@ -1640,14 +1636,13 @@ io.on('connection', (socket) => {
     if (!me) return;
     const id = String(topicId ?? '');
     if (!TOPIC_BY_ID.has(id)) return;
-    // SIMPLIFIED CUSTOM (his review: "pick it together doesn't really make
-    // sense"). The old flow needed BOTH players to land on the same topic AND
-    // opposite sides AND both confirm — four negotiations before a debate could
-    // start, and a green room full of "waiting for them to pick the same
-    // topic". Now the HOST sets the terms, which is how every challenge-based
-    // game works: the challenger names them, the other accepts. Sides are
-    // the host's call too since 2026-09-12 (pick:side below); the coin is
-    // still the default.
+    // SIMPLIFIED CUSTOM. The old flow needed BOTH players to land on the same
+    // topic AND opposite sides AND both confirm — four negotiations before a
+    // debate could start, and a green room full of "waiting for them to pick
+    // the same topic". Now the HOST sets the terms, which is how every
+    // challenge-based game works: the challenger names them, the other
+    // accepts. Sides are the host's too (pick:side below); the coin is still
+    // the default.
     if (me !== lobby.host) return;
     if (lobby.pick.hostTopicId === id) return; // no-op picks don't rebroadcast
     lobby.pick.hostTopicId = id;
@@ -1660,12 +1655,11 @@ io.on('connection', (socket) => {
   });
 
   // The host's side: FOR, AGAINST, or 'random' for the coin. Host-only, any
-  // topic mode, stage or green room. Until 2026-09-12 this was a per-seat
-  // pick that nothing read: the design held that sides are always dealt,
-  // because everyone grabs the side they already believe. His call reversed
-  // it for friend rooms and bot games ("choose for or against, make it
-  // random"), and the answer to the old worry is the default: the coin stays
-  // the norm, a side is something the host has to reach for, and ranked
+  // topic mode, stage or green room. This was once a per-seat pick that
+  // nothing read: the design held that sides are always dealt, because
+  // everyone grabs the side they already believe. Friend rooms and bot games
+  // may now choose, and the answer to the old worry is the default: the coin
+  // stays the norm, a side is something the host has to reach for, and ranked
   // never takes this event at all.
   socket.on('pick:side', (side) => {
     if (!allow(`pick:${socket.id}`, 60, 10_000)) return;
@@ -2016,9 +2010,9 @@ io.on('connection', (socket) => {
 
   // Ranked: enter the queue. The rating is looked up (or created at the
   // seed) so the waiting screen can show it; pairing is first-come-first-
-  // served. Whatever pace the payload carries is ignored: ranked is one
-  // pace (blitz since 2026-09-13), and a client asking for another gets the
-  // same game as everyone else rather than a line nobody else is standing in.
+  // served. Whatever pace the payload carries is ignored: ranked is one pace,
+  // and a client asking for another gets the same game as everyone else
+  // rather than a line nobody else is standing in.
   socket.on('queue:join', (p, cb) => {
     if (typeof cb !== 'function') return;
     // Matching needs a second player, so the locker has time to land; start
@@ -2269,9 +2263,9 @@ io.on('connection', (socket) => {
     try {
     // Campaign gate: the ladder is levels now. No playerId (old client) or a
     // downed store fails OPEN — a dead database must never brick training.
-    // DORMANT unless CAMPAIGN_LOCKS=on (his call 2026-08-09: unlock everything
-    // for now, same parking pattern as DISPUTE_MODE). Progress still records
-    // while dormant, so wins earned in the open period count when locks return.
+    // DORMANT unless CAMPAIGN_LOCKS=on: everything is unlocked for now, the
+    // same parking pattern as DISPUTE_MODE. Progress still records while
+    // dormant, so wins earned in the open period count when locks return.
     const playerId = await resolveId(p?.playerId);
     if (!io.sockets.sockets.get(socket.id)) return;
     if (placement) {
@@ -2360,7 +2354,7 @@ io.on('connection', (socket) => {
     releasePreviousSeat(socket);
     const lobby = createLobby(socket.id, String(p?.sessionId ?? '').slice(0, 64), name);
     // The same id the campaign rides: a guest's bot games are filed under the
-    // device id (2026-09-12) so signing in later finds them.
+    // device id, so signing in later finds them.
     lobby.host!.playerId = playerId || undefined;
     Object.assign(lobby.host!, seatLook());
     lobby.pace = pace;
@@ -2378,10 +2372,10 @@ io.on('connection', (socket) => {
     // possible farm for anyone with a chatbot open in the next tab.
     // The bot ladder is a yardstick you measure yourself against, not a source
     // of rating. Ranked means humans.
-    // The ONE exception is placement above: three bot games (his call
-    // 2026-09-16, one game since 2026-09-12) that set a new player's starting
-    // rating instead of placement games against strangers nobody in a small
-    // pool could find. Each game is recorded once and the rating is written
+    // The ONE exception is placement above: three bot games that set a new
+    // player's starting rating instead of placement games against strangers
+    // nobody in a small pool could find. Each game is recorded once and the
+    // rating is written
     // once per player, ever (store.recordPlacementGame, finishPlacement), so
     // neither argument comes back: you cannot farm a series you cannot
     // replay, and the fast K on the human games after it corrects whatever
@@ -2530,8 +2524,8 @@ io.on('connection', (socket) => {
         // A friend-room HOST gets the same window as a host who was already
         // away when the friend walked in (lobby:join, HOST_AWAY_MS): a phone
         // that backgrounded the tab to send the code often drops only after
-        // the friend has arrived, and 15 s threw that friend out (2026-09-13
-        // retest). The friend is told and shown the countdown. Ranked keeps
+        // the friend has arrived, and a 15 s window threw that friend out.
+        // The friend is told and shown the countdown. Ranked keeps
         // the short grace: a stranger should not wait two minutes.
         const windowMs = isHost && !lobby.ranked ? HOST_AWAY_MS : GRACE_MS;
         me.disconnectedAt = Date.now();
@@ -2568,8 +2562,7 @@ io.on('connection', (socket) => {
         // Still disconnected after the grace window → the debate can't continue.
         if (me.disconnectedAt && lobby.status === 'in_debate') {
           // Ranked: the walk-out costs the leaver the game if the player who
-          // stayed had been heard (judge.ts applyForfeit has the rule; the
-          // launch coordinator's product call, 2026-09-12).
+          // stayed had been heard (judge.ts applyForfeit has the rule).
           if (lobby.ranked) void applyForfeit(lobby, me);
           abort(io, lobby, 'abortWifi', { x: me.name });
         }

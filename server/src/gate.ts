@@ -1,8 +1,7 @@
 // The one account rule in the app: ranked needs an account, nothing else
-// does (his call 2026-09-12: "you don't need an account for anything but
-// ranked"). Both ranked doors, the queue and the placement match, ask this
-// same question. It lives here with no imports so the smoke suite can check
-// both answers without a Google client id in the room.
+// does. Both ranked doors, the queue and the placement match, ask this same
+// question. It lives here with no imports so the smoke suite can check both
+// answers without a Google client id in the room.
 
 export type RankedRefusal = 'signed_out' | null;
 
@@ -13,9 +12,9 @@ export function rankedRefusal(signedIn: boolean, googleOn: boolean): RankedRefus
   return googleOn && !signedIn ? 'signed_out' : null;
 }
 
-// WATCHING LIVE MATCHES NEEDS FINISHED PLACEMENT (his call 2026-09-16). The
-// crowd at a ranked match is players who have been through the same three
-// games, not anyone passing. Server-enforced here and asked by every door
+// WATCHING LIVE MATCHES NEEDS FINISHED PLACEMENT. The crowd at a ranked
+// match is players who have been through the same three games, not anyone
+// passing. Server-enforced here and asked by every door
 // into a ranked stream: spectate:join for a ranked room, /spectate/random and
 // the next-match hop that rides it (index.ts).
 

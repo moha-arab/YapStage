@@ -1,6 +1,6 @@
-// The opening. He typed the address and wanted a beat before the game: the two
-// quote marks land one after the other, the wordmark comes up under them, and
-// the house lights go down on the lobby. About a second, once per tab.
+// The opening: a beat between typing the address and the game. The two quote
+// marks land one after the other, the wordmark comes up under them, and the
+// house lights go down on the lobby. About a second, once per tab.
 //
 // Two jobs, one drawing. As an OVERLAY it is the animation, laid over the app
 // so /auth/me and the fonts load underneath it and nothing waits on it. As the

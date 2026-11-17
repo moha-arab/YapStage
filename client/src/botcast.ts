@@ -1,11 +1,10 @@
 // THE BOT CAST. Eight animals and the YapMaster, drawn as busts in the same
 // frame and language as the sixteen player characters (cast.ts): head and
 // shoulders in 0 0 100 100, two flat tones per mass, light from the upper
-// left. Drawn 2026-09-12 by nine artist agents with a render loop each, then
-// three critic lenses and a revision round, after his verdict on the old
-// floating-head animals: "not on par with the masks".
+// left. They replace an earlier set of floating heads, which did not read as
+// being on par with the player masks.
 //
-// GENERATED from the artists' final files, one string per character. Edit a
+// GENERATED from the source drawings, one string per character. Edit a
 // drawing by re-exporting it, not by hand-editing a path string here.
 // clipPath ids, where used, are prefixed with the character id so two copies
 // on one page share one definition.

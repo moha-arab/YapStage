@@ -27,11 +27,10 @@ export interface Participant {
   /** True = debating behind the mask, no camera at all. Ranked forces this. */
   masked: boolean;
   /** Where this debate gets filed afterwards: the account's id when signed
-      in, the device id a guest plays under otherwise. Until 2026-09-12 only
-      signed-in seats carried one ("guests get no history, by design"); that
-      was reversed so a guest's games are waiting for them when they sign in
-      and the device id is adopted (store.ts linkAccount). Absent only for a
-      client too old to send one. */
+      in, the device id a guest plays under otherwise. Guests carry one too, so
+      their games are waiting for them when they sign in and the device id is
+      adopted (store.ts linkAccount). Absent only for a client too old to send
+      one. */
   playerId?: string;
   rtcReady: boolean; // gUM done, tracks added, handlers registered
   disconnectedAt?: number;
@@ -211,17 +210,16 @@ export function createLobby(socketId: string, sessionId: string, name: string): 
     code: generateCode(),
     host: { socketId, sessionId, name, avatarId: randomAvatar(), masked: false, rtcReady: false },
     status: 'waiting',
-    // Random, since 2026-09-12: the settings panel opens on two plain rows
-    // (random topic, coin flip) and the host reaches for a category or a
-    // motion. It was 'agree', from when the green room opened on the deck;
-    // with the panel on the lobby stage that meant every new room walked out
-    // with fifty-six motions already unrolled under the fighters.
+    // Defaults to random: the settings panel opens on two plain rows (random
+    // topic, coin flip) and the host reaches for a category or a motion.
+    // 'agree' dates from when the green room opened on the deck; with the
+    // panel on the lobby stage it meant every new room walked out with
+    // fifty-six motions already unrolled under the fighters.
     topicMode: 'random',
     categoryKey: null,
     hostSide: 'random',
-    // Friend rooms open on standard, like ranked (his call, 2026-09-14, back
-    // from a day on blitz); the host can still pick blitz or long in the
-    // green room.
+    // Friend rooms open on standard, like ranked; the host can still pick
+    // blitz or long in the green room.
     pace: 'standard',
     pick: {
       hostTopicId: null,

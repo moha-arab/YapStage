@@ -119,8 +119,8 @@ export default function BotSelect({ localStream, mediaError, onRetryMedia, onSta
 
       {/* Level one of the ladder, always visible: a beginner looking for an
           opponent is exactly who needs the lesson, so it lives HERE rather
-          than as a fifth mode on the home page. Hidden for now (2026-09-12),
-          like the roster's lesson card. */}
+          than as a fifth mode on the home page. Hidden for now, like the
+          roster's lesson card. */}
       {false && (
       <button className="tutor-card" onClick={onTutorial}>
         <BotAvatar botId="tutor" color="gold" size={64} />

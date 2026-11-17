@@ -119,9 +119,9 @@ export async function coachReply(
     It reads the transcript saved with the match, both sides, exactly as the
     live coach reads the lobby's. Everything in it is escaped and sits inside
     <debate>, which the SYSTEM prompt treats as quoted speech, never
-    instructions. A row filed while transcripts were not kept (2026-09-12 to
-    2026-09-13) has none: for that side the coach gets the judge's own
-    feedback instead, and is told the words were not saved. */
+    instructions. Rows filed during the window when transcripts were not kept
+    (2026-09-12 to 2026-09-13) have none: for that side the coach gets the
+    judge's own feedback instead, and is told the words were not saved. */
 export async function coachOnRecord(m: {
   question: string;
   history: CoachTurn[];

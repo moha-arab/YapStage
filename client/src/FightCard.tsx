@@ -1,9 +1,9 @@
 // THE FIGHT CARD: the beat between the green room and the first turn.
 //
 // It used to be five lines of type down the middle of an empty screen (the
-// motion, two names around a VS, a "you argue" badge and a countdown). His
-// note: "you can put both opponents, make it look better in the empty space".
-// So it is now the lobby's stage: the FOR fighter in the amber cone, the
+// motion, two names around a VS, a "you argue" badge and a countdown), which
+// left both opponents unshown and the space empty.
+// It is now the lobby's stage: the FOR fighter in the amber cone, the
 // AGAINST fighter in the turquoise one, vs between them, the motion over the
 // top. The same grammar that introduced you to your opponent in the lobby
 // introduces the fight, and the only new text is the "you" marker, because
@@ -38,8 +38,8 @@ export default function FightCard({ start, localStream, remoteStream, revealMs }
 
   // What stands in the light. A bot is its drawing; a masked person is their
   // mask; a person on camera is their camera. No ring round anyone: the match
-  // dropped its speaking ring for a lit tile (2026-09-12), so the card that
-  // introduces the match drops it too.
+  // dropped its speaking ring for a lit tile, so the card that introduces the
+  // match drops it too.
   const art = (side: Side) => {
     if (start.bot && side === peerSide) {
       return <BotAvatar botId={start.bot.id} color={start.bot.color} size="100%" bare />;
@@ -76,10 +76,10 @@ export default function FightCard({ start, localStream, remoteStream, revealMs }
     <div className={`stage fc-stage ${leaving ? 'fc-leaving' : ''}`}>
       <p className="fc-kicker">{t('theMotion')}</p>
       <h1 className="display fc-motion">{start.topic[lang]}</h1>
-      {/* His note: "when you load into a game I should know what side I'm on
-          immediately without being confused". A small "you" under one of two
-          fighters made you find yourself; this says it, under the motion it
-          refers to, in your side's colour, before your eye reaches the art. */}
+      {/* Your side has to be unmistakable the moment the match loads. A small
+          "you" marker under one of two fighters made players hunt for
+          themselves; this states it outright, under the motion it refers to,
+          in your side's colour, before the eye reaches the art. */}
       <p
         className={`fc-yourside ${mySide === 'FOR' ? 'fc-yourside-for' : 'fc-yourside-against'} ${
           start.framing ? 'fc-yourside-long' : ''

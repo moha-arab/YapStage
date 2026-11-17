@@ -7,11 +7,10 @@ import './debate.css';
    spectator's (Spectate.tsx) share: the progress track with the turn clock,
    and the paper strip that carries the motion.
 
-   His brief (2026-09-12): the motion at the bottom, not on the side; simple,
-   not overwhelming; and "the user clearly should see the progression of the
-   game each round and how long is left". The track answers the second half:
-   every turn of the debate in order, tinted by whose it is, the current one
-   filling as its clock runs. */
+   Layout rules: the motion sits at the bottom, not on the side, and the
+   progression through the rounds and the time left must be readable at a
+   glance. The track answers the second: every turn of the debate in order,
+   tinted by whose it is, the current one filling as its clock runs. */
 
 /** Every debate has this shape: four rounds, two turns each, the speaking
     order mirrored at halfway (server/src/debate.ts, `script`). Every pace and

@@ -1,14 +1,13 @@
 // THE MASK ROSTER. Tap your own mask in the lobby and the four walk out, the
-// same takeover the bot roster uses. It replaced the Locker screen on
-// 2026-09-04 (his call: "press on your character in the lobby and change
-// your skin"). The camera/mask toggle that lived in the locker is gone with
-// it: every room starts masked, and only a friend room offers the camera.
+// same takeover the bot roster uses. It replaced the Locker screen, and the
+// camera/mask toggle that lived in the locker is gone with it: every room
+// starts masked, and only a friend room offers the camera.
 //
-// Signed out it is the same roster, read-only (2026-09-12): a guest wears the
-// grey silhouette, and characters come with an account. Every card is there
-// to look at, each one says it is locked, and there is one button, the
-// sign-in. Where this deployment has no Google sign-in (local dev) the line
-// stays and the button goes.
+// Signed out it is the same roster, read-only: a guest wears the grey
+// silhouette, and characters come with an account. Every card is there to
+// look at, each one says it is locked, and there is one button, the sign-in.
+// Where this deployment has no Google sign-in (local dev) the line stays and
+// the button goes.
 import { useEffect, useRef, type CSSProperties } from 'react';
 import { useI18n } from '../i18n';
 import { useDialogFocus } from '../useDialogFocus';

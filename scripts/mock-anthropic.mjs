@@ -1,7 +1,7 @@
 /* A stand-in for the Anthropic Messages API, for running the site and the
- * smoke suite locally without spending credit (or when the key is out of it,
- * which is how this was born on 2026-09-12: "Your credit balance is too low"
- * killed every judge-dependent smoke check).
+ * smoke suite locally without spending credit. It also covers an exhausted
+ * key: a "Your credit balance is too low" error fails every judge-dependent
+ * smoke check, which makes the whole suite useless for anything else.
  *
  *   node scripts/mock-anthropic.mjs                  (port 3099)
  *   ANTHROPIC_BASE_URL=http://localhost:3099 ANTHROPIC_API_KEY=mock \

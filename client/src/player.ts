@@ -155,7 +155,7 @@ export async function deleteAccount(confirm: string): Promise<{ ok: true } | { o
 /** Send the browser to Google. This device's id goes along so a first
     sign-in adopts progress already earned here instead of starting from
     zero, and so does the drill streak a guest kept on the device (guest.ts).
-    Neither rides on the URL (2026-09-12): they are posted to /auth/claim
+    Neither rides on the URL: they are posted to /auth/claim
     first, which hands them back as a short-lived, signed, HttpOnly cookie
     that only the sign-in callback reads. On the URL the id sat in browser
     history, server logs and every Referer, and any link could pick whose

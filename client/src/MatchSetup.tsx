@@ -1,9 +1,9 @@
 // THE MATCH SETTINGS. One panel, used wherever a host sets the terms of a
 // debate: the friend room on the lobby stage (before the friend walks in),
 // the green room (after), and the bot game on the same stage once a bot is
-// picked. Built 2026-09-12, his spec: "choose the topic, make it random,
-// choose for or against, choose a category, choose a random topic, and
-// everything like that, so that it is user-friendly."
+// picked. It has to cover, in one user-friendly panel: choose the topic, take
+// a random one, choose a category, take a random topic from it, and choose for
+// or against.
 //
 // Two facts, each a row of chips: the TOPIC (random, random from a category,
 // or one exact motion from the deck) and the SIDE (the coin, for, against).
@@ -93,8 +93,8 @@ export default function MatchSetup({ deck, value, onChange }: Props) {
 
   const set = (patch: Partial<MatchSetupValue>) => onChange({ ...value, ...patch });
 
-  // Two plain questions, three labelled answers each (his note 2026-09-12:
-  // the old rows of small chips were cluttered and did not say what they did).
+  // Two plain questions, three labelled answers each: the old rows of small
+  // chips were cluttered and did not say what they did.
   return (
     <div className="ms2">
       <section className="ms2-sec">

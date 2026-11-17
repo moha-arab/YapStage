@@ -18,9 +18,9 @@ export const socket: Socket<ServerToClient, ClientToServer> = io();
    TTL (index.ts disconnect, lobby.ts WAITING_TTL_MS) and hands it back to
    the same session with lobby:resume. So the lobby remembers the room it
    opened and the session id it opened it under, and a reload takes the SAME
-   code back instead of opening a new one each time (QA 2026-09-13: every
+   code back instead of opening a new one each time. Without this, every
    reload made a new code, the one already sent led into a dead room, and
-   each stale room counted against the address's cap).
+   each stale room counted against the address's cap.
 
    Like yap.live, the stored copy only counts once the page has really
    unloaded (pagehide stamps it): a duplicated tab copies sessionStorage but

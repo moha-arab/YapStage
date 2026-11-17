@@ -1,5 +1,5 @@
 /* ============================== THE MATCH ==============================
-   Rebuilt 2026-09-12 (Debate.tsx, Spectate.tsx, MatchTrack.tsx). Three bands,
+   Styles for Debate.tsx, Spectate.tsx and MatchTrack.tsx. Three bands,
    top to bottom, each answering one question a first-timer has:
 
      the track   how far through the debate are we, how long is left
@@ -765,7 +765,7 @@
   }
 }
 
-/* ---- the way out (QA 2026-09-13) ----
+/* ---- the way out ----
    A debate had no exit but the browser's own Back, reload or close. The
    Leave button sits at the right end of the bar, where every screen around
    a match keeps its one way out (.scr-btn), and the confirm is a plain line

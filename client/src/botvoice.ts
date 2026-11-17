@@ -228,8 +228,9 @@ export function playBotTurn(
       const a = element();
       // Safety net for an element whose onended never fires. It must NOT end
       // the turn while audio is audibly playing — that advanced the debate
-      // with the voice still going (the "talks into my turn" bug). If the
-      // element is genuinely mid-clip, wait; the maxMs cutoff still bounds it.
+      // with the voice still going, so the bot talked into the next turn. If
+      // the element is genuinely mid-clip, wait; the maxMs cutoff still
+      // bounds it.
       let safety: ReturnType<typeof setTimeout> | null = null;
       const armSafety = (ms: number) => {
         safety = setTimeout(() => {

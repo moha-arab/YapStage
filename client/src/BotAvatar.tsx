@@ -1,18 +1,18 @@
 // Bot avatars: the eight animals and the YapMaster, drawn as busts in
 // botcast.ts (GENERATED, same frame and language as the player characters in
-// cast.ts). The old flat floating heads (2026-08 to 2026-09-12) are in git;
-// his verdict on them was "not on par with the masks", so the cast was
-// redrawn and re-chosen the same day. The SVGs are static and self-authored,
-// so dangerouslySetInnerHTML is safe here and keeps them legible.
+// cast.ts). The old flat floating heads are still in git; they did not read as
+// being on par with the masks, so the cast was redrawn. The SVGs are static
+// and self-authored, so dangerouslySetInnerHTML is safe here and keeps them
+// legible.
 //
-// The FLAT poster style is still the identity (the 2026-08-11 lesson: a
-// "higher quality" Pip with gradients and shading read as off-brand). What
-// changed is the construction, not the register: head and shoulders, two
-// tones per mass, costume and expression doing the personality.
+// The FLAT poster style is the identity: a "higher quality" Pip with gradients
+// and shading read as off-brand. What changed in the redraw is the
+// construction, not the register: head and shoulders, two tones per mass,
+// costume and expression doing the personality.
 //
-// STILL since 2026-09-04. The mouths used to flap on a fixed keyframe while
-// the bot spoke; that read as cheap, and the speaking ring (VideoTile.tsx)
-// carries the voice instead.
+// The busts hold STILL. The mouths used to flap on a fixed keyframe while the
+// bot spoke; that read as cheap, and the speaking ring (VideoTile.tsx) carries
+// the voice instead.
 import { BOT_CAST } from './botcast';
 
 // The frame colour. `gold` no longer resolves to gold: gold is the prize in

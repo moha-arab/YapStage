@@ -1,5 +1,4 @@
-// AFTER THE DEBATE (redesigned 2026-09-12). His brief: "Rethink the results
-// menu and after the debate", "simple, user friendly, not overwhelming", with
+// AFTER THE DEBATE. Rebuilt to be simple rather than overwhelming, with
 // chess.com as the bar: one big thing to look at, one obvious thing to do.
 //
 // The test it is built against: a first-time sixteen-year-old sees in one
@@ -398,8 +397,8 @@ export default function VerdictScreen({
   const ruling = verdict.ruling;
   // Zero words from you means the mic never reached the judge. Say that
   // plainly instead of VICTORY or DEFEAT, otherwise it reads as a defeat you
-  // earned, and the only way to find out was to ask the coach and be told
-  // "I heard nothing", which is how this surfaced in the first place.
+  // earned and the only way to find out is to ask the coach and be told
+  // "I heard nothing".
   const notHeard = mySide !== undefined && info.heard?.[mySide] === 0;
   const youWon = mySide !== undefined && mySide === winner;
   const outcome = mySide === undefined || notHeard ? 'neutral' : youWon ? 'won' : 'lost';
@@ -669,8 +668,8 @@ export default function VerdictScreen({
         {coachOn ? (
           <div className="coach-card card vd-coach" ref={coachRef}>
             <h3 className="coach-title">{t('coachTitle')}</h3>
-            {/* one chat, not two. the note is what tells you arguing with the
-                ruling is on the table at all, no mode switch needed. */}
+            {/* One chat, not two. The note is what tells you arguing with the
+                ruling is on the table at all, so no mode switch is needed. */}
             <p className="coach-note">{t('coachNote')}</p>
             {/* Always in the page, so the first answer is announced. */}
             <div className="coach-log" aria-live="polite">

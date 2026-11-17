@@ -6,10 +6,9 @@
 // not "have a debate, but small": it is one skill, isolated, with a right
 // answer shape you can be graded against.
 //
-// One drill type now, the rebuttal (his call, 2026-09-12: "remove all the
-// drills, one drill: a daily rebuttal challenge, easiest on Sunday and hardest
-// on Saturday"). Weighing and spotting the flaw, the other two types until
-// today, are still in here as what the harder tiers demand of a rebuttal:
+// One drill type, the rebuttal, on a weekly ramp: easiest on Sunday, hardest
+// on Saturday. Weighing and spotting the flaw, once drill types of their own,
+// survive in here as what the harder tiers demand of a rebuttal:
 // Thursday's argument cannot be answered without conceding and weighing, and
 // Saturday's cannot be answered without naming what its frame leaves out.
 // The score standard does not change with the tier; the material does.

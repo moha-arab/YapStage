@@ -35,9 +35,9 @@ interface Props {
     asked of anyone. Video spectating needs the SFU (PRD Step 4); this screen
     is built to gain video without changing shape.
 
-    Since 2026-09-12 a spectator sees the debaters' own layout (see Debate.tsx):
-    the track, the two lit frames, the motion on the paper strip. No "you",
-    no pass the mic; the strip's buttons are the watcher's own. */
+    A spectator sees the debaters' own layout (see Debate.tsx): the track, the
+    two lit frames, the motion on the paper strip. No "you", no pass the mic;
+    the strip's buttons are the watcher's own. */
 export default function Spectate({ code, initial, onLeave, onNext }: Props) {
   const { lang, t } = useI18n();
   const [state, setState] = useState<SpectateState | null>(initial);

@@ -4,8 +4,8 @@ import { useEffect, useState } from 'react';
  * Live audio level (0..1) for a MediaStream — powers the mic meters and the
  * masks' mouths.
  *
- * Tuned for the MOUTH, not the meter (2026-08-22, his report: "I could stop
- * talking and it would keep talking"). Three things caused that lag:
+ * Tuned for the MOUTH, not the meter: with the defaults, a speaker could stop
+ * talking and the mask's mouth kept moving. Three things caused that lag:
  *   - the analyser's default smoothingTimeConstant of 0.8 keeps ~80% of the
  *     previous frame, so the reading takes most of a second to fall silent
  *   - a 100ms poll on top of that

@@ -3,26 +3,25 @@ import type { TopicCategory, TopicText } from './protocol.js';
 // The deck, bilingual. Topics match by ID so an English-mode player and an
 // Arabic-mode player land on the same debate.
 //
-// Rebuilt 2026-09-12 (his call: "not too much, too little, or bad topics; not
-// too controversial"). Eight tabs of seven, all claims in sentence case, each
-// arguable either way by a nineteen-year-old with no research. Out on
-// purpose: live wars, named politicians, religion, guns, race, sexuality, and
-// anything where one side is a moral floor. Ranked and random modes roll a
-// category first, so with the old deck three tabs in five were geopolitics
-// and most stranger matches dealt someone a side they could not honestly
-// argue. Named athletes are fine; named politicians are not. The first tab is
-// the default in the pickers (they index by position), so its first motion is
-// the lightest.
+// Eight tabs of seven, all claims in sentence case, each arguable either way
+// by a nineteen-year-old with no research. Out on purpose: live wars, named
+// politicians, religion, guns, race, sexuality, and anything where one side is
+// a moral floor. Ranked and random modes roll a category first, so an earlier
+// deck in which three tabs in five were geopolitics dealt most stranger
+// matches a side the player could not honestly argue. Named athletes are fine;
+// named politicians are not. The first tab is the default in the pickers (they
+// index by position), so its first motion is the lightest.
 //
-// Balance pass 2026-09-12: the coin deals sides, so a lopsided motion lets the
+// Balance, first pass: the coin deals sides, so a lopsided motion lets the
 // coin pick the winner. Every motion must give BOTH sides five minutes of
 // respectable argument: no absolutes ("always", "never", "nothing") that one
 // counterexample sinks, no loaded words ("destroying", "scam"), no side that
 // has to call people failures.
 //
-// Second balance pass 2026-09-16 (he drew FOR on "Spoilers are not a big deal"
-// and found it nearly indefensible). Every motion scored for how fair a coin
-// deal is: 14 reworded, 11 replaced, average balance 3.6 to 4.3 of 5. Out:
+// Balance, second pass, prompted by a motion whose dealt side was nearly
+// indefensible in play ("Spoilers are not a big deal", FOR). Every motion
+// scored for how fair a coin deal is: 14 reworded, 11 replaced, average
+// balance 3.6 to 4.3 of 5. Out:
 // "can" claims one example wins, put-downs one side must defend ("boring",
 // "just cartoons"), questions with a label or a statistic for an answer
 // (ketchup, lottery outcomes), near-duplicates (chess and esports, concert and

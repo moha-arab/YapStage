@@ -3,7 +3,7 @@
 //   A) AGAINST cites a made-up Harvard study, unchallenged
 //   B) the same claim as a bare assertion (no study)
 //   C) the made-up study, and FOR calls out the fabrication
-// First run 2026-08-08: A evidence 15 (judge PRAISED the fake), B evidence 9,
+// Measured: A evidence 15 (the judge PRAISED the fake), B evidence 9,
 // C evidence 7 + "torched your credibility". Fabrication pays until challenged;
 // challenged, it costs more than honesty. See the PRD's "Fabricated evidence"
 // section before changing anything the judge does about this.

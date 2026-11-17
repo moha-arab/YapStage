@@ -14,7 +14,7 @@ import { io } from 'socket.io-client';
 
 const URL = process.env.URL ?? 'http://localhost:3000';
 const RUNS = Number(process.env.RUNS ?? 3); // debates per (profile x bot)
-// rank 1 floor / 4 placement / 8 boss; BOTS=owl reruns a single rung after
+// rank 1 floor / 4 placement / 8 boss; BOTS=wolf reruns a single rung after
 // tuning. The full ladder, rank order:
 //   mouse,sloth,raccoon,rabbit,tortoise,boar,cat,wolf
 const BOTS = (process.env.BOTS ?? 'mouse,rabbit,wolf').split(',');
@@ -57,8 +57,8 @@ async function runDebate(profileName, botId, runIdx) {
   try {
     const res = await emitP(h, 'bot:start', {
       sessionId: `beat-${profileName}-${botId}-${runIdx}`,
-      // A guest name the server accepts (^Guest\d{4}$ since 2026-09-13; the
-      // old 'evalhuman' is refused as bad_name and the whole run errors out).
+      // A guest name the server accepts: it enforces ^Guest\d{4}$, so a name
+      // like 'evalhuman' is refused as bad_name and the whole run errors out.
       name: 'Guest7001',
       botId,
       topicMode: 'agree',

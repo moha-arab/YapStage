@@ -1,21 +1,24 @@
 /* The Privacy Policy and the Terms of Use, one component, picked by `page`.
  *
- * DRAFT FOR REVIEW. First written 2026-09-12 from a read of the code, and
- * revised twice on 2026-09-13: when match history went back to keeping the
- * transcript (judge.ts matchRowsFor, store.ts saveMatch/loadMatch, coach.ts
- * coachOnRecord), kept until the account is deleted; and when sign-in began
- * asking Google for the email (auth.ts `openid email`, kept only if
- * verified, refreshed on every sign-in, owner-only; store.ts linkAccount)
- * and Settings gained Download my data (auth.ts /auth/export, store.ts
- * exportAccountData, which leaves out reports and cheat flags). Also from
- * the code: 90 and 180 day retention for reports and cheat flags (store.ts
- * pruneRetention), relay-only ranked calls (webrtc.ts, security.ts
- * relayOnlySignal), the sharer-only share card (share.ts cardFrom), no
- * Google name or picture, and the signed yap_claim cookie. It is not legal
- * advice. The owner must have it reviewed before the public launch and
- * before the App Store submission. Nothing on the page itself says draft.
+ * DRAFT FOR REVIEW. Written from a read of the code, and it tracks these
+ * facts in particular:
+ *   - match history keeps the transcript (judge.ts matchRowsFor, store.ts
+ *     saveMatch/loadMatch, coach.ts coachOnRecord) until the account is
+ *     deleted;
+ *   - sign-in asks Google for the email (auth.ts `openid email`), kept only
+ *     if verified, refreshed on every sign-in, visible to the account owner
+ *     alone (store.ts linkAccount);
+ *   - Settings offers Download my data (auth.ts /auth/export, store.ts
+ *     exportAccountData, which leaves out reports and cheat flags);
+ *   - 90 and 180 day retention for reports and cheat flags (store.ts
+ *     pruneRetention), relay-only ranked calls (webrtc.ts, security.ts
+ *     relayOnlySignal), the sharer-only share card (share.ts cardFrom), no
+ *     Google name or picture, and the signed yap_claim cookie.
+ * It is not legal advice, and it needs a lawyer's review before the public
+ * launch and before the App Store submission. Nothing on the page itself
+ * says draft.
  *
- * Placeholder the owner must fill before this ships:
+ * Placeholder to fill before this ships:
  *   Terms s.11      the CAD $100 liability cap is a common default, not advice.
  *
  * CONTACT_EMAIL below is the only place the contact address is written.

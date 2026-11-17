@@ -1,4 +1,4 @@
-// THE ROSTER IS THE CAST (2026-09-12): fourteen characters drawn as busts,
+// THE ROSTER IS THE CAST: fourteen characters drawn as busts,
 // in cast.ts, spread into MASKS below. Everything else in this file is the
 // vault: the head-only masks the roster used to be, drawn, kept, off the
 // roster. The notes below date from those masks and still hold for them.
@@ -10,18 +10,17 @@
 // always tell a machine from a person at a glance, and the fight-poster world
 // gets its wrestling-poster half.
 //
-// THE MASKS HOLD STILL (2026-09-04). They used to work a mouth off the mic,
-// and the result was "a smiley face that moves up and down" (his words). A
-// mask is a mask: the face under it talks, the mask does not. Who is speaking
-// is carried by the ring around it (VideoTile.tsx, .mask-ring).
+// THE MASKS HOLD STILL. They used to work a mouth off the mic, which read as
+// a smiley face moving up and down. A mask is a mask: the face under it
+// talks, the mask does not. Who is speaking is carried by the ring around it
+// (VideoTile.tsx, .mask-ring).
 //
-// Register, set by him the same day with the oni and the calavera as the
-// only references: big black shapes for eyes and brows, two or three flat
-// colours, the stage gels as accents, a menace to it. NO SMILES — the smiling
-// luchador is what he called cheap.
+// Register, with the oni and the calavera as the only references: big black
+// shapes for eyes and brows, two or three flat colours, the stage gels as
+// accents, a menace to it. NO SMILES — a smiling luchador reads as cheap.
 //
 // Drawn at the size they actually ship at (96-120px): details that read fine
-// at 300px turn to mud on a card. Same lesson the capybara taught.
+// at 300px turn to mud on a card.
 
 import { CAST } from './cast';
 
@@ -56,26 +55,15 @@ export const MASKS: Record<string, string> = {
 
 
 
-  /* ---- the basic four, take four (2026-09-04). What the ninja gets right
+  /* ---- the basic four, take four. What the ninja gets right
      and every failed draft broke: full head coverage, ONLY the eyes showing,
      one accent, and a shape you would see on a real person. ---- */
 
-  // Climber: white shell helmet with a headlamp, goggles pushed up onto the
-  // brim, a buff over the mouth, braid out the back. "Crux" is the hardest
+  // Climber: the base build kept exactly — red headgear on top, goggles
+  // across it, eyes in the gap, gaiter over the mouth. The knit beanie became
+  // a hard-shell climbing helmet (vent slots, a lipped brim, strap anchors, a
+  // headlamp on the crown), with a braid out the side. "Crux" is the hardest
   // move on a route and the middle of an argument.
-  // Climber: expedition hood with a fur ruff, goggles up on the brow, a buff
-  // over the mouth, braid out the side. Same build as the original: hood on
-  // top, goggles across, eyes in the gap, mouth covered.
-  // Climber: expedition hood with a fur ruff, goggles on the brow, a buff over
-  // the mouth, braid out the side. Same build as the original goggles mask:
-  // headgear on top, goggles across, eyes in the gap, mouth covered.
-  // Climber: expedition hood with a fur ruff, goggles on the brow, a buff over
-  // the mouth, braid out the side. Same build as the original goggles mask:
-  // headgear on top, goggles across, eyes in the gap, mouth covered.
-  // Climber: the base design kept exactly — red headgear on top, goggles
-  // across it, eyes in the gap, gaiter over the mouth. What changed: the knit
-  // beanie became a hard-shell climbing helmet (vent slots, a lipped brim,
-  // strap anchors, a headlamp on the crown) and a braid comes out the side.
   climber: `
     <path d="M68 43 C80 44 88 49 90 57 L78 60 C76 52 73 48 66 47Z" fill="#c9a05c"/>
     <ellipse cx="84" cy="59" rx="10.5" ry="9" fill="#c9a05c"/>
@@ -130,7 +118,7 @@ export const MASKS: Record<string, string> = {
     <circle cx="36" cy="49" r="4.5" fill="${D}"/><circle cx="64" cy="49" r="4.5" fill="${D}"/>
     <circle cx="37.4" cy="47.6" r="1.6" fill="#fff"/><circle cx="65.4" cy="47.6" r="1.6" fill="#fff"/>`,
 
-  /* ---- retired from the free set (2026-09-04) ---- */
+  /* ---- retired from the free set ---- */
 
   // Hockey: the goalie mask. White shell, the vent holes, the straps at the
   // sides. Everybody knows it, nobody has to be told what it is.
@@ -154,7 +142,7 @@ export const MASKS: Record<string, string> = {
     <path d="M50 58 L46 66 L54 66Z" fill="#d9cdb6"/>
     <path d="M42 75 H58" stroke="#3a2c26" stroke-width="3" stroke-linecap="round"/>`,
 
-  /* ---- candidate (2026-09-09): "one for her" ---- */
+  /* ---- candidate: a mask that reads as female ---- */
 
   // Rider: motocross helmet. Purple shell, the peak out both sides, a
   // green stripe over the crown, eyes in the port, ponytail out the back.
@@ -195,9 +183,9 @@ export const MASKS: Record<string, string> = {
     <path d="M43.5 75.5 Q50 78.2 56.5 75.5" stroke="#1a1712" stroke-width="2.9" fill="none" stroke-linecap="round"/>`,
 
 
-// Athena: the Corinthian helmet, worn DOWN. Two and a half thousand years
+// Athena: the Corinthian helmet, worn DOWN.
 
-  /* ---- saved for later (2026-09-04, his call: too good for the free set) ---- */
+  /* ---- saved for later: held back from the free set ---- */
 
   // Tengu: the red mountain goblin. Black hair, white fur brows and
   // moustache, and the long nose, which crosses the speaking ring.

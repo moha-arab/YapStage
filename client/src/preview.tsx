@@ -1093,7 +1093,7 @@ const SCREENS: Record<string, () => JSX.Element> = {
     );
   },
   /* Tiles in both states: lit (the one with the floor) and calm. The speaking
-     ring these used to show at four voice levels is gone (2026-09-12). */
+     ring these used to show at four voice levels is gone. */
   ring: () => (
     <div
       style={{

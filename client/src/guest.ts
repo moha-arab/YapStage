@@ -1,6 +1,6 @@
-// What a guest keeps on this device. Nothing but ranked needs an account
-// (his call 2026-09-12), so the name the device was given and the drill
-// streak you are on live in localStorage until you sign in. There is no
+// What a guest keeps on this device. Nothing but ranked needs an account, so
+// the name the device was given and the drill streak you are on live in
+// localStorage until you sign in. There is no
 // character to keep: a guest wears the grey silhouette, which the server
 // puts on every signed-out seat (index.ts seatLookOf), and characters come
 // with an account. At sign-in the streak rides the claim (player.ts signIn)
@@ -31,11 +31,11 @@ function write(key: string, value: string | null): void {
   }
 }
 
-/** What a guest is called. Guests don't pick a name (his call, 2026-09-13):
-    each device is given one, made once and kept, until they sign in and claim
-    their own. The server refuses any other name from a signed-out socket
-    (GUEST_NAME_RE, 2026-09-12), so a name typed into the old name box, or
-    anything else that is not exactly GuestNNNN, is replaced here. */
+/** What a guest is called. Guests do not pick a name: each device is given
+    one, made once and kept, until they sign in and claim their own. The server
+    refuses any other name from a signed-out socket (GUEST_NAME_RE), so a name
+    typed into the old name box, or anything else that is not exactly
+    GuestNNNN, is replaced here. */
 export function guestName(): string {
   const saved = read(NAME_KEY);
   if (saved && GUEST_NAME_RE.test(saved)) return saved;

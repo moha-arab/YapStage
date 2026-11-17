@@ -1,8 +1,8 @@
 // Spectator audio: live debate clips arrive as they happen (a bot's whole
 // turn, or ~5s segments of a human turn) and play in arrival order. Its own
 // long-lived element, separate from the bot voice, unlocked inside the tap
-// that starts watching — iOS grants playback per ELEMENT, the lesson the bot
-// voice taught us the hard way.
+// that starts watching — iOS grants playback per ELEMENT, so an element the
+// user has never tapped through stays blocked (see botvoice.ts).
 
 import { SILENT_WAV } from './botvoice';
 

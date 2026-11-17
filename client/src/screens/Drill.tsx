@@ -10,7 +10,7 @@
 // front door for anyone who is not ready to face a stranger yet, and the thing
 // there is a reason to open the app for on a day you do not want to debate.
 //
-// HOW IT HEARS YOU (2026-09-13): the way a match does. The answer is recorded
+// HOW IT HEARS YOU: the way a match does. The answer is recorded
 // (every browser can) and the server transcribes it with Whisper, then scores
 // it. The browser's own speech recognition, which only Chrome has, is the
 // fallback for when the server has no speech-to-text. While you talk, the
@@ -115,8 +115,8 @@ export default function Drill({ onBack }: Props) {
   }
 
   // One argument a day and nothing else on offer (the skill picker went with
-  // the other drill types, 2026-09-12): the only way to get Saturday's
-  // argument is to come back on Saturday.
+  // the other drill types): the only way to get Saturday's argument is to
+  // come back on Saturday.
   function load() {
     stopTurn();
     setSpeechSink(null);

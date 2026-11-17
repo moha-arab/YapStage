@@ -53,11 +53,10 @@ const QUIET_LEVEL = 0.04;
     and the mic line turns into a warning. */
 const SILENT_MS = 4000;
 
-/* THE MATCH (rebuilt 2026-09-12). His note: "the motion should be at the
-   bottom, not on the side ... make it simple, user friendly, not
-   overwhelming ... the user clearly should see the progression of the game
-   each round and how long is left". Top to bottom, each band answers one
-   question a first-timer has:
+/* THE MATCH. The motion sits along the bottom rather than down one side, and
+   the progression through the rounds and the time left stay visible
+   throughout. Top to bottom, each band answers one question a first-timer
+   has:
      the track     how far through are we, how long is left (MatchTrack.tsx)
      the stage     who is talking, and is it me (the lit tile, the status)
      the strip     what are we arguing, which side am I, what do I press,
@@ -104,12 +103,12 @@ export default function Debate({
     botSpeakDeadline ? Date.now() : undefined,
   );
   const graceMs = useCountdown(peerLostUntil ?? undefined, peerLostUntil ? Date.now() : undefined);
-  // YOUR MIC, the whole match long (his note, 2026-09-12: "make sure there's
-  // a way to tell if your mic is working mid debate"). The Jubilee rule mutes
-  // you between turns by disabling the track (webrtc.ts, setMicEnabled), and
-  // a disabled track reads as dead silence to a meter. So the meter listens
-  // to a local copy of the track that is never muted, never sent and never
-  // recorded: it can show your mic working while the real one stays off.
+  // YOUR MIC, the whole match long: there has to be a way to tell mid-debate
+  // whether your mic is working. The Jubilee rule mutes you between turns by
+  // disabling the track (webrtc.ts, setMicEnabled), and a disabled track
+  // reads as dead silence to a meter. So the meter listens to a local copy
+  // of the track that is never muted, never sent and never recorded: it can
+  // show your mic working while the real one stays off.
   const meterStream = useMeterStream(localStream);
   const localLevel = useAudioLevel(meterStream);
   const quietMs = useQuietMs(localLevel, phase?.stepIndex);
@@ -174,8 +173,8 @@ export default function Debate({
       : t('micLive');
   // Proof the judge is getting words, from the same two signals. Never while
   // this page is offline: nothing said now reaches the judge, whatever
-  // arrived before the drop (QA 2026-09-13: a bot game kept saying "the
-  // judge hears you" through a dead connection).
+  // arrived before the drop. Without the offline check a bot game keeps
+  // claiming the judge hears you through a dead connection.
   const judgeHears = !offline && (sttServer ? heardWords > 0 : speechSupported && speechHeard);
   // Flat for four seconds with nothing confirmed: say so while it can still
   // be fixed. A pause after the judge has your words is a pause, not a fault.
@@ -323,9 +322,9 @@ export default function Debate({
         </div>
 
         {/* Who has the floor, in words, under the lit tile, and on EVERY turn
-            the one line of what this round is for (his call, 2026-09-16: he
-            wants to know what each round does while the other side speaks
-            too, not only on his own turn). Worded for both sides. */}
+            the one line of what this round is for: the round guide has to be
+            readable while the other side speaks too, not only on your own
+            turn. Worded for both sides. */}
         <div
           className={`dv-status ${myTurn ? 'dv-status-start' : 'dv-status-end'} ${
             activeSide === 'FOR' ? 'dv-for' : 'dv-against'

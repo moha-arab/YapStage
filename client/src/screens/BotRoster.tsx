@@ -1,11 +1,10 @@
 // THE BOT ROSTER. Press "pick a bot" and the whole ladder walks out.
 //
 // It replaced a row of seven 40px chips under the empty opponent slot, which
-// he called "too small, looks weird" (2026-09-04). A character select is the
-// shape every game he names (chess.com's bot page, Valorant's agent select)
-// uses for the same decision: big art, the name, one line of personality, and
-// what beating them is worth. The roster is a takeover, not a panel, so the
-// stage behind it can stay clean.
+// read as too small. A character select is the shape comparable games
+// (chess.com's bot page, Valorant's agent select) use for the same decision:
+// big art, the name, one line of personality, and what beating them is worth.
+// The roster is a takeover, not a panel, so the stage behind it can stay clean.
 //
 // Cards are in ladder order, rung zero being the lesson. Nothing is
 // pre-picked (the lobby's rule): the ring around a card only appears once you
@@ -15,7 +14,7 @@ import { useI18n } from '../i18n';
 import { useDialogFocus } from '../useDialogFocus';
 import BotAvatar from '../BotAvatar';
 
-/** The YapMaster's lesson card. Hidden for now (2026-09-12). */
+/** The YapMaster's lesson card. Hidden for now. */
 const SHOW_LESSON = false;
 
 export interface RosterBot {
@@ -67,8 +66,8 @@ export default function BotRoster({ bots, picked, onPick, onClose }: Props) {
         <div className="lb-roster-grid">
           {/* Rung zero: the lesson. The YapMaster demos rather than competes,
               so its card carries "lesson" where the others carry a number.
-              Off the menu for now (his call, 2026-09-12); the tutorial code
-              stays, flip SHOW_LESSON to bring the card back. */}
+              Off the menu for now; the tutorial code stays, so flip
+              SHOW_LESSON to bring the card back. */}
           {SHOW_LESSON ? (
           <button
             className={`lb-card lb-card-tutor ${picked === 'tutor' ? 'lb-card-on' : ''}`}

@@ -1,7 +1,7 @@
 // A sheet over the lobby, in the bot roster's modal look. The match settings
 // (bots and friends) and the live list (watch) open in one of these from the
-// go button (his call 2026-09-12), so nothing tab-specific ever sits on the
-// stage and every tab keeps Play Online's layout.
+// go button, so nothing tab-specific ever sits on the stage and every tab
+// keeps Play Online's layout.
 import { useEffect, useRef, type ReactNode } from 'react';
 import { useI18n } from '../i18n';
 import { useDialogFocus } from '../useDialogFocus';

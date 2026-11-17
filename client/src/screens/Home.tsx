@@ -1,62 +1,59 @@
-// THE LOBBY. Rebuilt 2026-08-21 after "a lot of people have been telling me
-// the site looks really bad, it's so obviously AI", and cut down again on
-// 2026-09-04 when he walked it as a new user.
+// THE LOBBY. Rebuilt after feedback that the site read as obviously
+// machine-generated, and cut down again on a walkthrough as a new user.
 //
-// What is here and why, so nobody re-adds what he removed:
+// What is here and why, so nobody re-adds what was deliberately removed:
 //
-//   1. ONE navigation. Five verbs in a dock along the bottom, in HIS order
+//   1. ONE navigation. Five verbs in a dock along the bottom, in this order
 //      (play online · play bots · play a friend · watch a match · daily
 //      drill), and the stage above shows what you picked. The bar carries
 //      only the mark, the house rule, your name, previous matches, sign out.
 //   2. A mode is explained ONCE, in the caption above the dock.
 //   3. NOTHING IS PRE-PICKED. You pick, the bot walks on, the button says it.
-//   4. NO FRIENDS LIST (2026-09-04, his call: "overcomplicating it"). Play a
-//      friend is a code and a link, full stop. The server still has friends;
-//      the UI does not. "Maybe we can look at it later."
-//   5. NO SIDES ON THE ART. You were always drawn as FOR, and he asked why
-//      ("isn't that kind of weird?"), so the stage shows you and whoever is
-//      opposite, no labels. Watch mode is the one exception: those two really
-//      are FOR and AGAINST. Since 2026-09-12 the side IS a setting, in the
-//      panel under the fighters (MatchSetup), for friend rooms and bot games:
-//      coin flip by default, for or against if the host reaches for it. The
-//      coin stays the default because arguing the side you were dealt is the
-//      skill; the choice is there for practising one argument.
-//   9. THE HOST SETS THE MATCH (2026-09-12). One panel, the same in friend
-//      rooms and bot games: topic (random, a category, one motion) and side.
-//      It sits under the fighters with the go button, so it adds no second
-//      navigation. In a friend room it is server state, echoed back in every
-//      lobby:update, and the guest reads it in the green room; in a bot game
-//      it is local until bot:start.
-//   6. NO LOCKER SCREEN. Tap your own mask (or "change mask" under it) and the
+//   4. NO FRIENDS LIST: it overcomplicates the mode. Play a friend is a code
+//      and a link, full stop. The server still has friends; the UI does not.
+//   5. NO SIDES ON THE ART. You were always drawn as FOR, which reads oddly,
+//      so the stage shows you and whoever is opposite, no labels. Watch mode
+//      is the one exception: those two really are FOR and AGAINST. The side
+//      IS a setting, in the panel under the fighters (MatchSetup), for friend
+//      rooms and bot games: coin flip by default, for or against if the host
+//      reaches for it. The coin stays the default because arguing the side
+//      you were dealt is the skill; the choice is there for practising one
+//      argument.
+//   6. THE HOST SETS THE MATCH. One panel, the same in friend rooms and bot
+//      games: topic (random, a category, one motion) and side. It sits under
+//      the fighters with the go button, so it adds no second navigation. In a
+//      friend room it is server state, echoed back in every lobby:update, and
+//      the guest reads it in the green room; in a bot game it is local until
+//      bot:start.
+//   7. NO LOCKER SCREEN. Tap your own mask (or "change mask" under it) and the
 //      roster walks out, same shape as the bot roster.
-//   7. RATING LIVES IN THE RANKED MODE, and there is one of them. Ranked is
-//      standard only (his call 2026-09-12: one mode, so every player is in
-//      the same queue); the per-length ratings and the three chips under
-//      the stage from 2026-09-04 are gone. The chip under your name shows
-//      your rating, or "not placed yet".
-//   8. PLACEMENT IS THREE BOT GAMES (2026-09-16; one match before that).
+//   8. RATING LIVES IN THE RANKED MODE, and there is one of them. Ranked is
+//      standard only, so every player sits in the same queue; the per-length
+//      ratings and the three chips under the stage are gone. The chip under
+//      your name shows your rating, or "not placed yet".
+//   9. PLACEMENT IS THREE BOT GAMES (it was one match before that).
 //      Unplaced, the ranked stage puts the next placement bot opposite you
 //      instead of an empty ring (the server picks it: rank 4 first, then up
 //      or down on the result), "Placement 1 of 3" and three marks sit under
 //      the VS, and the go button starts that game.
-//  11. WATCHING LIVE NEEDS FINISHED PLACEMENT (2026-09-16), where sign-in
-//      exists. A guest's watch stage says so with sign-in as the go button;
-//      a signed-in player still placing sees the same line, their series,
+//  10. WATCHING LIVE NEEDS FINISHED PLACEMENT, where sign-in exists. A
+//      guest's watch stage says so with sign-in as the go button; a
+//      signed-in player still placing sees the same line, their series,
 //      and the go button starts their next placement game. The server
 //      refuses the stream either way (watch_locked). The code box for a
 //      friend's room stays, for everyone: the code is the invitation.
-//   9. WATCH MODE BROWSES (2026-09-12, his ask). Under the stage: the deck's
-//      tabs, the live ranked list as rows you tap, the random button, and a
-//      code box for a friend's room. Only ranked is ever listed; a friend's
-//      room is reachable by its code and nothing else. The featured pair on
-//      the stage is the freshest bout in the tab you are on.
-//  10. NO ACCOUNT FOR ANYTHING BUT RANKED (his call 2026-09-12, reversing
-//      2026-08-22). A guest plays bots, a friend, watches and drills under a
-//      name the device is given (guest.ts), wearing the grey silhouette:
-//      characters come with an account (2026-09-12). The line under the
-//      silhouette says so, and tapping it shows the roster locked, with the
-//      sign-in button. Ranked alone asks for the account, on its own stage
-//      with the reason in one line, and the bar carries a quiet sign-in.
+//  11. WATCH MODE BROWSES. Under the stage: the deck's tabs, the live ranked
+//      list as rows you tap, the random button, and a code box for a
+//      friend's room. Only ranked is ever listed; a friend's room is
+//      reachable by its code and nothing else. The featured pair on the
+//      stage is the freshest bout in the tab you are on.
+//  12. NO ACCOUNT FOR ANYTHING BUT RANKED. A guest plays bots, a friend,
+//      watches and drills under a name the device is given (guest.ts),
+//      wearing the grey silhouette: characters come with an account. The
+//      line under the silhouette says so, and tapping it shows the roster
+//      locked, with the sign-in button. Ranked alone asks for the account,
+//      on its own stage with the reason in one line, and the bar carries a
+//      quiet sign-in.
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import {
   GUEST_AVATAR,
@@ -131,7 +128,7 @@ function errorKey(code: string | undefined): string {
 
 export type LobbyMode = 'ranked' | 'bot' | 'friend' | 'watch' | 'drill';
 type Mode = LobbyMode;
-// His order (2026-09-04): online, bots, a friend, watch, drill.
+// Dock order: online, bots, a friend, watch, drill.
 const MODES: Mode[] = ['ranked', 'bot', 'friend', 'watch', 'drill'];
 
 /* The tab you were on and the bot you picked, for this browser tab only.
@@ -252,9 +249,10 @@ export default function Home({
   const needAccount = account.google && !account.signedIn;
 
   // Where you were before a match, the drill or the watching screen, so
-  // "back to the lobby" comes back to that tab with the same bot picked
-  // (QA 2026-09-13: it always landed on play online, bot cleared). Kept for
-  // this tab only (sessionStorage), because the verdict's way back reloads.
+  // "back to the lobby" comes back to that tab with the same bot picked;
+  // without this it always lands on play online with the bot cleared. Kept
+  // for this tab only (sessionStorage), because the verdict's way back
+  // reloads.
   const [recalled] = useState(recallLobby);
 
   // A guest lands on the bots, which they can play this second, never on
@@ -280,8 +278,8 @@ export default function Home({
   const [queueing, setQueueing] = useState(false);
   const [queueInfo, setQueueInfo] = useState<{ waiting: number } | null>(null);
   // When this search began, for the clock under "looking for someone" and
-  // the honest line after twenty seconds alone (QA 2026-09-13: the screen
-  // said nothing else, forever).
+  // the honest line after twenty seconds alone; without it the screen says
+  // nothing more, indefinitely.
   const [queueSince, setQueueSince] = useState<number | null>(null);
   const queueingRef = useRef(false);
   queueingRef.current = queueing;
@@ -543,8 +541,8 @@ export default function Home({
   /* ---- the friend room: a code, made the moment you pick the mode ---- */
 
   // The room is opened when you land on "play a friend", so the code is on
-  // the stage without another tap (his spec). It is left again when you pick
-  // another mode. It is NOT left on unmount: the friend walking in is what
+  // the stage without another tap. It is left again when you pick another
+  // mode. It is NOT left on unmount: the friend walking in is what
   // unmounts this screen, and leaving then would slam the door on them.
   // The whole LobbyUpdate, not just the code: the match settings the host
   // picks here are server state, and the server's echo is what the panel
@@ -561,7 +559,7 @@ export default function Home({
   const resuming = useRef<string | null>(null);
   // A walk-in in flight. Nothing opens a room of yours meanwhile: the auto
   // open used to fire in the same millisecond as the join and seat you in
-  // their room AND a new one of your own (QA 2026-09-13).
+  // their room AND a new one of your own.
   const joining = useRef(false);
   // Said once the next room opens: the old code died with the connection.
   const roomNote = useRef<string | null>(null);
@@ -649,7 +647,7 @@ export default function Home({
   const [botSetup, setBotSetup] = useState<MatchSetupValue>(DEFAULT_SETUP);
   // The settings (bots, friends) and the live list (watch) open in a sheet
   // from the go button, never on the page: every tab keeps Play Online's
-  // stage exactly where it is (his call 2026-09-12).
+  // stage exactly where it is.
   const [sheet, setSheet] = useState<null | 'setup' | 'live'>(null);
   const roomSetup = room ? setupOf(room) : null;
   function changeRoomSetup(next: MatchSetupValue) {
@@ -771,8 +769,8 @@ export default function Home({
 
   async function startBot() {
     if (!pickedBot || startingRef.current || !requireName()) return;
-    // Both of these must happen INSIDE this tap, and losing them is exactly
-    // how the redesign brought the robot voice back: initAudio unlocks the
+    // Both of these must happen INSIDE this tap, and dropping them is
+    // exactly what brings the robot voice back: initAudio unlocks the
     // AudioContext and speech synthesis, unlockBotVoice unlocks the one
     // long-lived <audio> element that plays the bot's REAL voice.
     initAudio();
@@ -957,8 +955,8 @@ export default function Home({
   // tap it and the mask roster walks out.
   // Every fighter wears the same lines under its picture (name, small line,
   // chip), invisible where a tab has nothing to say. The pictures then sit at
-  // the same height in every tab and on both sides (his note: "the placement
-  // of my character, the page, everything" moved when switching tabs).
+  // the same height in every tab and on both sides; without the reserved
+  // slots the character and the rest of the page shift when switching tabs.
   const blank = (
     <span className="lb-hide" aria-hidden="true">
       .
@@ -1012,13 +1010,13 @@ export default function Home({
         <div className="lb-fname">{effName || t('lbYou')}</div>
         <span className="lb-change">{t(account.signedIn ? 'lbChangeMask' : 'lbChangeMaskGuest')}</span>
       </button>
-      {/* Placed: your number, and only the number (no tier names since
-          2026-09-12). Unplaced: say so. Unknown (the store is down, so
-          /rating is the seed for everyone): say nothing, since "700" under a
-          2400 player is a lie the chip would be telling. */}
+      {/* Placed: your number, and only the number, no tier names. Unplaced:
+          say so. Unknown (the store is down, so /rating is the seed for
+          everyone): say nothing, since "700" under a 2400 player is a lie
+          the chip would be telling. */}
       {/* Not for a guest: their ranked stage asks for an account, and "not
-          placed yet" right above "Ranked needs an account" read as a
-          contradiction (QA 2026-09-13). */}
+          placed yet" right above "Ranked needs an account" reads as a
+          contradiction. */}
       {mode === 'ranked' && !needAccount && rank?.placed === true ? (
         <span className="lb-tier">
           <span className="lb-elo">{rank.rating}</span>
@@ -1033,8 +1031,7 @@ export default function Home({
 
   // The next placement bot, standing where a stranger would.
   // Its rating is a chip under its name, level with "Not placed yet" under
-  // yours; what the game is for is said under the VS (his layout,
-  // 2026-09-12).
+  // yours; what the game is for is said under the VS.
   const nextBotStand = nextBot ? (
     <>
       <div className="lb-picked lb-static">
@@ -1250,10 +1247,10 @@ export default function Home({
 
   /* ---- around the VS: codes, placed so they never move the stage ---- */
 
-  // Everything around the VS sits UNDER it (his layout, pass three,
-  // 2026-09-12): your room's code, then the box for somebody else's code, and
-  // in ranked the placement line. Positioned out of the layout, so the
-  // fighters, the lights and the button sit where Play Online has them.
+  // Everything around the VS sits UNDER it: your room's code, then the box
+  // for somebody else's code, and in ranked the placement line. Positioned
+  // out of the layout, so the fighters, the lights and the button sit where
+  // Play Online has them.
   const roomTicket =
     mode === 'friend' && room ? (
       <div className="lb-ticket lb-ticket-mid">
@@ -1284,7 +1281,7 @@ export default function Home({
           }}
         />
         {/* Never onClick={submit}: the click event would arrive as join()'s
-            code argument (the Walk in button did nothing, QA 2026-09-13). */}
+            code argument, and the Walk in button then does nothing. */}
         <button className="btn btn-small" disabled={off || value.trim().length !== 6} onClick={() => submit()}>
           {cta}
         </button>
@@ -1372,8 +1369,8 @@ export default function Home({
         </div>
 
         <div className="lb-who">
-          {/* Two proper buttons, top right (his ask, 2026-09-12): your
-              previous matches and Settings. Sign out lives in Settings. A
+          {/* Two proper buttons, top right: your previous matches and
+              Settings. Sign out lives in Settings. A
               guest has no match history, so they get Settings and the quiet
               sign-in instead. */}
           {account.signedIn ? (
@@ -1459,8 +1456,8 @@ export default function Home({
             {opponent}
           </div>
 
-          {/* Guests don't pick a name (his call, 2026-09-13): the device gives
-              them one (guest.ts). One line says who they are playing as, and
+          {/* Guests don't pick a name: the device gives them one (guest.ts).
+              One line says who they are playing as, and
               it is also the disclosure for filing a guest's games under the
               device id. Not for watching (the crowd is anonymous) and not on
               a ranked stage that is asking for an account instead. */}
@@ -1642,8 +1639,8 @@ export default function Home({
       {settingsOpen ? (
         <SettingsSheet
           // The whole account, guests included: the sheet reads `google`
-          // off it, and a guest was told "Sign-in is off on this server"
-          // with Google switched on (QA 2026-09-13).
+          // off it, and with a trimmed object a guest is told "Sign-in is
+          // off on this server" while Google is switched on.
           account={account}
           onClose={() => setSettingsOpen(false)}
           onRenamed={() => window.location.reload()}

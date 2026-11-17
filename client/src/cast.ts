@@ -1,10 +1,9 @@
 // THE CAST. Sixteen characters drawn as busts, head and shoulders in a
 // 0 0 100 100 frame, two flat tones per mass with the light from the upper
-// left. Fourteen were drawn 2026-09-10 by the fourteen-artist workflow (three
-// critic lenses, up to seven revision rounds each); he chose this set over a
-// build-your-own character on 2026-09-12 ("go back to our designs"). The same
-// night: Corvin, Quip, Bally and Humpty were fixed on his four questions, and
-// Fuma (the ninja) and Crux (the climber) were drawn as busts to join them.
+// left. A fixed set was chosen over a build-your-own character: sixteen
+// drawings that hold up at 96px beat an infinite builder that does not.
+// Corvin, Quip, Bally and Humpty were revised after the first pass, and Fuma
+// (the ninja) and Crux (the climber) drawn as busts to join them.
 //
 // Eight are public-domain figures (people dead well over a century, or myth
 // and nursery rhyme), drawn from busts and period plates, never from any
@@ -13,18 +12,18 @@
 // Fuma the ninja (after the Fuma clan of legend), Crux the climber (the
 // hardest move on a route).
 //
-// GENERATED from the artists' final files, one string per character. Edit a
+// GENERATED from the source drawings, one string per character. Edit a
 // drawing by re-exporting it, not by hand-editing a 5 KB path string here.
 // A few carry a <clipPath id>; the ids are unique per character, so two
 // copies of the same character on one page share an identical definition.
-// 2026-09-12: Bally (Indian), Fuma (East Asian), Crux (Latina) restyled and the
+// Bally (Indian), Fuma (East Asian), Crux (Latina) were restyled, the
 // Socrates and Aristotle heads refit, and Quip and Athena (helmet pushed up) redrawn,
-// edited in place here, not in roster-final.json.
+// all edited in place here, not in roster-final.json.
 // Do not regenerate this file from that old export.
 //
 // Plus one that is not a character: `guest`, the grey silhouette every
-// signed-out seat wears (his call 2026-09-12, "to encourage them to log in to
-// get skins"). Drawn by hand here, in the same frame and light as the cast,
+// signed-out seat wears, which gives signed-out users a reason to log in and
+// get skins. Drawn by hand here, in the same frame and light as the cast,
 // two greys and no face, so it reads as "no character yet". Off the roster
 // (Mask.tsx MASK_IDS, protocol.ts AVATAR_IDS): only the server seats you in it.
 export const CAST: Record<string, string> = {

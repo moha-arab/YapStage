@@ -31,26 +31,25 @@ spacing is a claim the calibration plan below has to make true. Until it has
 run, treat every gap as a statement of intent with an error bar of the whole
 gap.
 
-The six animals that survived the 2026-09-12 re-rating (Nib, Moss, Jinx,
-Wendell, Rocco, Vesper) kept their names, art and voices but were given new rung
-contracts, so the 2026-08-11 measurements below no longer describe them.
+Six animals carried over into the eight-rung ladder (Nib, Moss, Jinx, Wendell,
+Rocco, Vesper) with their art and voices but new rung contracts, so the
+2026-08-11 measurements below no longer describe them.
 
-Later on 2026-09-12 the tortoise became a woman, renamed Prudence (Wendell in
-every table below) and voiced by Alice, and Sable went back to being a man,
-voiced by George. Then the raccoon Jinx became Dodger and the cat Sable
-became Sterling, names that read as the men they are (the tables below keep
-the old names). Names, art and voices only: no rung contract changed.
+**Name map for the older tables.** Three bots were later renamed, art and
+voices only, with no rung contract change: Jinx is now Dodger (rank 3),
+Wendell is now Prudence (rank 5), Sable is now Sterling (rank 7). Tables dated
+before the rename use the old names.
 
 ### Why 200 to 3000
 
 An earlier version of this file argued for a 650 to 1500 span on the grounds
 that 900 points already made the top rung beat the bottom rung 99 percent of
-the time and a wider ladder would be theatre. That was overruled on 2026-09-12
-("anchor them to these ratings"): a ladder is also a map of what there is to
-learn, and eight rungs with one named skill each need eight numbers a player
-can recognise from any game with ranks. The Elo arithmetic has not changed,
-which is why the plan below insists on measuring the spacing rather than
-assuming it.
+the time and a wider ladder would be theatre. The wider span won on a
+different argument: a ladder is also a map of what there is to learn, and
+eight rungs with one named skill each need eight numbers a player can
+recognise from any game with ranks. The Elo arithmetic has not changed, which
+is why the plan below insists on measuring the spacing rather than assuming
+it.
 
 ### What a gap means
 
@@ -76,16 +75,16 @@ numbers (see "when it fails").
 ## No tiers
 
 The ladder used to name eight metals (Iron to Headliner) with a bot at every
-boundary. He cut them on 2026-09-12 ("remove the ranks, only numbers"): a
-rating is the whole rank now, and the eight bots are the only fixed numbers
-on it. "I am above Clover" is what a tier used to say, and it still says it.
+boundary. Those were cut in favour of numbers alone: a rating is the whole
+rank now, and the eight bots are the only fixed numbers on it. "I am above
+Clover" is what a tier used to say, and it still says it.
 
 ## Where humans start
 
 Nobody seeds any more. A new player's first number comes from three placement
-games against bots, his call on 2026-09-16 (it was one game against Clover
-from 2026-09-12, and before that three games against strangers nobody in a
-small pool could find). The series adapts, as implemented in
+games against bots. Earlier designs used one game against Clover, and before
+that three games against strangers nobody in a small pool could find. The
+series adapts, as implemented in
 `server/src/placement.ts`, `server/src/judge.ts` and
 `store.recordPlacementGame` / `store.finishPlacement`:
 
@@ -117,8 +116,8 @@ small pool could find). The series adapts, as implemented in
   and only matters if the store is down.
 - The starting rating is clamped to 500 to 3000 (placement.ts PLACED_MIN):
   the formula can land near 220 after three heavy losses, but the ranked
-  floor is 500, and a number the first ranked loss would silently lift was
-  not worth showing (2026-09-16).
+  floor is 500, and a number the first ranked loss would silently lift is not
+  worth showing.
 
 The first hundred placements should be read against this: if they bunch at
 one end, the margin scale (15) or the clamps move.
@@ -127,8 +126,8 @@ one end, the margin scale (15) or the clamps move.
 
 Ranked means humans, the same rule chess.com runs. This was briefly reversed
 (bot matches rated against the fixed bot ratings) to solve the cold-start
-problem in a twenty-person pool, and reverted 2026-08-12. Two reasons, and both
-outrank the cold-start argument:
+problem in a twenty-person pool, then reverted. Two reasons, and both outrank
+the cold-start argument:
 
 1. **A bot is a fixed strategy.** Wendell never repairs a point you hit. Once you
    learn that, you beat Wendell forever with the same move, and a rating would
@@ -165,7 +164,8 @@ FAST-only route that runs `generateBotArgument` for both seats and then the
 judge, with `DEBATE_SPEED=fast` and `ELEVENLABS_API_KEY` empty. The current
 `bot-beatability.mjs` pits a bot against a scripted human and cannot do this.
 Rotate over ten motions from the deck, not one, and alternate which bot argues
-FOR. A debate is about 8 generations and one judge call, roughly 10 cents.
+FOR. One debate costs about 8 model generations plus one judge call, which is
+the unit to budget every phase below in.
 
 | phase | what | debates | pass |
 | --- | --- | --- | --- |
@@ -174,8 +174,8 @@ FOR. A debate is about 8 generations and one judge call, roughly 10 cents.
 | C. Placement fairness and endpoints | Clover v Clover, 20, sides alternated; Nib v Vesper, 4 | 24 | Clover v Clover splits between 7 and 13 of 20 for FOR (outside that band the judge or the format has a side bias that would poison every placement, and that gets fixed before anything else); Nib v Vesper goes 4 to 0 |
 | D. Human scale, scripted profiles | both profiles in `bot-beatability.mjs` against all eight bots, 3 runs each | 48 | average beats Nib 3 of 3 and Moss at least 2 of 3, splits with Jinx, loses to Clover and above; strong beats through Clover, splits with Wendell, loses to Rocco and above |
 
-Total about 272 debates, about 27 dollars. After any prompt change, rerun
-phase A at 10 per pair (70 debates, 7 dollars).
+Total about 272 debates. After any prompt change, rerun phase A at 10 per pair
+(70 debates).
 
 **A confirming result** has no inversion anywhere; every adjacent pair between
 14 and 19 wins of 20 for the higher bot (an implied gap of about 190 to 510 by
@@ -199,10 +199,10 @@ says they should, average near Jinx and strong near Wendell.
 
 **Error bar.** 20 debates confirms order, not exact spacing: the 95 percent band
 on a true 91 percent rate is roughly 70 to 99. Pinning a gap to plus or minus
-100 needs about 50 debates per pair, which is 35 dollars for the seven adjacent
-pairs and is the second pass once the first is clean.
+100 needs about 50 debates per pair, 350 debates across the seven adjacent
+pairs, and is the second pass once the first is clean.
 
-## What was measured on 2026-09-12 (the eight-rung ladder)
+## Run 2026-09-12: the eight-rung ladder, phase D
 
 Phase D only, at 2 runs per cell instead of 3, with the new cast and the
 tightened judge. Phases A to C still need the bot-versus-bot harness.
@@ -228,16 +228,15 @@ Those gaps are inside the judge's run-to-run noise at two runs, and a scripted
 human cannot separate the top of the ladder. That is what phases A and B are
 for.
 
-Against the same run the night before (old cast, judge not yet tightened),
-the floor widened: Nib +61 where Pip was +37. That fits the tightened judge
+Against the immediately preceding run (old cast, judge not yet tightened) the
+floor widened: Nib +61 where Pip was +37. That fits the tightened judge
 scoring clear cases more decisively (mean margin on clear cases 48 to 56).
 
-## What was measured before (the old six-rung ladder and the old cast, 2026-08-11)
+## Run 2026-08-11: the old six-rung ladder and the old cast
 
-Kept for the lessons, not the numbers. The names are the cast of the time
-(Pip the duckling up to Gigi the giraffe, replaced 2026-09-12). The old rungs
-were 650 to 1500, the
-"average" profile in `bot-beatability.mjs`, 3 runs per rung:
+Kept for the lessons, not the numbers. The names are the cast of the time (Pip
+the duckling up to Gigi the giraffe), since replaced. The old rungs were 650 to
+1500, the "average" profile in `bot-beatability.mjs`, 3 runs per rung:
 
 | rung | bot | win rate | avg margin | old rating |
 | --- | --- | --- | --- | --- |
@@ -268,14 +267,14 @@ median human: its four turns are written in advance, so it cannot actually
 respond to what the bot just said, and clash is 30 of the 100 rubric points.
 A real player of the same ability scores higher than the script does.
 
-## Spot check on 2026-09-13 (the no-animal rule and the renames)
+## Run 2026-09-13: spot check on the no-animal rule and the renames
 
 The bot prompt gained one sentence (a persona, not a species: never mention,
-joke about or pun on being an animal) and the eight styles lost their
-species; three bots were renamed in their prompts (Dodger, Prudence,
-Sterling). Phase D at 1 run per cell, about 1.60 dollars. Not one animal
-reference in the 16 transcripts, and every cell sits inside the 2026-09-12
-numbers' noise (yesterday's figure in brackets):
+joke about or pun on being an animal) and the eight styles lost their species;
+three bots were renamed in their prompts (Dodger, Prudence, Sterling). Phase D
+at 1 run per cell, 16 debates. Not one animal reference in the 16 transcripts,
+and every cell sits inside the noise of the 2026-09-12 numbers (which are the
+figures in brackets):
 
 | rung | bot | average profile | strong profile |
 | --- | --- | --- | --- |
@@ -384,12 +383,12 @@ players averaging 1400, its label is wrong by 110 points. On this ladder the
 number stays where it is and the rung's directive moves until the label is true
 again.
 
-## 2026-09-13: bot turns now fit their clock (re-calibration pending)
+## Run 2026-09-13: bot turns fitted to their clock (re-calibration pending)
 
-A paid QA run on the live site measured the ElevenLabs voices at about 2.1
-words a second: Vesper spoke 39.3 seconds in a 35 second defense and 42.9 in
-a 25 second closing. The client cuts the audio at the clock, but the judge
-read the whole generated text, so top bots were scored on words nobody heard.
+A run against the live site measured the ElevenLabs voices at about 2.1 words
+a second: Vesper spoke 39.3 seconds in a 35 second defense and 42.9 in a 25
+second closing. The client cuts the audio at the clock, but the judge read the
+whole generated text, so top bots were scored on words nobody heard.
 
 `fitToClock()` (bots.ts) now trims every bot turn at a sentence end to what
 its voice can say in the turn (8 percent plus one second of margin; standard
@@ -401,10 +400,10 @@ turn, so rungs 4 to 8 (80 to 110 words at standard) lose the end of their
 closings (often the weighing sentence) and some of their defenses. Expect the
 top rungs to measure weaker than their labels and to compress together. The
 proper fix is a clock-aware lengthRule (targets per turn length, keeping the
-rung differences as density rather than length), then phase D (about 1.60
-dollars) and, if the order moves, phase A (about 7 dollars).
+rung differences as density rather than length), then phase D (16 debates)
+and, if the order moves, phase A (70 debates).
 
-## 2026-09-14: clock-aware lengthRule, phase D
+## Run 2026-09-14: clock-aware lengthRule, phase D
 
 `lengthRule(rank, pace, seconds)` now caps each rung's word range at what the
 voice can say in that turn (`clockWordBudget(seconds)` less four words for the
@@ -415,8 +414,8 @@ rungs now differ only in what they do with the words (`rungDirective`). The
 old closing and defense token trim is gone; `fitToClock` stays as a backstop.
 Standard is the default pace again for friend rooms, ranked and placement.
 
-Phase D at 1 run per cell (16 debates, about 1.60 dollars), margins from the
-human's side, with the 2026-09-13 spot check in brackets:
+Phase D at 1 run per cell (16 debates), margins from the human's side, with
+the 2026-09-13 spot check in brackets:
 
 | bot | average profile | strong profile |
 | --- | --- | --- |
@@ -437,6 +436,6 @@ beat it clearly. At one run per cell those gaps sit inside the judge's
 noise, and the top was already out of order on 2026-09-13 (Sterling easier
 than Rocco and Prudence for both profiles). Ladder direction check: OK.
 
-Next, if the top-rung labels matter before real data exists: phase A at 10
-per pair across rungs 5 to 8 (about 7 dollars), and move `rungDirective` for
-Rocco and Sterling rather than giving length back.
+Next, if the top-rung labels matter before real data exists: phase A at 10 per
+pair across rungs 5 to 8, and move `rungDirective` for Rocco and Sterling
+rather than giving length back.

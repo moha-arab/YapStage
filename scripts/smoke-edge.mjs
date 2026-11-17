@@ -1,5 +1,5 @@
-// Edge-case checks for launch (QA pass, 2026-09-12). Modelled on smoke.mjs:
-// fake socket clients drive a DEBATE_SPEED=fast server with the mock judge.
+// Edge-case checks. Modelled on smoke.mjs: fake socket clients drive a
+// DEBATE_SPEED=fast server with the mock judge.
 //
 //   URL=http://localhost:3012 node scripts/smoke-edge.mjs
 //   ONLY=e1,e3 ...            run a subset
@@ -47,7 +47,7 @@ const collect = (sock, ev, ms) =>
       res(got);
     }, ms);
   });
-/** The server's event trail. Keyed since 2026-09-12: run the server with
+/** The server's event trail. The endpoint is keyed: run the server with
     STATS_KEY set and pass the same STATS_KEY here, or every check that
     reads events has nothing to read. */
 const STATS_KEY = process.env.STATS_KEY ?? '';
@@ -72,7 +72,7 @@ async function friendDebate(tag) {
   const b = connect();
   const sa = `${tag}a${U}`;
   const sb = `${tag}b${U}`;
-  // Signed-out names are the device's GuestNNNN and nothing else (2026-09-12).
+  // Signed-out names are the device's GuestNNNN and nothing else.
   const cr = await emitP(a, 'lobby:create', { sessionId: sa, name: 'Guest2101', playerId: `pid-${sa}` });
   const code = cr.update.code;
   const jr = await emitP(b, 'lobby:join', { code, sessionId: sb, name: 'Guest2102', playerId: `pid-${sb}` });
@@ -153,7 +153,7 @@ if (want('e7')) {
   } else {
     await st;
     // Ask the event trail a few times: a single look right after debate:start
-    // came back empty on one run (2026-09-13) and silently skipped E12.
+    // can come back empty, which silently skips E12.
     let code;
     for (let i = 0; i < 6 && !code; i++) {
       code = (await events()).find((e) => e.evt === 'bot_debate_started' && e.t >= since)?.code;

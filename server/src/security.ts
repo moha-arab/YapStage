@@ -1,6 +1,6 @@
-// Pre-launch hardening (security review, 2026-09-12). The rules live here as
-// small pure functions so the smoke suite can check each one without a
-// browser, a database or a signed-in cookie (scripts/security-unit.mjs).
+// Security hardening rules, kept as small pure functions so the smoke suite
+// can check each one without a browser, a database or a signed-in cookie
+// (scripts/security-unit.mjs).
 import crypto from 'node:crypto';
 import { allow, exhausted } from './ratelimit.js';
 import type { SignalPayload } from './protocol.js';

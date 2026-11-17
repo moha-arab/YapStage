@@ -1,5 +1,6 @@
 /* YapStage: the house lights.
-   Rules of the house, rewritten 2026-08-21 after "it's so obviously AI":
+   Rules of the house. Each one exists to avoid the default look of a
+   generated dark UI:
      - ONE dark, a blue-plum, never a warm black. Warm-black-plus-gold is the
        default costume of every AI-generated dark UI and of every sportsbook.
      - Flat surfaces. No offset hard shadows, no 3px outlines on everything,
@@ -1915,7 +1916,7 @@ html[dir='rtl'] .meter-hint {
 }
 
 /* Each quote scales up out of its own centre; the answering one lands a beat
-   after the opening one, which is the whole joke of the mark. */
+   after the opening one, which is the idea the mark is built on. */
 .splash svg path {
   transform-box: fill-box;
   transform-origin: center;
@@ -2097,8 +2098,8 @@ html[dir='rtl'] .meter-hint {
   accent-color: var(--amber);
 }
 
-/* ---- the green room (GreenRoom.tsx), 2026-09 pass: capped tiles, the
-   host's settings on one line, the start pinned to the panel's foot ---- */
+/* ---- the green room (GreenRoom.tsx): capped tiles, the host's settings on
+   one line, the start pinned to the panel's foot ---- */
 .green-room .tiles,
 .green-room .picker,
 .green-room .face-controls,
@@ -2350,9 +2351,6 @@ html[dir='rtl'] .meter-hint {
 }
 
 /* The frame is the ONE place a debater's colour lives on this screen, so it
-   has to be thick enough to read across a room: a hairline while you wait,
-   a 3px gel while you are the one talking. */
-/* The frame is the ONE place a debater's colour lives on this screen, so it
    has to read across a room: a neutral 3px while you wait, the gel while you
    are the one talking. Solid, never `transparent` — a transparent border lets
    the video underneath bleed out past the rounded corners as coloured slivers
@@ -2410,13 +2408,12 @@ html[dir='rtl'] .meter-hint {
   background: rgba(11, 10, 8, 0.72);
 }
 
-/* THE LIT TILE (2026-09-12). Whoever has the floor, their whole rectangle
-   lights in their gel: the frame, a glow thrown past it, and the ground
-   behind them lifted toward the colour. It replaced the speaking ring, a
-   circle round the face that shook with every syllable (his note: "remove
-   the circle that vibrates when people talk, just light up each rectangle
-   when it's that person's turn"). It holds steady for the whole turn and is
-   the same for a camera, a character and a bot. Never gold: gold is a win. */
+/* THE LIT TILE. Whoever has the floor, their whole rectangle lights in their
+   gel: the frame, a glow thrown past it, and the ground behind them lifted
+   toward the colour. It replaces the speaking ring, a circle round the face
+   that shook with every syllable; lighting the whole rectangle for the turn
+   holds steady instead of tracking the voice, and is the same for a camera,
+   a character and a bot. Never gold: gold is a win. */
 .tile-for {
   --gel: var(--for);
   --gel-ink: #241203;
@@ -2661,8 +2658,8 @@ html[dir='rtl'] .meter-hint {
    The beat between the green room and the first turn, in the lobby's own
    grammar: two fighters in their cones of light, the motion over them, vs
    between them. It used to be five lines of type down the middle of an empty
-   screen (his note: "make it look better in the empty space"), so the stage
-   that introduced you to your opponent in the lobby now introduces the fight.
+   screen, so the stage that introduces you to your opponent in the lobby
+   introduces the fight as well rather than leaving the space unused.
    The parts are named fc- rather than reusing lb- because lobby.css scopes its
    sizes to the lobby's 100vh grid and this card lives on a scrolling stage. */
 .fc-stage {
@@ -3723,9 +3720,9 @@ html[dir='rtl'] .meter-hint {
   flex: none;
 }
 /* The mouth-flap and frame-bob that used to run while a bot or a mask spoke
-   were removed 2026-09-04, and the speaking ring that replaced them on
-   2026-09-12: the lit tile (.tile-active) says who has the floor now, and
-   the drawings hold still. botpulse survives for the thinking caption only. */
+   are gone, as is the speaking ring that replaced them: the lit tile
+   (.tile-active) says who has the floor, and the drawings hold still.
+   botpulse survives for the thinking caption only. */
 @keyframes botpulse {
   0%,
   100% {
@@ -3931,13 +3928,12 @@ html[dir='rtl'] .meter-hint {
     radial-gradient(circle at 50% 42%, #2e2f58, var(--house-2) 72%);
 }
 
-/* THE BUST IN ITS FRAME (2026-09-12). The characters and the bots are drawn
-   head and shoulders in a 0 0 100 100 box with the shoulders running off its
-   bottom edge. They used to float mid-tile inside a ring, which cut them off
-   at the chest in mid-air; his note: "put the shoulders of the character on
-   the bottom edge of the rectangle". So the drawing is a square, bottom
-   centred, as tall as the tile and never wider than it (100cqh capped by
-   100cqw), and the shoulders sit on the frame like a portrait's. The
+/* THE BUST IN ITS FRAME. The characters and the bots are drawn head and
+   shoulders in a 0 0 100 100 box with the shoulders running off its bottom
+   edge. They used to float mid-tile inside a ring, which cut them off at the
+   chest in mid-air. So the drawing is a square, bottom centred, as tall as
+   the tile and never wider than it (100cqh capped by 100cqw), and the
+   shoulders sit on the frame's bottom edge like a portrait's. The
    !important beats the size="100%" the components set inline; a browser
    without container units keeps that 100% and a centred bust. */
 .tile-bust {

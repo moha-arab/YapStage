@@ -4,7 +4,7 @@
 //
 // The identity is Google's `sub`, stable forever. An email address can be
 // changed or handed on, so it is never the identity and never the key to
-// anything. Since 2026-09-13 we ask for `openid email` (not `profile`): the
+// anything. The scope asked for is `openid email`, not `profile`: the
 // sub is the account, and the email is kept only when Google says it is
 // verified (verifiedEmail below), refreshed on every sign-in because people
 // change addresses. It exists so we can reach the person about their account
@@ -65,9 +65,9 @@ export function googleConfigured(): boolean {
     push. Set SESSION_SECRET when you want to rotate sessions independently. */
 function sessionKey(): Buffer {
   const base = process.env.SESSION_SECRET || process.env.GOOGLE_CLIENT_SECRET || '';
-  // v2 on 2026-08-22: bumping this string invalidates every cookie ever
-  // issued — the "sign out everybody" for the pre-launch fresh start. The mac
-  // simply stops verifying; nobody's cookie needs touching.
+  // Bumping this version string invalidates every cookie ever issued: a
+  // global "sign out everybody" that touches no stored data, because the mac
+  // simply stops verifying.
   return crypto.createHash('sha256').update(`yapstage-session-v2:${base}`).digest();
 }
 
@@ -287,8 +287,8 @@ export function registerAuth(app: FastifyInstance, hooks: AuthHooks = {}): void 
     '/auth/google/callback',
     async (req, reply) => {
       if (!googleConfigured()) return reply.code(503).send({ error: 'google_not_configured' });
-      // A state cookie set before 2026-09-12 carried `state:claim:drill`;
-      // only the state part is read now, whatever follows it.
+      // Older state cookies carried `state:claim:drill`; only the state part
+      // is read now, whatever follows it.
       const [wantState] = (readCookie(req, STATE_COOKIE) ?? '').split(':');
       const claimed = readClaim(readCookie(req, CLAIM_COOKIE));
       clearCookie(reply, STATE_COOKIE);
@@ -513,8 +513,8 @@ export function registerAuth(app: FastifyInstance, hooks: AuthHooks = {}): void 
 
   /** The locker: your mask, plus the older "mask by default" flag. The flag
       is still stored and accepted (the client still sends it) but no seat
-      reads it since 2026-09-04: every room starts masked and the green room
-      toggle is how a camera comes on. */
+      reads it any more: every room starts masked and the green room toggle is
+      how a camera comes on. */
   app.post<{ Body: { mask?: string; maskDefault?: boolean } }>('/auth/locker', async (req, reply) => {
     const s = readSession(req);
     if (!s) return reply.code(401).send({ ok: false });

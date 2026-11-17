@@ -34,11 +34,11 @@ interface Props {
   peerLostUntil?: number | null;
 }
 
-/* THE GREEN ROOM (2026-09 pass). The start button used to sit below the fold
-   on every screen size, under two 16:10 tiles and the whole settings panel.
-   Now the tiles are capped, the host's settings fold to one line with a
-   Change button, and the consent line and the button ride along the bottom
-   of the panel, so the one thing to do is always in view. */
+/* THE GREEN ROOM. The start button used to sit below the fold on every
+   screen size, under two 16:10 tiles and the whole settings panel. Now the
+   tiles are capped, the host's settings fold to one line with a Change
+   button, and the consent line and the button ride along the bottom of the
+   panel, so the one thing to do is always in view. */
 export default function GreenRoom({
   lobby,
   localStream,
@@ -216,8 +216,8 @@ export default function GreenRoom({
 
   // Ranked: masks are the format, so this is purely "which mask". Custom:
   // you also choose whether to show your face at all.
-  // No mask picker here (his call, 2026-09-13): you pick your mask in the
-  // lobby, and a room keeps the one you walked in with.
+  // No mask picker here: you pick your mask in the lobby, and a room keeps
+  // the one you walked in with.
   const faceControls = !lobby.ranked ? (
     <div className="face-controls">
       <div className="chip-row face-row">
@@ -513,9 +513,9 @@ export default function GreenRoom({
                 works, it just has no doors. The server also gates
                 pick:mode('dispute') behind DISPUTE_MODE=on. */}
 
-            {/* The notice stays, the tick box does not (his call, 2026-09-13:
-                it blocked the start). It rides with the button, pinned to
-                the bottom of the panel, so the start is never below the fold. */}
+            {/* The notice stays, the tick box does not: it blocked the start.
+                The notice rides with the button, pinned to the bottom of the
+                panel, so the start is never below the fold. */}
             <div className="gr-go">
               {consentLine}
               <button className="btn btn-primary btn-wide" disabled={!canConfirm} onClick={confirm}>

@@ -250,13 +250,12 @@ export function startDebate(io: Io, lobby: Lobby): void {
   }
   if (!topic) return;
 
-  // Sides: the host's setting, the same in every mode. Until 2026-09-12 this
-  // was a coin flip in every mode, on the grounds that letting people CHOOSE
-  // a side sounds fair and isn't: everyone grabs the side they already
-  // believe, and arguing the side you were dealt is the skill. His call
-  // reversed it for friend rooms ("choose for or against, make it random"),
-  // and the old reasoning survives as the default: hostSide is 'random'
-  // unless the host reached for a side, and ranked never lets them.
+  // Sides: the host's setting, the same in every mode. The earlier rule was a
+  // coin flip in every mode, on the grounds that letting people CHOOSE a side
+  // sounds fair and isn't: everyone grabs the side they already believe, and
+  // arguing the side you were dealt is the skill. Friend rooms may now pick,
+  // and that reasoning survives as the default: hostSide is 'random' unless
+  // the host reached for a side, and ranked never lets them.
   const hostSide: Side =
     lobby.hostSide === 'random' ? (Math.random() < 0.5 ? 'FOR' : 'AGAINST') : lobby.hostSide;
   const guestSide: Side = hostSide === 'FOR' ? 'AGAINST' : 'FOR';
@@ -558,9 +557,9 @@ async function generateBotArgument(lobby: Lobby, bot: Bot, stepIndex: number): P
   const lang = lobby.bot!.lang;
   const motion = (lang === 'ar' && lobby.topic?.ar ? lobby.topic.ar : lobby.topic?.en) ?? '';
 
-  // Every rung HEARS everything: reacting to what you actually said is the
-  // fun (Mohammad's call: a bot that can't hear you is a podcast, not an
-  // opponent). Weak rungs lose by WHAT they do with it, and that lives in
+  // Every rung HEARS everything: a bot that cannot hear you is a podcast, not
+  // an opponent, so reacting to what was actually said is never what a weak
+  // rung gives up. Weak rungs lose by WHAT they do with it, and that lives in
   // rungDirective alone; the beatability eval keeps it honest.
   const prior = lobby.transcript
     .filter((e) => e.stepIndex < stepIndex)
@@ -570,9 +569,9 @@ async function generateBotArgument(lobby: Lobby, bot: Bot, stepIndex: number): P
 
   // The round instructions used to be keyed by difficulty and carried strength
   // content of their own (easy: panic, joke, deflect; hard: weigh in the
-  // closing). Changed 2026-09-12 with the eight-rung ladder: each rung's
-  // contract now says exactly what it does in each round, so the phase text
-  // only says what the round IS. The one thing every rung shares is the
+  // closing). The eight-rung ladder moved that: each rung's contract now says
+  // exactly what it does in each round, so the phase text only says what the
+  // round IS. The one thing every rung shares is the
   // intro: the first sentence of the debate says who you are and which side
   // you are on.
   const phaseInstrBy: Record<PhaseLabel, string> = {

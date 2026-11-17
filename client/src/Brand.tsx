@@ -2,8 +2,8 @@
 // top bar that renders on every screen.
 //
 // Two quote marks facing each other: the left one opens, the right one
-// answers. It replaced a colour-split letter Y in August 2026 because it is
-// the only one of six tested directions that still reads at 16px — a debate is
+// answers. It replaced a colour-split letter Y because it is the only one of
+// six tested directions that still reads at 16px — a debate is
 // two people quoting each other, and quote marks are the one piece of
 // punctuation everyone already knows means "somebody said this".
 //

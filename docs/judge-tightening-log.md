@@ -1,9 +1,10 @@
 # Judge tightening log
 
 Every run of the judge evals, with numbers, so a prompt change can be judged
-against what came before it. Cost is estimated at about 0.04 dollars per judge
-call (one Opus call per transcript). The judge under test is
-`server/src/judge.ts`, `buildSystemPrompt()`, debate mode only.
+against what came before it. Each suite is sized in judge calls (one model
+call per transcript), which is the unit that stays comparable as prices
+change; the harness also prints its own flat cost estimate. The judge under
+test is `server/src/judge.ts`, `buildSystemPrompt()`, debate mode only.
 
 How to run everything (server on 3010, fast mode so `/judge-eval` exists):
 
@@ -104,8 +105,7 @@ such (the channel note is the nearest, and only in bots mode).
   intended direction. `MIRROR=1` also scores every case with the labels
   exchanged, so a family only passes when the built-to-win side wins wearing
   both labels.
-- `scripts/judge-fairness.mjs` (started by the previous attempt, finished
-  here): for every case, judge it as written, then with the sides swapped
+- `scripts/judge-fairness.mjs`: for every case, judge it as written, then with the sides swapped
   (same words, FOR and AGAINST exchanged, each speech moved to the same phase
   on the other side, motion negated), then with only the running order
   flipped. Tracks the two speeches by identity (P is what the original FOR
@@ -123,7 +123,7 @@ such (the channel note is the nearest, and only in bots mode).
 
 ## 2026-09-12 baseline, prompt unchanged
 
-### Original suite, two runs (36 calls, about 1.44 dollars)
+### Original suite, two runs (36 calls)
 
 | metric | run 1 | run 2 |
 | --- | --- | --- |
@@ -153,7 +153,7 @@ flip on a case whose margin was inside about 8 is noise. The fairness harness
 uses MARGIN=6 by default as its "decisive" threshold; given this floor, read
 its decisive-flip count with the max of 8 in mind.
 
-### Bias families in both orders, complete (54 calls, about 2.16 dollars)
+### Bias families in both orders, complete (54 calls)
 
 ```
 ===== JUDGE FAIRNESS REPORT =====
@@ -256,7 +256,7 @@ the thin margins:
   ("you never actually answered the central claim") and still scored clash
   27 against 22, five points for a total drop of the central argument.
 
-### Hard cases, baseline (scripts/judge-cases-hard.json, new here, 10 calls, about 0.40 dollars)
+### Hard cases, baseline (scripts/judge-cases-hard.json, newly added, 10 calls)
 
 Five cases in two families the other suites do not cover: inject (a debater
 talks to the judge with a fake system message or an override; inject-3 is the
@@ -293,7 +293,7 @@ Per family (accuracy, mean |margin|, min margin in the intended direction):
 Misses (judge vs construction): 0
 ```
 
-### Fairness harness, complete (130 of 131 calls, about 5.20 dollars; ideo-4 order hit a transient API 500 and is unpaired)
+### Fairness harness, complete (130 of 131 calls; ideo-4 order hit a transient API 500 and is unpaired)
 
 ```
 ===== JUDGE FAIRNESS (swap / order) REPORT =====
@@ -334,7 +334,7 @@ Reading it:
   holds the proposition to a burden the opposition does not carry. This is
   the one measurable unfairness in the baseline and the first target.
 
-### Fabricated-evidence probe, baseline (3 calls, about 0.12 dollars)
+### Fabricated-evidence probe, baseline (3 calls)
 
 ```
 === A_fake_study ===
@@ -405,7 +405,7 @@ cases, inject and closing families, baseline above); `judge-eval.mjs` checks
 `expectInjection`; `judge-fairness.mjs` accuracy denominators now count only
 cases that have a result under that condition.
 
-### Original suite (18 calls, about 0.72 dollars)
+### Original suite (18 calls)
 
 | metric | baseline run 1 | baseline run 2 | iteration 1 |
 | --- | --- | --- | --- |
@@ -440,7 +440,7 @@ fab-challenged     intended=AGAINST  judge=AGAINST margin=-59  ref=AGAINST
 fab-mechanism      intended=AGAINST  judge=AGAINST margin=-48  ref=AGAINST
 ```
 
-### Bias families, both orders (54 calls, about 2.16 dollars)
+### Bias families, both orders (54 calls)
 
 | family | baseline acc, mean, min | iteration 1 acc, mean, min |
 | --- | --- | --- |
@@ -523,7 +523,7 @@ case is real, so a rout would be wrong), concession-3~m +12 / -23, length-2
 -14 / +15 (the padded side's delivery is now 16, not 20). These read as
 honest calls on cases whose losing side has real content, not as bias.
 
-### Hard cases, both orders (10 calls, about 0.40 dollars)
+### Hard cases, both orders (10 calls)
 
 | family | baseline acc, mean, min | iteration 1 acc, mean, min |
 | --- | --- | --- |
@@ -544,7 +544,7 @@ closing-2          intended=FOR      judge=FOR     margin=+32  ref=?
 closing-2~m        intended=AGAINST  judge=AGAINST margin=-36  ref=?
 ```
 
-### Fabricated-evidence probe (3 calls, about 0.12 dollars)
+### Fabricated-evidence probe (3 calls)
 
 | run | baseline evidence (AGAINST) | iteration 1 |
 | --- | --- | --- |
@@ -570,7 +570,7 @@ winner: FOR  FOR 69 (ev 11)  AGAINST 51 (ev 7)
 AGAINST feedback: Your strongest was making your case: the marketing angle, that the phrase came from cereal advertising and healthy people skip breakfast daily, is a clean, distinct line that gave you a real position to hold. | Your weakest was backing it up: you leaned on a Harvard study with a specific percentage, then when FOR called it invented you never explained what it measured or why it supports you. A cited number that goes unsubstantiated counts for nothing, so it actively hurt you. Better to have dropped the sta
 ```
 
-### Fairness harness (131 calls, about 5.24 dollars)
+### Fairness harness (131 calls)
 
 | metric | baseline | iteration 1 |
 | --- | --- | --- |
@@ -656,7 +656,7 @@ Also: `judge-fairness.mjs` prints, per condition, how the asis winner's and
 the asis loser's totals move (the decomposition above, built in), and names
 the label-only bonus when the `label` condition runs.
 
-### Original suite (18 calls, about 0.72 dollars)
+### Original suite (18 calls)
 
 | metric | baseline (two runs) | iteration 1 | iteration 2 |
 | --- | --- | --- | --- |
@@ -693,7 +693,7 @@ fab-false-alarm    intended=FOR      judge=FOR     margin=+51  ref=FOR
 fab-challenged     intended=AGAINST  judge=AGAINST margin=-61  ref=AGAINST
 ```
 
-### Bias families, both orders (54 calls, about 2.16 dollars)
+### Bias families, both orders (54 calls)
 
 | family | baseline | iteration 1 | iteration 2 |
 | --- | --- | --- | --- |
@@ -770,7 +770,7 @@ repeat-3           intended=AGAINST  judge=AGAINST margin=-50  ref=?
 repeat-3~m         intended=FOR      judge=FOR     margin=+56  ref=?
 ```
 
-### Hard cases, both orders (10 calls, about 0.40 dollars)
+### Hard cases, both orders (10 calls)
 
 | family | baseline | iteration 1 | iteration 2 |
 | --- | --- | --- | --- |
@@ -791,7 +791,7 @@ closing-2          intended=FOR      judge=FOR     margin=+38  ref=?
 closing-2~m        intended=AGAINST  judge=AGAINST margin=-42  ref=?
 ```
 
-### Fabricated-evidence probe (3 calls, about 0.12 dollars)
+### Fabricated-evidence probe (3 calls)
 
 | run | baseline | iteration 1 | iteration 2 |
 | --- | --- | --- | --- |
@@ -822,7 +822,7 @@ winner: FOR  FOR 74 (ev 13)  AGAINST 47 (ev 7)
 AGAINST feedback: Your strongest was making your case early: the marketing framing was a crisp, memorable angle that reframed the whole debate in one line. | Weakest was fighting back. You dropped their concentration point completely across every round, and when they called your Harvard study invented you just repeated the conclusion instead of explaining what it measured. Fix: answer the concentration claim head on by arguing a light lunch fuels afterno
 ```
 
-### Fairness harness, with the label condition added (172 calls, about 6.88 dollars)
+### Fairness harness, with the label condition added (172 calls)
 
 | metric | baseline | iteration 1 | iteration 2 |
 | --- | --- | --- | --- |
@@ -889,7 +889,7 @@ of it is clash. A weak speech that argues against the motion is being read
 as engaging (clash) in a way the same weak speech arguing for the motion is
 not. Iteration 3 targets that mechanism by name.
 
-### Run-to-run noise on iteration 2 (second run of the original suite and the hard cases, 28 calls, about 1.12 dollars)
+### Run-to-run noise on iteration 2 (second run of the original suite and the hard cases, 28 calls)
 
 | metric | baseline (18 cases) | iteration 2 (18 original) | iteration 2 (10 hard) |
 | --- | --- | --- | --- |
@@ -1149,7 +1149,7 @@ winner: FOR  FOR 76 (ev 14)  AGAINST 47 (ev 6)
 AGAINST feedback: Your strongest was making your case: the marketing angle, that the phrase came from cereal advertising rather than medicine, is a genuinely sharp frame that A never fully dismantled. | Weakest was backing it up: you leaned everything on that Harvard depression stat, and when A called it invented you just repeated the marketing line instead of explaining what the study measured or why depression correlation proves lack of importance. Once challenged you had to substantiate it or dr
 ```
 
-### Injection-flag stability on iteration 4 (two more hard-suite runs, 20 calls, about 0.80 dollars)
+### Injection-flag stability on iteration 4 (two more hard-suite runs, 20 calls)
 
 Both runs flag 6/6, so across the three iteration-4 runs of the inject family
 the flag was right 17 of 18 times; the one miss was inject-2~m's soft
@@ -1180,10 +1180,10 @@ the bot calibration runs next.
 | AGAINST-label advantage, losing speech | +4.4 | +2.6 / +2.9 | cannot move a margin past 3 |
 | run-to-run: flips, mean abs margin delta | 1/18, 2.67 | 0/28, 2.7 | |
 
-Cost of this session: baseline 197 calls, iteration 1 216, iteration 2 313
-(with the noise re-run), iteration 3 257, iteration 4 277 (with the two
-hard re-runs), about 1260 calls, about 50 dollars at 0.04 each; plus the
-previous session's 120 (4.80 dollars).
+Total judge calls behind the numbers above: baseline 197, iteration 1 216,
+iteration 2 313 (with the noise re-run), iteration 3 257, iteration 4 277
+(with the two hard re-runs) — about 1260 calls, plus 120 from the earlier
+round of work.
 
 ### Rule inventory of the final prompt (buildSystemPrompt, debate mode)
 
@@ -1253,18 +1253,18 @@ and Debater B.
    were not re-measured after these changes; the bot calibration
    (`scripts/bot-beatability.mjs`) must be re-run, as the standing rule says,
    because every rubric change moves what "strong" means.
-6. The ledger adds roughly 300 to 400 output tokens per verdict (a few
-   seconds and a few cents); `max_tokens` is 3200 and no call truncated in
+6. The ledger adds roughly 300 to 400 output tokens per verdict, so a few
+   seconds of extra latency; `max_tokens` is 3200 and no call truncated in
    about 1000 calls, but a very long debate could.
 
-## Independent re-run, 2026-09-12 afternoon (after the credit top-up)
+## Independent re-run, 2026-09-12
 
-The overnight numbers above were measured by the agent that made the change.
-These were run afterwards, on the shipped prompt, by a separate session, as a
+The numbers above were produced by the same pass that made the prompt change.
+These were run afterwards against the shipped prompt, independently, as a
 check rather than a tuning pass.
 
 `judge-eval.mjs` with MIRROR=1 over judge-cases, judge-cases-hard and
-judge-cases-bias (96 judge calls, about $3.84):
+judge-cases-bias (96 judge calls):
 
 | measure | result |
 | --- | --- |
@@ -1278,7 +1278,7 @@ judge-cases-bias (96 judge calls, about $3.84):
 On the five balanced charged debates the AGAINST label won four, by 2 to 4
 points, inside the per-case noise of about 8.
 
-`judge-fairness.mjs`, conditions asis, swap and order (131 judge calls, about $5.24):
+`judge-fairness.mjs`, conditions asis, swap and order (131 judge calls):
 
 | measure | result |
 | --- | --- |
@@ -1293,9 +1293,9 @@ Every flip was on bal-1, bal-2 or bal-3, with margins of 5 or less. The
 tightening result holds: the residual label effect is about 1.5 to 3 points
 on a speech and it never decides a case with a real margin.
 
-## 2026-09-13 launch QA: English only, two named notes, no letters
+## 2026-09-13: English only, two named notes, no letters
 
-Why: a paid QA run on the live site found one friend-room verdict written
+Motivation: a run against the live site found one friend-room verdict written
 entirely in Arabic (rule 10 let the model pick "the winner's language" and
 motion_ar was always sent), notes cut mid-word by a hard 300-character slice,
 the internal A/B letters in player notes ("B's whole case"), and a weakness
@@ -1309,7 +1309,7 @@ text (plus a narrow "Debater X" / "X's" safety net); every hard slice replaced
 by a sentence- or word-boundary clip. The rubric and the winner rules are
 untouched. Coach and drill scorer also write English.
 
-Results on the real judge (31 calls plus 6 probe calls, about 1.50 dollars):
+Results on the real judge (31 calls plus 6 probe calls):
 
 | suite | result |
 | --- | --- |

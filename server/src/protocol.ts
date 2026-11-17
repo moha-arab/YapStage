@@ -27,18 +27,18 @@ export type Difficulty = 'easy' | 'medium' | 'hard';
 
 // Debate pacing, the same four-round format at three sizes. Turn lengths are
 // maximums everywhere: "pass the mic" ends a turn early.
-// Blitz and long are for friend rooms only. Ranked is STANDARD ONLY (his call
-// 2026-09-12: "make all the people play one mode so that we have as many
-// players as possible"); the per-pace ladders from 2026-09-04 still exist in
-// the database but nothing enters them any more.
+// Blitz and long are for friend rooms only. Ranked is STANDARD ONLY, so the
+// whole ranked population plays one format and matchmaking has the largest
+// pool it can; the older per-pace ladders still exist in the database but
+// nothing enters them any more.
 export const PACES = ['standard', 'blitz', 'long'] as const;
 export type Pace = (typeof PACES)[number];
 
 /* No tiers. The ladder used to name eight metals (Iron to Headliner) with a
-   bot at every boundary; he cut them 2026-09-12 ("remove the ranks, only
-   numbers"). A rating is the whole rank now: yours is a number, a bot is a
-   number, and the roster is the numbers in order. git has the tier code
-   (protocol TIERS, client TierBadge.tsx) if a badge ever comes back. */
+   bot at every boundary; those were cut in favour of numbers alone. A rating
+   is the whole rank now: yours is a number, a bot is a number, and the roster
+   is the numbers in order. git has the tier code (protocol TIERS, client
+   TierBadge.tsx) if a badge ever comes back. */
 
 /** Public bot info for the pick screen (no prompt/voice secrets). */
 export interface BotInfo {
@@ -120,21 +120,25 @@ export interface Framing {
 
 /** The mask set — humans wear masks, bots are animals, so who's a machine is
     legible at a glance. Ids are the shared contract; the art lives
-    client-side. CUT FROM EIGHT TO FOUR 2026-08-22, his picks: the weak
-    drawings (masque, boxer) diluted the strong ones, and knight read as a
-    robot, which broke the humans-wear-masks rule from the other side.
-    Accounts that saved a removed mask are migrated in store.ts
-    (mask_roster_4) — do not re-add an id here without art for it.
-    TURNED OVER AGAIN 2026-09-04: goggles, hoodie and wrap came in; the oni and the
-    calavera went to the vault, art intact, for a later drop. Saved lockers
-    follow the same nearest-survivor rule (mask_roster_basic).
-    THE CAST 2026-09-12: the roster is fourteen characters drawn as busts
-    (client/src/cast.ts), his pick over a build-your-own character. Six of
-    the old masks were redrawn as busts under new names (oni to shuten,
-    calavera to marisol, gamer to quip, huckster to bally, plague to corvin,
-    alien to garn), and the ninja and the climber were drawn as busts the
-    same night under new names (fuma, crux). Saved lockers follow in
-    store.ts (mask_roster_cast). */
+    client-side.
+
+    The roster has been cut and replaced three times, and every change ships
+    with a store.ts migration that moves a saved locker to the nearest
+    surviving mask (mask_roster_4, then mask_roster_basic, then
+    mask_roster_cast). Do not re-add an id here without art for it, and never
+    remove one without a migration: a locker holding a mask the roster no
+    longer carries has nothing to render.
+
+    The cuts, for the reasons behind the current set: eight to four, because
+    the weak drawings (masque, boxer) diluted the strong ones and knight read
+    as a robot, which broke the humans-wear-masks rule from the other side;
+    then a turnover that brought in goggles, hoodie and wrap and vaulted the
+    oni and calavera with their art intact. The current roster is fourteen
+    characters drawn as busts (client/src/cast.ts), chosen over a
+    build-your-own character. Six older masks were redrawn as busts under new
+    names (oni to shuten, calavera to marisol, gamer to quip, huckster to
+    bally, plague to corvin, alien to garn), and the ninja and the climber
+    became fuma and crux. */
 export const AVATAR_IDS = [
   'napoleon',
   'socrates',
@@ -153,10 +157,10 @@ export const AVATAR_IDS = [
   'fuma',
   'crux',
 ] as const;
-/** The grey silhouette every signed-out seat wears (his call 2026-09-12: "when
-    a guest logs on they should be a grey silhouette to encourage them to log
-    in to get skins"). Deliberately NOT in AVATAR_IDS: nobody picks it, a
-    locker never saves it, randomAvatar never deals it. Only the server puts
+/** The grey silhouette every signed-out seat wears: a guest looks plain, and
+    the mask roster is something an account unlocks. Deliberately NOT in
+    AVATAR_IDS: nobody picks it, a locker never saves it, randomAvatar never
+    deals it. Only the server puts
     it on a seat (index.ts seatLookOf), so a guest cannot wear anything else
     and an account cannot be seated in it. */
 export const GUEST_AVATAR = 'guest';
@@ -674,9 +678,9 @@ const RESERVED = new Set([
   'yapmaster', 'yapstage', 'admin', 'administrator', 'moderator', 'mod',
   'staff', 'support', 'official', 'judge', 'system', 'root', 'null',
   'deleted', 'anonymous',
-  // the bots on the ladder since 2026-09-12
+  // the bots on the current ladder
   'nib', 'moss', 'dodger', 'clover', 'prudence', 'rocco', 'sterling', 'vesper',
-  // names retired later that day (the tortoise, the raccoon, the cat)
+  // names those three retired from (the tortoise, the raccoon, the cat)
   'wendell', 'jinx', 'sable',
   // the cast before that, kept so old match history cannot be impersonated
   'pip', 'cappy', 'vivi', 'nora', 'ozzy', 'brutus', 'vera', 'gigi',

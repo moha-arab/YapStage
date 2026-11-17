@@ -4,13 +4,13 @@ export type Lang = 'en' | 'ar';
 
 const KEY = 'yapstage.lang';
 
-// ARABIC IS PARKED (Mohammad, 2026-08-11) — same pattern as DISPUTE_MODE: the
-// feature is unreachable, the work is not deleted. The `ar` dictionary below is
-// intact, so switching this back on is one line rather than a re-translation.
+// ARABIC IS PARKED — same pattern as DISPUTE_MODE: the feature is
+// unreachable, the work is not deleted. The `ar` dictionary below is intact,
+// so switching this back on is one line rather than a re-translation.
 //
-// Why: he is aiming at a Western audience and does not want to run two apps.
-// The sharper reason is ours — every judge and bot eval we have is English
-// only, so an Arabic debate was scored by a judge we never validated. Turning
+// Why: the product targets a Western audience and only one app is maintained.
+// The sharper reason is technical — every judge and bot eval is English only,
+// so an Arabic debate was scored by a judge that was never validated. Turning
 // this on again means paying that eval debt first (see PRD).
 export const ARABIC_ENABLED = false;
 
@@ -26,7 +26,7 @@ export function getStoredLang(): Lang {
 type Dict = Record<string, string>;
 
 const en: Dict = {
-  /* ---- THE LOBBY (2026-08-21 rebuild) ----------------------------------
+  /* ---- THE LOBBY -------------------------------------------------------
      English only, on purpose. Arabic is parked (ARABIC_ENABLED above) and
      t() already falls back to the English entry, so inventing translations
      for a language nobody can switch to would be work with a shelf life of
@@ -558,8 +558,8 @@ const en: Dict = {
   mode_category: 'Random from a category',
   mode_random: 'Random topic',
   modeHostControls: '{x} sets the topic and the sides.',
-  // These two stopped promising a coin on 2026-09-12: the side is its own
-  // setting now, and the panel next to them says what it is.
+  // These two no longer promise a coin: the side is its own setting, and the
+  // panel next to them says what it is.
   categoryDesc: 'A random topic from this category, revealed when you both confirm.',
   randomDesc: 'A random topic, revealed when you both confirm.',
   waitTopic: '{x} is choosing the topic',
@@ -827,7 +827,7 @@ const en: Dict = {
   trackDied: 'Your camera or mic cut out. Reconnect it, then retry.',
   tapToPlay: 'Tap anywhere to start the video',
 
-  /* ---- QA pass, 2026-09-13 ---- */
+  /* ---- edge states and refusal messages ---- */
   // The tab's name on the drill and the lesson ("Daily rebuttal · YapStage").
   drillPill: 'Daily rebuttal',
   tutorialPill: 'Lesson',
