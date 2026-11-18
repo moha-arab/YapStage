@@ -108,7 +108,7 @@ ones where the better-argued side is the unpopular one.
 | Agreement with a blind human reader | 16/16 |
 | Charged political cases | 5/5 |
 | Adversarial suite | 10/10, prompt injection flagged 6/6 with no false alarms |
-| Fairness replays (131 judge calls) | 0 decisive winner flips under side swap or order flip |
+| Side- and order-swapped replays (131 judge calls) | 0 decisive winner flips |
 | Label bias per speech | 1.4 points, down from 2.4 |
 | Side balance | FOR won 9, AGAINST won 9 |
 
